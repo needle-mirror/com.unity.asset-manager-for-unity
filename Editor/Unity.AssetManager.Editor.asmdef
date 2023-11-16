@@ -1,0 +1,30 @@
+{
+    "name": "Unity.AssetManager.Editor",
+    "rootNamespace": "",
+    "references": [
+        "Unity.Settings.Editor",
+        "Unity.EditorCoroutines.Editor",
+        "Unity.InternalAPIEditorBridge.020",
+        "Unity.AssetManager.Runtime",
+        "Unity.Cloud.Assets",
+        "Unity.Cloud.Assets.Runtime",
+        "Unity.Cloud.Common",
+        "Unity.Cloud.Common.Runtime",
+        "Unity.Cloud.Identity",
+        "Unity.Cloud.Identity.Runtime",
+        "Unity.Cloud.Identity.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

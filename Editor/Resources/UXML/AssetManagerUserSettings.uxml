@@ -1,0 +1,35 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True" class="px-2">
+    <ui:VisualElement name="assetManagerSettingsContainer">
+        <ui:VisualElement name="titleContainer">
+            <ui:Label text="Asset Manager" name="titleLabel"/>
+        </ui:VisualElement>
+    </ui:VisualElement>
+    <ui:Foldout text="Cache settings" name="cacheManagementFoldout">
+        <ui:HelpBox message-type="Error" name="disabledErrorBox"/>
+        <ui:VisualElement name="cacheManagementContainer">
+            <ui:VisualElement>
+                <ui:Label text="Cache location" class="cacheSettingsLabel"/>
+                <ui:Label text="Maximum cache size (GB)" class="cacheSettingsLabel"/>
+                <ui:Label text="Cache size is " class="cacheSettingsLabel"/>
+                <ui:VisualElement name="cacheSizeOnDiskContainer">
+                    <ui:Button name="cleanCache" text="Clean cache"/>
+                    <ui:Button text="Clear extra cache" name="clearExtraCache"/>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="cacheSettingsElement">
+                <ui:VisualElement name="cacheLocationContainer">
+                    <ui:Label name="assetManagerCachePath"/>
+                    <ui:VisualElement name="toolbarMenu">
+                        <ui:VisualElement name="folderImage"/>
+                        <uie:ToolbarMenu name="assetManagerDropDown"/>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:SliderInt name="maxCacheSize" show-input-field="true"/>
+                <ui:VisualElement name="cacheSizeOnDiskContainer">
+                    <ui:Label name="cacheSizeOnDisk" class="settings"/>
+                    <ui:Button text="Refresh" name="refresh"/>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:Foldout>
+</ui:UXML>

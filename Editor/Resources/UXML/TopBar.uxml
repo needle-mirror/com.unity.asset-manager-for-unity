@@ -1,0 +1,7 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
+    <ui:Label name="in-project-label" class="text-bold"/>
+    <uie:ToolbarSearchField focusable="True" name="inputSearch" class="toolbar-search-input" />
+    <ui:Button name="refresh-button">
+        <ui:VisualElement name="refresh-button-icon" class="refresh-button-icon" />
+    </ui:Button>
+</ui:UXML>
