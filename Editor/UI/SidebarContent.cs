@@ -10,8 +10,6 @@ namespace Unity.AssetManager.Editor
     internal class SidebarContent : VisualElement
     {
         private ScrollView m_ScrollContainer;
-        private SideBarFoldout m_CategoriesFoldout;
-        private SideBarFoldout m_CurrentlySelectedFoldout;
         private List<SideBarFoldout> m_Foldouts;
         private SideBarFoldout m_CollectionsFolder;
         private SideBarFoldout m_AllAssetsFolder;
@@ -45,6 +43,11 @@ namespace Unity.AssetManager.Editor
             m_AllAssetsFolder.AddToClassList("allAssetsFolder");
             m_ScrollContainer.Add(m_AllAssetsFolder);
             m_CollectionsFolder = CreateSideBarFoldout("Collections", null, false);
+            m_CollectionsFolder.RegisterValueChangedCallback(e =>
+            {
+                m_StateManager.collectionsTopFolderFoldoutValue = m_CollectionsFolder.value;
+            });
+            m_CollectionsFolder.value = m_StateManager.collectionsTopFolderFoldoutValue;
             m_CollectionsFolder.AddToClassList("collections-top-level-folder");
             m_ScrollContainer.Add(m_CollectionsFolder);
             m_Foldouts = new List<SideBarFoldout> { m_AllAssetsFolder };
@@ -85,7 +88,7 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        private void Refresh()
+        internal void Refresh()
         {
             var projectInfos = m_ProjectOrganizationProvider.organization?.projectInfos as IList<ProjectInfo> ?? Array.Empty<ProjectInfo>();
             if (projectInfos.Count == 0)
@@ -140,7 +143,7 @@ namespace Unity.AssetManager.Editor
         private SideBarFoldout CreateSideBarFoldout(string foldoutName, string collectionPath, bool selectable = true, Texture icon = null)
         {
             icon ??= UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ClosedFoldoutName]);
-            return new SideBarFoldout(m_PageManager, foldoutName, collectionPath, selectable, icon);
+            return new SideBarFoldout(m_PageManager, m_StateManager, foldoutName, collectionPath, selectable, icon);
         }
 
         private SideBarFoldout GetFoldout(string collectionPath)

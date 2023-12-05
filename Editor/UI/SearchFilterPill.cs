@@ -1,8 +1,9 @@
 using System;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace UnityEditor.UIElements
+namespace Unity.AssetManager.Editor
 {
     internal class SearchFilterPill : VisualElement
     {
@@ -11,7 +12,6 @@ namespace UnityEditor.UIElements
         const string k_SearchPillIMGUIStyleName = "CN CountBadge";
 
         const int k_PillSizeDelta = -1;
-        const int k_DismissSizeDelta = -3;
 
         IMGUIContainer m_SearchPillContainer;
 

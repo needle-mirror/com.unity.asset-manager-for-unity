@@ -13,7 +13,7 @@ namespace Unity.AssetManager.Editor
         public event Action<bool> onLoadingStatusChanged;
         public event Action<AssetIdentifier> onSelectedAssetChanged;
         public event Action<IReadOnlyCollection<string>> onSearchFiltersChanged;
-        public event Action<ErrorHandlingData> onErrorThrown;
+        public event Action<ErrorOrMessageHandlingData> onErrorOrMessageThrown;
 
         [SerializeField]
         private AsyncLoadOperation m_LoadMoreAssetsOperation = new ();
@@ -56,8 +56,8 @@ namespace Unity.AssetManager.Editor
         public IReadOnlyCollection<AssetIdentifier> assetList => m_AssetList;
 
         [SerializeField]
-        ErrorHandlingData m_ErrorHandling = new();
-        public ErrorHandlingData errorHandlingData { get => m_ErrorHandling; private set => m_ErrorHandling = value; }
+        ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
+        public ErrorOrMessageHandlingData errorOrMessageHandlingData { get => m_ErrorOrMessageHandling; }
 
         protected IAssetDataManager m_AssetDataManager;
         protected void ResolveDependencies(IAssetDataManager assetDataManager)
@@ -101,7 +101,7 @@ namespace Unity.AssetManager.Editor
             onLoadingStatusChanged = null;
             onSelectedAssetChanged = null;
             onSearchFiltersChanged = null;
-            onErrorThrown = null;
+            onErrorOrMessageThrown = null;
         }
 
         public virtual void LoadMore()
@@ -112,30 +112,32 @@ namespace Unity.AssetManager.Editor
             m_LoadMoreAssetsOperation.Start(LoadMoreAssets,
                 onLoadingStartCallback: () =>
                 {
-                    errorHandlingData.errorMessage = default;
-                    errorHandlingData.errorRecommendedAction = ErrorRecommendedAction.None;
+                    errorOrMessageHandlingData.message = default;
+                    errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
                     onLoadingStatusChanged?.Invoke(isLoading);
                 },
                 onCancelledCallback: () => onLoadingStatusChanged?.Invoke(isLoading),
                 onExceptionCallback: e =>
                 {
                     Debug.LogException(e);
-                    SetError("It seems there was an error while trying to retrieve assets.");
+                    SetErrorOrMessageData("It seems there was an error while trying to retrieve assets.");
                     onLoadingStatusChanged?.Invoke(isLoading);
                 },
                 onSuccessCallback: result =>
                 {
-                    if (result != null)
+                    if (result?.Any() == true)
                         m_AssetList.AddRange(result);
+                    
+                    OnLoadMoreSuccessCallBack(result);
                     onLoadingStatusChanged?.Invoke(isLoading);
                 });
         }
 
-        private void SetError(string errorMessage, ErrorRecommendedAction actionType = ErrorRecommendedAction.None)
+        protected void SetErrorOrMessageData(string errorMessage, ErrorOrMessageRecommendedAction actionType = ErrorOrMessageRecommendedAction.Retry)
         {
-            errorHandlingData.errorMessage = errorMessage;
-            errorHandlingData.errorRecommendedAction = actionType;
-            onErrorThrown?.Invoke(errorHandlingData);
+            errorOrMessageHandlingData.message = errorMessage;
+            errorOrMessageHandlingData.errorOrMessageRecommendedAction = actionType;
+            onErrorOrMessageThrown?.Invoke(errorOrMessageHandlingData);
         }
 
         public void Clear(bool reloadImmediately)
@@ -145,13 +147,14 @@ namespace Unity.AssetManager.Editor
             m_HasMoreItems = true;
             m_NextStartIndex = 0;
             selectedAssetId = null;
+            SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
 
             if (reloadImmediately)
                 LoadMore();
         }
 
         protected abstract Task<IReadOnlyCollection<AssetIdentifier>> LoadMoreAssets(CancellationToken token);
-
+        protected abstract void OnLoadMoreSuccessCallBack(IReadOnlyCollection<AssetIdentifier> assetIdentifiers);
         public void AddSearchFilter(IEnumerable<string> searchFiltersArg, bool reloadImmediately)
         {
             var searchFilterAdded = false;

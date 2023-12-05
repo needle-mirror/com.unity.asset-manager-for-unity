@@ -29,7 +29,7 @@ namespace Unity.AssetManager.Editor
     class AssetsSdkProvider : BaseService<IAssetsProvider>, IAssetsProvider
     {
         private const string k_PublishedKeyword = "Published";
-        private static readonly Pagination k_DefaultPagination = new(nameof(IAsset.Name), new Range(0, Constants.DefaultPageSize));
+        private static readonly Pagination k_DefaultPagination = new(nameof(IAsset.Name), Range.All);
         
         private AssetData.AssetDataFactory m_AssetDataFactory;
         
@@ -240,10 +240,7 @@ namespace Unity.AssetManager.Editor
                 await InitializeAndCheckAuthenticationState();
                 var asset = await m_AssetRepository.GetAssetAsync(assetVersionDescriptor, fieldsFilter, token);
 
-                var cloudAssetData = await CreateCloudAssetDataAsync(asset,
-                    assetVersionDescriptor.ProjectDescriptor.OrganizationGenesisId.ToString(),
-                    assetVersionDescriptor.ProjectDescriptor.ProjectId,
-                    token);
+                var cloudAssetData = await CreateCloudAssetDataAsync(asset, token);
                 cloudAssetData.filesArg = await GetCloudAssetDataFiles(asset, token);
 
                 return cloudAssetData;
@@ -259,8 +256,7 @@ namespace Unity.AssetManager.Editor
 
                 await foreach (var asset in m_AssetRepository.SearchAssetsAsync(orgId, prjIds, assetSearchFilter,  pagination, token))
                 {
-                    var projectId = prjIds.FirstOrDefault(p => p == asset.SourceProject.ProjectId);
-                    var cloudAssetData = await CreateCloudAssetDataAsync(asset, organizationId, projectId, token);
+                    var cloudAssetData = await CreateCloudAssetDataAsync(asset, token);
                     cloudAssetDatas.Add(cloudAssetData);
                     yield return cloudAssetData;
                 }
@@ -284,13 +280,13 @@ namespace Unity.AssetManager.Editor
                 return await CreateCloudAssetDataWithFilesAsync(assetDescriptor, fieldsFilter, token);
             }
 
-            private async Task<CloudAssetData> CreateCloudAssetDataAsync(IAsset asset, string organizationId, ProjectId projectId, CancellationToken token)
+            private async Task<CloudAssetData> CreateCloudAssetDataAsync(IAsset asset, CancellationToken token)
             {
                 Uri fileUri = null;
                 if (!string.IsNullOrEmpty(asset.PreviewFile))
                     fileUri = await asset.GetPreviewFileDownloadUrlAsync(token); // in the normal case, we will not hit the backend here. even if it's async.
 
-                return new CloudAssetData(asset, organizationId, projectId.ToString(), fileUri);
+                return new CloudAssetData(asset, fileUri);
             }
 
             private async Task<IEnumerable<CloudAssetDataFile>> GetCloudAssetDataFiles(IAsset asset, CancellationToken token)
@@ -302,8 +298,20 @@ namespace Unity.AssetManager.Editor
 
                 foreach (var cloudFile in cloudFiles)
                 {
-                    var uri = await cloudFile.GetDownloadUrlAsync(token);
-                    var cloudAssetDataFile = new CloudAssetDataFile(cloudFile, uri.ToString());
+                    var uriString = string.Empty;
+                    try
+                    {
+                        var uri = await cloudFile.GetDownloadUrlAsync(token);
+                        uriString = uri?.ToString();
+                    }
+                    catch (Exception)
+                    {
+                        // ignored
+                        // File cannot be downloaded
+                        // This will be correctly handled in PAX-3351
+                    }
+
+                    var cloudAssetDataFile = new CloudAssetDataFile(cloudFile, uriString);
                     cloudAssetDataFiles.Add(cloudAssetDataFile);
                 }
 

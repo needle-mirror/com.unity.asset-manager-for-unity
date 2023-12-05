@@ -3,7 +3,7 @@ using System.Linq;
 using Unity.AssetManager.Editor;
 using UnityEngine.UIElements;
 
-namespace Editor.UI
+namespace Unity.AssetManager.Editor
 {
     internal class Breadcrumbs : VisualElement
     {

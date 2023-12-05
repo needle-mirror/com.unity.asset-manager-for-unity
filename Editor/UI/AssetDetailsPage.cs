@@ -3,18 +3,18 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
-using Editor.UIElements;
 using UnityEditor;
 using UnityEngine.UIElements;
 using Button = UnityEngine.UIElements.Button;
-using Image = UnityEngine.UIElements.Image;
 
 namespace Unity.AssetManager.Editor
 {
     internal class AssetDetailsPage : VisualElement
     {
+        private string k_LoadingText = L10n.Tr("Loading...");
         private ScrollView m_ScrollView;
-        private DraggableImage m_DraggableThumbnail;
+        private AssetPreview m_Thumbnail;
+        private VisualElement m_ThumbnailContainer;
         private Label m_AssetName;
         private Label m_Version;
         private Label m_Description;
@@ -30,6 +30,7 @@ namespace Unity.AssetManager.Editor
         private Button m_PreviewButton;
         private Button m_CloseButton;
         private VisualElement m_Footer;
+        private Label m_FilesLoadingLabel;
         private ListView m_FilesListView;
         private Foldout m_FilesFoldout;
         private VisualElement m_OwnedAssetIcon;
@@ -54,7 +55,8 @@ namespace Unity.AssetManager.Editor
             IPageManager pageManager,
             IAssetDataManager assetDataManager,
             IAssetsProvider assetsProvider,
-            IThumbnailDownloader thumbnailDownloader)
+            IThumbnailDownloader thumbnailDownloader,
+            IIconFactory iconFactory)
         {
             m_AssetImporter = assetImporter;
             m_StateManager = stateManager;
@@ -69,13 +71,13 @@ namespace Unity.AssetManager.Editor
             m_ScrollView = this.Q<ScrollView>("details-page-scrollview");
             m_AssetName = this.Q<Label>("name");
             m_Version = this.Q<Label>("version");
-            this.Q<Image>("authorImage");
             m_Description = this.Q<Label>("description");
-            m_DraggableThumbnail = this.Q<DraggableImage>("details-page-draggable-thumbnail");
+            m_ThumbnailContainer = this.Q<VisualElement>("details-page-thumbnail-container");
             m_Filesize = this.Q<Label>("filesize");
             m_AssetType = this.Q<Label>("assetType");
             m_Status = this.Q<Label>("status");
             m_TotalFiles = this.Q<Label>("total-files");
+            m_FilesLoadingLabel = this.Q<Label>("details-files-loading-label");
             m_FilesListView = this.Q<ListView>("details-files-listview");
             m_FilesFoldout = this.Q<Foldout>("details-files-foldout");
             m_LastEdited = this.Q<Label>("last-edited");
@@ -88,10 +90,15 @@ namespace Unity.AssetManager.Editor
             m_OwnedAssetIcon = this.Q<VisualElement>("thumbnail-owned-icon");
             m_OwnedAssetIcon.BringToFront();
 
+            m_Thumbnail = new AssetPreview(iconFactory) { name = "details-page-asset-preview" };
+            m_Thumbnail.AddToClassList("image-container");
+            m_ThumbnailContainer.Add(m_Thumbnail);
+            
             var footerContainer = this.Q<VisualElement>("footer-container");
             m_ImportProgressBar = new ImportProgressBar(m_PageManager, m_AssetImporter, true);
             footerContainer.Add(m_ImportProgressBar);
 
+            m_FilesLoadingLabel.text = k_LoadingText;
             m_ScrollView.viewDataKey = "details-page-scrollview";
             m_FilesFoldout.viewDataKey = "details-files-foldout";
             m_FilesListView.viewDataKey = "details-files-listview";
@@ -258,11 +265,14 @@ namespace Unity.AssetManager.Editor
 
             RefreshImportVisibility(m_AssetImporter.GetImportOperation(assetData.id), m_AssetDataManager.IsInProject(assetData.id));
             m_ImportProgressBar.Refresh(m_AssetImporter.GetImportOperation(assetData.id));
+            m_Thumbnail.SetAssetType(assetData.assetType, true);
             m_ThumbnailDownloader.DownloadThumbnail(assetData, (identifier, texture2D) =>
             {
                 if (identifier.Equals(assetData.id))
-                    m_DraggableThumbnail.SetBackgroundImage(texture2D);
+                    m_Thumbnail.SetThumbnail(texture2D);
             });
+
+            RefreshFoldoutStyleBasedOnExpansionStatus();
         }
 
         void RefreshFoldoutStyleBasedOnExpansionStatus()
@@ -304,6 +314,8 @@ namespace Unity.AssetManager.Editor
             m_Filesize.text = Utilities.BytesToReadableString(assetFileSize);
             m_TotalFiles.text = assetData.files.Count.ToString();
             
+            UIElementsUtils.Hide(m_FilesLoadingLabel);
+            UIElementsUtils.Show(m_FilesListView);
             m_FilesList = new List<string>();
             foreach (var file in assetData.files)
                 m_FilesList.Add(file.path);
@@ -315,11 +327,13 @@ namespace Unity.AssetManager.Editor
         private void SetLoadingUIAndGetFilesInfoIfNeeded(IAssetData assetData)
         {
             m_ImportButton.SetEnabled(false);
-            m_Filesize.text = "Fetching from Asset Manager...";
-            m_TotalFiles.text = "Fetching from Asset Manager...";
+            m_Filesize.text = k_LoadingText;
+            m_TotalFiles.text = k_LoadingText;
             m_FilesList = new List<string>();
             m_FilesListView.itemsSource = m_FilesList;
-            
+            UIElementsUtils.Hide(m_FilesListView);
+            UIElementsUtils.Show(m_FilesLoadingLabel);
+
             if (assetData.filesInfosStatus == AssetDataFilesStatus.NotFetched)
             {
                 var cancelTokenSource = new CancellationTokenSource();

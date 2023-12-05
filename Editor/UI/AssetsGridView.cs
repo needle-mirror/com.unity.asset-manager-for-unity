@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -9,7 +8,7 @@ namespace Unity.AssetManager.Editor
     internal class AssetsGridView : VisualElement
     {
         private GridView m_Gridview;
-        ErrorView m_ErrorView;
+        private GridErrorOrMessageView m_GridErrorOrMessageView;
         private LoadingBar m_LoadingBar;
 
         private readonly IUnityConnectProxy m_UnityConnect;
@@ -19,8 +18,9 @@ namespace Unity.AssetManager.Editor
         private readonly IThumbnailDownloader m_ThumbnailDownloader;
         private readonly IIconFactory m_IconFactory;
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        private readonly ILinksProxy m_LinksProxy;
 
-        public AssetsGridView(IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnect, IPageManager pageManager, IAssetDataManager assetDataManager, IAssetImporter assetImporter, IThumbnailDownloader thumbnailDownloader, IIconFactory iconFactory)
+        public AssetsGridView(IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnect, IPageManager pageManager, IAssetDataManager assetDataManager, IAssetImporter assetImporter, IThumbnailDownloader thumbnailDownloader, IIconFactory iconFactory, ILinksProxy linksProxy)
         {
             m_UnityConnect = unityConnect;
             m_PageManager = pageManager;
@@ -29,13 +29,14 @@ namespace Unity.AssetManager.Editor
             m_ThumbnailDownloader = thumbnailDownloader;
             m_IconFactory = iconFactory;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_LinksProxy = linksProxy;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
             m_Gridview.onGridViewLastItemVisible += OnLastGridViewItemVisible;
             Add(m_Gridview);
 
-            m_ErrorView = new ErrorView(pageManager);
-            Add(m_ErrorView);
+            m_GridErrorOrMessageView = new GridErrorOrMessageView(pageManager, projectOrganizationProvider, linksProxy);
+            Add(m_GridErrorOrMessageView);
 
             style.height = Length.Percent(100);
 
@@ -55,7 +56,7 @@ namespace Unity.AssetManager.Editor
             m_PageManager.onLoadingStatusChanged += OnLoadingStatusChanged;
 
             m_AssetDataManager.onImportedAssetInfoChanged += OnImportedAssetInfoChanged;
-            m_PageManager.onErrorThrown += OnErrorThrown;
+            m_PageManager.onErrorOrMessageThrown += OnErrorOrMessageThrown;
 
             Refresh();
         }
@@ -69,7 +70,7 @@ namespace Unity.AssetManager.Editor
             m_PageManager.onLoadingStatusChanged -= OnLoadingStatusChanged;
 
             m_AssetDataManager.onImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
-            m_PageManager.onErrorThrown -= OnErrorThrown;
+            m_PageManager.onErrorOrMessageThrown -= OnErrorOrMessageThrown;
         }
 
         private void OnUserLoginStateChange(bool isUserInfoReady, bool isUserLoggedIn)
@@ -107,18 +108,11 @@ namespace Unity.AssetManager.Editor
 
         private void Refresh()
         {
-            if (m_ErrorView.Refresh(m_ProjectOrganizationProvider.errorHandlingData))
-            {
-                UIElementsUtils.Hide(m_Gridview);
-                UIElementsUtils.Hide(m_LoadingBar);
-                return;
-            }
-
             var page = m_PageManager.activePage;
             if (!m_UnityConnect.isUserLoggedIn || page == null)
                 return;
 
-            if (m_ErrorView.Refresh(page.errorHandlingData))
+            if (m_GridErrorOrMessageView.Refresh())
             {
                 UIElementsUtils.Hide(m_Gridview);
                 UIElementsUtils.Hide(m_LoadingBar);
@@ -161,11 +155,11 @@ namespace Unity.AssetManager.Editor
             if (page != null && page.hasMoreItems && !page.isLoading)
             {
                 page.LoadMore();
-            } 
+            }
             m_LoadingBar.Refresh(page, true);
         }
 
-        private void OnErrorThrown(IPage page, ErrorHandlingData _)
+        private void OnErrorOrMessageThrown(IPage page, ErrorOrMessageHandlingData _)
         {
             if (!page.isActivePage)
                 return;

@@ -8,7 +8,7 @@ namespace Unity.AssetManager.Editor
         event Action<bool> onLoadingStatusChanged;
         event Action<AssetIdentifier> onSelectedAssetChanged;
         event Action<IReadOnlyCollection<string>> onSearchFiltersChanged;
-        event Action<ErrorHandlingData> onErrorThrown;
+        event Action<ErrorOrMessageHandlingData> onErrorOrMessageThrown;
 
         bool isLoading { get; }
         bool hasMoreItems { get; }
@@ -20,7 +20,7 @@ namespace Unity.AssetManager.Editor
         AssetIdentifier selectedAssetId { get; set; }
         IReadOnlyCollection<AssetIdentifier> assetList { get; }
 
-        ErrorHandlingData errorHandlingData { get; }
+        ErrorOrMessageHandlingData errorOrMessageHandlingData { get; }
 
         void LoadMore();
 

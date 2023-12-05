@@ -31,7 +31,8 @@ namespace Unity.AssetManager.Editor
         bool isLoading { get; }
         OrganizationInfo organization { get; }
         ProjectInfo selectedProject { get; set; }
-        ErrorHandlingData errorHandlingData { get; }
+        ErrorOrMessageHandlingData errorOrMessageHandlingData { get; }
+        void RefreshProjects();
     }
 
     [Serializable]
@@ -39,6 +40,7 @@ namespace Unity.AssetManager.Editor
     {
         private static readonly string k_NoOrganizationMessage =
             L10n.Tr("It seems your project is not linked to an organization. Please link your project to a Unity project ID to start using the Asset Manager service.");
+        private static readonly string k_NoProjectsMessage = L10n.Tr("It seems you don't have any projects created in your Asset Manager Dashboard.");
 
         public event Action<OrganizationInfo, bool> onOrganizationInfoOrLoadingChanged;
         public event Action<ProjectInfo> onProjectSelectionChanged;
@@ -68,8 +70,8 @@ namespace Unity.AssetManager.Editor
         }
 
         [SerializeField]
-        private ErrorHandlingData m_ErrorHandling = new();
-        public ErrorHandlingData errorHandlingData => m_ErrorHandling;
+        private ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
+        public ErrorOrMessageHandlingData errorOrMessageHandlingData => m_ErrorOrMessageHandling;
 
         private readonly IUnityConnectProxy m_UnityConnectProxy;
         private readonly IAssetsProvider m_AssetsProvider;
@@ -78,15 +80,14 @@ namespace Unity.AssetManager.Editor
             m_UnityConnectProxy = RegisterDependency(unityConnectProxy);
             m_AssetsProvider = RegisterDependency(assetsProvider);
 
-            m_ErrorHandling.errorMessage = k_NoOrganizationMessage;
-            m_ErrorHandling.errorRecommendedAction = ErrorRecommendedAction.OpenServicesSettingButton;
+            m_ErrorOrMessageHandling.message = k_NoOrganizationMessage;
+            m_ErrorOrMessageHandling.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
         }
 
         public override void OnEnable()
         {
             OnOrganizationIdChange(m_UnityConnectProxy.organizationId);
             m_UnityConnectProxy.onOrganizationIdChange += OnOrganizationIdChange;
-
         }
 
         public override void OnDisable()
@@ -94,11 +95,21 @@ namespace Unity.AssetManager.Editor
             m_UnityConnectProxy.onOrganizationIdChange -= OnOrganizationIdChange;
         }
 
+        public void RefreshProjects()
+        {
+            FetchProjectOrganization(m_OrganizationInfo?.id, true);
+        }
+
         private void OnOrganizationIdChange(string newOrgId)
+        {
+            FetchProjectOrganization(newOrgId);
+        }
+
+        private void FetchProjectOrganization(string newOrgId, bool refreshProjects = false)
         {
             var currentOrgId = m_OrganizationInfo?.id ?? string.Empty;
             newOrgId ??= string.Empty;
-            if (currentOrgId == newOrgId)
+            if (currentOrgId == newOrgId && !refreshProjects)
                 return;
 
             if (isLoading)
@@ -107,8 +118,8 @@ namespace Unity.AssetManager.Editor
             m_OrganizationInfo = new OrganizationInfo { id = newOrgId };
             if (string.IsNullOrEmpty(newOrgId))
             {
-                m_ErrorHandling.errorMessage = k_NoOrganizationMessage;
-                m_ErrorHandling.errorRecommendedAction = ErrorRecommendedAction.OpenServicesSettingButton;
+                m_ErrorOrMessageHandling.message = k_NoOrganizationMessage;
+                m_ErrorOrMessageHandling.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
                 onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
                 return;
             }
@@ -116,22 +127,31 @@ namespace Unity.AssetManager.Editor
             m_LoadOrganizationOperation.Start(token => m_AssetsProvider.GetOrganizationInfoAsync(newOrgId, token),
                 onLoadingStartCallback: () =>
                 {
-                    errorHandlingData.errorMessage = string.Empty;
-                    errorHandlingData.errorRecommendedAction = ErrorRecommendedAction.None;
+                    errorOrMessageHandlingData.message = string.Empty;
+                    errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
                     onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
                 },
                 onCancelledCallback: () => onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading),
                 onExceptionCallback: e =>
                 {
                     Debug.LogException(e);
-                    errorHandlingData.errorMessage = L10n.Tr("It seems there was an error while trying to retrieve assets.");
-                    errorHandlingData.errorRecommendedAction = ErrorRecommendedAction.None;
+                    errorOrMessageHandlingData.message = L10n.Tr("It seems there was an error while trying to retrieve assets.");
+                    errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
                     onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
                 },
                 onSuccessCallback: result =>
                 {
                     m_OrganizationInfo = result;
-                    selectedProject ??= m_OrganizationInfo?.projectInfos.FirstOrDefault();
+                    if (m_OrganizationInfo?.projectInfos.Any() == true)
+                    {
+                        selectedProject ??= m_OrganizationInfo.projectInfos.FirstOrDefault();
+                    }
+                    else
+                    {
+                        selectedProject = null;
+                        errorOrMessageHandlingData.message = k_NoProjectsMessage;
+                        errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink;
+                    }
                     onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
                 });
         }

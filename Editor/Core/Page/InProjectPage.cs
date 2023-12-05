@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEditor;
 
 namespace Unity.AssetManager.Editor
 {
@@ -47,6 +48,11 @@ namespace Unity.AssetManager.Editor
             var assetIds =  await m_AssetsProvider.SearchAsync(m_AssetDataManager.importedAssetInfos.Select(i => i.id).ToArray(), token);
             m_HasMoreItems = false;
             return assetIds;
+        }
+
+        protected override void OnLoadMoreSuccessCallBack(IReadOnlyCollection<AssetIdentifier> assetIdentifiers)
+        {
+            SetErrorOrMessageData(!m_AssetList.Any() ? L10n.Tr(Constants.EmptyInProjectText) : string.Empty, ErrorOrMessageRecommendedAction.None);
         }
     }
 }

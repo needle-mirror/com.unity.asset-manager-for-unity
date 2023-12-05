@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEditor;
 
 namespace Unity.AssetManager.Editor
 {
@@ -56,9 +57,10 @@ namespace Unity.AssetManager.Editor
         public const string GridViewStyleClassName = "grid-view";
         public const string GridViewRowStyleClassName = GridViewStyleClassName + "--row";
         public const string GridViewDummyItemUssClassName = GridViewStyleClassName + "--item-dummy";
-
         public const string GridItemStyleClassName = "grid-view--item";
-
+        public const string EmptyCollectionsText = "This collection has no assets, use the Asset Manager dashboard to link your assets to a collection.";
+        public const string EmptyInProjectText = "Your imported assets will be shown here.";
+        public const string EmptyAllAssetText = "It seems you don't have any assets uploaded to the selected project in your Asset Manager Dashboard.";
         public const int ShrinkSizeInMb = 200;
         public const int DefaultCacheSizeGb = 2;
         public const int DefaultCacheSizeMb = DefaultCacheSizeGb * 1024;

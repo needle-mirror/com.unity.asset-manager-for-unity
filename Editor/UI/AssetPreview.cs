@@ -29,11 +29,12 @@ namespace Unity.AssetManager.Editor
             Add(m_AssetTypeIcon);
         }
         
-        public void SetAssetType(AssetType assetType)
+        public void SetAssetType(AssetType assetType, bool useAssetTypeAsTooltip)
         {
             var icon = m_IconFactory.GetIconByType(assetType);
             m_AssetTypeIcon.EnableInClassList(k_DefaultAssetIconUssClassName, icon == null);
             m_AssetTypeIcon.style.backgroundImage = icon == null ? StyleKeyword.Null : icon;
+            m_AssetTypeIcon.tooltip = useAssetTypeAsTooltip ? assetType.DisplayValue() : string.Empty;
         }
 
         public void SetThumbnail(Texture2D texture2D)

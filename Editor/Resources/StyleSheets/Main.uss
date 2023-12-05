@@ -374,8 +374,12 @@ TopBar {
 }
 
 #in-project-label{
-    align-self: center;
+    align-self: flex-start;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
     margin-left: 10px;
+    height: 100%;
+    width: 400px;
 }
 
 #inputSearch {
@@ -548,7 +552,6 @@ AssetsGridView {
     width: 100%;
     height: 25px;
     visibility: visible;
-    /*color: white;*/
     font-size: 11px;
     padding-left: 6px;
     -unity-text-align: middle-left;
@@ -599,6 +602,50 @@ AssetsGridView {
     margin: 2.5px 6px;
 }
 
+GridErrorOrMessageView {
+    top: 50%;
+    left: 50%;
+    translate: -50%;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+GridErrorOrMessageView > .unity-label {
+    -unity-text-align: middle-center;
+    font-size: 22px;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: Ellipsis;
+    height: auto;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.errorOrMessageView-button {
+    -unity-text-align: middle-center;
+    white-space: normal;
+    overflow: hidden;
+    font-size: 14px;
+    text-overflow: Ellipsis;
+    align-self: center;
+    flex-shrink: 1;
+}
+
+.unity-button.errorOrMessageView-action-button-link {
+    align-self: center;
+    font-size: 14px;
+    background-image: none;
+    border-width: 0;
+    padding: 0;
+    cursor: link;
+    -unity-text-align: lower-center;
+    text-overflow: Ellipsis;
+    overflow: hidden;
+    flex-shrink: 1;
+    color: rgba(76, 126, 255, 1);
+    background-color: rgba(0, 0, 0, 0);
+}
+
 .asset-preview {
     position: absolute;
     height: 100%;
@@ -643,37 +690,26 @@ AssetsGridView {
 * Error View
 ************************************************/
 
-.errorView{
-    top: 50%;
-    align-self: center;
+ActionHelpBox {
+    min-height: 60px;
+    border-width: 0.5px;
+    margin: 5px;
+    padding: 10px;
+    flex-shrink: 0;
+    border-radius: 0;
+    border-bottom-width: 1px;
 }
 
-.errorView-errorMessage-label{
-    align-self: center;
-    font-size: 14px;
-    flex-wrap: wrap;
-    text-overflow: ellipsis;
-    white-space: normal;
-    overflow: hidden;
-    margin: 0px 30px;
+ActionHelpBox > Label {
+    margin-right: 4px;
+    margin-left: 4px;
+    font-size: 12px;
+    min-width: 90px;
 }
 
-.errorView >.errorView-action-button-link{
-    align-self: center;
-    font-size: 14px;
-    top: 10px;
-    background-image: none;
-    border-width: 0;
-    margin: 0;
-    padding: 0;
-    cursor: link;
-    -unity-text-align: lower-center;
-}
-
-.errorView-button{
-    align-self: center;
-    font-size: 14px;
-    top: 10px;
+.ActionHelpBoxContainer {
+    flex-shrink: 0;
+    border-bottom-width: 1px;
 }
 
 /************************************************
@@ -690,7 +726,17 @@ AssetDetailsPage {
     overflow: scroll;
 }
 
-#details-page-scrollview{
+#details-page-top {
+    flex-direction: row; 
+    justify-content: space-between;
+    margin: 10px;
+}
+
+#name {
+    padding: 5px;
+}
+
+#details-page-scrollview {
     height: 100%;
 }
 
@@ -710,11 +756,21 @@ AssetDetailsPage {
     min-height: 450px;
 }
 
-#thumbnail-container {
-    width: 100%;
-    height: 100%;
+#details-page-thumbnail-container {
     min-width: 100px;
-    min-height: 100px;
+    min-height: 200px;
+    width: 100%;
+}
+
+#details-page-asset-preview {
+    align-self: center;
+}
+
+#details-page-thumbnail-container .asset-preview > DraggableImage {
+    position: relative;
+    flex-grow: 1;
+    bottom: 0;
+    height: 100%;
 }
 
 .details-page-download-progress-container{
@@ -772,6 +828,12 @@ AssetDetailsPage {
 #details-files-foldout > Toggle > VisualElement > Label{
     position: absolute;
     left: 5px;
+}
+
+#details-files-loading-label {
+    align-self: center;
+    margin-top: 5px;
+    -unity-font-style: normal;
 }
 
 DetailsPageFileItem > Label {
@@ -849,12 +911,6 @@ DetailsPageFileItem > Label {
     padding-left: 10px;
 }
 
-#authorImage {
-    width: 26px;
-    height: 26px;
-    background-image: resource("Images/Common/Unity-Ellipse");
-}
-
 .flex-row {
     flex-direction: row;
 }
@@ -926,10 +982,6 @@ DetailsPageFileItem > .details-page-file-item-label{
     margin-top: 7px;
 }
 
-#name {
-    white-space: normal;
-}
-
 .footer {
     justify-content: flex-end;
     padding-bottom: 8px;
@@ -958,6 +1010,7 @@ DetailsPageFileItem > .details-page-file-item-label{
     border-width: 0px;
     border-radius: 0px;
     background-color: rgba(0, 0, 0, 0);
+    align-self: flex-end;
 }
 
 /************************************************

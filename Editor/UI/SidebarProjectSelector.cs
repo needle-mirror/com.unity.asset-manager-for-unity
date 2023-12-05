@@ -8,6 +8,7 @@ namespace Unity.AssetManager.Editor
 {
     internal class SidebarProjectSelector : VisualElement
     {
+        internal const string k_NoProjectFound = "No project found";
         private DropdownField m_ProjectsDropdown;
         private VisualElement m_NoProjectsFoundContainer;
 
@@ -36,7 +37,7 @@ namespace Unity.AssetManager.Editor
             m_NoProjectsFoundContainer = new VisualElement();
             m_NoProjectsFoundContainer.AddToClassList("NoProjectsWarning");
             m_NoProjectsFoundContainer.Add(warningIcon);
-            m_NoProjectsFoundContainer.Add(new Label { text = L10n.Tr("No project found") });
+            m_NoProjectsFoundContainer.Add(new Label { text = L10n.Tr(k_NoProjectFound) });
 
             Add(m_ProjectsDropdown);
             Add(m_NoProjectsFoundContainer);
@@ -65,7 +66,7 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        private void Refresh()
+        internal void Refresh()
         {
             var projectInfos = m_ProjectOrganizationProvider.organization?.projectInfos as IList<ProjectInfo> ?? Array.Empty<ProjectInfo>();
             if (projectInfos.Count == 0)

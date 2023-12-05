@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -37,6 +39,18 @@ namespace Unity.AssetManager.Editor
             m_HasMoreItems = assetIds.Count == k_PageSize;
             m_NextStartIndex += assetIds.Count;
             return assetIds;
+        }
+
+        protected override void OnLoadMoreSuccessCallBack(IReadOnlyCollection<AssetIdentifier> assetIdentifiers)
+        {
+            if (string.IsNullOrEmpty(collectionPath) && !m_AssetList.Any())
+                SetErrorOrMessageData(L10n.Tr(Constants.EmptyAllAssetText), ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
+            else if (searchFilters.Any() && !m_AssetList.Any())
+                SetErrorOrMessageData(L10n.Tr("No results found for \"" + string.Join(", ", searchFilters) + "\""), ErrorOrMessageRecommendedAction.None);
+            else if (!m_AssetList.Any())
+                SetErrorOrMessageData(L10n.Tr(Constants.EmptyCollectionsText), ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
+            else
+                SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
         }
     }
 }

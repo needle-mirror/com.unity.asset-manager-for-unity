@@ -179,13 +179,31 @@ TopBar {
     background-image: resource('Images/Light/Owned-Asset');
 }
 
+GridErrorOrMessageView > .unity-label {
+    color: rgb(100, 100, 100);
+}
+
 /************************************************
 * Error View
 ************************************************/
 
-.errorView >.errorView-action-button-link{
+.errorView-action-button-link{
     color: #3A72B0;
     background-color: rgba(0, 0, 0, 0);
+}
+
+ActionHelpBox {
+    background-color: #E0E0E0;
+    border-color: #616161;
+}
+
+ActionHelpBox ErrorOrMessageActionButton {
+    background-color: #b4b4b4;
+}
+
+.ActionHelpBoxContainer {
+    border-color: #616161;
+    background-color: #A5A5A5;
 }
 
 /************************************************

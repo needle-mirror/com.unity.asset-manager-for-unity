@@ -26,11 +26,13 @@ namespace Unity.AssetManager.Editor
         private bool m_Focused;
         
         private readonly IPageManager m_PageManager;
+        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         private readonly VisualElement m_TextInput;
 
-        public TopBar(IPageManager pageManager)
+        public TopBar(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
         {
             m_PageManager = pageManager;
+            m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             var windowContent = UIElementsUtils.LoadUXML(k_TopBarAssetName);
             windowContent.CloneTree(this);
@@ -49,6 +51,9 @@ namespace Unity.AssetManager.Editor
                 m_ClearAllButton.name = k_SearchCancelUssName;
                 m_ClearAllButton.clicked += OnSearchCancelClick;
             }
+            
+            m_InProjectLabel = this.Q<Label>("in-project-label");
+            m_InProjectLabel.text = L10n.Tr("In Project");
 
             m_RefreshButton = this.Q<Button>("refresh-button");
             m_RefreshButton.clicked += RefreshClicked;
@@ -72,6 +77,7 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager.onActivePageChanged += OnActivePageChanged;
             m_PageManager.onSearchFiltersChanged += OnPageSearchFiltersChanged;
+            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
             Refresh(m_PageManager.activePage);
         }
 
@@ -79,6 +85,7 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager.onActivePageChanged -= OnActivePageChanged;
             m_PageManager.onSearchFiltersChanged -= OnPageSearchFiltersChanged;
+            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
         }
 
         void OnPageSearchFiltersChanged(IPage page, IReadOnlyCollection<string> searchFilters)
@@ -133,8 +140,15 @@ namespace Unity.AssetManager.Editor
                 UIElementsUtils.Show(m_InProjectLabel);
                 return;
             }
-
+            
             UIElementsUtils.Hide(m_InProjectLabel);
+            if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.errorOrMessageHandlingData.message))
+            {
+                UIElementsUtils.Hide(m_RefreshButton);
+                UIElementsUtils.Hide(m_ToolbarSearchField);
+                return;
+            }
+
             UIElementsUtils.Show(m_RefreshButton);
             UIElementsUtils.Show(m_ToolbarSearchField);
             m_SearchPillsContainer.Clear();
@@ -208,6 +222,11 @@ namespace Unity.AssetManager.Editor
         {
             if (m_SearchPillsContainer.childCount == 0 && !m_Focused)
                 m_SearchTextField.SetValueWithoutNotify(k_SearchTerms);
+        }
+
+        private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo org, bool isLoading)
+        {
+            Refresh(m_PageManager.activePage);
         }
     }
 }

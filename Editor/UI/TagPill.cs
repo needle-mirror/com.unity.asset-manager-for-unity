@@ -3,7 +3,7 @@ using Unity.AssetManager.Editor;
 using UnityEditor;
 using UnityEngine.UIElements;
 
-namespace Editor.UIElements
+namespace Unity.AssetManager.Editor
 {
     internal class TagPill : VisualElement
     {

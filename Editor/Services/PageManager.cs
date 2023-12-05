@@ -11,7 +11,7 @@ namespace Unity.AssetManager.Editor
         event Action<IPage, bool> onLoadingStatusChanged;
         event Action<IPage, IReadOnlyCollection<string>> onSearchFiltersChanged;
         event Action<IPage, AssetIdentifier> onSelectedAssetChanged;
-        event Action<IPage, ErrorHandlingData> onErrorThrown;
+        event Action<IPage, ErrorOrMessageHandlingData> onErrorOrMessageThrown;
 
         IPage activePage { get; set; }
         IPage GetPage(PageType pageType, string collectionPath);
@@ -24,7 +24,7 @@ namespace Unity.AssetManager.Editor
         public event Action<IPage, bool> onLoadingStatusChanged = delegate {};
         public event Action<IPage, IReadOnlyCollection<string>> onSearchFiltersChanged = delegate {};
         public event Action<IPage, AssetIdentifier> onSelectedAssetChanged = delegate {};
-        public event Action<IPage, ErrorHandlingData> onErrorThrown = delegate { };
+        public event Action<IPage, ErrorOrMessageHandlingData> onErrorOrMessageThrown = delegate { };
 
         private Dictionary<string, IPage> m_Pages = new();
 
@@ -87,7 +87,9 @@ namespace Unity.AssetManager.Editor
             foreach (var page in m_Pages.Values)
                 page.OnDestroy();
             m_Pages.Clear();
-            activePage ??= GetPage(PageType.Collection, string.Empty);
+
+            if (projectInfo != null)
+                activePage ??= GetPage(PageType.Collection, string.Empty);
         }
 
         public IPage GetPage(PageType pageType, string collectionPath)
@@ -101,7 +103,7 @@ namespace Unity.AssetManager.Editor
             page.onLoadingStatusChanged += loading => onLoadingStatusChanged?.Invoke(page, loading);
             page.onSelectedAssetChanged += data => onSelectedAssetChanged?.Invoke(page, data);
             page.onSearchFiltersChanged += data => onSearchFiltersChanged?.Invoke(page, data);
-            page.onErrorThrown += errorHandling => onErrorThrown?.Invoke(page, errorHandling);
+            page.onErrorOrMessageThrown += errorHandling => onErrorOrMessageThrown?.Invoke(page, errorHandling);
         }
 
         public void OnBeforeSerialize()

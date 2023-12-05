@@ -10,4 +10,5 @@
   * [Remove a Unity Cloud asset from a project](remove-assets.md)
   * [Manage imported assets](manage-assets.md)
   * [Manage cache settings](manage-cache.md)
+  * [Context menu links](context-menu-links.md)
 * [Troubleshooting](troubleshooting.md)

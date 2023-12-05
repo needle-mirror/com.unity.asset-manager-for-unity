@@ -4,12 +4,13 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class AssetManagerWindow : EditorWindow
+    internal class AssetManagerWindow : EditorWindow, IHasCustomMenu
     {
         private static readonly Vector2 k_MinWindowSize = new Vector2(600, 250);
 
         public static AssetManagerWindow instance { get; private set; }
         private AssetManagerWindowRoot m_Root;
+        private ILinksProxy m_LinksProxy;
 
         [MenuItem("Window/Asset Manager", priority = 1500)]
         internal static void Open()
@@ -40,9 +41,11 @@ namespace Unity.AssetManager.Editor
                 container.Resolve<IAssetsProvider>(),
                 container.Resolve<IThumbnailDownloader>(),
                 container.Resolve<IIconFactory>(),
-                container.Resolve<IProjectOrganizationProvider>());
+                container.Resolve<IProjectOrganizationProvider>(),
+                container.Resolve<ILinksProxy>());
             m_Root.OnEnable();
             m_Root.StretchToParentSize();
+            m_LinksProxy = container.Resolve<ILinksProxy>();
             rootVisualElement.Add(m_Root);
         }
 
@@ -79,6 +82,16 @@ namespace Unity.AssetManager.Editor
         private void OnLostFocus()
         {
             m_Root?.OnLostFocus();
+        }
+
+        public void AddItemsToMenu(GenericMenu menu)
+        {
+            GUIContent goToDashboard = new GUIContent(L10n.Tr("Go to Dashboard"));
+            menu.AddItem(goToDashboard, false, m_LinksProxy.OpenAssetManagerDashboard);
+            GUIContent projectSettings = new GUIContent(L10n.Tr("Project Settings"));
+            menu.AddItem(projectSettings, false, m_LinksProxy.OpenProjectSettingsServices);
+            GUIContent preferences = new GUIContent(L10n.Tr("Preferences"));
+            menu.AddItem(preferences, false, m_LinksProxy.OpenPreferences);
         }
     }
 }

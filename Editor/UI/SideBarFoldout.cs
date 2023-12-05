@@ -1,3 +1,4 @@
+using System;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -15,9 +16,11 @@ namespace Unity.AssetManager.Editor
         private readonly bool m_Selectable;
 
         private readonly IPageManager m_PageManager;
-        public SideBarFoldout(IPageManager pageManager, string foldoutName, string collectionPath, bool selectable, Texture icon)
+        private readonly IStateManager m_StateManager;
+        public SideBarFoldout(IPageManager pageManager, IStateManager stateManager, string foldoutName, string collectionPath, bool selectable, Texture icon)
         {
             m_PageManager = pageManager;
+            m_StateManager = stateManager;
 
             text = foldoutName;
             this.collectionPath = collectionPath;
@@ -49,7 +52,7 @@ namespace Unity.AssetManager.Editor
                 // to only select foldouts when they click on it's title/label
                 if (e.button != 0 || target.name == k_CheckMarkName)
                     return;
-                m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, collectionPath);;
+                m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, collectionPath);
             }, TrickleDown.TrickleDown);
         }
 
@@ -81,9 +84,10 @@ namespace Unity.AssetManager.Editor
 
             var iconParent = this.Q(className: inputUssClassName);
             var image = iconParent.Q<Image>();
+            
             image.image = value
-                ? UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ClosedFoldoutName])
-                : UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.OpenFoldoutName]);
+                ? UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.OpenFoldoutName])
+                : UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ClosedFoldoutName]);
         }
 
         internal void ChangeIntoParentFolder()
@@ -95,9 +99,12 @@ namespace Unity.AssetManager.Editor
             m_CheckMark.style.display =  DisplayStyle.Flex;
             m_CheckMark.style.visibility = Visibility.Visible;
             RemoveFromClassList("removed-arrow");
-            var iconParent = this.Q(className: inputUssClassName);
-            var image = iconParent.Q<Image>();
-            image.image = UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.OpenFoldoutName]);
+
+            if (!string.IsNullOrEmpty(collectionPath))
+            {
+                value = !m_StateManager.collapsedCollections.Contains(collectionPath);
+                SetIcon();
+            } 
         }
 
         internal void ChangeBackToChildlessFolder()
@@ -123,13 +130,15 @@ namespace Unity.AssetManager.Editor
 
         private void RegisterEventForIconChange()
         {
-            m_CheckMark.RegisterCallback<PointerDownEvent>(e =>
+            this.RegisterValueChangedCallback(e =>
             {
-                if (e.button != 0)
-                    return;
                 SetIcon();
-                e.StopPropagation();
-            }, TrickleDown.TrickleDown);
+                if (m_HasChild)
+                    if (!value)
+                        m_StateManager.collapsedCollections.Add(collectionPath);
+                    else
+                        m_StateManager.collapsedCollections.Remove(collectionPath);
+            });
         }
     }
 }

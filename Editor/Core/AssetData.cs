@@ -121,15 +121,14 @@ namespace Unity.AssetManager.Editor
             m_Files = updatedAssetData.files.ToList();
             m_PreviewFilePath = updatedAssetData.previewFilePath;
             m_PreviewFileUrl = updatedAssetData.previewFileUrl;
-            m_FilesInfosStatus = AssetDataFilesStatus.Fetched;
         }
 
         private AssetData(CloudAssetData cloudAsset)
         {
             m_Files = cloudAsset.GetAssetDataFiles();
             m_Name = cloudAsset.asset.Name;
-            m_OrganizationId = cloudAsset.organizationId;
-            m_ProjectId = cloudAsset.projectId;
+            m_OrganizationId = cloudAsset.asset.Descriptor.OrganizationGenesisId.ToString();
+            m_ProjectId = cloudAsset.asset.Descriptor.ProjectId.ToString();
             m_AssetId = cloudAsset.asset.Descriptor.AssetId.ToString();
             m_VersionId = cloudAsset.asset.Descriptor.AssetVersion.ToString();
             m_AssetType = cloudAsset.asset.Type.ConvertCloudAssetTypeToAssetType();
@@ -175,6 +174,7 @@ namespace Unity.AssetManager.Editor
                     return null;
                 if (IsDifferent(assetData, updatedAssetData))
                     assetData.UpdateAssetDataFiles(updatedAssetData);
+                assetData.m_FilesInfosStatus = AssetDataFilesStatus.Fetched;
                 return assetData;
             }
 
@@ -213,15 +213,11 @@ namespace Unity.AssetManager.Editor
     {
         public IAsset asset { get; }
         public IEnumerable<CloudAssetDataFile> filesArg { get; set; }
-        public string organizationId  { get; }
-        public string projectId  { get; }
         public Uri previewFileUri  { get; }
        
-        public CloudAssetData(IAsset asset, string organizationId, string projectId, Uri previewFileUri)
+        public CloudAssetData(IAsset asset, Uri previewFileUri)
         {
             this.asset = asset;
-            this.organizationId = organizationId;
-            this.projectId = projectId;
             this.previewFileUri = previewFileUri;
             filesArg = new List<CloudAssetDataFile>();
         }

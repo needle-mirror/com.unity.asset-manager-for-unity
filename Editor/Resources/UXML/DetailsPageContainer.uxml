@@ -1,19 +1,15 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" ae="Unity.AssetManager.Editor" editor-extension-mode="True" class="px-2">
     <ui:VisualElement name="assetDetailsPageContainer" class="asset-details-page-container justify-space-between">
+        <ui:VisualElement name="details-page-top">
+            <ui:Label name="name" class="text-bold" />
+            <ui:Button tabindex="-1" display-tooltip-when-elided="true" name="closeButton" class="close-button" style="margin-left: 0; margin-right: 0; margin-top: 0; margin-bottom: 0;" />
+        </ui:VisualElement>
         <ui:ScrollView name="details-page-scrollview" class="scroll-bottom-margin">
             <ui:VisualElement name="details-page-content-container" class="px-2 py-2 flex-shrink-0">
-                <ui:VisualElement class="mb-2 flex-shrink-0" style="flex-direction: row; justify-content: space-between; align-items: center;">
-                    <ui:Label name="name" class="text-bold" />
-                    <ui:Button tabindex="-1" display-tooltip-when-elided="true" name="closeButton" class="close-button" style="margin-left: 0; margin-right: 0; margin-top: 0; margin-bottom: 0;" />
-                </ui:VisualElement>
-                <ui:VisualElement name="thumbnail-container" class="mb-2 image-container self-center">
+                <ui:VisualElement name="details-page-thumbnail-container" class="mb-2 image-container self-center">
                     <ui:VisualElement name="thumbnail-owned-icon" tooltip="Imported" class="grid-view--item-owned_icon" style="bottom: 0;" />
-                    <Unity.AssetManager.Editor.DraggableImage name="details-page-draggable-thumbnail" class="image-container self-center" />
                 </ui:VisualElement>
                 <ui:Label text="Details" class="mb-2" />
-                <ui:VisualElement class="mb-2 flex-row flex-shrink-0">
-                    <ui:Image name="authorImage" class="mr-1" />
-                </ui:VisualElement>
                 <ui:Label name="description" class="mb-2 whitespace-wrap" />
                 <ui:VisualElement class="mb-1 flex-row flex-shrink-0">
                     <ui:Label text="Status" class="text-bold label-auto mr-1" />
@@ -46,6 +42,7 @@
                 <ui:VisualElement name="details-page-tags-container" class="mt-1 flex-row flex-wrap flex-shrink-0" />
                 <ui:VisualElement name="details-files-foldout-container" class="mb-1 flex-row">
                     <ui:Foldout text="Included Files" name="details-files-foldout" class="mb-1 text-bold">
+                        <ui:Label name="details-files-loading-label"/>
                         <ui:ListView name="details-files-listview" />
                     </ui:Foldout>
                 </ui:VisualElement>

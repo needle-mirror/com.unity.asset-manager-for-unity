@@ -16,7 +16,6 @@ namespace Unity.AssetManager.Editor
         const int k_ExtraVisibleRows = 2;
         const float k_FooterHeight = 40;
         const float k_MinSidePadding = DefaultItemWidth / 2f;
-        private const string k_NoDataText = "No results found";
         internal int MaxVisibleItems;
         internal virtual event Action onGridViewLastItemVisible = delegate { };
 
@@ -42,11 +41,13 @@ namespace Unity.AssetManager.Editor
         int m_ItemWidth = DefaultItemWidth;
         int m_ColumnCount;
 
+        private VisualElement m_MessageContainer;
         private Label m_NoDataLabel;
+        private Button m_LinkToDashboardButton;
         private bool m_RequestInProgress;
 
         public new class UxmlFactory : UxmlFactory<GridView> { }
-
+        
         public GridView()
         {
             m_ScrollView = new ScrollView();
@@ -163,30 +164,6 @@ namespace Unity.AssetManager.Editor
             {
                 m_ItemsSource = value;
                 Refresh();
-
-                AddNoResultTextIsNeeded();
-            }
-        }
-
-        private void AddNoResultTextIsNeeded()
-        {
-            if ((m_ItemsSource == null || m_ItemsSource.Count == 0) && !RequestInProgress)
-            {
-                if (m_NoDataLabel == null)
-                    m_NoDataLabel = new Label(k_NoDataText)
-                    {
-                        style = {
-                                        top = Length.Percent(50),
-                                        left = Length.Percent(43),
-                                        fontSize = 16,
-                                        unityFontStyleAndWeight= FontStyle.Bold
-                                    }
-                    };
-                Add(m_NoDataLabel);
-            }
-            else
-            {
-                m_NoDataLabel?.RemoveFromHierarchy();
             }
         }
 
@@ -233,17 +210,7 @@ namespace Unity.AssetManager.Editor
                 }
             }
         }
-
-        internal bool RequestInProgress
-        {
-            get => m_RequestInProgress;
-            set
-            {
-                m_RequestInProgress = value;
-                AddNoResultTextIsNeeded();
-            }
-        }
-
+        
         void OnScroll(float offset)
         {
             if (!HasValidDataAndBindings())
@@ -404,6 +371,9 @@ namespace Unity.AssetManager.Editor
             var rowCountForHeight = Mathf.FloorToInt(height / pixelAlignedItemHeight) + k_ExtraVisibleRows;
             var rowCount = Math.Min(rowCountForHeight, rowCountForSource);
             MaxVisibleItems = rowCountForHeight * ColumnCount;
+            
+            if (ItemsSource.Count <= MaxVisibleItems)
+                onGridViewLastItemVisible?.Invoke(); 
 
             if (VisibleRowCount != rowCount)
             {
@@ -508,13 +478,7 @@ namespace Unity.AssetManager.Editor
             if (Mathf.Approximately(evt.newRect.height, evt.oldRect.height) &&
                 Mathf.Approximately(evt.newRect.width, evt.oldRect.width))
                 return;
-
-            var rowCount = Mathf.FloorToInt((evt.newRect.height - k_MinSidePadding) / m_ItemHeight);
-            MaxVisibleItems = rowCount * ColumnCount;
-            if (MaxVisibleItems > ItemsSource.Count)
-            {
-                onGridViewLastItemVisible?.Invoke();
-            }
+            
             ResizeHeight(evt.newRect.height);
         }
 

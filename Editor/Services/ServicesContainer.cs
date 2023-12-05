@@ -109,6 +109,7 @@ namespace Unity.AssetManager.Editor
             var importedAssetsTracker = Register(new ImportedAssetsTracker(ioProxy, assetDatabaseProxy, assetDataManager));
             var assetsSdkProvider = Register(new AssetsSdkProvider(assetDataManager, unityConnect));
             var projectOrganizationProvider = Register(new ProjectOrganizationProvider(unityConnect, assetsSdkProvider));
+            var linksProxy = Register(new LinksProxy(projectOrganizationProvider));
             var pageManager = Register(new PageManager(unityConnect, assetsSdkProvider, assetDataManager, projectOrganizationProvider));
             var assetImporter = Register(new AssetImporter(assetsSdkProvider, downloadManager, analyticsEngine, ioProxy, assetDatabaseProxy, editorUtilityProxy, importedAssetsTracker, assetDataManager));
 

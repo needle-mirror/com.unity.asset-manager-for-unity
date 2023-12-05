@@ -130,7 +130,7 @@ namespace Unity.AssetManager.Editor
             Add(m_Highlight);
             Add(m_ImportProgressBar);
             
-            m_AssetPreview.SetAssetType(item.assetType);
+            m_AssetPreview.SetAssetType(item.assetType, false);
             
             m_AssetNameLabel.RemoveFromClassList(k_ItemLabelHighlightUssClassName);
 

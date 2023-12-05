@@ -1,4 +1,4 @@
-using Editor.UI;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -29,6 +29,7 @@ namespace Unity.AssetManager.Editor
 
         private AssetsGridView m_AssetsGridView;
         private AssetDetailsPage m_AssetDetailsPage;
+        private ActionHelpBox m_ActionHelpBox;
 
         private float m_InspectorPanelLastWidth = k_InspectorPanelMaxWidth;
 
@@ -41,6 +42,7 @@ namespace Unity.AssetManager.Editor
         private readonly IAssetsProvider m_AssetsProvider;
         private readonly IIconFactory m_IconFactory;
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        private readonly ILinksProxy m_LinksProxy;
 
         public AssetManagerWindowRoot(IPageManager pageManager,
             IAssetDataManager assetDataManager,
@@ -50,7 +52,8 @@ namespace Unity.AssetManager.Editor
             IAssetsProvider assetsProvider,
             IThumbnailDownloader thumbnailDownloader,
             IIconFactory iconFactory,
-            IProjectOrganizationProvider projectOrganizationProvider)
+            IProjectOrganizationProvider projectOrganizationProvider,
+            ILinksProxy linksProxy)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -61,6 +64,7 @@ namespace Unity.AssetManager.Editor
             m_ThumbnailDownloader = thumbnailDownloader;
             m_IconFactory = iconFactory;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_LinksProxy = linksProxy;
         }
 
         public void OnEnable()
@@ -119,7 +123,13 @@ namespace Unity.AssetManager.Editor
             m_CategoriesSplit.Add(m_SearchContentSplitViewContainer);
             m_CategoriesSplit.fixedPaneInitialDimension = m_StateManager.sideBarWidth;
 
-            m_TopBar = new TopBar(m_PageManager);
+            var actionHelpBoxContainer = new VisualElement();
+            actionHelpBoxContainer.AddToClassList("ActionHelpBoxContainer");
+            m_ActionHelpBox = new ActionHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy);
+            actionHelpBoxContainer.Add(m_ActionHelpBox);
+            m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
+
+            m_TopBar = new TopBar(m_PageManager, m_ProjectOrganizationProvider);
             m_SearchContentSplitViewContainer.Add(m_TopBar);
             m_Breadcrumbs = new Breadcrumbs(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider);
             m_SearchContentSplitViewContainer.Add(m_Breadcrumbs);
@@ -128,8 +138,8 @@ namespace Unity.AssetManager.Editor
             content.AddToClassList("AssetManagerContentView");
             m_SearchContentSplitViewContainer.Add(content);
 
-            m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager, m_AssetDataManager, m_AssetImporter, m_ThumbnailDownloader, m_IconFactory);
-            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_StateManager, m_PageManager, m_AssetDataManager, m_AssetsProvider, m_ThumbnailDownloader);
+            m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager, m_AssetDataManager, m_AssetImporter, m_ThumbnailDownloader, m_IconFactory, m_LinksProxy);
+            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_StateManager, m_PageManager, m_AssetDataManager, m_AssetsProvider, m_ThumbnailDownloader, m_IconFactory);
 
             m_AssetDetailsContainer = new VisualElement();
             m_AssetDetailsContainer.AddToClassList("AssetDetailsContainer");
@@ -217,6 +227,8 @@ namespace Unity.AssetManager.Editor
                 UIElementsUtils.Show(m_LoadingScreen);
             else
                 UIElementsUtils.Hide(m_LoadingScreen);
+
+            m_ActionHelpBox.Refresh();
         }
 
         public void OnGUI()
@@ -252,6 +264,8 @@ namespace Unity.AssetManager.Editor
 
         public void OnFocus()
         {
+            if (m_ProjectOrganizationProvider.organization?.projectInfos?.Any() != true && m_ProjectOrganizationProvider.isLoading == false)
+                m_ProjectOrganizationProvider.RefreshProjects();
         }
 
         public void OnLostFocus()
