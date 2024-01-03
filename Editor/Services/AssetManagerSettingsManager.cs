@@ -12,7 +12,6 @@ namespace Unity.AssetManager.Editor
 
         string BaseCacheLocation { get; }
         string ThumbnailsCacheLocation { get; }
-        string TexturesCacheLocation { get; }
 
         int MaxCacheSizeGb { get; }
         int MaxCacheSizeMb { get; }
@@ -35,16 +34,7 @@ namespace Unity.AssetManager.Editor
             get
             {
                 var cacheLocation = Instance.Get<string>(k_CacheLocationKey, SettingsScope.User);
-                // if the cache is valid update the textures and the cache location
-                if (CachePathHelper.ValidateBaseCacheLocation(cacheLocation).Success)
-                {
-                    return cacheLocation;
-                }
-
-                // if the cache path is for some reason no longer valid set to default
-                var defaultLocation = CachePathHelper.GetDefaultCacheLocation();
-                SetCacheLocation(defaultLocation);
-                return defaultLocation;
+                return GetCacheLocationOrDefault(cacheLocation);
             }
         }
 
@@ -53,35 +43,30 @@ namespace Unity.AssetManager.Editor
             get
             {
                 var thumbnailsCacheLocation = Instance.Get<string>(k_ThumbnailsCacheLocation, SettingsScope.User);
-                // if the cache is valid update the textures and the
-                if (CachePathHelper.ValidateBaseCacheLocation(thumbnailsCacheLocation).Success)
-                {
-                    return thumbnailsCacheLocation;
-                }
-
-                // if the cache path is for some reason no longer valid set to default
-                var defaultLocation = CachePathHelper.GetDefaultCacheLocation();
-                SetCacheLocation(defaultLocation);
-                return Path.Combine(defaultLocation, Constants.CacheThumbnailsFolderName);
+                return GetCacheLocationOrDefault(thumbnailsCacheLocation);
             }
         }
 
-        public string TexturesCacheLocation
-        {
-            get
-            {
-                var texturesCacheLocation = Instance.Get<string>(k_TexturesCacheLocation, SettingsScope.User);
-                // if the cache is valid update the textures and the
-                if (CachePathHelper.ValidateBaseCacheLocation(texturesCacheLocation).Success)
-                {
-                    return texturesCacheLocation;
-                }
+        private readonly ICachePathHelper m_CachePathHelper;
 
-                // if the cache path is for some reason no longer valid set to default
-                var defaultLocation = CachePathHelper.GetDefaultCacheLocation();
-                SetCacheLocation(defaultLocation);
-                return Path.Combine(defaultLocation, Constants.CacheTexturesFolderName);
+        internal AssetManagerSettingsManager(ICachePathHelper cachePathHelper)
+        {
+            m_CachePathHelper = cachePathHelper;
+        }
+
+        private string GetCacheLocationOrDefault(string cachePath)
+        {
+            var validationResult = m_CachePathHelper.EnsureBaseCacheLocation(cachePath);
+            
+            if (validationResult.success)
+            {
+                return cachePath;
             }
+
+            // Provided path is not valid, set default
+            var defaultLocation = m_CachePathHelper.GetDefaultCacheLocation();
+            SetCacheLocation(defaultLocation.FullName);
+            return Path.Combine(defaultLocation.FullName, Constants.CacheTexturesFolderName);
         }
 
         public int MaxCacheSizeGb
@@ -121,11 +106,11 @@ namespace Unity.AssetManager.Editor
         {
             if (string.IsNullOrEmpty(cacheLocation))
             {
-                cacheLocation = CachePathHelper.GetDefaultCacheLocation();
+                cacheLocation = m_CachePathHelper.GetDefaultCacheLocation().FullName;
             }
             Instance.Set(k_CacheLocationKey, cacheLocation, SettingsScope.User);
-            var assetManagerCacheLocation = CachePathHelper.CreateAssetManagerCacheLocation(cacheLocation);
-            Instance.Set(k_AssetManagerCacheLocation, CachePathHelper.CreateAssetManagerCacheLocation(cacheLocation),
+            var assetManagerCacheLocation = m_CachePathHelper.CreateAssetManagerCacheLocation(cacheLocation);
+            Instance.Set(k_AssetManagerCacheLocation, m_CachePathHelper.CreateAssetManagerCacheLocation(cacheLocation),
                 SettingsScope.User);
             Instance.Set(k_ThumbnailsCacheLocation,
                 Path.Combine(assetManagerCacheLocation, Constants.CacheThumbnailsFolderName), SettingsScope.User);

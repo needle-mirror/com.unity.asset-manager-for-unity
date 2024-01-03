@@ -26,7 +26,7 @@ namespace Unity.AssetManager.Editor
         public bool Refresh()
         {
             var isProjectError = !string.IsNullOrEmpty(m_ProjectOrganizationProvider.errorOrMessageHandlingData?.message);
-            var isInProject = m_PageManager.activePage.pageType == PageType.InProject;
+            var isInProject = m_PageManager.activePage is { pageType: PageType.InProject };
             ErrorOrMessageHandlingData errorHandlingData;
             if (isInProject || !isProjectError)
                 errorHandlingData = m_PageManager.activePage?.errorOrMessageHandlingData;

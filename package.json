@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "unity": "2022.3",
   "description": "An in-Editor tool that allows you to import assets directly into your project.",
   "keywords": [
@@ -12,23 +12,23 @@
   "dependencies": {
     "com.unity.settings-manager": "1.0.2",
     "com.unity.editorcoroutines": "1.0.0",
-    "com.unity.cloud.assets": "1.0.0-exp.1",
-    "com.unity.cloud.common": "1.0.0-exp.1",
-    "com.unity.cloud.identity": "1.0.0-exp.1"
+    "com.unity.cloud.assets": "1.0.0-exp.3",
+    "com.unity.cloud.common": "1.0.0-pre.2",
+    "com.unity.cloud.identity": "1.0.0-pre.2"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "0.2.0"
+    "com.unity.asset-manager-for-unity.tests": "0.3.0"
   },
   "_upm": {
-    "changelog": "### Added\n\n* Message to show when they have no assets in the project and a link to the dashboard\n* Message to show when Organisation has no projects and a link to the dashboard\n\n### Fixed\n\n* Fixed Editor namespaces being used in package which was colliding with URP and HDRP projects\n* Fixed height of the thumbnail in the details view\n* Collections expanded/collapsed values now survive domain reload\n* Fixed Included Files initial size being too small\n* Fixed file information loading forever for some assets\n* Made sure we got the full project list\n\n### Changed\n\n* \"No results found\" text now shows a more descriptive message depending on the page/results"
+    "changelog": "### Fixed\n\n* Errors caused by selecting a cache location without write permissions\n* Fixed forever loading screen when organisation was not set at first launch.\n* Fixed message shown when search result is empty\n* Fixed forever loading page when entering play mode before page was fully loaded\n* Fixed null exception when removing selected asset from in project\n* Fixed details page closing when removing an asset in project that is not selected\n* Don't see .meta and .DS_Store in the included file.\n* Fixed import of assets with special characters\n\n### Added\n\n* Explanatory tooltips to disabled buttons in the Asset Details Page\n\n### Changed\n\n* Updated versions of com.unity.cloud packages\n* Default import location path\n* Show in project button now highlights the asset's file in the project browser\n* Search now fetches the asset and it's files all in one call"
   },
   "upmCi": {
-    "footprint": "19ab8be9626da714b313b84edc9a25ef4a837194"
+    "footprint": "e43617e980ed6ff19cbecf4a508f2375ab2e6b0f"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.2/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.3/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "27b4753d71f6f40516521aa302a4aa47e4bf98fc"
+    "revision": "ba6b9113858a3158c26bf61b95cd6c329af41abf"
   }
 }

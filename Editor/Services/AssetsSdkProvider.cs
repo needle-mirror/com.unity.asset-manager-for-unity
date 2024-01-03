@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -14,7 +13,6 @@ using System.Reflection;
 using UnityEditor.PackageManager;
 using UnityEngine;
 
-
 namespace Unity.AssetManager.Editor
 {
     internal interface IAssetsProvider : IService
@@ -22,7 +20,6 @@ namespace Unity.AssetManager.Editor
         Task<OrganizationInfo> GetOrganizationInfoAsync(string organizationId, CancellationToken token);
         Task<IReadOnlyCollection<AssetIdentifier>> SearchAsync(CollectionInfo collectionInfo, IEnumerable<string> searchFilters, int startIndex, int pageSize, CancellationToken token);
         Task<IReadOnlyCollection<AssetIdentifier>> SearchAsync(IEnumerable<AssetIdentifier> assetIds, CancellationToken token);
-        Task UpdateAssetDownloadUrlsAsync(IAssetData assetData, CancellationToken token);
     }
 
     [Serializable]
@@ -93,7 +90,7 @@ namespace Unity.AssetManager.Editor
             if (!string.IsNullOrEmpty(collectionPath))
                 assetSearchFilter.Collections.Add(new CollectionPath(collectionPath));
 
-            assetSearchFilter.IncludedFields = new FieldsFilter { AssetFields = AssetFields.all };
+            assetSearchFilter.IncludedFields = new FieldsFilter { AssetFields = AssetFields.all, FileFields = FileFields.authoring | FileFields.downloadUrl | FileFields.fileSize};
             assetSearchFilter.Status.Include(k_PublishedKeyword);
             assetSearchFilter.Name.ForAny(searchFilterString);
             assetSearchFilter.Description.ForAny(searchFilterString);
@@ -131,41 +128,15 @@ namespace Unity.AssetManager.Editor
                         new AssetId(assetIdentifier.sourceId),
                         new AssetVersion(assetIdentifier.version));
 
-                    var fieldsFilter = new FieldsFilter { AssetFields = AssetFields.all };
+                    var fieldsFilter = new FieldsFilter { AssetFields = AssetFields.all, FileFields = FileFields.authoring | FileFields.downloadUrl | FileFields.fileSize};
                     var cloudAssetData = await m_CloudAssetsProxy.CreateCloudAssetDataWithFilesAsync(assetVersionDescriptor, fieldsFilter, token);
                     assetData = m_AssetDataFactory.CreateAssetData(cloudAssetData);
-                    m_AssetDataManager.UpdateFilesStatus(assetData, AssetDataFilesStatus.Fetched, false);
                     newAssetDatas.Add(assetData);
                 }
                 result.Add(assetData.id);
             }
             m_AssetDataManager.AddOrUpdateAssetDataFromCloudAsset(newAssetDatas);
             return result;
-        }
-
-        public async Task UpdateAssetDownloadUrlsAsync(IAssetData assetData, CancellationToken token)
-        {
-            try
-            {
-                if (assetData.filesInfosStatus == AssetDataFilesStatus.NotFetched)
-                {
-                    m_AssetDataFactory ??= new AssetData.AssetDataFactory();
-                    m_AssetDataManager.UpdateFilesStatus(assetData, AssetDataFilesStatus.BeingFetched);
-                    var cloudAssetData = await m_CloudAssetsProxy.UpdateAssetDownloadUrlsAsync(assetData, token);
-                    var updatedAssetData = m_AssetDataFactory.CreateAssetData(cloudAssetData);
-                    m_AssetDataManager.UpdateAssetDataFileInfos(updatedAssetData);
-                }
-            }
-            catch (ForbiddenException e)
-            {
-                m_AssetDataManager.UpdateFilesStatus(assetData, AssetDataFilesStatus.NotFetched);
-                Debug.LogError(e);
-            }
-            catch (TimeoutException e)
-            {
-                m_AssetDataManager.UpdateFilesStatus(assetData, AssetDataFilesStatus.NotFetched);
-                Debug.LogError(e);
-            }
         }
 
         private class CloudAssetsProxy
@@ -240,9 +211,8 @@ namespace Unity.AssetManager.Editor
                 await InitializeAndCheckAuthenticationState();
                 var asset = await m_AssetRepository.GetAssetAsync(assetVersionDescriptor, fieldsFilter, token);
 
-                var cloudAssetData = await CreateCloudAssetDataAsync(asset, token);
+                var cloudAssetData = new CloudAssetData(asset, asset.PreviewFileUrl);
                 cloudAssetData.filesArg = await GetCloudAssetDataFiles(asset, token);
-
                 return cloudAssetData;
             }
 
@@ -256,37 +226,11 @@ namespace Unity.AssetManager.Editor
 
                 await foreach (var asset in m_AssetRepository.SearchAssetsAsync(orgId, prjIds, assetSearchFilter,  pagination, token))
                 {
-                    var cloudAssetData = await CreateCloudAssetDataAsync(asset, token);
+                    var cloudAssetData = new CloudAssetData(asset, asset.PreviewFileUrl);
+                    cloudAssetData.filesArg = await GetCloudAssetDataFiles(asset, token);
                     cloudAssetDatas.Add(cloudAssetData);
                     yield return cloudAssetData;
                 }
-            }
-
-            public async Task<CloudAssetData> UpdateAssetDownloadUrlsAsync(IAssetData assetData, CancellationToken token)
-            {
-                await InitializeAndCheckAuthenticationState();
-
-                var assetDescriptor =  new AssetDescriptor(
-                    new ProjectDescriptor(
-                        new OrganizationId(assetData.id.organizationId),
-                        new ProjectId(assetData.id.projectId)),
-                    new AssetId(assetData.id.sourceId),
-                    new AssetVersion(assetData.id.version));
-
-                var fieldsFilter = new FieldsFilter();
-                fieldsFilter.AssetFields = AssetFields.all;
-                fieldsFilter.FileFields = FileFields.all;
-                
-                return await CreateCloudAssetDataWithFilesAsync(assetDescriptor, fieldsFilter, token);
-            }
-
-            private async Task<CloudAssetData> CreateCloudAssetDataAsync(IAsset asset, CancellationToken token)
-            {
-                Uri fileUri = null;
-                if (!string.IsNullOrEmpty(asset.PreviewFile))
-                    fileUri = await asset.GetPreviewFileDownloadUrlAsync(token); // in the normal case, we will not hit the backend here. even if it's async.
-
-                return new CloudAssetData(asset, fileUri);
             }
 
             private async Task<IEnumerable<CloudAssetDataFile>> GetCloudAssetDataFiles(IAsset asset, CancellationToken token)
@@ -301,6 +245,10 @@ namespace Unity.AssetManager.Editor
                     var uriString = string.Empty;
                     try
                     {
+                        var path = cloudFile.Descriptor.Path ?? string.Empty;
+                        if (cloudFile.Status != "Uploaded" || path.EndsWith("meta") || path.EndsWith(".DS_Store"))
+                            continue;
+                        
                         var uri = await cloudFile.GetDownloadUrlAsync(token);
                         uriString = uri?.ToString();
                     }

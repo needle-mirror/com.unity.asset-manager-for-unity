@@ -59,6 +59,9 @@ namespace Unity.AssetManager.Editor
         ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
         public ErrorOrMessageHandlingData errorOrMessageHandlingData { get => m_ErrorOrMessageHandling; }
 
+        [SerializeField]
+        private bool m_ReTriggerSearchAfterDomainReload = false;
+
         protected IAssetDataManager m_AssetDataManager;
         protected void ResolveDependencies(IAssetDataManager assetDataManager)
         {
@@ -88,10 +91,20 @@ namespace Unity.AssetManager.Editor
 
         public virtual void OnEnable()
         {
+            if (!m_ReTriggerSearchAfterDomainReload) 
+                return;
+            
+            m_ReTriggerSearchAfterDomainReload = false;
+            LoadMore();
         }
 
         public virtual void OnDisable()
         {
+            if (!isLoading) 
+                return;
+            
+            m_LoadMoreAssetsOperation.Cancel();
+            m_ReTriggerSearchAfterDomainReload = true;
         }
 
         public void OnDestroy()
@@ -140,15 +153,16 @@ namespace Unity.AssetManager.Editor
             onErrorOrMessageThrown?.Invoke(errorOrMessageHandlingData);
         }
 
-        public void Clear(bool reloadImmediately)
+        public void Clear(bool reloadImmediately, bool keepSelection = false)
         {
             m_LoadMoreAssetsOperation.Cancel();
             m_AssetList.Clear();
             m_HasMoreItems = true;
             m_NextStartIndex = 0;
-            selectedAssetId = null;
             SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
 
+            if(!keepSelection)
+                selectedAssetId = null;
             if (reloadImmediately)
                 LoadMore();
         }

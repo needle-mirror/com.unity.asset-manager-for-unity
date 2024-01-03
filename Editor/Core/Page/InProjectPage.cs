@@ -40,7 +40,8 @@ namespace Unity.AssetManager.Editor
 
         private void OnImportedAssetInfoChanged(AssetChangeArgs args)
         {
-            Clear(true);
+            var keepSelection = !args.removed.Any(a => a.Equals(selectedAssetId));
+            Clear(true, keepSelection);
         }
 
         protected override async Task<IReadOnlyCollection<AssetIdentifier>> LoadMoreAssets(CancellationToken token)

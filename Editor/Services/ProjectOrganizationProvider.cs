@@ -86,7 +86,7 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
-            OnOrganizationIdChange(m_UnityConnectProxy.organizationId);
+            FetchProjectOrganization(m_UnityConnectProxy.organizationId);
             m_UnityConnectProxy.onOrganizationIdChange += OnOrganizationIdChange;
         }
 

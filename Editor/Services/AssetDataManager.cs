@@ -22,16 +22,12 @@ namespace Unity.AssetManager.Editor
         void SetImportedAssetInfos(IReadOnlyCollection<ImportedAssetInfo> allImportedInfos);
         void AddGuidsToImportedAssetInfo(AssetIdentifier id, IReadOnlyCollection<ImportedFileInfo> fileInfos);
         void RemoveGuidsFromImportedAssetInfos(IReadOnlyCollection<string> guidsToRemove);
-
         void AddOrUpdateAssetDataFromCloudAsset(IEnumerable<IAssetData> assetDatas);
-        void UpdateAssetDataFileInfos(IAssetData assetData);
-
         ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier id);
         ImportedAssetInfo GetImportedAssetInfo(string guid);
         IAssetData GetAssetData(AssetIdentifier id);
 
         bool IsInProject(AssetIdentifier id);
-        void UpdateFilesStatus(IAssetData assetData, AssetDataFilesStatus status, bool triggerEvent = true);
     }
 
     [Serializable]
@@ -185,22 +181,6 @@ namespace Unity.AssetManager.Editor
             onAssetDataChanged?.Invoke(assetChangeArgs);
         }
 
-        public void UpdateAssetDataFileInfos(IAssetData assetData)
-        {
-            if (!m_AssetData.ContainsKey(assetData.id)) 
-                return;
-            
-            var assetChangeArgs = new AssetChangeArgs();
-            var updated = new HashSet<AssetIdentifier>();
-            var updatedAssetData = m_AssetDataFactory.UpdateAssetDataFilesInfo(m_AssetData[assetData.id] as AssetData, assetData as AssetData);
-            if (updatedAssetData == null) 
-                return;
-            updated.Add(assetData.id);
-            m_AssetData[assetData.id] = updatedAssetData;
-            assetChangeArgs.updated = updated;
-            onAssetDataChanged?.Invoke(assetChangeArgs);
-        }
-
         public ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier id)
         {
             return id?.IsValid() == true && m_AssetIdToImportedAssetInfoLookup.TryGetValue(id, out var result) ? result : null;
@@ -219,19 +199,6 @@ namespace Unity.AssetManager.Editor
         public bool IsInProject(AssetIdentifier id)
         {
             return GetImportedAssetInfo(id) != null;
-        }
-
-        public void UpdateFilesStatus(IAssetData assetData, AssetDataFilesStatus status, bool triggerEvent = true)
-        {
-            if (assetData == null || assetData.filesInfosStatus == status) 
-                return;
-            
-            m_AssetDataFactory ??= new AssetData.AssetDataFactory();
-            m_AssetDataFactory.UpdateFilesStatus(assetData as AssetData, status);
-            if (!triggerEvent) 
-                return;
-            var assetChangeArgs = new AssetChangeArgs {updated = new []{assetData.id}};
-            onAssetDataChanged?.Invoke(assetChangeArgs);
         }
 
         private void AddImportedAssetInfo(ImportedAssetInfo info)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Unity.Cloud.Assets;
 using Unity.Cloud.Common;
 using UnityEngine;
@@ -27,34 +28,33 @@ namespace Unity.AssetManager.Editor
         string description { get; }
         string authorName { get; }
         string importPath { get; }
-        AssetDataFilesStatus filesInfosStatus { get; }
     }
 
     [Serializable]
     internal class AssetData : IAssetData, ISerializationCallbackReceiver
     {
-        public string importPath => Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName, Constants.ImportedFolderName, $"{name?.Replace(" ", "_").Trim() ?? string.Empty}_{id}");
+        public string importPath => Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName, $"{Regex.Replace(name, @"[\\\/:*?""<>|]", "").Trim()}_{id}");
 
         [SerializeField]
         private string m_Name;
         public string name => m_Name;
-        
+
         [SerializeField]
         private string m_OrganizationId;
         public string organizationId => m_OrganizationId;
-        
+
         [SerializeField]
         private string m_ProjectId;
         public string projectId => m_ProjectId;
-        
+
         [SerializeField]
         private string m_AssetId;
         public string assetId => m_AssetId;
-        
+
         [SerializeField]
         private string m_VersionId;
         public string versionId => m_VersionId;
-        
+
         private AssetIdentifier m_Identifier;
         public AssetIdentifier id =>
             m_Identifier ??= new AssetIdentifier
@@ -72,7 +72,7 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         private string m_Status;
         public string status => m_Status;
-        
+
         [SerializeField]
         private string m_PreviewFilePath;
         public string previewFilePath => m_PreviewFilePath;
@@ -85,13 +85,13 @@ namespace Unity.AssetManager.Editor
         public DateTime created => m_Created;
 
         private DateTime m_Updated;
-        public DateTime updated => m_Updated; 
-        
+        public DateTime updated => m_Updated;
+
         [SerializeField]
         private long m_UpdatedDateTimeAsTicks;
         [SerializeField]
         private long m_CreatedDateTimeAsTicks;
-        
+
         [SerializeField]
         private List<string> m_Tags;
         public IReadOnlyCollection<string> tags =>  m_Tags;
@@ -107,14 +107,6 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         private List<IAssetDataFile> m_Files;
         public IReadOnlyCollection<IAssetDataFile> files => m_Files;
-        
-        [SerializeField]
-        private AssetDataFilesStatus m_FilesInfosStatus;
-        public AssetDataFilesStatus filesInfosStatus
-        {
-            get => m_FilesInfosStatus;
-            private set => m_FilesInfosStatus = value;
-        }
 
         private void UpdateAssetDataFiles (IAssetData updatedAssetData)
         {
@@ -123,7 +115,7 @@ namespace Unity.AssetManager.Editor
             m_PreviewFileUrl = updatedAssetData.previewFileUrl;
         }
 
-        private AssetData(CloudAssetData cloudAsset)
+        private AssetData(ICloudAssetData cloudAsset)
         {
             m_Files = cloudAsset.GetAssetDataFiles();
             m_Name = cloudAsset.asset.Name;
@@ -140,7 +132,6 @@ namespace Unity.AssetManager.Editor
             m_Tags = cloudAsset.asset.Tags.ToList();
             m_PreviewFilePath = cloudAsset.asset.PreviewFile;
             m_PreviewFileUrl = cloudAsset.previewFileUri?.ToString() ?? string.Empty;
-            m_FilesInfosStatus = AssetDataFilesStatus.NotFetched;
         }
 
         static AssetDescriptor BuildDescriptor(OrganizationId organizationId, ProjectId projectId, AssetId assetId, AssetVersion assetVersionId)
@@ -163,33 +154,16 @@ namespace Unity.AssetManager.Editor
 
         internal class AssetDataFactory
         {
-            public IAssetData CreateAssetData(CloudAssetData cloudAsset)
+            public IAssetData CreateAssetData(ICloudAssetData cloudAsset)
             {
                 return new AssetData(cloudAsset);
             }
 
-            public IAssetData UpdateAssetDataFilesInfo(AssetData assetData, AssetData updatedAssetData)
-            {
-                if (assetData == null || updatedAssetData == null)
-                    return null;
-                if (IsDifferent(assetData, updatedAssetData))
-                    assetData.UpdateAssetDataFiles(updatedAssetData);
-                assetData.m_FilesInfosStatus = AssetDataFilesStatus.Fetched;
-                return assetData;
-            }
-
-            public void UpdateFilesStatus(AssetData assetData, AssetDataFilesStatus status)
-            {
-                if (assetData == null) 
-                    return;
-                assetData.m_FilesInfosStatus = status;
-            }
-            
             public static bool IsDifferent(AssetData assetData1, AssetData assetData2)
             {
                 if (assetData1 == null || assetData2 == null)
                     return false;
-                
+
                 return !assetData1.m_Files.SequenceEqual(assetData2.m_Files) ||
                        assetData1.m_Name != assetData2.m_Name ||
                        assetData1.m_Identifier.version != assetData2.m_Identifier.version ||
@@ -209,12 +183,21 @@ namespace Unity.AssetManager.Editor
         }
     }
 
-    internal class CloudAssetData
+    internal interface ICloudAssetData
+    {
+        IAsset asset { get; }
+        IEnumerable<CloudAssetDataFile> filesArg { get; set; }
+        Uri previewFileUri { get; }
+
+        List<IAssetDataFile> GetAssetDataFiles();
+    }
+
+    internal class CloudAssetData : ICloudAssetData
     {
         public IAsset asset { get; }
         public IEnumerable<CloudAssetDataFile> filesArg { get; set; }
         public Uri previewFileUri  { get; }
-       
+
         public CloudAssetData(IAsset asset, Uri previewFileUri)
         {
             this.asset = asset;
@@ -226,7 +209,7 @@ namespace Unity.AssetManager.Editor
         {
             var assetDataFiles = new List<IAssetDataFile>();
             var assetDataFileFactory = new AssetDataFile.AssetDataFileFactory();
-            
+
             foreach (var cloudFile in filesArg)
             {
                 assetDataFiles.Add(assetDataFileFactory.CreateAssetDataFile(cloudFile.file, cloudFile.downloadUrl));

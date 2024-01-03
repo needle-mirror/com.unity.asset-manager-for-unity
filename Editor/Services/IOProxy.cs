@@ -21,6 +21,7 @@ namespace Unity.AssetManager.Editor
         string GetRelativePathToProjectFolder(string path);
         string GetUniqueTempPathInProject();
         bool DeleteAllFilesAndFoldersFromDirectory(string path);
+        FileStream Create(string path, int bufferSize, FileOptions options) => File.Create(path, bufferSize, options);
     }
 
     internal class IOProxy : BaseService<IIOProxy>, IIOProxy
@@ -78,5 +79,6 @@ namespace Unity.AssetManager.Editor
         public string GetUniqueTempPathInProject() => FileUtil.GetUniqueTempPathInProject();
 
         public bool DeleteAllFilesAndFoldersFromDirectory(string path) => Utilities.DeleteAllFilesAndFoldersFromDirectory(path);
+        public FileStream Create(string path, int bufferSize, FileOptions options) => File.Create(path, bufferSize, options);
     }
 }

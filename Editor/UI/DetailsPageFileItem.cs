@@ -24,14 +24,18 @@ namespace Unity.AssetManager.Editor
         private VisualElement InProjectIcon;
         private GenericMenu m_ThreeDotsMenu;
         
-        private IAssetDataManager m_AssetDataManager;
-        private IPageManager m_PageManager;
-        private IAssetImporter m_AssetImporter;
-        public DetailsPageFileItem(IAssetDataManager assetDataManager, IPageManager pageManager, IAssetImporter assetImporter)
+        private readonly IAssetDataManager m_AssetDataManager;
+        private readonly IPageManager m_PageManager;
+        private readonly IAssetImporter m_AssetImporter;
+        private readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
+        private readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
+        public DetailsPageFileItem(IAssetDataManager assetDataManager, IPageManager pageManager, IAssetImporter assetImporter, IEditorGUIUtilityProxy editorGUIUtilityProxy, IAssetDatabaseProxy assetDatabaseProxy)
         {
             m_AssetDataManager = assetDataManager;
             m_PageManager = pageManager;
             m_AssetImporter = assetImporter;
+            m_EditorGUIUtilityProxy = editorGUIUtilityProxy;
+            m_AssetDatabaseProxy = assetDatabaseProxy;
             
             m_FileName = new Label("");
             m_Icon = new VisualElement();
@@ -80,22 +84,22 @@ namespace Unity.AssetManager.Editor
             var importedFileInfo = importedInfo?.fileInfos?.FirstOrDefault(f => f.originalPath.Equals(m_FileName.text));
             if (importedFileInfo != null)
             {
-                var assetObject = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(AssetDatabase.GUIDToAssetPath(importedFileInfo.guid));
+                var assetObject = m_AssetDatabaseProxy.LoadAssetAtPath(m_AssetDatabaseProxy.GuidToAssetPath(importedFileInfo.guid));
                 return assetObject != null && !m_AssetImporter.IsImporting(assetData.id);    
             }
 
             return false;
         }
 
-        void ShowInProjectBrowser()
+        public void ShowInProjectBrowser()
         {
             var assetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId);
             var importedInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.id);
             var importedFileInfo = importedInfo?.fileInfos?.FirstOrDefault(f => f.originalPath.Equals(m_FileName.text));
             if (importedFileInfo != null)
             {
-                var assetObject = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(AssetDatabase.GUIDToAssetPath(importedFileInfo.guid));
-                ProjectWindowUtil.ShowCreatedAsset(assetObject);
+                var assetObject = m_AssetDatabaseProxy.LoadAssetAtPath(m_AssetDatabaseProxy.GuidToAssetPath(importedFileInfo.guid));
+                m_EditorGUIUtilityProxy.PingObject(assetObject);
             }
         }
     }

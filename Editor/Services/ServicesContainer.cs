@@ -92,9 +92,12 @@ namespace Unity.AssetManager.Editor
         {
             m_RegisteredServices.Clear();
 
-            var settingsManager = Register(new AssetManagerSettingsManager());
-            var fileInfoWrapper = Register(new FileInfoWrapper());
             var ioProxy = Register(new IOProxy());
+            var applicationWrapper = Register(new ApplicationProxy());
+            var directoryInfoFactory = Register(new DirectoryInfoFactory());
+            var cachePathHelper = Register(new CachePathHelper(ioProxy, applicationWrapper, directoryInfoFactory));
+            var settingsManager = Register(new AssetManagerSettingsManager(cachePathHelper));
+            var fileInfoWrapper = Register(new FileInfoWrapper());
             var cacheEvictionManager = Register(new CacheEvictionManager(fileInfoWrapper, settingsManager));
             var webRequestProxy = Register(new WebRequestProxy());
             var editorAnalyticsWrapper = Register(new EditorAnalyticsWrapper());
@@ -104,6 +107,7 @@ namespace Unity.AssetManager.Editor
             var assetDataManager = Register(new AssetDataManager(unityConnect));
             var assetDatabaseProxy = Register(new AssetDatabaseProxy());
             var editorUtilityProxy = Register(new EditorUtilityProxy());
+            var editorGUIUtilityProxy = Register(new EditorGUIUtilityProxy());
             var downloadManager = Register(new DownloadManager(webRequestProxy, ioProxy));
             var thumbnailDownloader = Register(new ThumbnailDownloader(downloadManager, ioProxy, settingsManager, cacheEvictionManager));
             var importedAssetsTracker = Register(new ImportedAssetsTracker(ioProxy, assetDatabaseProxy, assetDataManager));

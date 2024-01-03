@@ -17,7 +17,7 @@ Click on the import action to download all of the selected asset's files into yo
 
 ### Import location
 
-All imported assets will be saved under `Assets/Asset Manager/Imported` folder, which will be generated automatically by Asset Manager on the first import.
+All imported assets will be saved under `Assets/Asset Manager` folder, which will be generated automatically by Asset Manager on the first import.
 
 ## Re-importing an asset
 You can also re-import an already imported asset. This will download all of the selected asset's files into your project at the default location, overwriting any existing files.

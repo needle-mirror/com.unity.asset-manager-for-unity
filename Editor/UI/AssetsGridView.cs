@@ -18,7 +18,6 @@ namespace Unity.AssetManager.Editor
         private readonly IThumbnailDownloader m_ThumbnailDownloader;
         private readonly IIconFactory m_IconFactory;
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        private readonly ILinksProxy m_LinksProxy;
 
         public AssetsGridView(IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnect, IPageManager pageManager, IAssetDataManager assetDataManager, IAssetImporter assetImporter, IThumbnailDownloader thumbnailDownloader, IIconFactory iconFactory, ILinksProxy linksProxy)
         {
@@ -29,7 +28,6 @@ namespace Unity.AssetManager.Editor
             m_ThumbnailDownloader = thumbnailDownloader;
             m_IconFactory = iconFactory;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
-            m_LinksProxy = linksProxy;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
             m_Gridview.onGridViewLastItemVisible += OnLastGridViewItemVisible;
@@ -47,7 +45,7 @@ namespace Unity.AssetManager.Editor
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
 
-        private void OnAttachToPanel(AttachToPanelEvent evt)
+        internal void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_UnityConnect.onUserLoginStateChange += OnUserLoginStateChange;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
@@ -61,7 +59,7 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        private void OnDetachFromPanel(DetachFromPanelEvent evt)
+        internal void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_UnityConnect.onUserLoginStateChange -= OnUserLoginStateChange;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
@@ -108,17 +106,14 @@ namespace Unity.AssetManager.Editor
 
         private void Refresh()
         {
+            UIElementsUtils.Hide(m_Gridview);
+            UIElementsUtils.Hide(m_LoadingBar);
+            
             var page = m_PageManager.activePage;
-            if (!m_UnityConnect.isUserLoggedIn || page == null)
+            // The order matters since page is null if there is a Project Level error 
+            if (!m_UnityConnect.isUserLoggedIn || m_GridErrorOrMessageView.Refresh() || page == null)
                 return;
-
-            if (m_GridErrorOrMessageView.Refresh())
-            {
-                UIElementsUtils.Hide(m_Gridview);
-                UIElementsUtils.Hide(m_LoadingBar);
-                return;
-            }
-
+            
             UIElementsUtils.Show(m_Gridview);
             m_LoadingBar.Refresh(page);
             var assetList = page.assetList.ToList();

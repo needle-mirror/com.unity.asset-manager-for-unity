@@ -198,9 +198,6 @@ namespace Unity.AssetManager.Editor
 
             foreach (var file in assetData.files)
             {
-                if (file.path == assetData.previewFilePath)
-                    continue;
-                
                 if (string.IsNullOrEmpty(file.downloadUrl))
                     continue;
 
@@ -228,7 +225,7 @@ namespace Unity.AssetManager.Editor
             return newName;
         }
 
-        public async void StartImportAsync(IAssetData assetData, ImportAction importAction)
+        public void StartImportAsync(IAssetData assetData, ImportAction importAction)
         {
             if (assetData == null || m_ImportOperations.ContainsKey(assetData.id))
                 return;
@@ -241,10 +238,7 @@ namespace Unity.AssetManager.Editor
             m_PendingImports.Add(pendingImport);
 
             var source = new CancellationTokenSource();
-            if (assetData.filesInfosStatus == AssetDataFilesStatus.NotFetched)
-                await m_AssetsProvider.UpdateAssetDownloadUrlsAsync(assetData, source.Token);
-            else if(assetData.filesInfosStatus == AssetDataFilesStatus.Fetched)
-                Import(assetData, pendingImport);
+            Import(assetData, pendingImport);
             source.Dispose();
         }
 

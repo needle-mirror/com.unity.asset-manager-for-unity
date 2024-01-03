@@ -42,7 +42,9 @@ namespace Unity.AssetManager.Editor
                 container.Resolve<IThumbnailDownloader>(),
                 container.Resolve<IIconFactory>(),
                 container.Resolve<IProjectOrganizationProvider>(),
-                container.Resolve<ILinksProxy>());
+                container.Resolve<ILinksProxy>(),
+                container.Resolve<IEditorGUIUtilityProxy>(),
+                container.Resolve<IAssetDatabaseProxy>());
             m_Root.OnEnable();
             m_Root.StretchToParentSize();
             m_LinksProxy = container.Resolve<ILinksProxy>();

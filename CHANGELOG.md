@@ -4,6 +4,30 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2024-01-03
+
+### Fixed
+
+* Errors caused by selecting a cache location without write permissions
+* Fixed forever loading screen when organisation was not set at first launch.
+* Fixed message shown when search result is empty
+* Fixed forever loading page when entering play mode before page was fully loaded
+* Fixed null exception when removing selected asset from in project
+* Fixed details page closing when removing an asset in project that is not selected
+* Don't see .meta and .DS_Store in the included file.
+* Fixed import of assets with special characters
+
+### Added
+
+* Explanatory tooltips to disabled buttons in the Asset Details Page
+
+### Changed
+
+* Updated versions of com.unity.cloud packages
+* Default import location path
+* Show in project button now highlights the asset's file in the project browser
+* Search now fetches the asset and it's files all in one call
+
 ## [0.2.0] - 2023-12-05
 
 ### Added

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Security;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
@@ -27,6 +29,18 @@ namespace Unity.AssetManager.Editor
         internal const string k_RefreshButton = "refresh";
         internal const string k_ClearExtraCache = "clearExtraCache";
 
+        internal static Dictionary<CacheValidationResultError, string> cacheValidationErrorMessages =
+            new Dictionary<CacheValidationResultError, string>()
+            {
+                { CacheValidationResultError.InvalidPath, "The specified path contains invalid characters" },
+                { CacheValidationResultError.DirectoryNotFound, "The specified path is invalid" },
+                {
+                    CacheValidationResultError.PathTooLong,
+                    "The specified path exceeds the system-defined maximum length"
+                },
+                { CacheValidationResultError.CannotWriteToDirectory, "Could not write to directory" }
+            };
+
         HelpBox m_ErroLabel;
         Label m_AssetManagerCachePath;
         Label m_CacheSizeOnDisk;
@@ -35,11 +49,14 @@ namespace Unity.AssetManager.Editor
         private readonly IFileInfoWrapper FileInfoWrapper;
         private readonly IIOProxy m_IOProxy;
         private readonly ISettingsManager m_SettingsManager;
+        private readonly ICachePathHelper m_CachePathHelper;
+        
         internal AssetManagerUserSettingsProvider(
-            IFileInfoWrapper fileInfoWrapper, ISettingsManager settingsManager, IIOProxy ioProxy,
+            ICachePathHelper cachePathHelper, IFileInfoWrapper fileInfoWrapper, ISettingsManager settingsManager, IIOProxy ioProxy,
             string path, IEnumerable<string> keywords = null) :
             base(path, SettingsScope.User, keywords)
         {
+            m_CachePathHelper = cachePathHelper;
             FileInfoWrapper = fileInfoWrapper;
             m_SettingsManager = settingsManager;
             m_IOProxy = ioProxy;
@@ -177,9 +194,9 @@ namespace Unity.AssetManager.Editor
         /// </summary>
         internal void ResetToDefaultLocation()
         {
-            var defaultLocation = CachePathHelper.GetDefaultCacheLocation();
-            m_SettingsManager.SetCacheLocation(defaultLocation);
-            m_AssetManagerCachePath.text = SetCacheLocationLabelText(defaultLocation);
+            var defaultLocation = m_CachePathHelper.GetDefaultCacheLocation();
+            m_SettingsManager.SetCacheLocation(defaultLocation.FullName);
+            m_AssetManagerCachePath.text = SetCacheLocationLabelText(defaultLocation.FullName);
             RefreshCacheSizeOnDiskLabel();
         }
 
@@ -190,10 +207,11 @@ namespace Unity.AssetManager.Editor
         /// <param name="cacheLocation">the new cache location</param>
         internal void UpdateCachePath(string cacheLocation)
         {
-            var validationResult = CachePathHelper.ValidateBaseCacheLocation(cacheLocation);
-            if (!validationResult.Success)
+            var validationResult = m_CachePathHelper.EnsureBaseCacheLocation(cacheLocation);
+
+            if (!validationResult.success)
             {
-                SetErrorLabel(validationResult.Message);
+                SetErrorLabel(CreateUpdateCacheErrorMessage(validationResult.errorType, cacheLocation));
                 return;
             }
 
@@ -201,6 +219,11 @@ namespace Unity.AssetManager.Editor
             m_SettingsManager.SetCacheLocation(cacheLocation);
             m_AssetManagerCachePath.text = SetCacheLocationLabelText(cacheLocation);
             RefreshCacheSizeOnDiskLabel();
+        }
+
+        internal string CreateUpdateCacheErrorMessage(CacheValidationResultError errorType, string path)
+        {
+            return cacheValidationErrorMessages.TryGetValue(errorType, out var message) ? $"{message}. Reverting to default path.\nPath: {path}" : null;
         }
 
         private string SetCacheLocationLabelText(string path)
@@ -212,7 +235,7 @@ namespace Unity.AssetManager.Editor
         public static SettingsProvider CreateUserSettingsProvider()
         {
             var container = ServicesContainer.instance;
-            return new AssetManagerUserSettingsProvider(container.Resolve<IFileInfoWrapper>(), container.Resolve<ISettingsManager>(), container.Resolve<IIOProxy>(),
+            return new AssetManagerUserSettingsProvider(container.Resolve<ICachePathHelper>(), container.Resolve<IFileInfoWrapper>(), container.Resolve<ISettingsManager>(), container.Resolve<IIOProxy>(),
                 k_SettingsProviderPath, new List<string>());
         }
     }

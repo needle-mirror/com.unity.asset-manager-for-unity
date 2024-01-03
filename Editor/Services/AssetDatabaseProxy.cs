@@ -15,6 +15,7 @@ namespace Unity.AssetManager.Editor
         string AssetPathToGuid(string assetPath);
         string GuidToAssetPath(string guid);
         void Refresh();
+        UnityEngine.Object LoadAssetAtPath(string assetPath);
     }
 
     internal class AssetDatabaseProxy : BaseService<IAssetDatabaseProxy>, IAssetDatabaseProxy
@@ -40,5 +41,7 @@ namespace Unity.AssetManager.Editor
         public string GuidToAssetPath(string guid) => AssetDatabase.GUIDToAssetPath(guid);
 
         public void Refresh() => AssetDatabase.Refresh();
+        public UnityEngine.Object LoadAssetAtPath(string assetPath) => AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+
     }
 }

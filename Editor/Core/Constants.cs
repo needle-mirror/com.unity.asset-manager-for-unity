@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using UnityEditor;
 
 namespace Unity.AssetManager.Editor
 {
@@ -16,13 +15,11 @@ namespace Unity.AssetManager.Editor
             { MyAssetsCategoryName, "Downloads.png" },
             { ClosedFoldoutName, "Folder-Closed.png" },
             { OpenFoldoutName, "Folder-Open.png" },
-            { ImportedFolderName, "Folder-Closed.png" },
         };
 
         public const string AllAssetsFolderName = "All Assets";
         public const string AssetsFolderName = "Assets";
         public const string ApplicationFolderName = "Asset Manager";
-        public const string ImportedFolderName = "Imported";
 
         public const string BrowseCategoryName = "Browse";
         public const string MyAssetsCategoryName = "My Assets";
@@ -43,6 +40,9 @@ namespace Unity.AssetManager.Editor
         public const string ImportText = "Import";
         public const string ImportingText = "Importing";
         public const string ReImportText = "Re-Import";
+
+        public const string RemoveFromProjectButtonDisabledToolTip = "There is nothing to remove from the project.";
+        public const string ImportButtonDisabledToolTip = "There is nothing to import.";
 
         public const string CacheThumbnailsFolderName = "Thumbnails";
         public const string CacheTexturesFolderName = "Textures";

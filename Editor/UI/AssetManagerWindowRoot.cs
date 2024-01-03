@@ -43,6 +43,8 @@ namespace Unity.AssetManager.Editor
         private readonly IIconFactory m_IconFactory;
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         private readonly ILinksProxy m_LinksProxy;
+        private readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
+        private readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
 
         public AssetManagerWindowRoot(IPageManager pageManager,
             IAssetDataManager assetDataManager,
@@ -53,7 +55,9 @@ namespace Unity.AssetManager.Editor
             IThumbnailDownloader thumbnailDownloader,
             IIconFactory iconFactory,
             IProjectOrganizationProvider projectOrganizationProvider,
-            ILinksProxy linksProxy)
+            ILinksProxy linksProxy,
+            IEditorGUIUtilityProxy editorGUIUtilityProxy,
+            IAssetDatabaseProxy assetDatabaseProxy)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -65,6 +69,8 @@ namespace Unity.AssetManager.Editor
             m_IconFactory = iconFactory;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_LinksProxy = linksProxy;
+            m_EditorGUIUtilityProxy = editorGUIUtilityProxy;
+            m_AssetDatabaseProxy = assetDatabaseProxy;
         }
 
         public void OnEnable()
@@ -139,7 +145,7 @@ namespace Unity.AssetManager.Editor
             m_SearchContentSplitViewContainer.Add(content);
 
             m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager, m_AssetDataManager, m_AssetImporter, m_ThumbnailDownloader, m_IconFactory, m_LinksProxy);
-            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_StateManager, m_PageManager, m_AssetDataManager, m_AssetsProvider, m_ThumbnailDownloader, m_IconFactory);
+            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_StateManager, m_PageManager, m_AssetDataManager, m_ThumbnailDownloader, m_IconFactory, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy);
 
             m_AssetDetailsContainer = new VisualElement();
             m_AssetDetailsContainer.AddToClassList("AssetDetailsContainer");

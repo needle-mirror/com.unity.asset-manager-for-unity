@@ -43,7 +43,7 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnLoadMoreSuccessCallBack(IReadOnlyCollection<AssetIdentifier> assetIdentifiers)
         {
-            if (string.IsNullOrEmpty(collectionPath) && !m_AssetList.Any())
+            if (string.IsNullOrEmpty(collectionPath) && !m_AssetList.Any() && !searchFilters.Any())
                 SetErrorOrMessageData(L10n.Tr(Constants.EmptyAllAssetText), ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
             else if (searchFilters.Any() && !m_AssetList.Any())
                 SetErrorOrMessageData(L10n.Tr("No results found for \"" + string.Join(", ", searchFilters) + "\""), ErrorOrMessageRecommendedAction.None);

@@ -24,7 +24,7 @@ namespace Unity.AssetManager.Editor
 
         void LoadMore();
 
-        void Clear(bool reloadImmediately);
+        void Clear(bool reloadImmediately, bool keepSelection = false);
 
         void OnEnable();
         void OnDisable();
