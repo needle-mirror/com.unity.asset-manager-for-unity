@@ -27,13 +27,13 @@ namespace Unity.AssetManager.Editor
         IReadOnlyCollection<string> tags { get; }
         string description { get; }
         string authorName { get; }
-        string importPath { get; }
+        string defaultImportPath { get; }
     }
 
     [Serializable]
     internal class AssetData : IAssetData, ISerializationCallbackReceiver
     {
-        public string importPath => Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName, $"{Regex.Replace(name, @"[\\\/:*?""<>|]", "").Trim()}_{id}");
+        public string defaultImportPath => Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName, $"{Regex.Replace(name, @"[\\\/:*?""<>|]", "").Trim()}");
 
         [SerializeField]
         private string m_Name;

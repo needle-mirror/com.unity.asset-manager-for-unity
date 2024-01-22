@@ -40,6 +40,10 @@
                     <ui:Label name="version" />
                 </ui:VisualElement>
                 <ui:VisualElement name="details-page-tags-container" class="mt-1 flex-row flex-wrap flex-shrink-0" />
+                <ui:VisualElement name="no-files-warning-box">
+                    <ui:Image name="no-files-warning-icon"/>
+                    <ui:Label name="no-files-warning-label" class="text-bold" />
+                </ui:VisualElement>
                 <ui:VisualElement name="details-files-foldout-container" class="mb-1 flex-row">
                     <ui:Foldout text="Included Files" name="details-files-foldout" class="mb-1 text-bold">
                         <ui:Label name="details-files-loading-label"/>

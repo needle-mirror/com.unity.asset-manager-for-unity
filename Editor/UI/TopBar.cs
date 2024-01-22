@@ -15,7 +15,7 @@ namespace Unity.AssetManager.Editor
         private const string k_SearchFieldElementName = "inputSearch";
 
         private const string m_PlaceholderClass = k_TopBarAssetName + "__placeholder";
-        
+
         private ToolbarSearchField m_ToolbarSearchField;
         private TextField m_SearchTextField;
         private VisualElement m_SearchPillsContainer;
@@ -24,7 +24,7 @@ namespace Unity.AssetManager.Editor
         private Button m_RefreshButton;
 
         private bool m_Focused;
-        
+
         private readonly IPageManager m_PageManager;
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         private readonly VisualElement m_TextInput;
@@ -51,24 +51,19 @@ namespace Unity.AssetManager.Editor
                 m_ClearAllButton.name = k_SearchCancelUssName;
                 m_ClearAllButton.clicked += OnSearchCancelClick;
             }
-            
+
             m_InProjectLabel = this.Q<Label>("in-project-label");
             m_InProjectLabel.text = L10n.Tr("In Project");
-
-            m_RefreshButton = this.Q<Button>("refresh-button");
-            m_RefreshButton.clicked += RefreshClicked;
-            m_RefreshButton.tooltip = L10n.Tr("Refresh to get an up-to-date list of the assets associated with your asset source.");
-            m_RefreshButton.RemoveFromClassList("unity-button");
 
             m_SearchPillsContainer = new VisualElement();
             m_SearchPillsContainer.AddToClassList("m_SearchPillsContainer");
             m_ToolbarSearchField.Insert(1, m_SearchPillsContainer);
 
             m_TextInput = m_ToolbarSearchField.Q<TextField>().Q("unity-text-input");
-                
+
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
-            
+
             m_SearchTextField.AddToClassList(m_PlaceholderClass);
             ShowSearchTermsTextIfNeeded();
         }
@@ -119,11 +114,6 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        private void RefreshClicked()
-        {
-            m_PageManager.activePage?.Clear(true);
-        }
-
         private void Refresh(IPage page)
         {
             if (page == null)
@@ -135,12 +125,11 @@ namespace Unity.AssetManager.Editor
 
             if (page.pageType == PageType.InProject)
             {
-                UIElementsUtils.Hide(m_RefreshButton);
                 UIElementsUtils.Hide(m_ToolbarSearchField);
                 UIElementsUtils.Show(m_InProjectLabel);
                 return;
             }
-            
+
             UIElementsUtils.Hide(m_InProjectLabel);
             if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.errorOrMessageHandlingData.message))
             {
@@ -155,7 +144,7 @@ namespace Unity.AssetManager.Editor
             m_ToolbarSearchField.SetValueWithoutNotify(string.Empty);
             foreach (var filter in page.searchFilters)
                 m_SearchPillsContainer.Add(new SearchFilterPill(filter, DismissSearchFilter));
-            
+
             ShowSearchTermsTextIfNeeded();
             m_ClearAllButton.visible = page.searchFilters.Any();
         }
@@ -173,7 +162,7 @@ namespace Unity.AssetManager.Editor
             var searchFilters = evt.newValue.Split(" ").Where(s => !string.IsNullOrEmpty(s));
             if (searchFilters.Any())
                 m_PageManager.activePage.AddSearchFilter(searchFilters, true);
-            
+
             if (m_Focused)
                 SetKeyboardFocusOnSearchField();
         }

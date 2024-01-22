@@ -34,6 +34,7 @@ namespace Unity.AssetManager.Editor
         private Foldout m_FilesFoldout;
         private VisualElement m_OwnedAssetIcon;
         private ImportProgressBar m_ImportProgressBar;
+        private VisualElement m_NoFilesWarningBox;
 
         private List<IAssetDataFile> m_Files;
         private List<string> m_FilesList;
@@ -90,6 +91,8 @@ namespace Unity.AssetManager.Editor
             m_Footer = this.Q<VisualElement>("footer");
             m_OwnedAssetIcon = this.Q<VisualElement>("thumbnail-owned-icon");
             m_OwnedAssetIcon.BringToFront();
+            m_NoFilesWarningBox = this.Q<VisualElement>("no-files-warning-box");
+            m_NoFilesWarningBox.Q<Label>().text = L10n.Tr("No files were found in this asset.");
 
             m_Thumbnail = new AssetPreview(iconFactory) { name = "details-page-asset-preview" };
             m_Thumbnail.AddToClassList("image-container");
@@ -213,12 +216,17 @@ namespace Unity.AssetManager.Editor
                 return;
             
             var isImporting = importOperation?.status == OperationStatus.InProgress;
-            m_ImportButton.SetEnabled(!isImporting && m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId).files.Any());
-            m_ImportButton.tooltip = !m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId).files.Any() ? L10n.Tr(Constants.ImportButtonDisabledToolTip) : string.Empty;
+            var isEnabled = !isImporting && m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId).files.Any();
+            m_ImportButton.SetEnabled(isEnabled);
+            m_ImportButton.tooltip = !isEnabled ? L10n.Tr(Constants.ImportButtonDisabledToolTip) : string.Empty;
             if (isImporting)
                 m_ImportButton.text = $"{Constants.ImportingText} ({importOperation.progress * 100:0.#}%)";
             else
-                m_ImportButton.text = isInProject ? Constants.ReImportText : Constants.ImportText;
+            {
+                m_ImportButton.text = isInProject ? Constants.ResetText : Constants.ImportText;
+                if (isInProject)
+                    m_ImportButton.tooltip = L10n.Tr("Restore the asset to it's original state");
+            }
 
             var removeImportEnabled = m_AssetDataManager.IsInProject(m_PageManager.activePage.selectedAssetId);
             m_RemoveImportButton.SetEnabled(removeImportEnabled);
@@ -315,6 +323,17 @@ namespace Unity.AssetManager.Editor
             m_Filesize.text = Utilities.BytesToReadableString(assetFileSize);
             m_TotalFiles.text = assetData.files.Count.ToString();
             
+            if (assetData.files.Any())
+            {
+                UIElementsUtils.Hide(m_NoFilesWarningBox);
+                UIElementsUtils.Show(m_FilesFoldout);
+            }
+            else
+            {
+                UIElementsUtils.Show(m_NoFilesWarningBox);
+                UIElementsUtils.Hide(m_FilesFoldout);
+            }
+            
             UIElementsUtils.Hide(m_FilesLoadingLabel);
             UIElementsUtils.Show(m_FilesListView);
             m_FilesList = new List<string>();
@@ -323,6 +342,7 @@ namespace Unity.AssetManager.Editor
             m_FilesListView.makeItem = () => new DetailsPageFileItem(m_AssetDataManager, m_PageManager, m_AssetImporter, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy);
             m_FilesListView.bindItem = (element, i) => { ((DetailsPageFileItem)element).Refresh(m_FilesList[i]); };
             m_FilesListView.itemsSource = m_FilesList;
+            m_FilesListView.fixedItemHeight = 30;
         }
     }
 }

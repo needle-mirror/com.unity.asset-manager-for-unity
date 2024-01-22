@@ -10,8 +10,8 @@ using Unity.Cloud.Common.Runtime;
 using Unity.Cloud.Identity;
 using Unity.Cloud.Identity.Editor;
 using System.Reflection;
+using Unity.Cloud.Identity.Runtime;
 using UnityEditor.PackageManager;
-using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
@@ -27,9 +27,9 @@ namespace Unity.AssetManager.Editor
     {
         private const string k_PublishedKeyword = "Published";
         private static readonly Pagination k_DefaultPagination = new(nameof(IAsset.Name), Range.All);
-        
+
         private AssetData.AssetDataFactory m_AssetDataFactory;
-        
+
         private readonly CloudAssetsProxy m_CloudAssetsProxy;
         private readonly IAssetDataManager m_AssetDataManager;
         private readonly IUnityConnectProxy m_UnityConnectProxy;
@@ -248,7 +248,7 @@ namespace Unity.AssetManager.Editor
                         var path = cloudFile.Descriptor.Path ?? string.Empty;
                         if (cloudFile.Status != "Uploaded" || path.EndsWith("meta") || path.EndsWith(".DS_Store"))
                             continue;
-                        
+
                         var uri = await cloudFile.GetDownloadUrlAsync(token);
                         uriString = uri?.ToString();
                     }

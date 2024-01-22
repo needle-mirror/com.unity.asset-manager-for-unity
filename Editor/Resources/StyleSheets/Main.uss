@@ -386,7 +386,7 @@ TopBar {
     position: absolute;
     left: 5px;
     top: 6px;
-    right: 40px;
+    right: 5px;
     height: 30px;
     width: auto;
     min-width: 0;
@@ -407,18 +407,6 @@ TopBar {
     height: 16px;
     width: 16px;
     margin: 0 5px 0 5px;
-}
-
-#refresh-button {
-    position: absolute;
-    right: 5px;
-    top: 6px;
-    height: 30px;
-    width: 30px;
-    padding: 5px 5px 5px 5px;
-    background-color: rgba(44, 44, 44, 1);
-    border-radius: 4px;
-    cursor: link;
 }
 
 #refresh-button-icon {
@@ -836,6 +824,41 @@ AssetDetailsPage {
     -unity-font-style: normal;
 }
 
+#no-files-warning-box {
+    width: auto;
+    height: 55px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    border-width: 1px;
+    flex-direction: row;
+    overflow: hidden;
+}
+
+#no-files-warning-box > Image {
+    width: 25px;
+    height: 25px;
+    margin-top: auto;
+    margin-bottom: auto;
+    margin-left: 10px;
+    flex-shrink: 0;
+    background-image: resource("Images/Common/Warning");
+}
+
+#no-files-warning-box > Label {
+    height: 25px;
+    margin-top: auto;
+    margin-bottom: auto;
+    padding-left: 10px;
+    margin-right: 10px;
+    color: white;
+    flex-shrink: 1;
+    -unity-text-align: middle-left;
+    overflow: visible;
+    white-space: normal;
+}
+
 DetailsPageFileItem > Label {
     padding-right: 15px;
 }
@@ -1035,6 +1058,20 @@ DetailsPageFileItem > .details-page-file-item-label{
     position: absolute;
     flex-shrink: 0;
     translate: -50%;
+}
+
+.loading-bar--high-position {
+    height: 35px;
+    width: 128.7px;
+    top: 70px;
+    border-radius: 10px;
+    -unity-text-align: lower-left;
+    margin: 0 auto;
+    left: 50%;
+    position: absolute;
+    flex-shrink: 0;
+    translate: -50%;
+    background-color: rgba(0, 0, 0, 0.5);
 }
 
 .loading-bar .loading-icon {

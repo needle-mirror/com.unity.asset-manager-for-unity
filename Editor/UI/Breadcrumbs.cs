@@ -37,6 +37,7 @@ namespace Unity.AssetManager.Editor
             m_PageManager.onSelectedAssetChanged += OnSelectedAssetChanged;
             m_ProjectOrganizationProvider.onProjectSelectionChanged += OnProjectSelectionChanged;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
         }
 
         private void OnDetachFromPanel(DetachFromPanelEvent evt)
@@ -45,6 +46,12 @@ namespace Unity.AssetManager.Editor
             m_PageManager.onSelectedAssetChanged -= OnSelectedAssetChanged;
             m_ProjectOrganizationProvider.onProjectSelectionChanged -= OnProjectSelectionChanged;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
+        }
+
+        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
+        {
+            Refresh();
         }
 
         private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo organization, bool isLoading)
@@ -64,14 +71,14 @@ namespace Unity.AssetManager.Editor
                 return;
 
             Clear();
-            
+
             // Project breadcrumb, should never be bold
             AddBreadcrumbItem(m_ProjectOrganizationProvider.selectedProject?.name, () =>
                 {
                     m_PageManager.activePage.selectedAssetId = null;
                     m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, string.Empty);
                 });
-            
+
             // Collection/subcollection breadcrumb
             if (!string.IsNullOrEmpty(page.collectionPath))
             {

@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "unity": "2022.3",
   "description": "An in-Editor tool that allows you to import assets directly into your project.",
   "keywords": [
@@ -17,18 +17,18 @@
     "com.unity.cloud.identity": "1.0.0-pre.2"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "0.3.0"
+    "com.unity.asset-manager-for-unity.tests": "0.4.0"
   },
   "_upm": {
-    "changelog": "### Fixed\n\n* Errors caused by selecting a cache location without write permissions\n* Fixed forever loading screen when organisation was not set at first launch.\n* Fixed message shown when search result is empty\n* Fixed forever loading page when entering play mode before page was fully loaded\n* Fixed null exception when removing selected asset from in project\n* Fixed details page closing when removing an asset in project that is not selected\n* Don't see .meta and .DS_Store in the included file.\n* Fixed import of assets with special characters\n\n### Added\n\n* Explanatory tooltips to disabled buttons in the Asset Details Page\n\n### Changed\n\n* Updated versions of com.unity.cloud packages\n* Default import location path\n* Show in project button now highlights the asset's file in the project browser\n* Search now fetches the asset and it's files all in one call"
+    "changelog": "### Fixed \n\n* Vertically centered the listed file items in the details page\n\n### Added\n\n* Warning box in the details page when there are no files associated with an asset\n* Refresh menu item in the window contextual menu that refreshes projects, collections and assets\n\n### Changed\n\n* Initial gridview loading screen no longer shows blank grid items with loading icons"
   },
   "upmCi": {
-    "footprint": "e43617e980ed6ff19cbecf4a508f2375ab2e6b0f"
+    "footprint": "4dd37c10143024b49958b60c8db26d107fbf0526"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.3/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.4/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "ba6b9113858a3158c26bf61b95cd6c329af41abf"
+    "revision": "6d37caf4ce3f124e51bedef2cdd8fa2fd96a138c"
   }
 }

@@ -27,6 +27,7 @@ namespace Unity.AssetManager.Editor
         // We combine these two events because loading start/finish usually happens together with an organization info change.
         // If we have separate events, some UIs will need to hook on to all those events and call refresh multiple times in a row.
         event Action<OrganizationInfo, bool> onOrganizationInfoOrLoadingChanged;
+        event Action<ProjectInfo, bool> onProjectInfoOrLoadingChanged;
         event Action<ProjectInfo> onProjectSelectionChanged;
         bool isLoading { get; }
         OrganizationInfo organization { get; }
@@ -43,6 +44,7 @@ namespace Unity.AssetManager.Editor
         private static readonly string k_NoProjectsMessage = L10n.Tr("It seems you don't have any projects created in your Asset Manager Dashboard.");
 
         public event Action<OrganizationInfo, bool> onOrganizationInfoOrLoadingChanged;
+        public event Action<ProjectInfo, bool> onProjectInfoOrLoadingChanged;
         public event Action<ProjectInfo> onProjectSelectionChanged;
 
         [SerializeField]
@@ -120,7 +122,7 @@ namespace Unity.AssetManager.Editor
             {
                 m_ErrorOrMessageHandling.message = k_NoOrganizationMessage;
                 m_ErrorOrMessageHandling.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
-                onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
+                InvokeProjectOrganizationEvent(refreshProjects);
                 return;
             }
 
@@ -129,15 +131,15 @@ namespace Unity.AssetManager.Editor
                 {
                     errorOrMessageHandlingData.message = string.Empty;
                     errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
-                    onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
+                    InvokeProjectOrganizationEvent(refreshProjects);
                 },
-                onCancelledCallback: () => onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading),
+                onCancelledCallback: () => InvokeProjectOrganizationEvent(refreshProjects),
                 onExceptionCallback: e =>
                 {
                     Debug.LogException(e);
                     errorOrMessageHandlingData.message = L10n.Tr("It seems there was an error while trying to retrieve assets.");
                     errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
-                    onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
+                    InvokeProjectOrganizationEvent(refreshProjects);
                 },
                 onSuccessCallback: result =>
                 {
@@ -152,8 +154,16 @@ namespace Unity.AssetManager.Editor
                         errorOrMessageHandlingData.message = k_NoProjectsMessage;
                         errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink;
                     }
-                    onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
+                    InvokeProjectOrganizationEvent(refreshProjects);
                 });
+        }
+
+        private void InvokeProjectOrganizationEvent(bool refreshProjects)
+        {
+            if (refreshProjects)
+                onProjectInfoOrLoadingChanged?.Invoke(selectedProject, isLoading);
+            else
+                onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
         }
     }
 }

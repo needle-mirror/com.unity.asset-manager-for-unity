@@ -119,7 +119,7 @@ namespace Unity.AssetManager.Editor
             var assetList = page.assetList.ToList();
             if (assetList.Count == 0 && page.hasMoreItems)
             {
-                m_Gridview.ItemsSource = new AssetIdentifier[Constants.DefaultPageSize];
+                m_Gridview.ItemsSource = Array.Empty<AssetIdentifier>();
                 m_Gridview.Refresh();
                 m_Gridview.ResetScrollBarTop();
                 if (!page.isLoading)

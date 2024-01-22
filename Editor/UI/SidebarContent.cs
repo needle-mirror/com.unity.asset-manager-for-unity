@@ -64,6 +64,7 @@ namespace Unity.AssetManager.Editor
         {
             m_ProjectOrganizationProvider.onProjectSelectionChanged += OnProjectSelectionChanged;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
 
             Refresh();
             ScrollToHeight(m_StateManager.sideBarScrollValue);
@@ -72,7 +73,8 @@ namespace Unity.AssetManager.Editor
         private void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_ProjectOrganizationProvider.onProjectSelectionChanged -= OnProjectSelectionChanged;
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
 
             m_StateManager.sideBarScrollValue = m_ScrollContainer.verticalScroller.value;
             m_StateManager.sideBarWidth = layout.width;
@@ -84,6 +86,11 @@ namespace Unity.AssetManager.Editor
         }
 
         private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo organization, bool isLoading)
+        {
+            Refresh();
+        }
+
+        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
         {
             Refresh();
         }
@@ -143,7 +150,7 @@ namespace Unity.AssetManager.Editor
         private SideBarFoldout CreateSideBarFoldout(string foldoutName, string collectionPath, bool selectable = true, Texture icon = null)
         {
             icon ??= UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ClosedFoldoutName]);
-            return new SideBarFoldout(m_PageManager, m_StateManager, foldoutName, collectionPath, selectable, icon);
+            return new SideBarFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider, foldoutName, collectionPath, selectable, icon);
         }
 
         private SideBarFoldout GetFoldout(string collectionPath)

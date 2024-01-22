@@ -4,6 +4,22 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2024-01-22
+
+### Fixed 
+
+* Vertically centered the listed file items in the details page
+
+### Added
+
+* Warning box in the details page when there are no files associated with an asset
+* Refresh menu item in the window contextual menu that refreshes projects, collections and assets
+
+### Changed
+
+* Initial gridview loading screen no longer shows blank grid items with loading icons
+
+
 ## [0.3.0] - 2024-01-03
 
 ### Fixed
@@ -27,6 +43,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 * Default import location path
 * Show in project button now highlights the asset's file in the project browser
 * Search now fetches the asset and it's files all in one call
+* Remove the id in the folder name after importing and manage import name conflict
 
 ## [0.2.0] - 2023-12-05
 

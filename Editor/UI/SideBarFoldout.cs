@@ -1,4 +1,4 @@
-using System;
+using System.Linq;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -17,10 +17,12 @@ namespace Unity.AssetManager.Editor
 
         private readonly IPageManager m_PageManager;
         private readonly IStateManager m_StateManager;
-        public SideBarFoldout(IPageManager pageManager, IStateManager stateManager, string foldoutName, string collectionPath, bool selectable, Texture icon)
+        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        public SideBarFoldout(IPageManager pageManager, IStateManager stateManager, IProjectOrganizationProvider projectOrganizationProvider, string foldoutName, string collectionPath, bool selectable, Texture icon)
         {
             m_PageManager = pageManager;
             m_StateManager = stateManager;
+            m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             text = foldoutName;
             this.collectionPath = collectionPath;
@@ -56,22 +58,36 @@ namespace Unity.AssetManager.Editor
             }, TrickleDown.TrickleDown);
         }
 
-        private void OnAttachToPanel(AttachToPanelEvent evt)
+        internal void OnAttachToPanel(AttachToPanelEvent evt)
         {
             if (!m_Selectable)
                 return;
             Refresh(m_PageManager.activePage);
             m_PageManager.onActivePageChanged += Refresh;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
         }
 
-        private void OnDetachFromPanel(DetachFromPanelEvent evt)
+        internal void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             if (!m_Selectable)
                 return;
             m_PageManager.onActivePageChanged -= Refresh;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
         }
 
-        void Refresh(IPage page)
+        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
+        {
+            if (m_PageManager.activePage?.pageType != PageType.InProject)
+            {
+                // When browsing,  make sure to return to All Assets selection if there is no collections or the one we had
+                // selected does not exist anymore
+                if (!isLoading && m_ProjectOrganizationProvider.selectedProject?.collectionInfos?.Any(i => string.Equals(i.GetFullPath(), m_PageManager.activePage.collectionPath)) != true)
+                    m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, string.Empty);
+            }
+            Refresh(m_PageManager.activePage);
+        }
+
+        private void Refresh(IPage page)
         {
             var selected = page != null && page.pageType == PageType.Collection && (collectionPath ?? string.Empty) == (page.collectionPath ?? string.Empty);
             m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
@@ -84,7 +100,7 @@ namespace Unity.AssetManager.Editor
 
             var iconParent = this.Q(className: inputUssClassName);
             var image = iconParent.Q<Image>();
-            
+
             image.image = value
                 ? UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.OpenFoldoutName])
                 : UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ClosedFoldoutName]);
@@ -104,7 +120,7 @@ namespace Unity.AssetManager.Editor
             {
                 value = !m_StateManager.collapsedCollections.Contains(collectionPath);
                 SetIcon();
-            } 
+            }
         }
 
         internal void ChangeBackToChildlessFolder()

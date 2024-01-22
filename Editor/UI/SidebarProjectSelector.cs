@@ -48,12 +48,14 @@ namespace Unity.AssetManager.Editor
             Refresh();
             m_ProjectOrganizationProvider.onProjectSelectionChanged += OnProjectSelectionChanged;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
         }
 
         private void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_ProjectOrganizationProvider.onProjectSelectionChanged -= OnProjectSelectionChanged;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
         }
 
         private void OnProjectSelectionChanged(ProjectInfo _)
@@ -62,6 +64,11 @@ namespace Unity.AssetManager.Editor
         }
 
         private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo organization, bool isLoading)
+        {
+            Refresh();
+        }
+
+        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
         {
             Refresh();
         }
@@ -77,13 +84,7 @@ namespace Unity.AssetManager.Editor
             }
             UIElementsUtils.Show(m_ProjectsDropdown);
             UIElementsUtils.Hide(m_NoProjectsFoundContainer);
-
-            if (m_ProjectOrganizationProvider.selectedProject == null)
-            {
-                m_ProjectOrganizationProvider.selectedProject = projectInfos.FirstOrDefault();
-                return;
-            }
-
+            
             var projectName = m_ProjectOrganizationProvider.selectedProject.name;
             m_ProjectsDropdown.choices = projectInfos.Select(i => i.name).ToList();
             m_ProjectsDropdown.value = projectName;

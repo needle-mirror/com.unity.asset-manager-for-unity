@@ -39,7 +39,7 @@ namespace Unity.AssetManager.Editor
         // AssetDetailsView Import button text
         public const string ImportText = "Import";
         public const string ImportingText = "Importing";
-        public const string ReImportText = "Re-Import";
+        public const string ResetText = "Reset";
 
         public const string RemoveFromProjectButtonDisabledToolTip = "There is nothing to remove from the project.";
         public const string ImportButtonDisabledToolTip = "There is nothing to import.";

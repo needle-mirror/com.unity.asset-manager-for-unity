@@ -173,6 +173,7 @@ namespace Unity.AssetManager.Editor
             m_PageManager.onSelectedAssetChanged += OnSelectedAssetChanged;
             m_PageManager.onActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
         }
 
         private void UnregisterCallbacks()
@@ -183,6 +184,7 @@ namespace Unity.AssetManager.Editor
             m_PageManager.onSelectedAssetChanged -= OnSelectedAssetChanged;
             m_PageManager.onActivePageChanged -= OnActivePageChanged;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
         }
 
         void OnInspectorResized(GeometryChangedEvent evt)
@@ -193,6 +195,7 @@ namespace Unity.AssetManager.Editor
         private void OnUserLoginStateChange(bool isUserInfoReady, bool isUserLoggedIn) => Refresh();
 
         private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo organizationInfo, bool isLoading) => Refresh();
+        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading) => Refresh();
 
         private void OnSelectedAssetChanged(IPage page, AssetIdentifier assetId)
         {
@@ -276,6 +279,22 @@ namespace Unity.AssetManager.Editor
 
         public void OnLostFocus()
         {
+        }
+
+        public void AddItemsToMenu(GenericMenu menu)
+        {
+            var refreshItem = new GUIContent("Refresh");
+            if (m_ProjectOrganizationProvider is { organization: not null})
+                menu.AddItem(refreshItem, false, () => m_ProjectOrganizationProvider.RefreshProjects());
+            else
+                menu.AddDisabledItem(refreshItem, false);
+
+            GUIContent goToDashboard = new GUIContent(L10n.Tr("Go to Dashboard"));
+            menu.AddItem(goToDashboard, false, m_LinksProxy.OpenAssetManagerDashboard);
+            GUIContent projectSettings = new GUIContent(L10n.Tr("Project Settings"));
+            menu.AddItem(projectSettings, false, m_LinksProxy.OpenProjectSettingsServices);
+            GUIContent preferences = new GUIContent(L10n.Tr("Preferences"));
+            menu.AddItem(preferences, false, m_LinksProxy.OpenPreferences);
         }
     }
 }

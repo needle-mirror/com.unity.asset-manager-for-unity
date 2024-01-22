@@ -20,21 +20,26 @@ namespace Unity.AssetManager.Editor
         public override string collectionPath => m_CollectionInfo.GetFullPath();
 
         private IAssetsProvider m_AssetsProvider;
-        public void ResolveDependencies(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider)
+        private IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        public void ResolveDependencies(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, IProjectOrganizationProvider projectOrganizationProvider)
         {
             base.ResolveDependencies(assetDataManager);
             m_AssetsProvider = assetsProvider;
+            m_ProjectOrganizationProvider = projectOrganizationProvider;
         }
 
-        public CollectionPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, CollectionInfo collectionInfo) : base(assetDataManager)
+        public CollectionPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, IProjectOrganizationProvider projectOrganizationProvider, CollectionInfo collectionInfo) : base(assetDataManager)
         {
-            ResolveDependencies(assetDataManager, assetsProvider);
+            ResolveDependencies(assetDataManager, assetsProvider, projectOrganizationProvider);
 
             m_CollectionInfo = collectionInfo;
         }
 
         protected override async Task<IReadOnlyCollection<AssetIdentifier>> LoadMoreAssets(CancellationToken token)
         {
+            if (m_ProjectOrganizationProvider.selectedProject?.id != m_CollectionInfo.projectId)
+                return null;
+
             var assetIds = await m_AssetsProvider.SearchAsync(m_CollectionInfo, searchFilters, m_NextStartIndex, Constants.DefaultPageSize, token);
             m_HasMoreItems = assetIds.Count == k_PageSize;
             m_NextStartIndex += assetIds.Count;

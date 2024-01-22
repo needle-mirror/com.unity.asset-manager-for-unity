@@ -7,10 +7,12 @@ namespace Unity.AssetManager.Editor
     {
         private const string k_LoadingBarUssClassName = "loading-bar";
         private const string k_LoadingBarLabelUssClassName = "loading-bar-label";
-        private const string k_LoadingBarNoMorAssetsLabelUssClassName = "loading-bar-no-more-assets-label";
+        private const string k_LoadingBarNoMoreAssetsLabelUssClassName = "loading-bar-no-more-assets-label";
+        private const string k_LoadingBarHighPositionUssClassName = "loading-bar--high-position";
 
         LoadingIcon m_LoadingIcon;
         Label m_Label;
+        bool m_IsInitialLoadingBar = false;
 
         public LoadingBar()
         {
@@ -30,13 +32,21 @@ namespace Unity.AssetManager.Editor
             if (page != null && page.isLoading)
             {
                 m_Label.text = L10n.Tr("Loading Assets");
-                m_Label.RemoveFromClassList(k_LoadingBarNoMorAssetsLabelUssClassName);
+                m_Label.RemoveFromClassList(k_LoadingBarNoMoreAssetsLabelUssClassName);
                 m_Label.AddToClassList(k_LoadingBarLabelUssClassName);
+                
+                if (page.assetList?.Count == 0)
+                    AddToClassList(k_LoadingBarHighPositionUssClassName);
+                else
+                    RemoveFromClassList(k_LoadingBarHighPositionUssClassName);
+
                 m_LoadingIcon.visible = true;
                 UIElementsUtils.Show(this);
+                m_IsInitialLoadingBar = true;
             }
             else
             {
+                RemoveFromClassList(k_LoadingBarHighPositionUssClassName);
                 if (!showMessageWhenNoMoreItem || page == null || page.hasMoreItems)
                 {
                     UIElementsUtils.Hide(this);
@@ -50,13 +60,15 @@ namespace Unity.AssetManager.Editor
         {
             m_Label.text = L10n.Tr("No More Assets");
             m_Label.RemoveFromClassList(k_LoadingBarLabelUssClassName);
-            m_Label.AddToClassList(k_LoadingBarNoMorAssetsLabelUssClassName);
+            m_Label.AddToClassList(k_LoadingBarNoMoreAssetsLabelUssClassName);
             m_LoadingIcon.visible = false;
+            m_IsInitialLoadingBar = false;
             
             UIElementsUtils.Show(this);
             schedule.Execute(() =>
             {
-                UIElementsUtils.Hide(this);
+                if (!m_IsInitialLoadingBar)
+                    UIElementsUtils.Hide(this);
             }).StartingIn(3000);
         }
     }

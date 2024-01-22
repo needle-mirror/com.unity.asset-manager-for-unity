@@ -62,6 +62,7 @@ namespace Unity.AssetManager.Editor
         {
             m_UnityConnect.onUserLoginStateChange += OnUserLoginStateChange;
             m_ProjectOrganizationProvider.onProjectSelectionChanged += OnProjectSelectionChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
 
             foreach (var page in m_Pages.Values)
                 page.OnEnable();
@@ -71,6 +72,7 @@ namespace Unity.AssetManager.Editor
         {
             m_UnityConnect.onUserLoginStateChange -= OnUserLoginStateChange;
             m_ProjectOrganizationProvider.onProjectSelectionChanged -= OnProjectSelectionChanged;
+            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
 
             foreach (var page in m_Pages.Values)
                 page.OnDisable();
@@ -90,6 +92,11 @@ namespace Unity.AssetManager.Editor
 
             if (projectInfo != null)
                 activePage ??= GetPage(PageType.Collection, string.Empty);
+        }
+
+        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
+        {
+            activePage?.Clear(true);
         }
 
         public IPage GetPage(PageType pageType, string collectionPath)
@@ -140,7 +147,7 @@ namespace Unity.AssetManager.Editor
                 var collectionInfo = CollectionInfo.CreateFromFullPath(collectionPath);
                 collectionInfo.projectId = m_ProjectOrganizationProvider.selectedProject.id;
                 collectionInfo.organizationId = m_ProjectOrganizationProvider.organization.id;
-                page = new CollectionPage(m_AssetDataManager, m_AssetsProvider, collectionInfo);
+                page = new CollectionPage(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider, collectionInfo);
             }
             else
                 page = new InProjectPage(m_AssetDataManager, m_AssetsProvider);
@@ -155,7 +162,7 @@ namespace Unity.AssetManager.Editor
             switch (page)
             {
                 case CollectionPage collectionPage:
-                    collectionPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider);
+                    collectionPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
                     break;
                 case InProjectPage inProjectPage:
                     inProjectPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider);

@@ -96,18 +96,6 @@ TopBar {
     background-image: resource('Images/Dark/Search');
 }
 
-#refresh-button:hover {
-    background-color: rgba(85, 85, 85, 0.5);
-}
-
-#refresh-button:active {
-    background-color: rgba(85, 85, 85, 1);
-}
-
-#refresh-button-icon {
-    background-image: resource('Images/Dark/Refresh');
-}
-
 .SearchFilterPill {
     background-color: #434343;
 }
@@ -238,6 +226,11 @@ TagPill:hover {
 
 #details-files-foldout > Toggle{
     background-color: rgba(32, 32, 32, 1);
+}
+
+#no-files-warning-box {
+    background-color: rgba(27, 27, 27, 1);
+    border-color: rgba(84, 84, 84, 1);
 }
 
 .details-page-three-dots-item {

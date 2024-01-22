@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using UnityEditor;
 using UnityEngine;
+using System.Text.RegularExpressions;
 
 namespace Unity.AssetManager.Editor
 {
@@ -140,23 +141,12 @@ namespace Unity.AssetManager.Editor
 
         private void MoveFilesToAssetsAndKeepTrack(ImportOperation importOperation)
         {
-            var existingImport = m_AssetDataManager.GetImportedAssetInfo(importOperation.assetId);
-            var existingFilePathLookup = new Dictionary<string, string>();
-            foreach (var fileInfo in existingImport?.fileInfos ?? Enumerable.Empty<ImportedFileInfo>())
-            {
-                var existingPath = m_AssetDatabaseProxy.GuidToAssetPath(fileInfo.guid);
-                var originalPath = fileInfo.originalPath.ToLower();
-                existingFilePathLookup[originalPath] = existingPath;
-                existingFilePathLookup[originalPath + ".meta"] = existingPath + ".meta";
-            }
-
             var filesToTrack = new List<(string originalPath, string finalPath)>();
             foreach (var download in importOperation.downloads)
             {
                 var originalPath = Path.GetRelativePath(importOperation.tempDownloadPath, download.path);
-                var finalPath = existingFilePathLookup.TryGetValue(originalPath.ToLower(), out var result)
-                    ? result
-                    : Path.Combine(importOperation.destinationPath, originalPath);
+                var finalPath = GetNonConflictingImportPath(Path.Combine(importOperation.destinationPath, originalPath));
+
                 m_IOProxy.DeleteFileIfExists(finalPath);
                 m_IOProxy.FileMove(download.path, finalPath);
                 filesToTrack.Add((originalPath, finalPath));
@@ -166,12 +156,104 @@ namespace Unity.AssetManager.Editor
             m_ImportedAssetsTracker.TrackAssets(filesToTrack, importOperation.assetId);
         }
 
-        private ImportOperation CreateImportOperation(IAssetData assetData, ImportAction importAction)
+        private string GetNonConflictingImportPath(string path)
+        {
+            if (!m_IOProxy.FileExists(path) && !m_IOProxy.DirectoryExists(path))
+                return path;
+
+            var extension = Path.GetExtension(path);
+            var pathWithoutExtension = path[..^extension.Length];
+            if (!string.IsNullOrEmpty(extension))
+                path = pathWithoutExtension;
+
+            var pattern = @"( \d+)$";
+            var isPathEndsWithNumber = Regex.Match(path, pattern);
+            var number = 0;
+            var pathWithoutNumber = path;
+
+            if (isPathEndsWithNumber.Success)
+            {
+                pathWithoutNumber = Regex.Replace(path, pattern, string.Empty).Trim();
+                number = int.Parse(isPathEndsWithNumber.Value);
+            }
+
+            var pathToCheck = pathWithoutNumber;
+            while (true)
+            {
+                if (number > 0)
+                    pathToCheck = $"{pathWithoutNumber} {number}";
+
+                if (m_IOProxy.FileExists(pathToCheck + extension) || m_IOProxy.DirectoryExists(pathToCheck + extension))
+                    number++;
+                else
+                    return pathToCheck += extension;
+            }
+        }
+
+        private string GetImportDestinationPathAndRemoveImportWhenReset(IAssetData assetData, out bool cancelImport)
+        {
+            cancelImport = false;
+            var assetsPath = Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName);
+            var tempPath = m_IOProxy.GetUniqueTempPathInProject();
+            var tempFilesToTrack = new List<string>();
+            var destinationPath = assetData.defaultImportPath;
+
+            var existingImport = m_AssetDataManager.GetImportedAssetInfo(assetData.id);
+            if (existingImport != null)
+                tempFilesToTrack = MoveImportToTempPath(assetData, tempPath, assetsPath);
+
+            var nonConflictingImportPath = GetNonConflictingImportPath(destinationPath);
+            if (destinationPath != nonConflictingImportPath)
+            {
+                var destinationFolderName = new DirectoryInfo(destinationPath).Name;
+                var newPathFolderName = new DirectoryInfo(nonConflictingImportPath).Name;
+                var title = L10n.Tr("Import conflict");
+                
+                if (m_IOProxy.FileExists(destinationPath))
+                {
+                    var message = string.Format(L10n.Tr("A file named \"{0}\" already exists." +
+                                  "\nDo you want to create a new folder named \"{1}\" and import the selected assets into that folder?"), destinationFolderName, newPathFolderName);
+                    
+                    if (m_EditorUtilityProxy.DisplayDialog(title, message, L10n.Tr("Create new folder"), L10n.Tr("Cancel")))
+                        return nonConflictingImportPath;
+                    else
+                        cancelImport = true;
+                }
+                else
+                {
+                    var message = string.Format(L10n.Tr("A folder named \"{0}\" already exists." +
+                                  "\nDo you want to continue with the import and rename any conflicting files in \"{0}\"?" +
+                                  "\nOr do you want to create a new folder named \"{1}\" and import the selected assets into that folder?"), destinationFolderName, newPathFolderName);
+
+                    switch (m_EditorUtilityProxy.DisplayDialogComplex(title, message, L10n.Tr("Continue"), L10n.Tr("Create new folder"), L10n.Tr("Cancel")))
+                    {
+                        case 1:
+                            return nonConflictingImportPath;
+                        case 2:
+                            cancelImport = true;
+                            break;
+                    }
+                }
+            }
+
+            if (existingImport != null)
+            {
+                MoveImportToAssetPath(assetData, tempPath, assetsPath, tempFilesToTrack);
+                m_IOProxy.DirectoryDelete(tempPath, true);
+
+                if (!cancelImport)
+                    RemoveImport(assetData);
+            }
+
+            return destinationPath;
+        }
+
+        private ImportOperation CreateImportOperation(IAssetData assetData, ImportAction importAction, string importPath)
         {
             var importOperation = new ImportOperation
             {
                 assetId = assetData.id,
-                destinationPath = assetData.importPath,
+                destinationPath = importPath,
                 importAction = importAction,
                 startTimeTicks = DateTime.Now.Ticks,
                 tempDownloadPath = m_IOProxy.GetUniqueTempPathInProject()
@@ -246,11 +328,14 @@ namespace Unity.AssetManager.Editor
         {
             if (pendingImport == null) 
                 return;
-            
-            var importOperation = CreateImportOperation(assetData, pendingImport.importAction);
+
+            var path = GetImportDestinationPathAndRemoveImportWhenReset(assetData, out bool cancelImport);
+            var importOperation = CreateImportOperation(assetData, pendingImport.importAction, path);
             try
             {
-                if (assetData.files.Any())
+                if (cancelImport)
+                    FinalizeImport(importOperation, OperationStatus.Cancelled);
+                else if (assetData.files.Any())
                     StartImport(assetData, importOperation);
                 else
                 {
@@ -299,10 +384,37 @@ namespace Unity.AssetManager.Editor
             if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Remove Imported Asset"),
                     L10n.Tr("Remove the selected asset?" + Environment.NewLine + "Any changes you made to this asset will be lost."), L10n.Tr("Remove"), L10n.Tr("Cancel")))
                 return;
+            
+            try
+            {
+                var assetsAndFoldersToRemove = FindAssetsAndLeftoverFolders(assetData);
+                if (!assetsAndFoldersToRemove.Any())
+                    return;
 
+                var pathsFailedToRemove = new List<string>();
+
+                m_AssetDatabaseProxy.DeleteAssets(assetsAndFoldersToRemove, pathsFailedToRemove);
+
+                if (pathsFailedToRemove.Any())
+                {
+                    var errorMessage = L10n.Tr("Failed to remove the following asset(s) and/or folder(s):");
+                    foreach (var path in pathsFailedToRemove)
+                        errorMessage += "\n" + path;
+                    Debug.LogError(errorMessage);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                throw;
+            }
+        }
+
+        private string[] FindAssetsAndLeftoverFolders(IAssetData assetData)
+        {
             var fileInfos = m_AssetDataManager.GetImportedAssetInfo(assetData.id)?.fileInfos;
             if (fileInfos == null || fileInfos.Count == 0)
-                return;
+                return new string[0];
 
             try
             {
@@ -339,17 +451,73 @@ namespace Unity.AssetManager.Editor
 
                 // We order the folders to be removed so that child folders always come before their parent folders
                 // This way DeleteAssets call won't try to remove parent folders first and fail to remove child folders
-                var assetAndFoldersToRemove = filesToRemove.Concat(foldersToRemove.OrderByDescending(i => i)).ToArray();
-                var pathsFailedToRemove = new List<string>();
+                return filesToRemove.Concat(foldersToRemove.OrderByDescending(i => i)).ToArray();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                throw;
+            }
+        }
 
-                m_AssetDatabaseProxy.DeleteAssets(assetAndFoldersToRemove, pathsFailedToRemove);
+        public List<string> MoveImportToTempPath(IAssetData assetData, string tempPath, string assetPath)
+        {
+            try
+            {
+                var assetsAndFolders = FindAssetsAndLeftoverFolders(assetData);
+                if (!assetsAndFolders.Any())
+                    return new List<string>();
 
-                if (pathsFailedToRemove.Any())
+                if (!m_IOProxy.DirectoryExists(tempPath))
+                    m_IOProxy.CreateDirectory(tempPath);
+
+                var filesToMove = new List<string>();
+                var foldersToRemove = new List<string>();
+                foreach (var path in assetsAndFolders)
                 {
-                    var errorMessage = L10n.Tr("Failed to remove the following asset(s) and/or folder(s):");
-                    foreach (var path in pathsFailedToRemove)
-                        errorMessage += "\n" + path;
-                    Debug.LogError(errorMessage);
+                    if (m_IOProxy.FileExists(path))
+                        filesToMove.Add(path);
+                    else if (m_IOProxy.DirectoryExists(path))
+                        foldersToRemove.Add(path);
+
+                    var metaFile = path + ".meta";
+                    if (m_IOProxy.FileExists(metaFile))
+                        filesToMove.Add(metaFile);
+                }
+
+                var filesToTrack = new List<string>();
+                foreach (var file in filesToMove)
+                {
+                    var originalPath = Path.GetRelativePath(assetPath, file);
+                    var finalPath = Path.Combine(tempPath, originalPath);
+                    m_IOProxy.FileMove(file, finalPath);
+                    filesToTrack.Add(finalPath);
+                }
+
+                foreach (var path in foldersToRemove)
+                    m_IOProxy.DirectoryDelete(path, true);
+
+                return filesToTrack;
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                throw;
+            }
+        }
+
+        public void MoveImportToAssetPath(IAssetData assetData, string tempPath, string assetPath, List<string> filesToTrack)
+        {
+            if (filesToTrack.Count == 0)
+                return;
+
+            try
+            {
+                foreach (var file in filesToTrack)
+                {
+                    var originalPath = Path.GetRelativePath(tempPath, file);
+                    var finalPath = Path.Combine(assetPath, originalPath);
+                    m_IOProxy.FileMove(file, finalPath);
                 }
             }
             catch (Exception e)
@@ -358,6 +526,7 @@ namespace Unity.AssetManager.Editor
                 throw;
             }
         }
+
 
         public void OnBeforeSerialize()
         {
