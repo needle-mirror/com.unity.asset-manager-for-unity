@@ -7,8 +7,10 @@ namespace Unity.AssetManager.Editor
         public SideBar(IStateManager stateManager, IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
         {
             var topSection = new VisualElement();
-            topSection.Add(new SidebarProjectSelector(projectOrganizationProvider));
-            topSection.Add(new HorizontalSeparator());
+
+            var title = new Label("Projects");
+            title.AddToClassList("SidebarTitle");
+            topSection.Add(title);
             topSection.Add(new SidebarContent(projectOrganizationProvider, pageManager, stateManager));
             Add(topSection);
 

@@ -7,25 +7,23 @@ namespace Unity.AssetManager.Editor
 {
     internal class SideBarFoldout : Foldout
     {
-        private const string k_UnityListViewItemSelected = "unity-list-view__item--selected";
-        private const string k_CheckMarkName = "unity-checkmark";
-        public string collectionPath { get; }
-        private bool m_HasChild;
-        private Toggle m_Toggle;
+        protected const string k_UnityListViewItemSelected = "unity-list-view__item--selected";
+        protected const string k_CheckMarkName = "unity-checkmark";
+        protected bool m_HasChild;
+        protected Toggle m_Toggle;
         private VisualElement m_CheckMark;
-        private readonly bool m_Selectable;
 
-        private readonly IPageManager m_PageManager;
-        private readonly IStateManager m_StateManager;
-        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        public SideBarFoldout(IPageManager pageManager, IStateManager stateManager, IProjectOrganizationProvider projectOrganizationProvider, string foldoutName, string collectionPath, bool selectable, Texture icon)
+        protected readonly IPageManager m_PageManager;
+        protected readonly IStateManager m_StateManager;
+        protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        public SideBarFoldout(IPageManager pageManager, IStateManager stateManager, IProjectOrganizationProvider projectOrganizationProvider, string foldoutName)
         {
             m_PageManager = pageManager;
             m_StateManager = stateManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             text = foldoutName;
-            this.collectionPath = collectionPath;
+
             m_HasChild = false;
             m_Toggle = this.Q<Toggle>();
             m_Toggle.tooltip = foldoutName;
@@ -33,94 +31,42 @@ namespace Unity.AssetManager.Editor
 
             var iconParent = this.Q(className: inputUssClassName);
             iconParent.pickingMode = PickingMode.Ignore;
-            iconParent.Insert(1, new ToolbarSpacer { pickingMode = PickingMode.Ignore });
-            iconParent.Insert(1, new Image { image = icon, pickingMode = PickingMode.Ignore });
+            iconParent.Insert(1, new ToolbarSpacer { pickingMode = PickingMode.Ignore, style = { flexShrink = 0}});
+            iconParent.Insert(1, new Image { pickingMode = PickingMode.Ignore, style = { flexShrink = 0}});
 
             MakeFolderOnlyOpenOnCheckMarkClick();
-            RegisterEventForIconChange();
             AddToClassList("removed-arrow");
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
-
-            m_Selectable = selectable;
-            if (!selectable)
-                return;
-
-            RegisterCallback<PointerDownEvent>(e =>
-            {
-                var target = (VisualElement)e.target;
-                // We skip the user's click if they aimed the check mark of the foldout
-                // to only select foldouts when they click on it's title/label
-                if (e.button != 0 || target.name == k_CheckMarkName)
-                    return;
-                m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, collectionPath);
-            }, TrickleDown.TrickleDown);
         }
 
         internal void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            if (!m_Selectable)
-                return;
-            Refresh(m_PageManager.activePage);
-            m_PageManager.onActivePageChanged += Refresh;
+            OnRefresh(m_PageManager.activePage);
+            m_PageManager.onActivePageChanged += OnRefresh;
             m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
         }
 
         internal void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            if (!m_Selectable)
-                return;
-            m_PageManager.onActivePageChanged -= Refresh;
+            m_PageManager.onActivePageChanged -= OnRefresh;
             m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
         }
 
-        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
-        {
-            if (m_PageManager.activePage?.pageType != PageType.InProject)
-            {
-                // When browsing,  make sure to return to All Assets selection if there is no collections or the one we had
-                // selected does not exist anymore
-                if (!isLoading && m_ProjectOrganizationProvider.selectedProject?.collectionInfos?.Any(i => string.Equals(i.GetFullPath(), m_PageManager.activePage.collectionPath)) != true)
-                    m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, string.Empty);
-            }
-            Refresh(m_PageManager.activePage);
-        }
+        protected virtual void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading) { }
 
-        private void Refresh(IPage page)
-        {
-            var selected = page != null && page.pageType == PageType.Collection && (collectionPath ?? string.Empty) == (page.collectionPath ?? string.Empty);
-            m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
-        }
+        protected virtual void OnRefresh(IPage page) { }
 
-        private void SetIcon()
-        {
-            if (!m_HasChild)
-                return;
-
-            var iconParent = this.Q(className: inputUssClassName);
-            var image = iconParent.Q<Image>();
-
-            image.image = value
-                ? UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.OpenFoldoutName])
-                : UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ClosedFoldoutName]);
-        }
-
-        internal void ChangeIntoParentFolder()
+        internal virtual void ChangeIntoParentFolder()
         {
             if (m_HasChild)
                 return;
 
             m_HasChild = true;
-            m_CheckMark.style.display =  DisplayStyle.Flex;
+            m_CheckMark.style.display = DisplayStyle.Flex;
             m_CheckMark.style.visibility = Visibility.Visible;
             RemoveFromClassList("removed-arrow");
-
-            if (!string.IsNullOrEmpty(collectionPath))
-            {
-                value = !m_StateManager.collapsedCollections.Contains(collectionPath);
-                SetIcon();
-            }
         }
 
         internal void ChangeBackToChildlessFolder()
@@ -129,7 +75,7 @@ namespace Unity.AssetManager.Editor
                 return;
 
             m_HasChild = false;
-            m_CheckMark.style.display =  DisplayStyle.None;
+            m_CheckMark.style.display = DisplayStyle.None;
             m_CheckMark.style.visibility = Visibility.Hidden;
             AddToClassList("removed-arrow");
         }
@@ -140,21 +86,8 @@ namespace Unity.AssetManager.Editor
             label.pickingMode = PickingMode.Ignore;
             m_Toggle.pickingMode = PickingMode.Ignore;
             m_CheckMark.pickingMode = PickingMode.Position;
-            m_CheckMark.style.display =  DisplayStyle.None;
+            m_CheckMark.style.display = DisplayStyle.None;
             m_CheckMark.style.visibility = Visibility.Hidden;
-        }
-
-        private void RegisterEventForIconChange()
-        {
-            this.RegisterValueChangedCallback(e =>
-            {
-                SetIcon();
-                if (m_HasChild)
-                    if (!value)
-                        m_StateManager.collapsedCollections.Add(collectionPath);
-                    else
-                        m_StateManager.collapsedCollections.Remove(collectionPath);
-            });
         }
     }
 }

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
+using Unity.Cloud.Assets;
 using UnityEditor;
 using UnityEngine.UIElements;
 using Button = UnityEngine.UIElements.Button;
@@ -35,6 +37,7 @@ namespace Unity.AssetManager.Editor
         private VisualElement m_OwnedAssetIcon;
         private ImportProgressBar m_ImportProgressBar;
         private VisualElement m_NoFilesWarningBox;
+        private VisualElement m_ProjectContainer;
 
         private List<IAssetDataFile> m_Files;
         private List<string> m_FilesList;
@@ -49,6 +52,9 @@ namespace Unity.AssetManager.Editor
         private readonly IThumbnailDownloader m_ThumbnailDownloader;
         private readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
         private readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
+        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        private readonly ILinksProxy m_LinksProxy;
+        private readonly IProjectIconDownloader m_ProjectIconDownloader;
 
         public AssetDetailsPage(IAssetImporter assetImporter,
             IStateManager stateManager,
@@ -57,7 +63,10 @@ namespace Unity.AssetManager.Editor
             IThumbnailDownloader thumbnailDownloader,
             IIconFactory iconFactory,
             IEditorGUIUtilityProxy editorGUIUtilityProxy,
-            IAssetDatabaseProxy assetDatabaseProxy)
+            IAssetDatabaseProxy assetDatabaseProxy,
+            IProjectOrganizationProvider projectOrganizationProvider,
+            ILinksProxy linksProxy,
+            IProjectIconDownloader projectIconDownloader)
         {
             m_AssetImporter = assetImporter;
             m_StateManager = stateManager;
@@ -66,6 +75,9 @@ namespace Unity.AssetManager.Editor
             m_ThumbnailDownloader = thumbnailDownloader;
             m_EditorGUIUtilityProxy = editorGUIUtilityProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
+            m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_LinksProxy = linksProxy;
+            m_ProjectIconDownloader = projectIconDownloader;
 
             var treeAsset = UIElementsUtils.LoadUXML("DetailsPageContainer");
             treeAsset.CloneTree(this);
@@ -93,11 +105,12 @@ namespace Unity.AssetManager.Editor
             m_OwnedAssetIcon.BringToFront();
             m_NoFilesWarningBox = this.Q<VisualElement>("no-files-warning-box");
             m_NoFilesWarningBox.Q<Label>().text = L10n.Tr("No files were found in this asset.");
+            m_ProjectContainer = this.Q<VisualElement>("details-page-project-pill-container");
 
             m_Thumbnail = new AssetPreview(iconFactory) { name = "details-page-asset-preview" };
             m_Thumbnail.AddToClassList("image-container");
             m_ThumbnailContainer.Add(m_Thumbnail);
-            
+
             var footerContainer = this.Q<VisualElement>("footer-container");
             m_ImportProgressBar = new ImportProgressBar(m_PageManager, m_AssetImporter, true);
             footerContainer.Add(m_ImportProgressBar);
@@ -127,7 +140,6 @@ namespace Unity.AssetManager.Editor
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
-
 
             // We need to manually refresh once to make sure the UI is updated when the window is opened.
             Refresh(m_PageManager.activePage);
@@ -216,7 +228,7 @@ namespace Unity.AssetManager.Editor
                 return;
             
             var isImporting = importOperation?.status == OperationStatus.InProgress;
-            var isEnabled = !isImporting && m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId).files.Any();
+            var isEnabled = !isImporting && true;
             m_ImportButton.SetEnabled(isEnabled);
             m_ImportButton.tooltip = !isEnabled ? L10n.Tr(Constants.ImportButtonDisabledToolTip) : string.Empty;
             if (isImporting)
@@ -251,17 +263,37 @@ namespace Unity.AssetManager.Editor
 
         void RefreshUI(IAssetData assetData)
         {
-            var lastEdited = assetData.updated.ToString("d", CultureInfo.CurrentCulture);
-            var uploadDate = assetData.created.ToString("d", CultureInfo.CurrentCulture);
-
             m_AssetName.text = assetData.name;
-            m_Description.text = assetData.description;
             m_AssetType.text = assetData.assetType.DisplayValue();
             m_Status.text = assetData.status;
-            m_LastEdited.text = lastEdited;
-            m_UploadDate.text = uploadDate;
             m_Version.text = assetData.id.version;
             m_TagsContainer.Clear();
+            m_ProjectContainer.Clear();
+
+            var projectInfo = m_ProjectOrganizationProvider.organization?.projectInfos.FirstOrDefault(p => p.id == assetData.projectId);
+            if (projectInfo != null)
+            {
+                var projectPill = new ProjectPill(projectInfo);
+                projectPill.ProjectPillClickAction += pi =>
+                {
+                    m_ProjectOrganizationProvider.selectedProject = pi;
+                };
+                m_ProjectIconDownloader.DownloadIcon(projectInfo.id, (projectId, icon) =>
+                {
+                    if (projectId == projectInfo.id)
+                    {
+                        projectPill.SetIcon(icon);
+                    }
+                });
+                m_ProjectContainer.Add(projectPill);
+
+                var projectDashboardButton = new Image();
+                projectDashboardButton.AddToClassList("details-page-project-dashboard-button");
+                projectDashboardButton.image = UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ExternalLinkName]);
+                projectDashboardButton.tooltip = L10n.Tr("Open project in the dashboard");
+                projectDashboardButton.RegisterCallback<ClickEvent>(e => m_LinksProxy.OpenAssetManagerDashboard(projectInfo));
+                m_ProjectContainer.Add(projectDashboardButton);
+            }
 
             foreach (var tag in assetData.tags)
             {
@@ -314,16 +346,38 @@ namespace Unity.AssetManager.Editor
             RefreshImportVisibility(m_AssetImporter.GetImportOperation(assetData.id), m_AssetDataManager.IsInProject(assetData.id));
         }
 
-        private void RefreshFilesInformation(IAssetData assetData)
+        async void RefreshFilesInformation(IAssetData assetData)
         {
+            m_FilesListView.itemsSource = null;
+            UIElementsUtils.Hide(m_NoFilesWarningBox);
+            UIElementsUtils.Show(m_FilesFoldout);
+            UIElementsUtils.Show(m_FilesLoadingLabel);
+
+            m_Filesize.text = m_TotalFiles.text = "...";
+            m_LastEdited.text = m_UploadDate.text = "...";
+            m_Description.text = "...";
+            
             if (assetData == null)
                 return;
 
-            var assetFileSize = assetData.files.Sum(i => i.fileSize);
-            m_Filesize.text = Utilities.BytesToReadableString(assetFileSize);
-            m_TotalFiles.text = assetData.files.Count.ToString();
+            var files = new List<IFile>();
             
-            if (assetData.files.Any())
+            var detailedAsset = await assetData.GetDetailedAssetAsync();
+            
+            m_UploadDate.text = detailedAsset.AuthoringInfo.Updated.ToString("d", CultureInfo.CurrentCulture);
+            m_LastEdited.text = detailedAsset.AuthoringInfo.Created.ToString("d", CultureInfo.CurrentCulture);
+            m_Description.text = detailedAsset.Description;
+
+            await foreach (var file in assetData.GetFilesAsync())
+            {
+                files.Add(file);
+            }
+            
+            var assetFileSize = files.Sum(i => i.SizeBytes);
+            m_Filesize.text = Utilities.BytesToReadableString(assetFileSize);
+            m_TotalFiles.text = files.Count.ToString();
+            
+            if (files.Any())
             {
                 UIElementsUtils.Hide(m_NoFilesWarningBox);
                 UIElementsUtils.Show(m_FilesFoldout);
@@ -336,9 +390,13 @@ namespace Unity.AssetManager.Editor
             
             UIElementsUtils.Hide(m_FilesLoadingLabel);
             UIElementsUtils.Show(m_FilesListView);
+            
             m_FilesList = new List<string>();
-            foreach (var file in assetData.files)
-                m_FilesList.Add(file.path);
+            foreach (var file in files)
+            {
+                m_FilesList.Add(file.Descriptor.Path);
+            }
+
             m_FilesListView.makeItem = () => new DetailsPageFileItem(m_AssetDataManager, m_PageManager, m_AssetImporter, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy);
             m_FilesListView.bindItem = (element, i) => { ((DetailsPageFileItem)element).Refresh(m_FilesList[i]); };
             m_FilesListView.itemsSource = m_FilesList;

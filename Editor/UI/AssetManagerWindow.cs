@@ -27,10 +27,6 @@ namespace Unity.AssetManager.Editor
             titleContent = new GUIContent("Asset Manager", UIElementsUtils.GetPackageIcon());
 
             var container = ServicesContainer.instance;
-            // The services container only enables a service (and its dependencies) when it is resolved so that we can keep amount of services
-            // running in the background to as low as possible if the user never opens the Window. However, this also means not all services are enabled
-            // when the Window is opened, so we need to manually do that here.
-            container.EnableAllServices();
             m_Root = new AssetManagerWindowRoot(
                 container.Resolve<IPageManager>(),
                 container.Resolve<IAssetDataManager>(),
@@ -43,7 +39,8 @@ namespace Unity.AssetManager.Editor
                 container.Resolve<IProjectOrganizationProvider>(),
                 container.Resolve<ILinksProxy>(),
                 container.Resolve<IEditorGUIUtilityProxy>(),
-                container.Resolve<IAssetDatabaseProxy>());
+                container.Resolve<IAssetDatabaseProxy>(),
+                container.Resolve<IProjectIconDownloader>());
             m_Root.OnEnable();
             m_Root.StretchToParentSize();
             rootVisualElement.Add(m_Root);

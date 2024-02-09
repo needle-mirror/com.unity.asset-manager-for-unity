@@ -191,6 +191,19 @@ ActionHelpBox ErrorOrMessageActionButton {
 }
 
 /************************************************
+* ProjectPill
+************************************************/
+
+ProjectPill {
+    background-color: #C6C6C6;
+}
+
+ProjectPill:hover {
+    background-color: #E7E7E7;
+}
+
+
+/************************************************
 * TagPill
 ************************************************/
 

@@ -11,8 +11,7 @@ namespace Unity.AssetManager.Editor
     {
         private ScrollView m_ScrollContainer;
         private List<SideBarFoldout> m_Foldouts;
-        private SideBarFoldout m_CollectionsFolder;
-        private SideBarFoldout m_AllAssetsFolder;
+        private SideBarAllAssetsFoldout m_AllAssetsFolder;
         private VisualElement m_NoProjectSelectedContainer;
 
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
@@ -38,18 +37,9 @@ namespace Unity.AssetManager.Editor
                 mode = ScrollViewMode.Vertical
             };
 
-            var allAssetsIcon = UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.AllAssetsFolderName]);
-            m_AllAssetsFolder = CreateSideBarFoldout(Constants.AllAssetsFolderName, string.Empty, icon: allAssetsIcon);
+            m_AllAssetsFolder = new SideBarAllAssetsFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider, Constants.AllAssetsFolderName);
             m_AllAssetsFolder.AddToClassList("allAssetsFolder");
             m_ScrollContainer.Add(m_AllAssetsFolder);
-            m_CollectionsFolder = CreateSideBarFoldout("Collections", null, false);
-            m_CollectionsFolder.RegisterValueChangedCallback(e =>
-            {
-                m_StateManager.collectionsTopFolderFoldoutValue = m_CollectionsFolder.value;
-            });
-            m_CollectionsFolder.value = m_StateManager.collectionsTopFolderFoldoutValue;
-            m_CollectionsFolder.AddToClassList("collections-top-level-folder");
-            m_ScrollContainer.Add(m_CollectionsFolder);
             m_Foldouts = new List<SideBarFoldout> { m_AllAssetsFolder };
 
             m_NoProjectSelectedContainer = new VisualElement();
@@ -62,7 +52,6 @@ namespace Unity.AssetManager.Editor
 
         private void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_ProjectOrganizationProvider.onProjectSelectionChanged += OnProjectSelectionChanged;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
             m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
 
@@ -72,17 +61,11 @@ namespace Unity.AssetManager.Editor
 
         private void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_ProjectOrganizationProvider.onProjectSelectionChanged -= OnProjectSelectionChanged;
             m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
             m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
 
             m_StateManager.sideBarScrollValue = m_ScrollContainer.verticalScroller.value;
             m_StateManager.sideBarWidth = layout.width;
-        }
-
-        private void OnProjectSelectionChanged(ProjectInfo project)
-        {
-            Refresh();
         }
 
         private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo organization, bool isLoading)
@@ -107,55 +90,80 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.Show(m_ScrollContainer);
             UIElementsUtils.Hide(m_NoProjectSelectedContainer);
 
-            RebuildCollectionList(m_ProjectOrganizationProvider.selectedProject?.collectionInfos);
+            if (m_ProjectOrganizationProvider.organization != null)
+            {
+                var orderedProjectInfos = m_ProjectOrganizationProvider.organization.projectInfos.OrderBy(p => p.name);
+                RebuildProjectList(orderedProjectInfos.ToList());
+            }
+            else
+            {
+                RebuildProjectList(null);
+            }
 
             m_ScrollContainer.verticalScroller.value = m_StateManager.sideBarScrollValue;
         }
 
-        private void RebuildCollectionList(IReadOnlyCollection<CollectionInfo> collections)
+        private void RebuildProjectList(List<ProjectInfo> projectInfos)
         {
-            m_CollectionsFolder.Clear();
+            m_ScrollContainer.Clear();
             m_Foldouts.Clear();
-            m_Foldouts.Add(m_AllAssetsFolder);
-            m_CollectionsFolder.ChangeBackToChildlessFolder();
-            m_CollectionsFolder.SetEnabled(false);
 
-            if (collections?.Any() != true)
+            if (projectInfos?.Any() != true)
                 return;
 
-            m_CollectionsFolder.SetEnabled(true);
-            m_CollectionsFolder.ChangeIntoParentFolder();
-
-            foreach (var collection in collections)
+            if (projectInfos.Count > 1)
             {
-                if (string.IsNullOrEmpty(collection.parentPath))
+                m_ScrollContainer.Add(m_AllAssetsFolder);
+                m_Foldouts.Add(m_AllAssetsFolder);
+                var separator = new HorizontalSeparator();
+                var color = separator.style.backgroundColor;
+                separator.style.backgroundColor = new Color(color.value.r, color.value.g, color.value.b, 0.25f);
+                separator.style.marginBottom = separator.style.marginLeft = separator.style.marginRight = 4;
+                m_ScrollContainer.Add(separator);
+            }
+
+            foreach (var projectInfo in projectInfos)
+            {
+                var projectFoldout = new SideBarProjectFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider, projectInfo.name, projectInfo);
+                m_ScrollContainer.Add(projectFoldout);
+                m_Foldouts.Add(projectFoldout);
+                if (projectInfo.collectionInfos?.Any() == true)
                 {
-                    var foldout = CreateSideBarFoldout(collection.name, collection.GetFullPath());
-                    m_Foldouts.Add(foldout);
-                    m_CollectionsFolder.Add(foldout);
-                }
-                else
-                {
-                    var parentFoldout = GetFoldout(collection.parentPath);
-                    if (parentFoldout == null)
-                        continue;
-                    var foldout = CreateSideBarFoldout(collection.name, collection.GetFullPath());
-                    parentFoldout.ChangeIntoParentFolder();
-                    parentFoldout.Add(foldout);
-                    m_Foldouts.Add(foldout);
+                    projectFoldout.ChangeIntoParentFolder();
+                    projectFoldout.value = false;
+                    foreach (var collection in projectInfo.collectionInfos)
+                    {
+                        if (string.IsNullOrEmpty(collection.parentPath))
+                        {
+                            var collectionFoldout = CreateSideBarCollectionFoldout(collection.name, collection.GetFullPath());
+                            m_Foldouts.Add(collectionFoldout);
+                            projectFoldout.Add(collectionFoldout);
+                        }
+                        else
+                        {
+                            var parentFoldout = GetCollectionFoldout(collection.parentPath);
+                            if (parentFoldout == null)
+                                continue;
+
+                            var collectionFoldout = CreateSideBarCollectionFoldout(collection.name, collection.GetFullPath());
+                            parentFoldout.ChangeIntoParentFolder();
+                            parentFoldout.Add(collectionFoldout);
+                            m_Foldouts.Add(collectionFoldout);
+                        }
+                    }
                 }
             }
         }
 
-        private SideBarFoldout CreateSideBarFoldout(string foldoutName, string collectionPath, bool selectable = true, Texture icon = null)
+        private SideBarFoldout CreateSideBarCollectionFoldout(string foldoutName, string collectionPath)
         {
-            icon ??= UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ClosedFoldoutName]);
-            return new SideBarFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider, foldoutName, collectionPath, selectable, icon);
+            return new SideBarCollectionFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider, foldoutName, collectionPath);
         }
 
-        private SideBarFoldout GetFoldout(string collectionPath)
+        private SideBarFoldout GetCollectionFoldout(string collectionPath)
         {
-            return m_Foldouts.FirstOrDefault(i => i.collectionPath == collectionPath);
+            var collectionFoldouts = m_Foldouts.OfType<SideBarCollectionFoldout>();
+            return collectionFoldouts.FirstOrDefault(i => i.CollectionPath == collectionPath);
         }
 
         private void ScrollToHeight(float height)

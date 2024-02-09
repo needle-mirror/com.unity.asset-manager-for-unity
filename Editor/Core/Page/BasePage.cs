@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -27,7 +28,6 @@ namespace Unity.AssetManager.Editor
         protected int m_NextStartIndex;
 
         public abstract PageType pageType { get; }
-        public abstract string collectionPath { get; }
 
         [SerializeField]
         private List<string> m_SearchFilters = new();
@@ -52,8 +52,8 @@ namespace Unity.AssetManager.Editor
         }
 
         [SerializeField]
-        protected List<AssetIdentifier> m_AssetList = new();
-        public IReadOnlyCollection<AssetIdentifier> assetList => m_AssetList;
+        protected List<AssetData> m_AssetList = new();
+        public IReadOnlyCollection<IAssetData> assetList => m_AssetList;
 
         [SerializeField]
         ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
@@ -129,19 +129,26 @@ namespace Unity.AssetManager.Editor
                     errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
                     onLoadingStatusChanged?.Invoke(isLoading);
                 },
-                onCancelledCallback: () => onLoadingStatusChanged?.Invoke(isLoading),
+                onCancelledCallback: null,
                 onExceptionCallback: e =>
                 {
                     Debug.LogException(e);
                     SetErrorOrMessageData("It seems there was an error while trying to retrieve assets.");
                     onLoadingStatusChanged?.Invoke(isLoading);
                 },
-                onSuccessCallback: result =>
+                onSuccessCallback: results =>
                 {
-                    if (result?.Any() == true)
-                        m_AssetList.AddRange(result);
-                    
-                    OnLoadMoreSuccessCallBack(result);
+                    var assetDatas = new List<AssetData>();
+
+                    foreach (var result in results)
+                    {
+                        assetDatas.Add(new AssetData(result));
+                    }
+                        
+                    m_AssetDataManager.AddOrUpdateAssetDataFromCloudAsset(assetDatas);
+                    m_AssetList.AddRange(assetDatas);
+
+                    OnLoadMoreSuccessCallBack(assetDatas.Select(assetData => assetData.id).ToList());
                     onLoadingStatusChanged?.Invoke(isLoading);
                 });
         }
@@ -150,7 +157,11 @@ namespace Unity.AssetManager.Editor
         {
             errorOrMessageHandlingData.message = errorMessage;
             errorOrMessageHandlingData.errorOrMessageRecommendedAction = actionType;
-            onErrorOrMessageThrown?.Invoke(errorOrMessageHandlingData);
+
+            if (actionType != ErrorOrMessageRecommendedAction.None)
+            {
+                onErrorOrMessageThrown?.Invoke(errorOrMessageHandlingData);
+            }
         }
 
         public void Clear(bool reloadImmediately, bool keepSelection = false)
@@ -167,7 +178,7 @@ namespace Unity.AssetManager.Editor
                 LoadMore();
         }
 
-        protected abstract Task<IReadOnlyCollection<AssetIdentifier>> LoadMoreAssets(CancellationToken token);
+        protected abstract IAsyncEnumerable<IAsset> LoadMoreAssets(CancellationToken token);
         protected abstract void OnLoadMoreSuccessCallBack(IReadOnlyCollection<AssetIdentifier> assetIdentifiers);
         public void AddSearchFilter(IEnumerable<string> searchFiltersArg, bool reloadImmediately)
         {

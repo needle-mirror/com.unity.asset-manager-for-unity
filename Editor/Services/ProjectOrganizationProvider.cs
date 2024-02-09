@@ -19,9 +19,17 @@ namespace Unity.AssetManager.Editor
         public string id;
         public string name;
         public List<CollectionInfo> collectionInfos = new();
+
+        static ProjectInfo s_ProjectInfoAllAssets = new()
+        {
+            id = "AllAssets",
+            name = Constants.AllAssetsFolderName
+        };
+
+        internal static ProjectInfo AllAssetsProjectInfo => s_ProjectInfoAllAssets;
     }
 
-    interface IProjectOrganizationProvider: IService
+    interface IProjectOrganizationProvider : IService
     {
         // This event gets triggered when organization info changed, or when the loading for organizationInfo starts or finished.
         // We combine these two events because loading start/finish usually happens together with an organization info change.
@@ -59,7 +67,12 @@ namespace Unity.AssetManager.Editor
         private string m_SelectedProjectId;
         public ProjectInfo selectedProject
         {
-            get => m_OrganizationInfo?.projectInfos?.FirstOrDefault( p => p.id == m_SelectedProjectId);
+            get
+            {
+                return m_SelectedProjectId == ProjectInfo.AllAssetsProjectInfo.id ?
+                ProjectInfo.AllAssetsProjectInfo :
+                m_OrganizationInfo?.projectInfos?.FirstOrDefault(p => p.id == m_SelectedProjectId);
+            }
             set
             {
                 var oldSelectedProjectId = selectedProject?.id ?? string.Empty;

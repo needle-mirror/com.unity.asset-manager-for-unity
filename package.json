@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "unity": "2022.3",
   "description": "An in-Editor tool that allows you to import assets directly into your project.",
   "keywords": [
@@ -12,23 +12,22 @@
   "dependencies": {
     "com.unity.settings-manager": "1.0.2",
     "com.unity.editorcoroutines": "1.0.0",
-    "com.unity.cloud.assets": "1.0.0-exp.3",
-    "com.unity.cloud.common": "1.0.0-pre.2",
-    "com.unity.cloud.identity": "1.0.0-pre.2"
+    "com.unity.cloud.assets": "1.0.0-exp.6",
+    "com.unity.cloud.identity": "1.0.0-pre.5"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "0.4.0"
+    "com.unity.asset-manager-for-unity.tests": "0.4.2"
   },
   "_upm": {
-    "changelog": "### Fixed \n\n* Vertically centered the listed file items in the details page\n\n### Added\n\n* Warning box in the details page when there are no files associated with an asset\n* Refresh menu item in the window contextual menu that refreshes projects, collections and assets\n\n### Changed\n\n* Initial gridview loading screen no longer shows blank grid items with loading icons"
+    "changelog": "### Fixed \n* Fixed parallel downloads\n* Projects are now sorted by name\n* Preview files are now ignored\n* Meta file are now displayed and downloaded properly\n\n### Added\n* Added infinite loading bar when fetching files download URL\n* Added \"All Assets\" option to allow a search over all assets of an organization\n* Added link to the Project in the Unity Dashboard\n* Project's chip now contains the project's icon\n\n### Changed\n* Optimized HTTP calls\n* Project dropdown has been changed in favor of a tree view from project to collection\n\n### Known Issues\n* \"Show In Project\" is not working as expected\n* “Imported” icon on the file list does not show for meta files\n* Loading more than 100 assets may result in unexpected behaviour"
   },
   "upmCi": {
-    "footprint": "4dd37c10143024b49958b60c8db26d107fbf0526"
+    "footprint": "0d64fac518fd0a0c1dbd63eb4784284852adc819"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.4/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "6d37caf4ce3f124e51bedef2cdd8fa2fd96a138c"
+    "revision": "37a7fe1aaa3907899db071dce4599b2ace6fdbc1"
   }
 }

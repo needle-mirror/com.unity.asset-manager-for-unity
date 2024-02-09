@@ -72,7 +72,7 @@ namespace Unity.AssetManager.Editor
 
             Clear();
 
-            // Project breadcrumb, should never be bold
+            // Project breadcrumb
             AddBreadcrumbItem(m_ProjectOrganizationProvider.selectedProject?.name, () =>
                 {
                     m_PageManager.activePage.selectedAssetId = null;
@@ -80,22 +80,21 @@ namespace Unity.AssetManager.Editor
                 });
 
             // Collection/subcollection breadcrumb
-            if (!string.IsNullOrEmpty(page.collectionPath))
+            if (page.pageType == PageType.Collection)
             {
-                var collectionPaths = page.collectionPath.Split("/");
-                foreach (var path in collectionPaths)
+                if (page is CollectionPage collectionPage && !string.IsNullOrEmpty(collectionPage.collectionPath))
                 {
-                    var collectionPath = page.collectionPath[..(page.collectionPath.IndexOf(path) + path.Length)];
-                    AddBreadcrumbItem(path, () =>
+                    var collectionPaths = collectionPage.collectionPath.Split("/");
+                    foreach (var path in collectionPaths)
+                    {
+                        var collectionPath = collectionPage.collectionPath[..(collectionPage.collectionPath.IndexOf(path) + path.Length)];
+                        AddBreadcrumbItem(path, () =>
                         {
                             m_PageManager.activePage.selectedAssetId = null;
                             m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, collectionPath);
                         });
+                    }
                 }
-            }
-            else
-            {
-                AddBreadcrumbItem("All Assets", () => m_PageManager.activePage.selectedAssetId = null);
             }
 
             // Last item should always be bold

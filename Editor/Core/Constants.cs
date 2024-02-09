@@ -15,6 +15,8 @@ namespace Unity.AssetManager.Editor
             { MyAssetsCategoryName, "Downloads.png" },
             { ClosedFoldoutName, "Folder-Closed.png" },
             { OpenFoldoutName, "Folder-Open.png" },
+            { ProjectIconName, "Project-Icon.png" },
+            { ExternalLinkName, "External-Link.png" }
         };
 
         public const string AllAssetsFolderName = "All Assets";
@@ -26,6 +28,8 @@ namespace Unity.AssetManager.Editor
         public const string LocalFilesCategoryName = "Local Files";
         public const string ClosedFoldoutName = "Filters";
         public const string OpenFoldoutName = "Open Folder";
+        public const string ProjectIconName = "Project Icon";
+        public const string ExternalLinkName = "External Link";
 
         public const string InProjectTabName = "In Project";
 
@@ -60,7 +64,8 @@ namespace Unity.AssetManager.Editor
         public const string GridItemStyleClassName = "grid-view--item";
         public const string EmptyCollectionsText = "This collection has no assets, use the Asset Manager dashboard to link your assets to a collection.";
         public const string EmptyInProjectText = "Your imported assets will be shown here.";
-        public const string EmptyAllAssetText = "It seems you don't have any assets uploaded to the selected project in your Asset Manager Dashboard.";
+        public const string EmptyProjectText = "It seems you don't have any assets uploaded to the selected project in your Asset Manager Dashboard.";
+        public const string EmptyAllAssetsText = "It seems you don't have any assets uploaded to the selected organization in your Asset Manager Dashboard.";
         public const int ShrinkSizeInMb = 200;
         public const int DefaultCacheSizeGb = 2;
         public const int DefaultCacheSizeMb = DefaultCacheSizeGb * 1024;

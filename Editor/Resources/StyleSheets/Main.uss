@@ -11,6 +11,10 @@
     flex-shrink: 0;
 }
 
+.flex-grow-1 {
+    flex-grow: 1;
+}
+
 .warning-icon {
     height: 13px;
     width: 13px;
@@ -43,6 +47,12 @@
     margin-top: 5px;
     flex-grow: 1;
     flex-shrink: 0;
+}
+
+.SidebarTitle{
+    margin-left: 8px;
+    margin-top: 16px;
+    -unity-font-style: bold;
 }
 
 SidebarProjectSelector {
@@ -200,10 +210,6 @@ TwoPaneSplitView {
 
 .collections-top-level-folder > Toggle > VisualElement > Label{
     -unity-font-style: bold;
-}
-
-.removed-arrow Image{
-    margin-left: 3px;
 }
 
 .TopBar__placeholder {
@@ -473,6 +479,30 @@ TagPill {
     margin: 0px 5px 5px 5px;
     cursor: link;
     flex-shrink: 0;
+}
+
+/************************************************
+* ProjectPill
+************************************************/
+
+ProjectPill {
+    padding: 5px 5px;
+    padding-right: 10px;
+    border-radius: 12px;
+    margin: 5px 5px 5px 5px;
+    cursor: link;
+    flex-shrink: 0;
+    flex-direction: row;
+}
+
+ProjectPill > Image
+{
+    width: 16px;
+    height: 16px;
+    padding: 2px;
+    border-radius: 8px;
+    background-color: blueviolet;
+    margin-right: 5px;
 }
 
 /************************************************
@@ -761,6 +791,19 @@ AssetDetailsPage {
     height: 100%;
 }
 
+#details-page-project-container {
+    flex-direction: row;
+    margin-bottom: 10px;
+    flex-grow: 1;
+    flex-shrink: 0;
+    align-items: center;
+}
+
+#details-page-project-pill-container {
+    flex-direction: row;
+    align-items: center;
+}
+
 .details-page-download-progress-container{
     display: none;
     margin-bottom: 4px;
@@ -1034,6 +1077,13 @@ DetailsPageFileItem > .details-page-file-item-label{
     border-radius: 0px;
     background-color: rgba(0, 0, 0, 0);
     align-self: flex-end;
+}
+
+.details-page-project-dashboard-button
+{
+    width: 16px;
+    height: 16px;
+    background-color: rgba(0, 0, 0, 0);
 }
 
 /************************************************

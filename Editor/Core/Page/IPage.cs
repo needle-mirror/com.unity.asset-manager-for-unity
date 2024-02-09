@@ -13,12 +13,11 @@ namespace Unity.AssetManager.Editor
         bool isLoading { get; }
         bool hasMoreItems { get; }
         PageType pageType { get; }
-        string collectionPath { get; }
         IReadOnlyCollection<string> searchFilters { get; }
         bool isActivePage { get; }
 
         AssetIdentifier selectedAssetId { get; set; }
-        IReadOnlyCollection<AssetIdentifier> assetList { get; }
+        IReadOnlyCollection<IAssetData> assetList { get; }
 
         ErrorOrMessageHandlingData errorOrMessageHandlingData { get; }
 

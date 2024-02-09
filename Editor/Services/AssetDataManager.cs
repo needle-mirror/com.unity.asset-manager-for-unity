@@ -44,8 +44,7 @@ namespace Unity.AssetManager.Editor
         public event Action<AssetChangeArgs> onImportedAssetInfoChanged = delegate {};
         public event Action<AssetChangeArgs> onAssetDataChanged = delegate {};
         public IReadOnlyCollection<ImportedAssetInfo> importedAssetInfos => m_AssetIdToImportedAssetInfoLookup.Values;
-
-        private AssetData.AssetDataFactory m_AssetDataFactory;
+        
         private readonly IUnityConnectProxy m_UnityConnect;
         public AssetDataManager(IUnityConnectProxy unityConnect)
         {
@@ -167,7 +166,7 @@ namespace Unity.AssetManager.Editor
                 
                 if(m_AssetData.ContainsKey(assetData.id))
                 {
-                    if (!AssetData.AssetDataFactory.IsDifferent(assetData as AssetData, m_AssetData[assetData.id] as AssetData))
+                    if (!AssetData.IsDifferent(assetData as AssetData, m_AssetData[assetData.id] as AssetData))
                         continue;
                     updated.Add(assetData.id);
                 }

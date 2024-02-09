@@ -180,7 +180,8 @@ namespace Unity.AssetManager.Editor
                 return;
 
             var text = !m_AssetDataManager.IsInProject(m_AssetData.id) ? Constants.ContextMenuImport : Constants.ResetText;
-            AddMenuEntry(evt, text, m_AssetData.files.Any(), (_) =>
+
+            AddMenuEntry(evt, text, true, (_) =>
                 m_AssetImporter.StartImportAsync(m_AssetData, ImportAction.ContextMenu));
         }
 

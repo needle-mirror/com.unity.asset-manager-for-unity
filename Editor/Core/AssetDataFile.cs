@@ -16,7 +16,7 @@ namespace Unity.AssetManager.Editor
     }
 
     [Serializable]
-    internal class AssetDataFile : IAssetDataFile
+    internal class AssetDataFile : IAssetDataFile // TODO Rename to SerializableFile
     {
         [SerializeField]
         private string m_DownloadUrl;
@@ -38,7 +38,7 @@ namespace Unity.AssetManager.Editor
         private long m_FileSize;
         public long fileSize => m_FileSize;
 
-        private AssetDataFile(IFile cloudAssetFile, string downloadUrl)
+        public AssetDataFile(IFile cloudAssetFile)
         {
             m_Path = cloudAssetFile.Descriptor.Path;
             if (cloudAssetFile.Tags != null)
@@ -46,26 +46,6 @@ namespace Unity.AssetManager.Editor
             m_Description = cloudAssetFile.Description;
             m_FileSize = cloudAssetFile.SizeBytes;
             m_DownloadUrl = downloadUrl;
-        }
-
-        internal class AssetDataFileFactory
-        {
-            public IAssetDataFile CreateAssetDataFile(IFile cloudAssetFile, string downloadUrl)
-            {
-                return new AssetDataFile(cloudAssetFile, downloadUrl);
-            }
-        }
-    }
-
-    internal class CloudAssetDataFile
-    {
-        public IFile file { get; }
-        public string downloadUrl { get; }
-
-        public CloudAssetDataFile(IFile file, string downloadUrl)
-        {
-            this.file = file;
-            this.downloadUrl = downloadUrl;
         }
     }
 }

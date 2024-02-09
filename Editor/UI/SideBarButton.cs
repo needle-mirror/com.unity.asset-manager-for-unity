@@ -47,7 +47,12 @@ namespace Unity.AssetManager.Editor
 
         void Refresh(IPage page)
         {
-            var selected = page != null && m_PageType == page.pageType && (m_CollectionPath ?? string.Empty) == (page.collectionPath ?? string.Empty);
+            var selected = page != null && m_PageType == page.pageType;
+            if (m_PageType == PageType.Collection)
+            {
+                var collectionPage = (CollectionPage)page;
+                selected = selected && (m_CollectionPath ?? string.Empty) == (collectionPage.collectionPath ?? string.Empty);
+            }
             EnableInClassList(k_UnityListViewItemSelected, selected);
         }
     }

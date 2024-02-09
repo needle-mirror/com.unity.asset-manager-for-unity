@@ -6,6 +6,9 @@ using System.Threading;
 using UnityEditor;
 using UnityEngine;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using Unity.Cloud.Assets;
+using UnityEngine.Networking;
 
 namespace Unity.AssetManager.Editor
 {
@@ -48,7 +51,6 @@ namespace Unity.AssetManager.Editor
         public ImportOperation GetImportOperation(AssetIdentifier assetId) => m_ImportOperations.TryGetValue(assetId, out var result) ? result : null;
         public bool IsImporting(AssetIdentifier assetId) => m_ImportOperations.TryGetValue(assetId, out var result) && result.status == OperationStatus.InProgress;
 
-        private readonly IAssetsProvider m_AssetsProvider;
         private readonly IDownloadManager m_DownloadManager;
         private readonly IAnalyticsEngine m_AnalyticsEngine;
         private readonly IIOProxy m_IOProxy;
@@ -56,11 +58,10 @@ namespace Unity.AssetManager.Editor
         private readonly IEditorUtilityProxy m_EditorUtilityProxy;
         private readonly IImportedAssetsTracker m_ImportedAssetsTracker;
         private readonly IAssetDataManager m_AssetDataManager;
-        public AssetImporter(IAssetsProvider assetsProvider, IDownloadManager downloadManager,
+        public AssetImporter(IDownloadManager downloadManager,
             IAnalyticsEngine analyticsEngine, IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy,
             IEditorUtilityProxy editorUtilityProxy, IImportedAssetsTracker importedAssetsTracker, IAssetDataManager assetDataManager)
         {
-            m_AssetsProvider = RegisterDependency(assetsProvider);
             m_DownloadManager = RegisterDependency(downloadManager);
             m_AnalyticsEngine = RegisterDependency(analyticsEngine);
             m_IOProxy = RegisterDependency(ioProxy);
@@ -94,6 +95,7 @@ namespace Unity.AssetManager.Editor
             if (!m_DownloadIdToImportOperationsLookup.TryGetValue(downloadOperation.id, out var importOperation))
                 return;
             importOperation.UpdateDownloadOperation(downloadOperation);
+            importOperation.status = OperationStatus.InProgress;
             onImportProgress?.Invoke(importOperation);
         }
 
@@ -101,14 +103,21 @@ namespace Unity.AssetManager.Editor
         {
             if (!m_DownloadIdToImportOperationsLookup.TryGetValue(downloadOperation.id, out var importOperation))
                 return;
+            
             importOperation.UpdateDownloadOperation(downloadOperation);
 
             if (downloadOperation.status is OperationStatus.Cancelled or OperationStatus.Error)
+            {
                 FinalizeImport(importOperation, downloadOperation.status, downloadOperation.error);
+            }
             else if (importOperation.downloads.All(i => i.status == OperationStatus.Success))
+            {
                 FinalizeImport(importOperation, OperationStatus.Success);
+            }
             else
+            {
                 onImportProgress?.Invoke(importOperation);
+            }
         }
 
         private void FinalizeImport(ImportOperation importOperation, OperationStatus finalStatus, string errorMessage = null)
@@ -142,16 +151,33 @@ namespace Unity.AssetManager.Editor
         private void MoveFilesToAssetsAndKeepTrack(ImportOperation importOperation)
         {
             var filesToTrack = new List<(string originalPath, string finalPath)>();
-            foreach (var download in importOperation.downloads)
-            {
-                var originalPath = Path.GetRelativePath(importOperation.tempDownloadPath, download.path);
-                var finalPath = GetNonConflictingImportPath(Path.Combine(importOperation.destinationPath, originalPath));
+                
+            m_AssetDatabaseProxy.StartAssetEditing();
 
-                m_IOProxy.DeleteFileIfExists(finalPath);
-                m_IOProxy.FileMove(download.path, finalPath);
-                filesToTrack.Add((originalPath, finalPath));
+            try
+            {
+                foreach (var download in importOperation.downloads)
+                {
+                    var originalPath = Path.GetRelativePath(importOperation.tempDownloadPath, download.path);
+                    var finalPath =
+                        GetNonConflictingImportPath(Path.Combine(importOperation.destinationPath, originalPath));
+
+                    m_IOProxy.DeleteFileIfExists(finalPath);
+                    m_IOProxy.FileMove(download.path, finalPath);
+                    filesToTrack.Add((originalPath, finalPath));
+                }
             }
-            m_IOProxy.DirectoryDelete(importOperation.tempDownloadPath, true);
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                // TODO Delete already moved files?
+            }
+            finally
+            {
+                m_AssetDatabaseProxy.StopAssetEditing();
+                m_IOProxy.DirectoryDelete(importOperation.tempDownloadPath, true);
+            }
+
             m_AssetDatabaseProxy.Refresh();
             m_ImportedAssetsTracker.TrackAssets(filesToTrack, importOperation.assetId);
         }
@@ -262,36 +288,67 @@ namespace Unity.AssetManager.Editor
             return importOperation;
         }
 
-        private void StartImport(IAssetData assetData, ImportOperation importOperation)
+        private async Task StartImport(IAssetData assetData, ImportOperation importOperation, CancellationToken token)
         {
             m_IOProxy.CreateDirectory(importOperation.tempDownloadPath);
-            var uniqueFileNames = new HashSet<string>();
-            
 
-            // Meta files for folders causes a lot of issues when it comes to tracking and removing, hence we want to avoid importing folder meta files and just
-            // let the Unity Editor generate them. In this process we also filter out orphan .meta files.
-            var metaFilesToKeep = new HashSet<string>();
-            foreach (var file in assetData.files)
+            var tasks = new List<Task<DownloadOperation>>();
+
+            await foreach (var file in assetData.GetFilesAsync(token))
             {
-                if (file.path.EndsWith(".meta", StringComparison.InvariantCultureIgnoreCase))
-                    continue;
-                metaFilesToKeep.Add(file.path.ToLower() + ".meta");
+                tasks.Add(CreateDownloadOperation(file, importOperation.tempDownloadPath, token));
             }
 
-            foreach (var file in assetData.files)
+            await Task.WhenAll(tasks);
+
+            foreach (var task in tasks)
             {
-                if (string.IsNullOrEmpty(file.downloadUrl))
+                if (task.IsFaulted)
+                {
+                    Debug.LogException(task.Exception);
+                    continue;
+                }
+
+                var downloadOperation = task.Result;
+                if (downloadOperation == null)
                     continue;
 
-                var fileNameLower = file.path.ToLower();
-                if (fileNameLower.EndsWith(".meta") && !metaFilesToKeep.Contains(fileNameLower))
-                    continue;
-
-                var downloadOperation = m_DownloadManager.StartDownload(file.downloadUrl, Path.Combine(importOperation.tempDownloadPath, GetUniqueFileName(uniqueFileNames, file.path)));
-                downloadOperation.totalBytes = file.fileSize;
                 importOperation.downloads.Add(downloadOperation);
                 m_DownloadIdToImportOperationsLookup[downloadOperation.id] = importOperation;
+                m_DownloadManager.StartDownload(downloadOperation);
             }
+        }
+
+        async Task<DownloadOperation> CreateDownloadOperation(IFile file, string dstFolder, CancellationToken token)
+        {
+            var downloadUri = await file.GetDownloadUrlAsync(token);
+            var downloadUrl = downloadUri?.ToString();
+            
+            if (string.IsNullOrEmpty(downloadUrl))
+                return null;
+
+            var path = Path.Combine(dstFolder, file.Descriptor.Path);
+            
+            var downloadOperation = m_DownloadManager.CreateDownloadOperation(downloadUrl, path);
+            downloadOperation.totalBytes = file.SizeBytes;
+
+            return downloadOperation;
+        }
+
+        public UnityWebRequestAsyncOperation SendWebRequest(string url, string path, bool append = false, string bytesRange = null)
+        {
+            var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbGET)
+            {
+                disposeDownloadHandlerOnDispose = true
+            };
+            
+            if (!string.IsNullOrWhiteSpace(bytesRange))
+            {
+                request.SetRequestHeader("Range", bytesRange);
+            }
+            
+            request.downloadHandler = new DownloadHandlerFile(path, append){ removeFileOnAbort = true };
+            return request.SendWebRequest();
         }
 
         private static string GetUniqueFileName(HashSet<string> uniqueNames, string originalName)
@@ -320,27 +377,31 @@ namespace Unity.AssetManager.Editor
             m_PendingImports.Add(pendingImport);
 
             var source = new CancellationTokenSource();
-            Import(assetData, pendingImport);
+            Import(assetData, pendingImport, source.Token);
             source.Dispose();
         }
 
-        private void Import(IAssetData assetData, PendingImport pendingImport)
+        async void Import(IAssetData assetData, PendingImport pendingImport, CancellationToken token)
         {
             if (pendingImport == null) 
                 return;
 
             var path = GetImportDestinationPathAndRemoveImportWhenReset(assetData, out bool cancelImport);
             var importOperation = CreateImportOperation(assetData, pendingImport.importAction, path);
+
+            importOperation.status = OperationStatus.InInfiniteProgress;
+            
+            onImportProgress?.Invoke(importOperation);
+            
             try
             {
                 if (cancelImport)
+                {
                     FinalizeImport(importOperation, OperationStatus.Cancelled);
-                else if (assetData.files.Any())
-                    StartImport(assetData, importOperation);
+                }
                 else
                 {
-                    var errorMessage = "No files to download for asset: " + assetData.name;
-                    FinalizeImport(importOperation, OperationStatus.Error, errorMessage);
+                    await StartImport(assetData, importOperation, token);
                 }
             }
             catch (Exception e)
@@ -350,7 +411,7 @@ namespace Unity.AssetManager.Editor
             }
             finally
             {
-                m_PendingImports.RemoveAll(i => !AssetData.AssetDataFactory.IsDifferent(i.assetData as AssetData, assetData as AssetData));
+                m_PendingImports.RemoveAll(i => !AssetData.IsDifferent(i.assetData as AssetData, assetData as AssetData));
             }
         }
         
@@ -363,7 +424,10 @@ namespace Unity.AssetManager.Editor
             {
                 var pendingImport = m_PendingImports.Find(i => i.assetData.id.Equals(id));
                 if (pendingImport != null)
-                    Import(pendingImport.assetData, pendingImport);
+                {
+                    Debug.Log("Importing");
+                    Import(pendingImport.assetData, pendingImport, CancellationToken.None);
+                }
             }
         }
 

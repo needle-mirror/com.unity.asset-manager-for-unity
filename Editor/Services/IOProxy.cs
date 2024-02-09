@@ -58,7 +58,13 @@ namespace Unity.AssetManager.Editor
 
         public bool DirectoryExists(string directoryPath) => Directory.Exists(directoryPath);
 
-        public void DirectoryDelete(string path, bool recursive) => Directory.Delete(path, recursive);
+        public void DirectoryDelete(string path, bool recursive)
+        {
+            if (DirectoryExists(path))
+            {
+                Directory.Delete(path, recursive);
+            }
+        }
 
         public void CreateDirectory(string directoryPath) => Directory.CreateDirectory(directoryPath);
 

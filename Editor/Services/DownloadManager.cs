@@ -14,6 +14,10 @@ namespace Unity.AssetManager.Editor
         event Action<DownloadOperation> onDownloadFinalized;
 
         DownloadOperation StartDownload(string url, string path);
+
+        DownloadOperation CreateDownloadOperation(string url, string path);
+        void StartDownload(DownloadOperation operation);
+        
         void Cancel(ulong downloadId);
     }
 
@@ -47,15 +51,25 @@ namespace Unity.AssetManager.Editor
 
         public DownloadOperation StartDownload(string url, string path)
         {
-            var operation = new DownloadOperation
+            var operation = CreateDownloadOperation(url, path);
+            StartDownload(operation);
+            return operation;
+        }
+        
+        public DownloadOperation CreateDownloadOperation(string url, string path)
+        {
+            return new DownloadOperation
             {
                 id = ++m_LastDownloadOperationId,
                 url = url,
                 path = path,
                 status = OperationStatus.InProgress
             };
+        }
+        
+        public void StartDownload(DownloadOperation operation)
+        {
             m_PendingDownloads.Add(operation);
-            return operation;
         }
 
         // We put cancellation and new downloads in `pending` list to be processed in the next update because

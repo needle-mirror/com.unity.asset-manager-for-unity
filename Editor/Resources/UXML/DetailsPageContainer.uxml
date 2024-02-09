@@ -9,6 +9,10 @@
                 <ui:VisualElement name="details-page-thumbnail-container" class="mb-2 image-container self-center">
                     <ui:VisualElement name="thumbnail-owned-icon" tooltip="Imported" class="grid-view--item-owned_icon" style="bottom: 0;" />
                 </ui:VisualElement>
+                <ui:VisualElement name="details-page-project-container">
+                    <ui:Label text="Project" class="text-bold label-auto mr-2" />
+                    <ui:VisualElement name="details-page-project-pill-container" />
+                </ui:VisualElement>
                 <ui:Label text="Details" class="mb-2" />
                 <ui:Label name="description" class="mb-2 whitespace-wrap" />
                 <ui:VisualElement class="mb-1 flex-row flex-shrink-0">

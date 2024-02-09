@@ -1,6 +1,6 @@
 {
     "name": "Unity.AssetManager.Editor",
-    "rootNamespace": "",
+    "rootNamespace": "Unity.AssetManager.Editor",
     "references": [
         "Unity.Settings.Editor",
         "Unity.EditorCoroutines.Editor",

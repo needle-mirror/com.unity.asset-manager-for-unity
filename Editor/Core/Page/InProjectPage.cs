@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Cloud.Assets;
 using UnityEditor;
 
 namespace Unity.AssetManager.Editor
@@ -11,7 +13,6 @@ namespace Unity.AssetManager.Editor
     internal class InProjectPage : BasePage
     {
         public override PageType pageType => PageType.InProject;
-        public override string collectionPath => string.Empty;
 
         private IAssetsProvider m_AssetsProvider;
         
@@ -44,11 +45,13 @@ namespace Unity.AssetManager.Editor
             Clear(true, keepSelection);
         }
 
-        protected override async Task<IReadOnlyCollection<AssetIdentifier>> LoadMoreAssets(CancellationToken token)
+        protected override async IAsyncEnumerable<IAsset> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
         {
-            var assetIds =  await m_AssetsProvider.SearchAsync(m_AssetDataManager.importedAssetInfos.Select(i => i.id).ToArray(), token);
+            await foreach (var cloudAsset in m_AssetsProvider.SearchAsync(m_AssetDataManager.importedAssetInfos.Select(i => i.id).ToArray(), token))
+            {
+                yield return cloudAsset;
+            }
             m_HasMoreItems = false;
-            return assetIds;
         }
 
         protected override void OnLoadMoreSuccessCallBack(IReadOnlyCollection<AssetIdentifier> assetIdentifiers)

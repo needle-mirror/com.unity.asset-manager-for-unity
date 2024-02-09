@@ -2,7 +2,8 @@ namespace Unity.AssetManager.Editor
 {
     internal enum PageType
     {
-        Collection, 
-        InProject
+        Collection,
+        InProject,
+        AllAssets
     }
 }

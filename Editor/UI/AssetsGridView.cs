@@ -87,20 +87,17 @@ namespace Unity.AssetManager.Editor
         {
             var item = (GridItem)element;
 
-            var assetList = m_Gridview.ItemsSource as IList<AssetIdentifier> ?? Array.Empty<AssetIdentifier>();
+            var assetList = m_Gridview.ItemsSource as IList<IAssetData> ?? Array.Empty<IAssetData>();
             if (index < 0 || index >= assetList.Count)
                 return;
 
             var assetId = assetList[index];
-            var assetData = m_AssetDataManager.GetAssetData(assetId);
-            if (assetData == null)
-                return;
-
-            item.BindWithItem(assetData);
+            
+            item.BindWithItem(assetId);
 
             item.onClick += () =>
             {
-                m_PageManager.activePage.selectedAssetId = assetId;
+                m_PageManager.activePage.selectedAssetId = assetId.id;
             };
         }
 
@@ -119,7 +116,7 @@ namespace Unity.AssetManager.Editor
             var assetList = page.assetList.ToList();
             if (assetList.Count == 0 && page.hasMoreItems)
             {
-                m_Gridview.ItemsSource = Array.Empty<AssetIdentifier>();
+                m_Gridview.ItemsSource = Array.Empty<IAssetData>();
                 m_Gridview.Refresh();
                 m_Gridview.ResetScrollBarTop();
                 if (!page.isLoading)

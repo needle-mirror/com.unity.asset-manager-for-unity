@@ -14,7 +14,7 @@ namespace Unity.AssetManager.Editor
         event Action<IPage, ErrorOrMessageHandlingData> onErrorOrMessageThrown;
 
         IPage activePage { get; set; }
-        IPage GetPage(PageType pageType, string collectionPath);
+        IPage GetPage(PageType pageType, string collectionPath = null);
     }
 
     [Serializable]
@@ -91,7 +91,9 @@ namespace Unity.AssetManager.Editor
             m_Pages.Clear();
 
             if (projectInfo != null)
-                activePage ??= GetPage(PageType.Collection, string.Empty);
+            {
+                activePage ??= GetPage(projectInfo.id == ProjectInfo.AllAssetsProjectInfo.id ? PageType.AllAssets : PageType.Collection, string.Empty);
+            }
         }
 
         private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
@@ -99,7 +101,7 @@ namespace Unity.AssetManager.Editor
             activePage?.Clear(true);
         }
 
-        public IPage GetPage(PageType pageType, string collectionPath)
+        public IPage GetPage(PageType pageType, string collectionPath = null)
         {
             var pageId = GetPageId(pageType, collectionPath);
             return m_Pages.TryGetValue(pageId, out var page) ? page : CreatePage(pageType, collectionPath);
@@ -130,29 +132,46 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        private static string GetPageId(PageType pageType, string collectionPath)
+        static string GetPageId(PageType pageType, string collectionPath = null)
         {
             return string.IsNullOrEmpty(collectionPath) ? pageType.ToString() : $"{pageType}/{collectionPath}";
         }
 
-        private static string GetPageId(IPage page) => GetPageId(page.pageType, page.collectionPath);
-
-        private IPage CreatePage(PageType pageType, string collectionPath)
+        static string GetPageId(IPage page)
         {
-            IPage page;
-            if (pageType == PageType.Collection)
+            if (page.pageType == PageType.Collection)
             {
-                if (string.IsNullOrEmpty(m_ProjectOrganizationProvider.selectedProject?.id))
-                    return null;
-                var collectionInfo = CollectionInfo.CreateFromFullPath(collectionPath);
-                collectionInfo.projectId = m_ProjectOrganizationProvider.selectedProject.id;
-                collectionInfo.organizationId = m_ProjectOrganizationProvider.organization.id;
-                page = new CollectionPage(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider, collectionInfo);
+                var collectionPage = (CollectionPage)page;
+                return GetPageId(page.pageType, collectionPage.collectionPath);
             }
-            else
-                page = new InProjectPage(m_AssetDataManager, m_AssetsProvider);
+
+            return page.pageType.ToString();
+        }
+
+        IPage CreatePage(PageType pageType, string collectionPath = null)
+        {
+            IPage page = null;
+            switch (pageType)
+            {
+                case PageType.Collection:
+                    if (string.IsNullOrEmpty(m_ProjectOrganizationProvider.selectedProject?.id))
+                        return null;
+
+                    var collectionInfo = CollectionInfo.CreateFromFullPath(collectionPath);
+                    collectionInfo.projectId = m_ProjectOrganizationProvider.selectedProject.id;
+                    collectionInfo.organizationId = m_ProjectOrganizationProvider.organization.id;
+                    page = new CollectionPage(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider, collectionInfo);
+                    break;
+                case PageType.InProject:
+                    page = new InProjectPage(m_AssetDataManager, m_AssetsProvider);
+                    break;
+                case PageType.AllAssets:
+                    page = new AllAssetsPage(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
+                    break;
+            }
+
             m_Pages[GetPageId(page)] = page;
-            page.OnEnable();
+            page?.OnEnable();
             RegisterPageEvents(page);
             return page;
         }
@@ -166,6 +185,9 @@ namespace Unity.AssetManager.Editor
                     break;
                 case InProjectPage inProjectPage:
                     inProjectPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider);
+                    break;
+                case AllAssetsPage allAssetsPage:
+                    allAssetsPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
                     break;
             }
         }

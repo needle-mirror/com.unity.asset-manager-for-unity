@@ -4,6 +4,29 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2024-02-09
+
+### Fixed 
+* Fixed parallel downloads
+* Projects are now sorted by name
+* Preview files are now ignored
+* Meta file are now displayed and downloaded properly
+
+### Added
+* Added infinite loading bar when fetching files download URL
+* Added "All Assets" option to allow a search over all assets of an organization
+* Added link to the Project in the Unity Dashboard
+* Project's chip now contains the project's icon
+
+### Changed
+* Optimized HTTP calls
+* Project dropdown has been changed in favor of a tree view from project to collection
+
+### Known Issues
+* "Show In Project" is not working as expected
+* “Imported” icon on the file list does not show for meta files
+* Loading more than 100 assets may result in unexpected behaviour
+
 ## [0.4.0] - 2024-01-22
 
 ### Fixed 

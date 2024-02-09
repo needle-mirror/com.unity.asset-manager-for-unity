@@ -28,7 +28,7 @@ namespace Unity.AssetManager.Editor
             textLabel.text = m_Text;
             textLabel.pickingMode = PickingMode.Ignore;
 
-            AddToClassList(EditorGUIUtility.isProSkin ? k_DarkPillClass : k_LightPillClass);
+            //AddToClassList(EditorGUIUtility.isProSkin ? k_DarkPillClass : k_LightPillClass);
         }
 
         void OnClick()

@@ -74,14 +74,20 @@ namespace Unity.AssetManager.Editor
         private AssetDataManager m_SerializedAssetDataManager;
         [SerializeField]
         private ImportedAssetsTracker m_SerializedImportedAssetsTracker;
-        [FormerlySerializedAs("m_SerializedAssetImporter")] [SerializeField]
-        private AssetImporter serializedAssetImporter;
+        [SerializeField]
+        private AssetImporter m_SerializedAssetImporter;
         [SerializeField]
         private ThumbnailDownloader m_SerializedThumbnailDownloader;
+
         [SerializeField]
         private ProjectOrganizationProvider m_SerializedProjectOrganizationProvider;
 
-        private readonly Dictionary<Type, IService> m_RegisteredServices = new Dictionary<Type, IService>();
+        [SerializeField]
+        private ProjectIconDownloader m_SerializedProjectIconDownloader;
+
+        private readonly Dictionary<Type, IService> m_RegisteredServices = new();
+
+        private Dictionary<IService, HashSet<IService>> m_ReverseDependencies = new();
 
         public ServicesContainer()
         {
@@ -115,9 +121,12 @@ namespace Unity.AssetManager.Editor
             var projectOrganizationProvider = Register(new ProjectOrganizationProvider(unityConnect, assetsSdkProvider));
             var linksProxy = Register(new LinksProxy(projectOrganizationProvider));
             var pageManager = Register(new PageManager(unityConnect, assetsSdkProvider, assetDataManager, projectOrganizationProvider));
-            var assetImporter = Register(new AssetImporter(assetsSdkProvider, downloadManager, analyticsEngine, ioProxy, assetDatabaseProxy, editorUtilityProxy, importedAssetsTracker, assetDataManager));
+            var assetImporter = Register(new AssetImporter(downloadManager, analyticsEngine, ioProxy, assetDatabaseProxy, editorUtilityProxy, importedAssetsTracker, assetDataManager));
+            var projectIconDownloader = Register(new ProjectIconDownloader(downloadManager, ioProxy, settingsManager, cacheEvictionManager, projectOrganizationProvider, assetsSdkProvider));
 
             Register(new IconFactory());
+
+            FindReverseDependencies();
 
             // We need to save some services as serialized members for them to survive domain reload properly
             m_SerializedUnityConnectProxy = unityConnect;
@@ -127,9 +136,24 @@ namespace Unity.AssetManager.Editor
             m_SerializedPageManager = pageManager;
             m_SerializedAssetDataManager = assetDataManager;
             m_SerializedImportedAssetsTracker = importedAssetsTracker;
-            serializedAssetImporter = assetImporter;
+            m_SerializedAssetImporter = assetImporter;
             m_SerializedThumbnailDownloader = thumbnailDownloader;
             m_SerializedProjectOrganizationProvider = projectOrganizationProvider;
+            m_SerializedProjectIconDownloader = projectIconDownloader;
+        }
+
+        public void FindReverseDependencies()
+        {
+            foreach (var service in m_RegisteredServices.Values)
+            {
+                foreach (var dependency in service.dependencies ?? Array.Empty<IService>())
+                {
+                    if (m_ReverseDependencies.TryGetValue(dependency, out var result))
+                        result.Add(service);
+                    else
+                        m_ReverseDependencies[dependency] = new HashSet<IService> { service };
+                }
+            }
         }
 
         public void OnDisable()
@@ -163,12 +187,9 @@ namespace Unity.AssetManager.Editor
             foreach (var dependency in service.dependencies ?? Array.Empty<IService>())
                 EnableService(dependency);
             service.enabled = true;
-        }
-
-        public void EnableAllServices()
-        {
-            foreach (var service in m_RegisteredServices.Values)
-                EnableService(service);
+            if (m_ReverseDependencies.TryGetValue(service, out var reverseDependencies))
+                foreach (var reverseDependency in reverseDependencies)
+                    EnableService(reverseDependency);
         }
     }
 }
