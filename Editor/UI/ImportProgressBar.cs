@@ -26,7 +26,7 @@ namespace Unity.AssetManager.Editor
 
         public ImportProgressBar(IPageManager pageManager, IAssetImporter assetImporter, bool isCancellable = false)
         {
-            style.display = DisplayStyle.Flex;
+            UIElementsUtils.Show(this);
             
             m_PageManager = pageManager;
             m_AssetImporter = assetImporter;
@@ -81,20 +81,20 @@ namespace Unity.AssetManager.Editor
         {
             if (importOperation?.status == OperationStatus.InProgress)
             {
-                style.display = DisplayStyle.Flex;
+                UIElementsUtils.Show(this);
                 m_IsInfinite = false;
                 m_ProgressBar.style.left = 0.0f;
                 m_ProgressBar.style.width = Length.Percent(importOperation.progress * 100);
             }
             else if (importOperation?.status == OperationStatus.InInfiniteProgress)
             {
-                style.display = DisplayStyle.Flex;
+                UIElementsUtils.Show(this);
                 m_IsInfinite = true;
                 m_AnimationLeftOffset = 0.0f;
             }
             else
             {
-                style.display = DisplayStyle.None;
+                UIElementsUtils.Hide(this);
                 m_IsInfinite = false;
             }
         }

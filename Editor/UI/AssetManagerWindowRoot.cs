@@ -18,12 +18,13 @@ namespace Unity.AssetManager.Editor
         private VisualElement m_SearchContentSplitViewContainer;
         private VisualElement m_ContentContainer;
         private VisualElement m_AssetDetailsContainer;
-        private VisualElement m_LoadingScreen;
+        private LoadingScreen m_LoadingScreen;
 
         private LoginPage m_LoginPage;
         private SideBar m_SideBar;
         private TopBar m_TopBar;
         private Breadcrumbs m_Breadcrumbs;
+        Filters m_Filters;
         private TwoPaneSplitView m_CategoriesSplit;
         private TwoPaneSplitView m_InspectorSplit;
 
@@ -40,12 +41,12 @@ namespace Unity.AssetManager.Editor
         private readonly IUnityConnectProxy m_UnityConnect;
         private readonly IThumbnailDownloader m_ThumbnailDownloader;
         private readonly IAssetsProvider m_AssetsProvider;
-        private readonly IIconFactory m_IconFactory;
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         private readonly ILinksProxy m_LinksProxy;
         private readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
         private readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
         private readonly IProjectIconDownloader m_ProjectIconDownloader;
+        private readonly IAnalyticsEngine m_AnalyticEngine;
 
         public AssetManagerWindowRoot(IPageManager pageManager,
             IAssetDataManager assetDataManager,
@@ -54,12 +55,12 @@ namespace Unity.AssetManager.Editor
             IUnityConnectProxy unityConnect,
             IAssetsProvider assetsProvider,
             IThumbnailDownloader thumbnailDownloader,
-            IIconFactory iconFactory,
             IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy,
             IEditorGUIUtilityProxy editorGUIUtilityProxy,
             IAssetDatabaseProxy assetDatabaseProxy,
-            IProjectIconDownloader projectIconDownloader)
+            IProjectIconDownloader projectIconDownloader,
+            IAnalyticsEngine analyticsEngine)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -68,12 +69,12 @@ namespace Unity.AssetManager.Editor
             m_UnityConnect = unityConnect;
             m_AssetsProvider = assetsProvider;
             m_ThumbnailDownloader = thumbnailDownloader;
-            m_IconFactory = iconFactory;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_LinksProxy = linksProxy;
             m_EditorGUIUtilityProxy = editorGUIUtilityProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
             m_ProjectIconDownloader = projectIconDownloader;
+            m_AnalyticEngine = analyticsEngine;
         }
 
         public void OnEnable()
@@ -108,16 +109,9 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.LoadCommonStyleSheet(m_AssetManagerContainer);
             UIElementsUtils.LoadCustomStyleSheet(m_AssetManagerContainer, EditorGUIUtility.isProSkin ? k_MainDarkUssName : k_MainLightUssName);
             m_AssetManagerContainer.StretchToParentSize();
-
-            var loadingIcon = new LoadingIcon();
-            loadingIcon.AddToClassList("loading-icon");
-
-            m_LoadingScreen = new VisualElement();
+            
+            m_LoadingScreen = new LoadingScreen();
             m_LoadingScreen.AddToClassList("LoadingScreen");
-            var loadingScreenContainer = new VisualElement();
-            loadingScreenContainer.Add(loadingIcon);
-            loadingScreenContainer.Add(new Label { text = L10n.Tr("Loading...") });
-            m_LoadingScreen.Add(loadingScreenContainer);
             m_AssetManagerContainer.Add(m_LoadingScreen);
 
             m_InspectorSplit = new TwoPaneSplitView(1, k_InspectorPanelMaxWidth, TwoPaneSplitViewOrientation.Horizontal);
@@ -142,13 +136,15 @@ namespace Unity.AssetManager.Editor
             m_SearchContentSplitViewContainer.Add(m_TopBar);
             m_Breadcrumbs = new Breadcrumbs(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider);
             m_SearchContentSplitViewContainer.Add(m_Breadcrumbs);
+            m_Filters = new Filters(m_PageManager, m_AssetsProvider, m_ProjectOrganizationProvider, m_AnalyticEngine);
+            m_SearchContentSplitViewContainer.Add(m_Filters);
 
             var content = new VisualElement();
             content.AddToClassList("AssetManagerContentView");
             m_SearchContentSplitViewContainer.Add(content);
 
-            m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager, m_AssetDataManager, m_AssetImporter, m_ThumbnailDownloader, m_IconFactory, m_LinksProxy);
-            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_StateManager, m_PageManager, m_AssetDataManager, m_ThumbnailDownloader, m_IconFactory, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_ProjectIconDownloader);
+            m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager, m_AssetDataManager, m_AssetImporter, m_ThumbnailDownloader, m_LinksProxy);
+            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_StateManager, m_PageManager, m_AssetDataManager, m_ThumbnailDownloader, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_ProjectIconDownloader);
 
             m_AssetDetailsContainer = new VisualElement();
             m_AssetDetailsContainer.AddToClassList("AssetDetailsContainer");
@@ -235,10 +231,7 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.Hide(m_LoginPage);
             UIElementsUtils.Show(m_AssetManagerContainer);
 
-            if (m_ProjectOrganizationProvider.isLoading)
-                UIElementsUtils.Show(m_LoadingScreen);
-            else
-                UIElementsUtils.Hide(m_LoadingScreen);
+            m_LoadingScreen.SetVisible(m_ProjectOrganizationProvider.isLoading);
 
             m_ActionHelpBox.Refresh();
         }
@@ -270,14 +263,12 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void OnCreateGUI()
-        {
-        }
-
         public void OnFocus()
         {
             if (m_ProjectOrganizationProvider.organization?.projectInfos?.Any() != true && m_ProjectOrganizationProvider.isLoading == false)
+            {
                 m_ProjectOrganizationProvider.RefreshProjects();
+            }
         }
 
         public void OnLostFocus()
@@ -298,6 +289,37 @@ namespace Unity.AssetManager.Editor
             menu.AddItem(projectSettings, false, m_LinksProxy.OpenProjectSettingsServices);
             GUIContent preferences = new GUIContent(L10n.Tr("Preferences"));
             menu.AddItem(preferences, false, m_LinksProxy.OpenPreferences);
+        }
+    }
+
+    class LoadingScreen : VisualElement
+    {
+        readonly LoadingIcon m_LoadingIcon;
+
+        public LoadingScreen()
+        {
+            m_LoadingIcon = new LoadingIcon();
+            m_LoadingIcon.AddToClassList("loading-icon");
+
+            var loadingScreenContainer = new VisualElement();
+            loadingScreenContainer.Add(m_LoadingIcon);
+            loadingScreenContainer.Add(new Label { text = L10n.Tr("Loading...") });
+            
+            Add(loadingScreenContainer);
+        }
+
+        public void SetVisible(bool visibility)
+        {
+            if (visibility)
+            {
+                UIElementsUtils.Show(this);
+                m_LoadingIcon.PlayAnimation();
+            }
+            else
+            {
+                UIElementsUtils.Hide(this);
+                m_LoadingIcon.StopAnimation();
+            }
         }
     }
 }

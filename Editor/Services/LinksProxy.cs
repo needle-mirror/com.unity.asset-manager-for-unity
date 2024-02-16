@@ -6,7 +6,8 @@ namespace Unity.AssetManager.Editor
     internal interface ILinksProxy : IService
     {
         void OpenAssetManagerDashboard();
-        void OpenAssetManagerDashboard(ProjectInfo projectInfo);
+        void OpenAssetManagerDashboard(string projectInfo);
+        void OpenAssetManagerDashboard(string projectInfo, string assetId);
         void OpenProjectSettingsServices();
         void OpenPreferences();
     }
@@ -19,18 +20,6 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider = projectOrganizationProvider;
         }
 
-        public void OpenAssetManagerDashboard(ProjectInfo projectInfo)
-        {
-            if(projectInfo != null)
-            {
-                Application.OpenURL($"https://cloud.unity.com/home/organizations/{m_ProjectOrganizationProvider.organization.id}/projects/{projectInfo.id}/assets");
-            }
-            else
-            {
-                OpenAssetManagerDashboard();
-            }
-        }
-
         public void OpenAssetManagerDashboard()
         {
             if (m_ProjectOrganizationProvider?.organization?.id != null)
@@ -40,6 +29,30 @@ namespace Unity.AssetManager.Editor
             else
             {
                 Application.OpenURL("https://cloud.unity.com/home/");
+            }
+        }
+
+        public void OpenAssetManagerDashboard(string projectId)
+        {
+            if(!string.IsNullOrEmpty(projectId))
+            {
+                Application.OpenURL($"https://cloud.unity.com/home/organizations/{m_ProjectOrganizationProvider.organization.id}/projects/{projectId}/assets");
+            }
+            else
+            {
+                OpenAssetManagerDashboard();
+            }
+        }
+
+        public void OpenAssetManagerDashboard(string projectId, string assetId)
+        {
+            if(!string.IsNullOrEmpty(projectId) && !string.IsNullOrEmpty(assetId))
+            {
+                Application.OpenURL($"https://cloud.unity.com/home/organizations/{m_ProjectOrganizationProvider.organization.id}/projects/{projectId}/assets?assetId={assetId}");
+            }
+            else
+            {
+                OpenAssetManagerDashboard(projectId);
             }
         }
 

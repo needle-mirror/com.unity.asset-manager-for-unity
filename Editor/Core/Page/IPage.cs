@@ -14,6 +14,8 @@ namespace Unity.AssetManager.Editor
         bool hasMoreItems { get; }
         PageType pageType { get; }
         IReadOnlyCollection<string> searchFilters { get; }
+        void AddLocalFilter(LocalFilter filter);
+        void RemoveLocalFilter(LocalFilter filter);
         bool isActivePage { get; }
 
         AssetIdentifier selectedAssetId { get; set; }

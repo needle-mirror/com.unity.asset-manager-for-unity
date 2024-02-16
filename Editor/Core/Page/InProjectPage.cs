@@ -4,8 +4,8 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEditor;
+using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
@@ -14,17 +14,9 @@ namespace Unity.AssetManager.Editor
     {
         public override PageType pageType => PageType.InProject;
 
-        private IAssetsProvider m_AssetsProvider;
-        
-        public void ResolveDependencies(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider)
+        public InProjectPage(IAssetDataManager assetDataManager) : base(assetDataManager)
         {
-            base.ResolveDependencies(assetDataManager);
-            m_AssetsProvider = assetsProvider;
-        }
-
-        public InProjectPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider) : base(assetDataManager)
-        {
-            ResolveDependencies(assetDataManager, assetsProvider);
+            ResolveDependencies(assetDataManager);
         }
 
         public override void OnEnable()
@@ -41,17 +33,35 @@ namespace Unity.AssetManager.Editor
 
         private void OnImportedAssetInfoChanged(AssetChangeArgs args)
         {
+            if (!isActivePage)
+                return;
+
             var keepSelection = !args.removed.Any(a => a.Equals(selectedAssetId));
             Clear(true, keepSelection);
         }
 
-        protected override async IAsyncEnumerable<IAsset> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
+        protected override async IAsyncEnumerable<IAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
         {
-            await foreach (var cloudAsset in m_AssetsProvider.SearchAsync(m_AssetDataManager.importedAssetInfos.Select(i => i.id).ToArray(), token))
+            if (EditorPrefs.GetBool("DeveloperMode", false))
             {
-                yield return cloudAsset;
+                Debug.Log($"Retrieving import data for {m_AssetDataManager.importedAssetInfos.Count} asset(s)...");
             }
+            
+            foreach (var importedAsset in m_AssetDataManager.importedAssetInfos)
+            {		  
+                var assetData = importedAsset.assetData;
+                if (assetData == null) // Can happen with corrupted serialization
+                    continue;
+
+                if (await IsDiscardedByLocalFilter(assetData))
+                    continue;
+                
+                yield return assetData;
+            }
+            
             m_HasMoreItems = false;
+
+            await Task.CompletedTask; // Remove warning about async
         }
 
         protected override void OnLoadMoreSuccessCallBack(IReadOnlyCollection<AssetIdentifier> assetIdentifiers)

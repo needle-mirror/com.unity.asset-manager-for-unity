@@ -21,9 +21,34 @@ namespace Unity.AssetManager.Editor
         bool IsImporting(AssetIdentifier assetId);
         void StartImportAsync(IAssetData assetData, ImportAction importAction);
         void RemoveImport(IAssetData assetData, bool showConfirmationDialog = false);
+        void ShowInProject(IAssetData assetData);
         void CancelImport(AssetIdentifier assetId, bool showConfirmationDialog = false);
     }
 
+    internal static class MetafilesHelper
+    {
+        static readonly string k_MetaFileExtension = ".meta";
+        
+        public static bool IsOrphanMetafile(string fileName, ICollection<string> allFiles)
+        {
+            return IsMetafile(fileName) && !allFiles.Contains(fileName[..^k_MetaFileExtension.Length]);
+        }
+
+        public static bool IsMetafile(string fileName)
+        {
+            return fileName.EndsWith(k_MetaFileExtension, StringComparison.OrdinalIgnoreCase);
+        }
+        
+        public static string AssociatedAssetFile(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+                return string.Empty;
+
+            return IsMetafile(fileName) ? fileName[..^k_MetaFileExtension.Length] : fileName;
+        }
+
+    }
+    
     [Serializable]
     internal class AssetImporter : BaseService<IAssetImporter>, IAssetImporter, ISerializationCallbackReceiver
     {
@@ -32,7 +57,6 @@ namespace Unity.AssetManager.Editor
 
         private readonly Dictionary<ulong, ImportOperation> m_DownloadIdToImportOperationsLookup = new ();
         private readonly Dictionary<AssetIdentifier, ImportOperation> m_ImportOperations = new ();
-
 
         [Serializable]
         private class PendingImport
@@ -87,7 +111,7 @@ namespace Unity.AssetManager.Editor
         {
             m_DownloadManager.onDownloadFinalized -= OnDownloadFinalized;
             m_DownloadManager.onDownloadProgress -= OnDownloadProgress;
-            m_AssetDataManager.onAssetDataChanged += OnAssetDataChanged;
+            m_AssetDataManager.onAssetDataChanged -= OnAssetDataChanged;
         }
 
         private void OnDownloadProgress(DownloadOperation downloadOperation)
@@ -179,7 +203,7 @@ namespace Unity.AssetManager.Editor
             }
 
             m_AssetDatabaseProxy.Refresh();
-            m_ImportedAssetsTracker.TrackAssets(filesToTrack, importOperation.assetId);
+            m_ImportedAssetsTracker.TrackAssets(filesToTrack, importOperation.assetData);
         }
 
         private string GetNonConflictingImportPath(string path)
@@ -224,7 +248,7 @@ namespace Unity.AssetManager.Editor
             var tempFilesToTrack = new List<string>();
             var destinationPath = assetData.defaultImportPath;
 
-            var existingImport = m_AssetDataManager.GetImportedAssetInfo(assetData.id);
+            var existingImport = m_AssetDataManager.GetImportedAssetInfo(assetData.identifier);
             if (existingImport != null)
                 tempFilesToTrack = MoveImportToTempPath(assetData, tempPath, assetsPath);
 
@@ -264,7 +288,7 @@ namespace Unity.AssetManager.Editor
 
             if (existingImport != null)
             {
-                MoveImportToAssetPath(assetData, tempPath, assetsPath, tempFilesToTrack);
+                MoveImportToAssetPath(tempPath, assetsPath, tempFilesToTrack);
                 m_IOProxy.DirectoryDelete(tempPath, true);
 
                 if (!cancelImport)
@@ -278,7 +302,7 @@ namespace Unity.AssetManager.Editor
         {
             var importOperation = new ImportOperation
             {
-                assetId = assetData.id,
+                assetData = assetData,
                 destinationPath = importPath,
                 importAction = importAction,
                 startTimeTicks = DateTime.Now.Ticks,
@@ -294,13 +318,26 @@ namespace Unity.AssetManager.Editor
 
             var tasks = new List<Task<DownloadOperation>>();
 
-            await foreach (var file in assetData.GetFilesAsync(token))
+            // Update AssetData with the latest cloud data
+            await assetData.SyncWithCloudAsync(token);
+
+            await foreach (var file in assetData.GetSourceCloudFilesAsync(token))
             {
                 tasks.Add(CreateDownloadOperation(file, importOperation.tempDownloadPath, token));
             }
 
-            await Task.WhenAll(tasks);
+            if (tasks.Count == 0)
+            {
+                Debug.LogWarning($"Asset {assetData.name} has no files to download.");
+                FinalizeImport(importOperation, OperationStatus.Error, "No files to download.");
+            }
 
+            await Task.WhenAll(tasks);
+            
+            var allFiles = tasks.Where(t => t.Result != null)
+                .Select(d => d.Result.path)
+                .ToList();
+            
             foreach (var task in tasks)
             {
                 if (task.IsFaulted)
@@ -311,6 +348,9 @@ namespace Unity.AssetManager.Editor
 
                 var downloadOperation = task.Result;
                 if (downloadOperation == null)
+                    continue;
+                
+                if (MetafilesHelper.IsOrphanMetafile(downloadOperation.path, allFiles))
                     continue;
 
                 importOperation.downloads.Add(downloadOperation);
@@ -366,10 +406,10 @@ namespace Unity.AssetManager.Editor
 
         public void StartImportAsync(IAssetData assetData, ImportAction importAction)
         {
-            if (assetData == null || m_ImportOperations.ContainsKey(assetData.id))
+            if (assetData == null || m_ImportOperations.ContainsKey(assetData.identifier))
                 return;
 
-            if (m_AssetDataManager.IsInProject(assetData.id) && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Overwrite Imported Files"),
+            if (m_AssetDataManager.IsInProject(assetData.identifier) && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Overwrite Imported Files"),
                     L10n.Tr("All the files previously imported will be overwritten and changes to those files will be lost. Are you sure you want to continue?"), L10n.Tr("Yes"), L10n.Tr("No")))
                 return;
 
@@ -418,16 +458,37 @@ namespace Unity.AssetManager.Editor
         private void OnAssetDataChanged(AssetChangeArgs args)
         {
             var allIds = args.added.Concat(args.removed).Concat(args.updated);
-            if (!allIds.Any(a => m_PendingImports.Any(i => a.Equals(i.assetData.id))))
+            if (!allIds.Any(a => m_PendingImports.Any(i => a.Equals(i.assetData.identifier))))
                 return;
             foreach (var id in allIds)
             {
-                var pendingImport = m_PendingImports.Find(i => i.assetData.id.Equals(id));
+                var pendingImport = m_PendingImports.Find(i => i.assetData.identifier.Equals(id));
                 if (pendingImport != null)
                 {
                     Debug.Log("Importing");
                     Import(pendingImport.assetData, pendingImport, CancellationToken.None);
                 }
+            }
+        }
+
+        public void ShowInProject(IAssetData assetData)
+        {
+            try
+            {
+                var importedInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.identifier);
+                
+                var fileInfo = importedInfo.fileInfos.First();
+
+                var assetPath = m_AssetDatabaseProxy.GuidToAssetPath(fileInfo.guid);
+                var parentFolderPath = System.IO.Path.GetDirectoryName(assetPath);
+
+                // Ping the parent folder in the Unity Editor
+                var parentFolder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(parentFolderPath);
+                EditorGUIUtility.PingObject(parentFolder);
+            }
+            catch (Exception)
+            {
+                Debug.LogError("Unable to find asset location");
             }
         }
 
@@ -457,13 +518,17 @@ namespace Unity.AssetManager.Editor
 
                 var pathsFailedToRemove = new List<string>();
 
+                m_ImportedAssetsTracker.UntrackAsset(assetData);
                 m_AssetDatabaseProxy.DeleteAssets(assetsAndFoldersToRemove, pathsFailedToRemove);
 
                 if (pathsFailedToRemove.Any())
                 {
                     var errorMessage = L10n.Tr("Failed to remove the following asset(s) and/or folder(s):");
                     foreach (var path in pathsFailedToRemove)
+                    {
                         errorMessage += "\n" + path;
+                    }
+
                     Debug.LogError(errorMessage);
                 }
             }
@@ -476,9 +541,9 @@ namespace Unity.AssetManager.Editor
 
         private string[] FindAssetsAndLeftoverFolders(IAssetData assetData)
         {
-            var fileInfos = m_AssetDataManager.GetImportedAssetInfo(assetData.id)?.fileInfos;
+            var fileInfos = m_AssetDataManager.GetImportedAssetInfo(assetData.identifier)?.fileInfos;
             if (fileInfos == null || fileInfos.Count == 0)
-                return new string[0];
+                return Array.Empty<string>();
 
             try
             {
@@ -570,7 +635,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void MoveImportToAssetPath(IAssetData assetData, string tempPath, string assetPath, List<string> filesToTrack)
+        public void MoveImportToAssetPath(string tempPath, string assetPath, List<string> filesToTrack)
         {
             if (filesToTrack.Count == 0)
                 return;
@@ -595,7 +660,7 @@ namespace Unity.AssetManager.Editor
         public void OnBeforeSerialize()
         {
             foreach (var item in m_PendingImports)
-                m_ImportOperations.Remove(item.assetData.id);
+                m_ImportOperations.Remove(item.assetData.identifier);
             m_SerializedImportOperations = m_ImportOperations.Values.ToArray();
         }
 

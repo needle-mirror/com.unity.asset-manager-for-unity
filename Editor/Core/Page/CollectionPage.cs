@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using Unity.Cloud.Assets;
 using UnityEditor;
 using UnityEngine;
 
@@ -34,16 +33,22 @@ namespace Unity.AssetManager.Editor
             m_CollectionInfo = collectionInfo;
         }
 
-        protected override async IAsyncEnumerable<IAsset> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
+        protected override async IAsyncEnumerable<IAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
         {
             if (m_ProjectOrganizationProvider.selectedProject?.id != m_CollectionInfo.projectId)
                 yield return null;
 
             var count = 0;
-            await foreach (var cloudAsset in m_AssetsProvider.SearchAsync(m_CollectionInfo, searchFilters, m_NextStartIndex, Constants.DefaultPageSize, token))
+            await foreach (var asset in m_AssetsProvider.SearchAsync(m_CollectionInfo, searchFilters, m_NextStartIndex, Constants.DefaultPageSize, token))
             {
                 ++count;
-                yield return cloudAsset;
+                
+                var assetData = new AssetData(asset);
+
+                if (await IsDiscardedByLocalFilter(assetData))
+                    continue;
+
+                yield return assetData;
             }
             m_HasMoreItems = count == Constants.DefaultPageSize;
             m_NextStartIndex += count;

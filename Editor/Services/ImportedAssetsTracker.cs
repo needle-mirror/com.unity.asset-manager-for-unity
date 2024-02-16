@@ -1,74 +1,62 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
     internal interface IImportedAssetsTracker : IService
     {
-        void TrackAssets(IReadOnlyCollection<(string originalPath, string finalPath)> assetPaths, AssetIdentifier assetId);
+        void TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, IAssetData assetData);
+        public void UntrackAsset(IAssetData assetData);
     }
 
     [Serializable]
-    internal class ImportedAssetsTracker : BaseService<IImportedAssetsTracker>, IImportedAssetsTracker
+    class TrackedData
     {
-        private class TrackedData
+        [SerializeReference]
+        IAssetData m_AssetData;
+            
+        [SerializeField]
+        List<ImportedFileInfo> m_FileInfos;
+
+        public IAssetData assetData => m_AssetData;
+            
+        public IEnumerable<ImportedFileInfo> fileInfos => m_FileInfos;
+            
+        public TrackedData(IAssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
         {
-            public string organizationId;
-            public string projectId;
-            public string sourceId;
-            public string version;
-            public string originalPath;
+            m_AssetData = assetData;
+            m_FileInfos = fileInfos.ToList();
+        }
 
-            public static TrackedData Parse(string jsonString)
+        public static TrackedData Parse(string jsonString)
+        {
+            if (string.IsNullOrEmpty(jsonString))
+                return null;
+
+            try
             {
-                if (string.IsNullOrEmpty(jsonString))
-                    return null;
-
-                try
-                {
-                    return JsonUtility.FromJson<TrackedData>(jsonString);
-                }
-                catch (Exception)
-                {
-                    return null;
-                }
+                return JsonUtility.FromJson<TrackedData>(jsonString);
             }
-
-            public AssetIdentifier GetAssetId()
+            catch (Exception)
             {
-                return new AssetIdentifier
-                {
-                    organizationId = organizationId,
-                    projectId = projectId,
-                    sourceId = sourceId,
-                    version = version
-                };
-            }
-
-            public ImportedFileInfo GetImportedFileInfo(string guid)
-            {
-                return new ImportedFileInfo
-                {
-                    guid = guid,
-                    originalPath = originalPath,
-                };
-            }
-
-            public static string ToJson(AssetIdentifier assetId, ImportedFileInfo fileInfo)
-            {
-                var trackedData = new TrackedData
-                {
-                    organizationId = assetId.organizationId,
-                    projectId = assetId.projectId,
-                    sourceId = assetId.sourceId,
-                    version = assetId.version,
-                    originalPath = fileInfo.originalPath
-                };
-                return JsonUtility.ToJson(trackedData, true);
+                return null;
             }
         }
+
+        public static string ToJson(IAssetData assetData, IEnumerable<ImportedFileInfo> importedAssetInfo)
+        {
+            var trackedData = new TrackedData(assetData, importedAssetInfo);
+            return JsonUtility.ToJson(trackedData, true);
+        }
+    }
+    
+    [Serializable]
+    internal class ImportedAssetsTracker : BaseService<IImportedAssetsTracker>, IImportedAssetsTracker
+    {
 
         private const string k_ImportedAssetFolderName = "ImportedAssetInfo";
         private string m_ImportedAssetInfoFolderPath;
@@ -114,27 +102,36 @@ namespace Unity.AssetManager.Editor
                 foreach (var filePath in m_IOProxy.EnumerateFiles(m_ImportedAssetInfoFolderPath, "*", SearchOption.AllDirectories))
                 {
                     var trackedData = TrackedData.Parse(m_IOProxy.FileReadAllText(filePath));
-                    var assetId = trackedData?.GetAssetId();
-                    if (assetId == null)
-                        continue;
-                    var guid = Path.GetFileName(filePath);
-                    // The edge case where we tracked an imported asset in project settings folder but we can't actually found the asset in the AssetDatabase.
-                    // This could happen if the user deletes some files from their project when the UnityEditor is not running
-                    var path = m_AssetDatabaseProxy.GuidToAssetPath(guid);
-                    if (string.IsNullOrEmpty(path) || !m_IOProxy.FileExists(path))
+                    var assetData = trackedData?.assetData;
+
+                    if (assetData == null)
                     {
                         filesToCleanup.Add(filePath);
-                        continue;
                     }
-
-                    if (result.TryGetValue(assetId, out var importedAssetInfo))
-                        importedAssetInfo.fileInfos.Add(trackedData.GetImportedFileInfo(guid));
                     else
-                        result[assetId] = new ImportedAssetInfo{ id = assetId, fileInfos = new List<ImportedFileInfo>{ trackedData.GetImportedFileInfo(guid) } };
+                    {
+                        var guid = Path.GetFileName(filePath); // TODO Fix Me and Serialize
+                        foreach (var file in trackedData.fileInfos)
+                        {
+                            if (result.TryGetValue(assetData.identifier, out var importedAssetInfo))
+                            {
+                                importedAssetInfo.fileInfos.Add(new ImportedFileInfo(guid, file.originalPath));
+                            }
+                            else
+                            {
+                                result[assetData.identifier] = new ImportedAssetInfo(assetData, new List<ImportedFileInfo> { new (guid, file.originalPath) });
+                            }    
+                        }    
+                    }
                 }
 
+                // The edge case where we tracked an imported asset in project settings folder but we can't actually found the asset in the AssetDatabase.
+                // This could happen if the user deletes some files from their project when the UnityEditor is not running
                 foreach (var file in filesToCleanup)
+                {
                     m_IOProxy.DeleteFileIfExists(file);
+                }
+
                 return result.Values;
             }
             catch (IOException e)
@@ -144,17 +141,20 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        private bool WriteToDisk(ImportedFileInfo fileInfo, AssetIdentifier assetId)
+        private bool WriteToDisk(IAssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
         {
-            if (string.IsNullOrEmpty(fileInfo?.guid))
-                return false;
-            var indexFolderPath = GetIndexFolderPath(fileInfo.guid);
-            var importInfoFilePath = Path.Combine(indexFolderPath, fileInfo.guid);
+            var filename = assetData.identifier.assetId;
+            var importInfoFilePath = Path.Combine(m_ImportedAssetInfoFolderPath, filename);
             try
             {
-                if (!m_IOProxy.DirectoryExists(indexFolderPath))
-                    m_IOProxy.CreateDirectory(indexFolderPath);
-                m_IOProxy.FileWriteAllText(importInfoFilePath, TrackedData.ToJson(assetId, fileInfo));
+                var directoryPath = Path.GetDirectoryName(importInfoFilePath);
+                if (!m_IOProxy.DirectoryExists(directoryPath))
+                {
+                    m_IOProxy.CreateDirectory(directoryPath);
+                }
+
+                m_IOProxy.FileWriteAllText(importInfoFilePath, TrackedData.ToJson(assetData, fileInfos));
+                
                 return true;
             }
             catch (IOException e)
@@ -162,6 +162,18 @@ namespace Unity.AssetManager.Editor
                 Debug.Log($"Couldn't write imported asset info to {importInfoFilePath} :\n{e}.");
                 return false;
             }
+        }
+        
+        public static string GetSafeFilename(string input, int maxSize = 20)
+        {
+            var safeFilename = Regex.Replace(input, "[^a-zA-Z0-9_\\-\\.]", "");
+            
+            if (safeFilename.Length > maxSize)
+            {
+                safeFilename = safeFilename[0..maxSize];
+            }
+
+            return safeFilename;
         }
 
         private bool RemoveFromDisk(string assetGuid)
@@ -182,7 +194,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void TrackAssets(IReadOnlyCollection<(string originalPath, string finalPath)> assetPaths, AssetIdentifier assetId)
+        public void TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, IAssetData assetData)
         {
             var fileInfos = new List<ImportedFileInfo>();
             foreach (var item in assetPaths)
@@ -194,12 +206,25 @@ namespace Unity.AssetManager.Editor
                 if (string.IsNullOrEmpty(guid))
                     continue;
 
-                var fileInfo = new ImportedFileInfo { guid = guid, originalPath = item.originalPath};
+                var fileInfo = new ImportedFileInfo(guid,  item.originalPath);
                 fileInfos.Add(fileInfo);
-                WriteToDisk(fileInfo, assetId);
             }
+
             if (fileInfos.Count > 0)
-                m_AssetDataManager.AddGuidsToImportedAssetInfo(assetId, fileInfos);
+            {
+                WriteToDisk(assetData, fileInfos);
+                m_AssetDataManager.AddGuidsToImportedAssetInfo(assetData, fileInfos);
+            }
+        }
+        
+        public void UntrackAsset(IAssetData assetData)
+        {
+            if (assetData == null)
+                return;
+            
+            var filename = assetData.identifier.assetId;
+            var importInfoFilePath = Path.Combine(m_ImportedAssetInfoFolderPath, filename);
+            m_IOProxy.DeleteFileIfExists(importInfoFilePath);
         }
 
         private string GetIndexFolderPath(string guidString)

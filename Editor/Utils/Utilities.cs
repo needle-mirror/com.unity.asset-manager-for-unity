@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace Unity.AssetManager.Editor
 {
@@ -66,6 +67,11 @@ namespace Unity.AssetManager.Editor
         internal static long DatetimeToTimestamp(DateTime value)
         {
             return (long) (value - Constants.UnixEpoch).TotalMilliseconds;
+        }
+
+        internal static string PascalCaseToSentence(this string input)
+        {
+            return Regex.Replace(input, "(\\B[A-Z])", " $1");
         }
     }
 }

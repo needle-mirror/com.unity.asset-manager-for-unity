@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -20,14 +23,23 @@ namespace Unity.AssetManager.Editor
         IReadOnlyCollection<ImportedAssetInfo> importedAssetInfos { get; }
 
         void SetImportedAssetInfos(IReadOnlyCollection<ImportedAssetInfo> allImportedInfos);
-        void AddGuidsToImportedAssetInfo(AssetIdentifier id, IReadOnlyCollection<ImportedFileInfo> fileInfos);
+        void AddGuidsToImportedAssetInfo(IAssetData assetData, IReadOnlyCollection<ImportedFileInfo> fileInfos);
         void RemoveGuidsFromImportedAssetInfos(IReadOnlyCollection<string> guidsToRemove);
         void AddOrUpdateAssetDataFromCloudAsset(IEnumerable<IAssetData> assetDatas);
         ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier id);
         ImportedAssetInfo GetImportedAssetInfo(string guid);
+        Task<ImportedStatus> GetImportedStatus(AssetIdentifier id);
+        Task GetImportedStatus(AssetIdentifier identifier, Action<AssetIdentifier, ImportedStatus> callback);
         IAssetData GetAssetData(AssetIdentifier id);
-
         bool IsInProject(AssetIdentifier id);
+    }
+
+    enum ImportedStatus
+    {
+        None,
+        UpToDate,
+        OutDated,
+        Error,
     }
 
     [Serializable]
@@ -64,7 +76,9 @@ namespace Unity.AssetManager.Editor
         private void OnUserLoginStateChange(bool isUserInfoReady, bool isUserLoggedIn)
         {
             if (!isUserLoggedIn)
+            {
                 m_AssetData.Clear();
+            }
         }
 
         public void SetImportedAssetInfos(IReadOnlyCollection<ImportedAssetInfo> allImportedInfos)
@@ -92,7 +106,7 @@ namespace Unity.AssetManager.Editor
                 onImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { added = added, removed = oldAssetIds, updated = updated });
         }
 
-        public void AddGuidsToImportedAssetInfo(AssetIdentifier id, IReadOnlyCollection<ImportedFileInfo> fileInfos)
+        public void AddGuidsToImportedAssetInfo(IAssetData assetData, IReadOnlyCollection<ImportedFileInfo> fileInfos)
         {
             fileInfos ??= Array.Empty<ImportedFileInfo>();
             if (fileInfos.Count <= 0)
@@ -100,12 +114,12 @@ namespace Unity.AssetManager.Editor
 
             var added = new HashSet<AssetIdentifier>();
             var updated = new HashSet<AssetIdentifier>();
-            var info = GetImportedAssetInfo(id);
+            var info = GetImportedAssetInfo(assetData.identifier);
             if (info == null)
             {
-                info = new ImportedAssetInfo { id = id, fileInfos = fileInfos.ToList() };
+                info = new ImportedAssetInfo(assetData, fileInfos);
                 AddImportedAssetInfo(info);
-                added.Add(id);
+                added.Add(assetData.identifier);
             }
             else
             {
@@ -115,7 +129,7 @@ namespace Unity.AssetManager.Editor
                         continue;
                     info.fileInfos.Add(fileInfo);
                     m_GuidToImportedAssetInfoLookup[fileInfo.guid] = info;
-                    updated.Add(id);
+                    updated.Add(assetData.identifier);
                 }
             }
 
@@ -164,15 +178,19 @@ namespace Unity.AssetManager.Editor
             foreach (var assetData in assetDatas)
             { 
                 
-                if(m_AssetData.ContainsKey(assetData.id))
+                if(m_AssetData.ContainsKey(assetData.identifier))
                 {
-                    if (!AssetData.IsDifferent(assetData as AssetData, m_AssetData[assetData.id] as AssetData))
+                    if (!AssetData.IsDifferent(assetData as AssetData, m_AssetData[assetData.identifier] as AssetData))
                         continue;
-                    updated.Add(assetData.id);
+                    
+                    updated.Add(assetData.identifier);
                 }
                 else
-                    added.Add(assetData.id);
-                m_AssetData[assetData.id] = assetData;
+                {
+                    added.Add(assetData.identifier);
+                }
+                
+                m_AssetData[assetData.identifier] = assetData;
             }
 
             assetChangeArgs.added = added;
@@ -190,9 +208,44 @@ namespace Unity.AssetManager.Editor
             return m_GuidToImportedAssetInfoLookup.TryGetValue(guid, out var result) ? result : null;
         }
 
+        public async Task<ImportedStatus> GetImportedStatus(AssetIdentifier id)
+        {
+            var importedAssetInfo = GetImportedAssetInfo(id);
+            
+            if (importedAssetInfo == null)
+            {
+                return ImportedStatus.None;
+            }
+            
+            try
+            {
+                var cloudAsset = await Services.AssetRepository.GetAssetAsync(id.ToAssetDescriptor(), new FieldsFilter { AssetFields = AssetFields.authoring }, CancellationToken.None);
+
+                return importedAssetInfo.assetData.updated == cloudAsset.AuthoringInfo.Updated ? ImportedStatus.UpToDate : ImportedStatus.OutDated;
+            }
+            catch (Exception)
+            {
+                return ImportedStatus.Error;
+            }
+        }
+
+        public async Task GetImportedStatus(AssetIdentifier identifier, Action<AssetIdentifier, ImportedStatus> callback)
+        {
+            var importedStatus = await GetImportedStatus(identifier);
+            callback.Invoke(identifier, importedStatus);
+        }
+
         public IAssetData GetAssetData(AssetIdentifier id)
         {
-            return id?.IsValid() == true && m_AssetData.TryGetValue(id, out var result) ? result : null;
+            if (id?.IsValid() != true)
+                return null;
+            
+            if (m_AssetIdToImportedAssetInfoLookup.TryGetValue(id, out var info))
+            {
+                return info?.assetData;
+            }
+            
+            return m_AssetData.TryGetValue(id, out var result) ? result : null;
         }
 
         public bool IsInProject(AssetIdentifier id)
@@ -203,7 +256,10 @@ namespace Unity.AssetManager.Editor
         private void AddImportedAssetInfo(ImportedAssetInfo info)
         {
             foreach (var fileInfo in info.fileInfos)
+            {
                 m_GuidToImportedAssetInfoLookup[fileInfo.guid] = info;
+            }
+
             m_AssetIdToImportedAssetInfoLookup[info.id] = info;
         }
 
@@ -216,9 +272,14 @@ namespace Unity.AssetManager.Editor
         public void OnAfterDeserialize()
         {
             foreach (var info in m_SerializedImportedAssetInfos)
+            {
                 AddImportedAssetInfo(info);
+            }
+
             foreach (var data in m_SerializedAssetData)
-                m_AssetData[data.id] = data;
+            {
+                m_AssetData[data.identifier] = data;
+            }
         }
     }
 }

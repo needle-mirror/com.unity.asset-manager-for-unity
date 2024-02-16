@@ -16,18 +16,18 @@ namespace Unity.AssetManager.Editor
         private readonly IAssetDataManager m_AssetDataManager;
         private readonly IAssetImporter m_AssetImporter;
         private readonly IThumbnailDownloader m_ThumbnailDownloader;
-        private readonly IIconFactory m_IconFactory;
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        private readonly ILinksProxy m_LinkProxy;
 
-        public AssetsGridView(IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnect, IPageManager pageManager, IAssetDataManager assetDataManager, IAssetImporter assetImporter, IThumbnailDownloader thumbnailDownloader, IIconFactory iconFactory, ILinksProxy linksProxy)
+        public AssetsGridView(IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnect, IPageManager pageManager, IAssetDataManager assetDataManager, IAssetImporter assetImporter, IThumbnailDownloader thumbnailDownloader, ILinksProxy linksProxy)
         {
             m_UnityConnect = unityConnect;
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
             m_AssetImporter = assetImporter;
             m_ThumbnailDownloader = thumbnailDownloader;
-            m_IconFactory = iconFactory;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_LinkProxy = linksProxy;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
             m_Gridview.onGridViewLastItemVisible += OnLastGridViewItemVisible;
@@ -81,7 +81,7 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        private VisualElement MakeGridViewItem() => new GridItem(m_AssetDataManager, m_AssetImporter, m_ThumbnailDownloader, m_PageManager, m_IconFactory);
+        private VisualElement MakeGridViewItem() => new GridItem(m_AssetDataManager, m_AssetImporter, m_ThumbnailDownloader, m_PageManager, m_LinkProxy);
 
         private void BindGridViewItem(VisualElement element, int index)
         {
@@ -97,15 +97,14 @@ namespace Unity.AssetManager.Editor
 
             item.onClick += () =>
             {
-                m_PageManager.activePage.selectedAssetId = assetId.id;
+                m_PageManager.activePage.selectedAssetId = assetId.identifier;
             };
         }
 
         private void Refresh()
         {
             UIElementsUtils.Hide(m_Gridview);
-            UIElementsUtils.Hide(m_LoadingBar);
-            
+
             var page = m_PageManager.activePage;
             // The order matters since page is null if there is a Project Level error 
             if (!m_UnityConnect.isUserLoggedIn || m_GridErrorOrMessageView.Refresh() || page == null)
@@ -116,16 +115,19 @@ namespace Unity.AssetManager.Editor
             var assetList = page.assetList.ToList();
             if (assetList.Count == 0 && page.hasMoreItems)
             {
-                m_Gridview.ItemsSource = Array.Empty<IAssetData>();
-                m_Gridview.Refresh();
-                m_Gridview.ResetScrollBarTop();
-                if (!page.isLoading)
-                    page.LoadMore();
+                ClearGrid();
                 return;
             }
 
             m_Gridview.ItemsSource = assetList;
             m_Gridview.Refresh();
+        }
+
+        void ClearGrid()
+        {
+            m_Gridview.ItemsSource = Array.Empty<IAssetData>();
+            m_Gridview.Refresh();
+            m_Gridview.ResetScrollBarTop();
         }
 
         private void OnImportedAssetInfoChanged(AssetChangeArgs args)

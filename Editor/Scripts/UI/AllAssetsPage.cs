@@ -23,7 +23,7 @@ namespace Unity.AssetManager.Editor
         IAssetsProvider m_AssetsProvider;
         IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
-        protected override async IAsyncEnumerable<IAsset> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
+        protected override async IAsyncEnumerable<IAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
         {
             if (m_ProjectOrganizationProvider.selectedProject?.id != ProjectInfo.AllAssetsProjectInfo.id)
                 yield return null;
@@ -31,8 +31,14 @@ namespace Unity.AssetManager.Editor
             var count = 0;
             await foreach(var asset in m_AssetsProvider.SearchAsync(m_ProjectOrganizationProvider.organization, searchFilters, m_NextStartIndex, Constants.DefaultPageSize, token))
             {
-                yield return asset;
+                var assetData = new AssetData(asset);
+                
                 ++count;
+                
+                if (await IsDiscardedByLocalFilter(assetData))
+                    continue;
+
+                yield return assetData;
             }
             m_HasMoreItems = count == Constants.DefaultPageSize;
             m_NextStartIndex += count;

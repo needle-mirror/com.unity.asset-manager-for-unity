@@ -130,6 +130,19 @@ TopBar {
 }
 
 /************************************************
+* Filters
+************************************************/
+
+.unity-filters {
+    background-color: #A5A5A5;
+}
+
+.unity-filters-popup {
+    background-color: #F0F0F0;
+    border-color: #7E7E7E;
+}
+
+/************************************************
 * Grid View
 ************************************************/
 
@@ -150,17 +163,9 @@ TopBar {
     color: black !important;
 }
 
-.grid-view--item-highlight {
-    border-color: #E7E7E7;
-}
-
 .grid-view--item-download_cancel_button {
     background-color: white;
     background-image: resource('Images/Light/Close');
-}
-
-.grid-view--item-owned_icon {
-    background-image: resource('Images/Light/Owned-Asset');
 }
 
 GridErrorOrMessageView > .unity-label {
@@ -218,6 +223,10 @@ TagPill:hover {
 /************************************************
 * Details Page Container
 ************************************************/
+
+#details-page-thumbnail-container {
+    background-color: #A5A5A5;
+}
 
 .asset-details-page-container {
     background-color: rgba(170, 170, 170, 0.98);

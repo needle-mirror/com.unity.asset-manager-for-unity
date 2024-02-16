@@ -98,6 +98,9 @@ namespace Unity.AssetManager.Editor
 
         private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
         {
+            if (!isLoading)
+                return;
+            
             activePage?.Clear(true);
         }
 
@@ -163,7 +166,7 @@ namespace Unity.AssetManager.Editor
                     page = new CollectionPage(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider, collectionInfo);
                     break;
                 case PageType.InProject:
-                    page = new InProjectPage(m_AssetDataManager, m_AssetsProvider);
+                    page = new InProjectPage(m_AssetDataManager);
                     break;
                 case PageType.AllAssets:
                     page = new AllAssetsPage(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
@@ -184,7 +187,7 @@ namespace Unity.AssetManager.Editor
                     collectionPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
                     break;
                 case InProjectPage inProjectPage:
-                    inProjectPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider);
+                    inProjectPage.ResolveDependencies(m_AssetDataManager);
                     break;
                 case AllAssetsPage allAssetsPage:
                     allAssetsPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);

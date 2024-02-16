@@ -80,7 +80,7 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager.onActivePageChanged -= OnActivePageChanged;
             m_PageManager.onSearchFiltersChanged -= OnPageSearchFiltersChanged;
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
         }
 
         void OnPageSearchFiltersChanged(IPage page, IReadOnlyCollection<string> searchFilters)

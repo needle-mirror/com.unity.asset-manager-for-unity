@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using Unity.EditorCoroutines.Editor;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -14,13 +15,12 @@ namespace Unity.AssetManager.Editor
         const int k_Height = 20;
         const int k_Width = k_Height;
 
-        const float k_TimeBetweenFrames = 0.05f;
-
         static Quaternion s_LastRotation;
         static Vector3 s_LastPosition;
         static float s_LastAngle;
         float m_CurrentAngle;
-        bool m_Interrupt;
+
+        readonly IVisualElementScheduledItem m_Scheduler;
 
         internal LoadingIcon()
         {
@@ -28,21 +28,31 @@ namespace Unity.AssetManager.Editor
 
             style.height = k_Height;
             style.width = k_Width;
-
+            
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
-            EditorCoroutineUtility.StartCoroutineOwnerless(NextFrame());
-        }
 
-        IEnumerator NextFrame()
+            m_Scheduler = schedule.Execute(UpdateAnimation).Every(50);
+            m_Scheduler.Pause();
+        }
+        
+        public void PlayAnimation()
         {
-            while (!m_Interrupt)
-            {
-                
-                transform.rotation = Quaternion.Euler(0, 0, m_CurrentAngle);
-                m_CurrentAngle += 20;
-                yield return new EditorWaitForSeconds(k_TimeBetweenFrames);
-            }
+            m_Scheduler.Resume();
+        }
+        
+        public void StopAnimation()
+        {
+            m_Scheduler.Pause();
+        }
+        
+        void UpdateAnimation(TimerState timerState)
+        {
+            if(style.visibility == Visibility.Hidden)
+                return;
+            
+            transform.rotation = Quaternion.Euler(0, 0, m_CurrentAngle);
+            m_CurrentAngle += 0.6f * timerState.deltaTime;
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
@@ -57,7 +67,6 @@ namespace Unity.AssetManager.Editor
             s_LastRotation = transform.rotation;
             s_LastPosition = transform.position;
             s_LastAngle = m_CurrentAngle;
-            m_Interrupt = true;
         }
     }
 }

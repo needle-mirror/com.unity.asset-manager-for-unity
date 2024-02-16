@@ -64,8 +64,7 @@ namespace Unity.AssetManager.Editor
                 return;
 
             m_HasChild = true;
-            m_CheckMark.style.display = DisplayStyle.Flex;
-            m_CheckMark.style.visibility = Visibility.Visible;
+            UIElementsUtils.Show(m_CheckMark);
             RemoveFromClassList("removed-arrow");
         }
 
@@ -75,8 +74,7 @@ namespace Unity.AssetManager.Editor
                 return;
 
             m_HasChild = false;
-            m_CheckMark.style.display = DisplayStyle.None;
-            m_CheckMark.style.visibility = Visibility.Hidden;
+            UIElementsUtils.Hide(m_CheckMark);
             AddToClassList("removed-arrow");
         }
 
@@ -86,8 +84,7 @@ namespace Unity.AssetManager.Editor
             label.pickingMode = PickingMode.Ignore;
             m_Toggle.pickingMode = PickingMode.Ignore;
             m_CheckMark.pickingMode = PickingMode.Position;
-            m_CheckMark.style.display = DisplayStyle.None;
-            m_CheckMark.style.visibility = Visibility.Hidden;
+            UIElementsUtils.Hide(m_CheckMark);
         }
     }
 }

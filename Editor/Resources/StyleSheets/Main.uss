@@ -253,10 +253,92 @@ is not intended properly and we need this to fix that issue*/
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
+    -unity-text-overflow-position: end;
 }
 
 .unity-breadcrumbs-button.highlight {
     -unity-font-style: bold;
+}
+
+/************************************************
+* Filters
+************************************************/
+.unity-filters {
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    height: 30px;
+    padding-left: 6px;
+    padding-bottom: 6px;
+}
+
+.unity-filters-button {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    flex-grow: 0;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.unity-filters-button-caret {
+    width: 12px;
+    height: 12px;
+    margin-left: 12px;
+}
+
+.unity-filters-popup{
+    flex-direction: column;
+    position: absolute;
+    padding: 5px;
+    margin-top: 5px;
+    min-width: 160px;
+    border-width: 1px;
+    border-radius: 8px;
+}
+
+.unity-filters-popup-filter-selection {
+    flex-direction: row;
+    font-size: 14px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    border-radius: 5px;
+}
+
+.unity-filters-popup-filter-selection:hover {
+    background-color: #2F60C1;
+}
+
+.unity-filters-popup-filter-selection > Image {
+    margin-left: 6px;
+    margin-right: 4px;
+    width: 16px;
+    height: 16px;
+}
+
+.unity-filters-pill-container{
+    flex-direction: row;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+}
+
+.unity-filters-pill {
+    flex-direction: row;
+    border-radius: 12px;
+    flex-shrink: 0;
+    align-items: center;
+}
+
+.unity-filters-pill--set
+{
+    background-color: #2C5D87;
+}
+
+.unity-filters-pill-delete {
+    margin-left: 8px;
+    margin-right: 4px;
+    width: 12px;
+    height: 12px;
 }
 
 /************************************************
@@ -481,6 +563,12 @@ TagPill {
     flex-shrink: 0;
 }
 
+TagPill #text {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    -unity-text-overflow-position: end;
+}
+
 /************************************************
 * ProjectPill
 ************************************************/
@@ -491,8 +579,14 @@ ProjectPill {
     border-radius: 12px;
     margin: 5px 5px 5px 5px;
     cursor: link;
-    flex-shrink: 0;
+    flex-shrink: 1;
     flex-direction: row;
+}
+
+ProjectPill Label {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    -unity-text-overflow-position: end;
 }
 
 ProjectPill > Image
@@ -526,13 +620,15 @@ AssetsGridView {
 
 .grid-view--item {
     flex-basis: auto;
-    flex-direction: column-reverse;
+    flex-direction: column;
     flex-grow: 0;
     flex-shrink: 0;
     height: 150px;
-    margin: 2.5px;
+    margin: 3px;
     width: 125px;
-    border-radius: 2px;
+    border-width: 2px;
+    border-radius: 5px;
+    border-color: rgba(0, 0, 0, 0);
 }
 
 .grid-view--item-background {
@@ -551,21 +647,16 @@ AssetsGridView {
 }
 
 .asset-preview-thumbnail {
-    position: absolute;
     align-self: center;
     flex-basis: auto;
-    flex-grow: 0;
+    flex-grow: 1;
     flex-shrink: 0;
-    bottom: 25px;
-    height: 122px;
-    width: 120px;
     -unity-background-scale-mode: scale-to-fit;
 }
 
 .grid-view--item-label {
     text-overflow: ellipsis;
     overflow: hidden;
-    position: absolute;
     bottom: 0px;
     width: 100%;
     height: 25px;
@@ -577,14 +668,22 @@ AssetsGridView {
     border-bottom-right-radius: 3px;
 }
 
-.grid-view--item-highlight {
+.grid-view--item-selected {
+    border-color: rgb(127, 214, 252); /* Similar blue to Prefabs icons in the Editor */
+}
+
+.grid-view--item-overlay {
+    display: none;
+}
+
+.grid-view--item:hover .grid-view--item-overlay {
+    display: flex;
     position: absolute;
-    border-width: 3px;
-    border-radius: 3px;
-    flex-grow: 0;
-    flex-shrink: 0;
-    height: 100%;
-    width: 100%;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
 .grid-view--item-dummy {
@@ -605,12 +704,36 @@ AssetsGridView {
     border-bottom-right-radius: 2px;
 }
 
-.grid-view--item-owned_icon {
+.grid-view--item-imported_status {
     position: absolute;
-    bottom: 25px;
-    right: 0px;
-    width: 32px;
-    height: 32px;
+    bottom: 3px;
+    right: 3px;
+    
+    border-radius: 10px;
+    background-size : 14px 14px;
+    
+    width: 20px;
+    height: 20px;
+}
+
+.grid-view--item-imported_status-imported {
+    background-image: resource('Images/Dark/Folder-Closed');
+    background-color : rgba(0, 0, 0, 204);
+}
+
+.grid-view--item-imported_status-up_to_date {
+    background-image: resource('Images/Dark/Folder-Closed');
+    background-color : rgba(88, 129, 87, 204);
+}
+
+.grid-view--item-imported_status-out_of_date {
+    background-image: resource('Images/Dark/Folder-Closed');
+    background-color : rgba(238, 155, 0, 204);
+}
+
+.grid-view--item-imported_status-error {
+    background-image: resource('Images/Dark/Folder-Closed');
+    background-color : rgba(174, 32, 18, 204);
 }
 
 .grid-view--row {
@@ -665,20 +788,17 @@ GridErrorOrMessageView > .unity-label {
 }
 
 .asset-preview {
-    position: absolute;
     height: 100%;
     width: 100%;
+    justify-content: space-around;
     -unity-background-scale-mode: scale-to-fit;
 }
 
 .asset-preview > DraggableImage {
-    position: absolute;
     align-self: center;
     flex-basis: auto;
-    flex-grow: 0;
+    flex-grow: 1;
     flex-shrink: 0;
-    bottom: 25px;
-    height: 122px;
     -unity-background-scale-mode: scale-to-fit;
 }
 
@@ -686,22 +806,26 @@ GridErrorOrMessageView > .unity-label {
     width: 48px;
 }
 
-.asset-preview > .asset-preview-asset-type-icon{
+.asset-preview > .asset-preview-asset-type-icon {
     position: absolute;
     top: 5px;
     left: 5px;
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
 }
 
-.no-thumbnail > .asset-preview-asset-type-icon{
+.no-thumbnail > .asset-preview-asset-type-icon {
+    position: relative;
     display: flex;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    translate: -24px -35px;
+    align-self: center;
+    top: auto;
+    left: auto;
     width: 48px;
     height: 48px;
+}
+
+.no-thumbnail > .asset-preview-thumbnail {
+    display: none;
 }
 
 /************************************************
@@ -750,8 +874,19 @@ AssetDetailsPage {
     margin: 10px;
 }
 
-#name {
+#asset-name {
     padding: 5px;
+    align-self: center;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    -unity-text-overflow-position: end;
+}
+
+#asset-dashboard-link {
+    width: 16px;
+    height: 16px;
+    align-self: center;
+    margin-top: 5px;
 }
 
 #details-page-scrollview {
@@ -778,6 +913,7 @@ AssetDetailsPage {
     min-width: 100px;
     min-height: 200px;
     width: 100%;
+    border-radius: 8px;
 }
 
 #details-page-asset-preview {
@@ -788,7 +924,8 @@ AssetDetailsPage {
     position: relative;
     flex-grow: 1;
     bottom: 0;
-    height: 100%;
+    height: auto;
+    width: auto;
 }
 
 #details-page-project-container {
@@ -802,6 +939,18 @@ AssetDetailsPage {
 #details-page-project-pill-container {
     flex-direction: row;
     align-items: center;
+}
+
+.details-page-asset-preview-thumbnail {
+    width: 100%;
+    height: 100%;
+}
+
+.details-page-asset-preview-thumbnail .asset-preview-thumbnail {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    padding-left: 4px;
+    padding-right: 4px;
 }
 
 .details-page-download-progress-container{
@@ -919,7 +1068,7 @@ DetailsPageFileItem > Label {
 }
 
 .image-container {
-    max-height: 400px;
+    height: 200px;
     max-width: 400px;
 }
 
@@ -1091,67 +1240,34 @@ DetailsPageFileItem > .details-page-file-item-label{
 ************************************************/
 
 .loading-icon {
+    align-self: center;
     height: 20px;
     width: 20px;
-    margin: auto;
     flex-shrink: 0;
 }
 
 .loading-bar {
+    position: absolute;
     height: 35px;
-    width: 128.7px;
+    padding-left: 20px;
+    padding-right: 20px;
     bottom: 10px;
     border-radius: 10px;
-    -unity-text-align: lower-left;
-    margin: 0 auto;
-    left: 50%;
-    position: absolute;
-    flex-shrink: 0;
-    translate: -50%;
+    flex-direction: row;
+    align-content: center;
+    align-items: center;
+    align-self: center;
 }
 
 .loading-bar--high-position {
-    height: 35px;
-    width: 128.7px;
     top: 70px;
-    border-radius: 10px;
-    -unity-text-align: lower-left;
-    margin: 0 auto;
-    left: 50%;
-    position: absolute;
-    flex-shrink: 0;
-    translate: -50%;
-    background-color: rgba(0, 0, 0, 0.5);
 }
 
 .loading-bar .loading-icon {
-    height: 20px;
-    width: 20px;
-    margin: 0 auto;
-    flex-shrink: 0;
-    position: absolute;
-    left: 5px;
-    top:7px;
+    margin-right: 10px;
 }
 
 .loading-bar-label {
-    top: 50%;
-    left: 30px;
-    width: 95px;
-    translate: 0 -50%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.loading-bar-no-more-assets-label {
-    top: 50%;
-    left: 50%;
-    width: 100px;
-    margin-left: 2px;
-    translate: -50% -50%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    -unity-font-style: bold;
 }
 
 /************************************************

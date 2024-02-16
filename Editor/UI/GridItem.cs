@@ -1,29 +1,31 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Random = System.Random;
 
 namespace Unity.AssetManager.Editor
 {
     internal class GridItem : VisualElement
     {
-        const string k_ItemLabelUssClassName = Constants.GridItemStyleClassName + "-label";
-        const string k_ItemLabelHighlightUssClassName = k_ItemLabelUssClassName + "-highlight";
-        const string k_OwnedAssetIconUssClassName = Constants.GridItemStyleClassName + "-owned_icon";
+        static class UssStyles
+        {
+            public static readonly string ItemLabel = Constants.GridItemStyleClassName + "-label";
+            public static readonly string ItemHighlight = Constants.GridItemStyleClassName + "-selected";
+            public static readonly string ItemOverlay = Constants.GridItemStyleClassName + "-overlay";
+        }
 
-        public bool isMousedOver { get; set; }
-        public bool isLoading { get; set; }
+        bool m_IsLoading;
 
-        GridItemHighlight m_Highlight;
-        Label m_AssetNameLabel;
-        AssetPreview m_AssetPreview;
-        ImportProgressBar m_ImportProgressBar;
-
+        readonly Label m_AssetNameLabel;
+        readonly AssetPreview m_AssetPreview;
+        readonly ImportProgressBar m_ImportProgressBar;
+        readonly LoadingIcon m_LoadingIcon;
+        
         IAssetData m_AssetData;
-        LoadingIcon m_LoadingIcon;
-        VisualElement m_OwnedAssetIcon;
-        Material m_GeneratedMaterial;
 
         internal event Action onClick = delegate { };
 
@@ -31,46 +33,53 @@ namespace Unity.AssetManager.Editor
         private readonly IAssetImporter m_AssetImporter;
         private readonly IThumbnailDownloader m_ThumbnailDownloader;
         private readonly IPageManager m_PageManager;
-        private readonly IIconFactory m_IconFactory;
-        internal GridItem(IAssetDataManager assetDataManager, IAssetImporter assetImporter, IThumbnailDownloader thumbnailDownloader, IPageManager pageManager, IIconFactory iconFactory)
+        private readonly ILinksProxy m_LinksProxy;
+
+        internal GridItem(IAssetDataManager assetDataManager, IAssetImporter assetImporter, IThumbnailDownloader thumbnailDownloader, IPageManager pageManager, ILinksProxy linksProxy)
         {
             m_AssetDataManager = assetDataManager;
             m_AssetImporter = assetImporter;
             m_ThumbnailDownloader = thumbnailDownloader;
             m_PageManager = pageManager;
-            m_IconFactory = iconFactory;
+            m_LinksProxy = linksProxy;
 
             AddToClassList(Constants.GridItemStyleClassName);
-
-            RegisterCallback<MouseEnterEvent>(OnMouseEnter);
-            RegisterCallback<MouseOutEvent>(OnMouseLeave);
+            
             RegisterCallback<ClickEvent>(OnClick);
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
 
-            m_AssetPreview = new AssetPreview(m_IconFactory);
-            m_Highlight = new GridItemHighlight();
+            m_AssetPreview = new AssetPreview();
+            
             m_AssetNameLabel = new Label();
+            m_AssetNameLabel.AddToClassList(UssStyles.ItemLabel);
+            
             m_LoadingIcon = new LoadingIcon();
-            m_OwnedAssetIcon = new VisualElement();
-            m_ImportProgressBar = new ImportProgressBar(m_PageManager, m_AssetImporter);
             m_LoadingIcon.AddToClassList("loading-icon");
+            
+            m_ImportProgressBar = new ImportProgressBar(m_PageManager, m_AssetImporter)
+            {
+                pickingMode = PickingMode.Ignore
+            };
 
-            m_AssetPreview.RegisterCallback<MouseEnterEvent>(OnMouseEnter);
-            m_AssetNameLabel.AddToClassList(k_ItemLabelUssClassName);
-            m_OwnedAssetIcon.AddToClassList(k_OwnedAssetIconUssClassName);
-
-            // UI Elements need to be ignore by the mouse so that the highlight:hover can be triggered
-            m_AssetNameLabel.pickingMode = PickingMode.Ignore;
-            m_OwnedAssetIcon.pickingMode = PickingMode.Ignore;
-            m_ImportProgressBar.pickingMode = PickingMode.Ignore;
-            m_AssetPreview.pickingMode = PickingMode.Ignore;
+            var overlay = new VisualElement
+            {
+                pickingMode = PickingMode.Ignore
+            };
+            overlay.AddToClassList(UssStyles.ItemOverlay);
 
             Add(m_AssetPreview);
-            Add(m_Highlight);
             Add(m_AssetNameLabel);
             Add(m_LoadingIcon);
-            m_LoadingIcon.style.marginTop = 50;
+            Add(m_ImportProgressBar);
+            Add(overlay);
+           
+            // First we create and add our manipulator so that the element responds context menu requests
+            this.AddManipulator(new ContextualMenuManipulator(SetupContextMenuEntries));
+
+            // We also want to be listening to the manipulator contextual menu so that we can update the action when the item is
+            // already being imported
+            RegisterCallback<ContextualMenuPopulateEvent>(SetupContextMenuEntries);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
@@ -91,10 +100,10 @@ namespace Unity.AssetManager.Editor
 
         void OnImportProgress(ImportOperation operation)
         {
-            if (!operation.assetId.Equals(m_AssetData?.id))
+            if (!operation.assetId.Equals(m_AssetData?.identifier))
                 return;
 
-            m_ImportProgressBar.Refresh(m_AssetImporter.GetImportOperation(m_AssetData?.id));
+            m_ImportProgressBar.Refresh(m_AssetImporter.GetImportOperation(m_AssetData?.identifier));
         }
 
         private void OnSelectedAssetChanged(IPage page, AssetIdentifier assetId)
@@ -102,68 +111,67 @@ namespace Unity.AssetManager.Editor
             RefreshHighlight();
         }
 
-        internal void BindWithItem(IAssetData item)
+        internal async void BindWithItem(IAssetData item)
         {
-            // Clear the item
-            Clear();
+            if (m_AssetData != null && m_AssetData.identifier.Equals(item.identifier))
+                return;
 
             m_AssetData = item;
 
             onClick = delegate { };
+            
+            RefreshHighlight();
 
             // Re-add everything important
             m_AssetNameLabel.text = item.name;
-            m_AssetNameLabel.pickingMode = PickingMode.Ignore;
+            m_AssetNameLabel.tooltip = item.name;
 
-            tooltip = item.name;
-            if (m_AssetDataManager.IsInProject(item.id))
-                tooltip += " (Imported)";
+            m_AssetPreview.ClearPreview();
 
-            Add(m_AssetPreview);
-            Add(m_AssetNameLabel);
+            m_ImportProgressBar.Refresh(m_AssetImporter.GetImportOperation(item.identifier));
 
-            m_ImportProgressBar.Refresh(m_AssetImporter.GetImportOperation(m_AssetData.id));
+            m_AssetPreview.SetImportStatusIcon(ImportedStatus.None);
 
-            if (m_AssetDataManager.IsInProject(item.id))
-                Add(m_OwnedAssetIcon);
+            m_IsLoading = true;
             
-            Add(m_Highlight);
-            Add(m_ImportProgressBar);
-            
-            m_AssetPreview.SetAssetType(item.assetType, false);
-            
-            m_AssetNameLabel.RemoveFromClassList(k_ItemLabelHighlightUssClassName);
+            m_LoadingIcon.PlayAnimation();
+            UIElementsUtils.Show(m_LoadingIcon);
 
-            isLoading = true;
-            Add(m_LoadingIcon);
             m_ThumbnailDownloader.DownloadThumbnail(item, (identifier, texture2D) =>
             {
-                if (!identifier.Equals(m_AssetData.id))
+                if (!identifier.Equals(m_AssetData.identifier))
                     return;
-                isLoading = false;
-                m_LoadingIcon.RemoveFromHierarchy();
                 
+                m_IsLoading = false;
+                m_LoadingIcon.StopAnimation();
+                UIElementsUtils.Hide(m_LoadingIcon);
+
                 m_AssetPreview.SetThumbnail(texture2D);
             });
 
-            RefreshHighlight();
-
-            focusable = true;
-
-            // First we create and add our manipulator so that the element responds context menu requests
-            this.AddManipulator(new ContextualMenuManipulator(SetupContextMenuEntries));
-
-            // We also want to be listening to the manipulator contextual menu so that we can update the action when the item is
-            // already being imported
-            RegisterCallback<ContextualMenuPopulateEvent>(SetupContextMenuEntries);
+            _ = m_AssetDataManager.GetImportedStatus(item.identifier, (identifier, status) =>
+            {
+                if (!identifier.Equals(m_AssetData.identifier))
+                    return;
+                
+                m_AssetPreview.SetImportStatusIcon(status);
+            });
+            
+            _ = item.GetPrimaryExtension((identifier, extension) =>
+            {
+                if (!identifier.Equals(m_AssetData.identifier))
+                    return;
+                
+                m_AssetPreview.SetAssetType(extension, true);
+            });
         }
-
-        #region ContextMenu
 
         void SetupContextMenuEntries(ContextualMenuPopulateEvent evt)
         {
             ClearMenuEntries(evt);
             RemoveFromProject(evt);
+            ShowInProject(evt);
+            ShowInDashboard(evt);
             ImportEntry(evt);
             CancelImportEntry(evt);
         }
@@ -176,10 +184,10 @@ namespace Unity.AssetManager.Editor
 
         void ImportEntry(ContextualMenuPopulateEvent evt)
         {
-            if (m_AssetImporter.IsImporting(m_AssetData.id))
+            if (m_AssetImporter.IsImporting(m_AssetData.identifier))
                 return;
 
-            var text = !m_AssetDataManager.IsInProject(m_AssetData.id) ? Constants.ContextMenuImport : Constants.ResetText;
+            var text = !m_AssetDataManager.IsInProject(m_AssetData.identifier) ? Constants.ContextMenuImport : Constants.ReimportText;
 
             AddMenuEntry(evt, text, true, (_) =>
                 m_AssetImporter.StartImportAsync(m_AssetData, ImportAction.ContextMenu));
@@ -187,8 +195,8 @@ namespace Unity.AssetManager.Editor
 
         void CancelImportEntry(ContextualMenuPopulateEvent evt)
         {
-            if (m_AssetImporter.IsImporting(m_AssetData.id))
-                AddMenuEntry(evt, L10n.Tr("Cancel Import"), true, (_) => m_AssetImporter.CancelImport(m_AssetData.id, true));
+            if (m_AssetImporter.IsImporting(m_AssetData.identifier))
+                AddMenuEntry(evt, L10n.Tr("Cancel Import"), true, (_) => m_AssetImporter.CancelImport(m_AssetData.identifier, true));
         }
 
         void AddMenuEntry(ContextualMenuPopulateEvent evt, string actionName, bool enabled, Action<DropdownMenuAction> action)
@@ -198,7 +206,7 @@ namespace Unity.AssetManager.Editor
 
         void RemoveFromProject(ContextualMenuPopulateEvent evt)
         {
-            var enabled = m_AssetDataManager.IsInProject(m_AssetData.id) && !m_AssetImporter.IsImporting(m_AssetData.id);
+            var enabled = m_AssetDataManager.IsInProject(m_AssetData.identifier) && !m_AssetImporter.IsImporting(m_AssetData.identifier);
 
             AddMenuEntry(evt, Constants.ContextMenuRemoveFromLibrary, enabled, (_) =>
             {
@@ -206,42 +214,42 @@ namespace Unity.AssetManager.Editor
             });
         }
 
-        #endregion
+        void ShowInProject(ContextualMenuPopulateEvent evt)
+        {
+            var enabled = m_AssetDataManager.IsInProject(m_AssetData.identifier);
+            AddMenuEntry(evt, "Show In Project", enabled, (_) =>
+            {
+                m_AssetImporter.ShowInProject(m_AssetData);
+            });
+        }
+
+        void ShowInDashboard(ContextualMenuPopulateEvent evt)
+        {
+            AddMenuEntry(evt, "Show In Dashboard", true, (_) =>
+            {
+                m_LinksProxy.OpenAssetManagerDashboard(m_AssetData.identifier.projectId, m_AssetData.identifier.assetId);
+            });
+        }
 
         private void RefreshHighlight()
         {
-            if (m_AssetData == null) return;
-
-            m_Highlight = this.Q<GridItemHighlight>();
-            m_Highlight.visible = isMousedOver || m_AssetData.id.Equals(m_PageManager.activePage?.selectedAssetId);
-            m_AssetNameLabel = this.Q<Label>();
-
-            if (m_Highlight.visible)
-                m_AssetNameLabel.AddToClassList(k_ItemLabelHighlightUssClassName);
-            else
-                m_AssetNameLabel.RemoveFromClassList(k_ItemLabelHighlightUssClassName);
-        }
-
-        void OnMouseEnter(IMouseEvent x)
-        {
-            // There's a bug in IMouseEvent.mousePosition where it does not update while resizing window
-            // The bug does not exist in Event.Current.mousePosition
-            if (x.mousePosition != Event.current.mousePosition)
+            if (m_AssetData == null)
                 return;
 
-            isMousedOver = true;
-            RefreshHighlight();
-        }
-
-        void OnMouseLeave(IMouseEvent x)
-        {
-            isMousedOver = false;
-            RefreshHighlight();
+            var isSelected = m_AssetData.identifier.Equals(m_PageManager.activePage?.selectedAssetId);
+            if (isSelected)
+            {
+                AddToClassList(UssStyles.ItemHighlight);
+            }
+            else
+            {
+                RemoveFromClassList(UssStyles.ItemHighlight);
+            }
         }
 
         void OnClick(ClickEvent e)
         {
-            if (isLoading) return;
+            if (m_IsLoading) return;
             onClick?.Invoke();
         }
     }

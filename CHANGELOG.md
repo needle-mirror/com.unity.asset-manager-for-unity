@@ -4,6 +4,36 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2024-02-16
+
+### Added
+* First draft of Imported Status
+* Support for corrupted/deleted/forbidden imported asset
+* Displaying Asset ID in Detail page view
+* Filter by Unity type
+
+### Changed
+* Look and feel of GridItem highlight and selection is now more clear
+* Previously imported assets will not be display in the In Project page and have to be re-imported
+* Imported assets are now displayed directly instead of making a request to the backend
+* Display Unity Type instead of Dashboard Asset Type
+* Display extension when hovering on the Type icon
+
+### Fixed 
+* GridItem highlight now behaves properly
+* Unintended window refreshing
+* Cases where a GridItem shows the wrong Asset Type
+* In Project Page not loading if an asset was deleted
+* Forbidden error that was showing sometime when after importing an asset
+* Add "Loading ..." text in dropdown popup before the selections show up
+
+### Known Issues
+* Updating and re-importing assets may cause data sync issues
+* Thumbnails may nto be in sync with cloud
+* Files are not tracked when moved
+* Loading more than 100 assets may result in unexpected behaviour
+
+
 ## [0.4.2] - 2024-02-09
 
 ### Fixed 

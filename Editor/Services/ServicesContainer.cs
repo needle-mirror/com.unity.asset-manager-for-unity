@@ -113,18 +113,16 @@ namespace Unity.AssetManager.Editor
             var assetDataManager = Register(new AssetDataManager(unityConnect));
             var assetDatabaseProxy = Register(new AssetDatabaseProxy());
             var editorUtilityProxy = Register(new EditorUtilityProxy());
-            var editorGUIUtilityProxy = Register(new EditorGUIUtilityProxy());
+            Register(new EditorGUIUtilityProxy());
             var downloadManager = Register(new DownloadManager(webRequestProxy, ioProxy));
             var thumbnailDownloader = Register(new ThumbnailDownloader(downloadManager, ioProxy, settingsManager, cacheEvictionManager));
             var importedAssetsTracker = Register(new ImportedAssetsTracker(ioProxy, assetDatabaseProxy, assetDataManager));
             var assetsSdkProvider = Register(new AssetsSdkProvider(assetDataManager, unityConnect));
             var projectOrganizationProvider = Register(new ProjectOrganizationProvider(unityConnect, assetsSdkProvider));
-            var linksProxy = Register(new LinksProxy(projectOrganizationProvider));
+            Register(new LinksProxy(projectOrganizationProvider));
             var pageManager = Register(new PageManager(unityConnect, assetsSdkProvider, assetDataManager, projectOrganizationProvider));
             var assetImporter = Register(new AssetImporter(downloadManager, analyticsEngine, ioProxy, assetDatabaseProxy, editorUtilityProxy, importedAssetsTracker, assetDataManager));
             var projectIconDownloader = Register(new ProjectIconDownloader(downloadManager, ioProxy, settingsManager, cacheEvictionManager, projectOrganizationProvider, assetsSdkProvider));
-
-            Register(new IconFactory());
 
             FindReverseDependencies();
 

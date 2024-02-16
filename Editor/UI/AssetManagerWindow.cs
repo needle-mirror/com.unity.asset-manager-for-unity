@@ -35,20 +35,15 @@ namespace Unity.AssetManager.Editor
                 container.Resolve<IUnityConnectProxy>(),
                 container.Resolve<IAssetsProvider>(),
                 container.Resolve<IThumbnailDownloader>(),
-                container.Resolve<IIconFactory>(),
                 container.Resolve<IProjectOrganizationProvider>(),
                 container.Resolve<ILinksProxy>(),
                 container.Resolve<IEditorGUIUtilityProxy>(),
                 container.Resolve<IAssetDatabaseProxy>(),
-                container.Resolve<IProjectIconDownloader>());
+                container.Resolve<IProjectIconDownloader>(),
+                container.Resolve<IAnalyticsEngine>());
             m_Root.OnEnable();
             m_Root.StretchToParentSize();
             rootVisualElement.Add(m_Root);
-        }
-
-        private void CreateGUI()
-        {
-            m_Root.OnCreateGUI();
         }
 
         private void OnGUI()

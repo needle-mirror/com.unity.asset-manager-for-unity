@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -29,6 +30,7 @@ namespace Unity.AssetManager.Editor
         private readonly IAssetImporter m_AssetImporter;
         private readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
         private readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
+
         public DetailsPageFileItem(IAssetDataManager assetDataManager, IPageManager pageManager, IAssetImporter assetImporter, IEditorGUIUtilityProxy editorGUIUtilityProxy, IAssetDatabaseProxy assetDatabaseProxy)
         {
             m_AssetDataManager = assetDataManager;
@@ -51,7 +53,7 @@ namespace Unity.AssetManager.Editor
             InProjectIcon.tooltip = L10n.Tr("Imported");
             
             m_ThreeDotsMenu = new GenericMenu();
-            m_ThreeDots.clicked += () => { ShowAsContext(); };
+            m_ThreeDots.clicked += ShowAsContext;
 
             Add(m_Icon);
             Add(m_FileName);
@@ -59,11 +61,14 @@ namespace Unity.AssetManager.Editor
             Add(m_ThreeDots);
         }
 
-        public void Refresh(string fileName)
+        public void Refresh(string fileName, ICollection<string> allFiles)
         {
-            m_Icon.style.backgroundImage = InternalEditorUtility.GetIconForFile(fileName);
+            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForFile(fileName);
             m_FileName.text = fileName;
             InProjectIcon.visible = IsShowInProjectEnabled();
+            m_ThreeDots.visible = !MetafilesHelper.IsMetafile(fileName);
+            
+            SetEnabled(!MetafilesHelper.IsOrphanMetafile(fileName, allFiles));
         }
 
         void ShowAsContext()
@@ -80,27 +85,34 @@ namespace Unity.AssetManager.Editor
         bool IsShowInProjectEnabled()
         {
             var assetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId);
-            var importedInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.id);
-            var importedFileInfo = importedInfo?.fileInfos?.FirstOrDefault(f => f.originalPath.Equals(m_FileName.text));
+            var importedInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.identifier);
+            var importedFileInfo = importedInfo?.fileInfos?.FirstOrDefault(f => CompareAssetFileName(f.originalPath, MetafilesHelper.AssociatedAssetFile(m_FileName.text)));
             if (importedFileInfo != null)
             {
                 var assetObject = m_AssetDatabaseProxy.LoadAssetAtPath(m_AssetDatabaseProxy.GuidToAssetPath(importedFileInfo.guid));
-                return assetObject != null && !m_AssetImporter.IsImporting(assetData.id);    
+                return assetObject != null && !m_AssetImporter.IsImporting(assetData.identifier);    
             }
 
             return false;
         }
+        
 
-        public void ShowInProjectBrowser()
+
+        void ShowInProjectBrowser()
         {
             var assetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId);
-            var importedInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.id);
-            var importedFileInfo = importedInfo?.fileInfos?.FirstOrDefault(f => f.originalPath.Equals(m_FileName.text));
+            var importedInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.identifier);
+            var importedFileInfo = importedInfo?.fileInfos?.FirstOrDefault(f => CompareAssetFileName(f.originalPath, m_FileName.text));
             if (importedFileInfo != null)
             {
                 var assetObject = m_AssetDatabaseProxy.LoadAssetAtPath(m_AssetDatabaseProxy.GuidToAssetPath(importedFileInfo.guid));
                 m_EditorGUIUtilityProxy.PingObject(assetObject);
             }
+        }
+        
+        static bool CompareAssetFileName(string f1, string f2)
+        {
+            return f1.Replace("/", "\\").Equals(f2.Replace("/", "\\"), StringComparison.OrdinalIgnoreCase);
         }
     }
 }

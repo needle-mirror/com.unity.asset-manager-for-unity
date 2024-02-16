@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Cloud.Assets;
 using UnityEditor;
 using UnityEngine;
 
@@ -19,8 +20,9 @@ namespace Unity.AssetManager.Editor
         public string id;
         public string name;
         public List<CollectionInfo> collectionInfos = new();
+        public IAssetProject assetProject;
 
-        static ProjectInfo s_ProjectInfoAllAssets = new()
+        static readonly ProjectInfo s_ProjectInfoAllAssets = new()
         {
             id = "AllAssets",
             name = Constants.AllAssetsFolderName
@@ -65,6 +67,14 @@ namespace Unity.AssetManager.Editor
 
         [SerializeField]
         private string m_SelectedProjectId;
+        
+        static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
+        
+        string LoadSelectedProjectId()
+        {
+            return EditorPrefs.GetString(k_ProjectPrefKey, null);
+        }
+        
         public ProjectInfo selectedProject
         {
             get
@@ -80,6 +90,8 @@ namespace Unity.AssetManager.Editor
                 if (oldSelectedProjectId == newSelectedProjectId)
                     return;
                 m_SelectedProjectId = newSelectedProjectId;
+                EditorPrefs.SetString(k_ProjectPrefKey, m_SelectedProjectId);
+                
                 onProjectSelectionChanged?.Invoke(selectedProject);
             }
         }
@@ -159,7 +171,7 @@ namespace Unity.AssetManager.Editor
                     m_OrganizationInfo = result;
                     if (m_OrganizationInfo?.projectInfos.Any() == true)
                     {
-                        selectedProject ??= m_OrganizationInfo.projectInfos.FirstOrDefault();
+                        selectedProject = RestoreSelectedProject();
                     }
                     else
                     {
@@ -169,6 +181,24 @@ namespace Unity.AssetManager.Editor
                     }
                     InvokeProjectOrganizationEvent(refreshProjects);
                 });
+        }
+        
+        ProjectInfo RestoreSelectedProject()
+        {
+            var savedProjectId = LoadSelectedProjectId();
+            
+            if (string.IsNullOrEmpty(savedProjectId))
+            {
+                return selectedProject ?? m_OrganizationInfo.projectInfos.FirstOrDefault();
+            }
+            
+            if (ProjectInfo.AllAssetsProjectInfo.id == savedProjectId)
+            {
+                return ProjectInfo.AllAssetsProjectInfo;
+            }
+
+            var saveProjectInfo = m_OrganizationInfo.projectInfos.FirstOrDefault(p => p.id == savedProjectId);
+            return saveProjectInfo ?? m_OrganizationInfo.projectInfos.FirstOrDefault();
         }
 
         private void InvokeProjectOrganizationEvent(bool refreshProjects)

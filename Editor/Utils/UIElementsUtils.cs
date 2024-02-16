@@ -77,6 +77,18 @@ namespace Unity.AssetManager.Editor
 
             element.style.display = DisplayStyle.Flex;
         }
+        
+        internal static void SetDisplay(VisualElement element, bool displayed)
+        {
+            if (displayed)
+            {
+                Show(element);
+            }
+            else
+            {
+                Hide(element);
+            }
+        }
 
         internal static VisualTreeAsset LoadUXML(string tabName)
         {
@@ -103,6 +115,16 @@ namespace Unity.AssetManager.Editor
             {
                 target.styleSheets.Remove(target.styleSheets[i]);
             }
+        }
+
+        internal static VisualElement GetRootVisualElement(VisualElement child)
+        {
+            VisualElement currentElement = child;
+            while(currentElement.parent != null)
+            {
+                currentElement = currentElement.parent;
+            }
+            return currentElement;
         }
     }
 }

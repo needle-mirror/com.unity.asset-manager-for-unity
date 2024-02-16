@@ -43,5 +43,4 @@ namespace Unity.AssetManager.Editor
             };
         }
     }
-
 }

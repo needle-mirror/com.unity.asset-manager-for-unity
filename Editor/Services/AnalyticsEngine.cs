@@ -9,6 +9,10 @@ namespace Unity.AssetManager.Editor
     {
         void SendImportEndEvent(ImportEndStatus status, string assetId, string importAction, DateTime startTime, DateTime finishTime, string error = "",
             ImportEndImportTarget importTarget = ImportEndImportTarget.NotSet);
+
+        void SendFilterDropdownEvent();
+        void SendFilterSearchEvent(string filterName, string filterValue);
+        void SendFilterSearchResultEvent(string filterName, string filterValue, int resultCount);
     }
 
     class AnalyticsEngine : BaseService<IAnalyticsEngine>, IAnalyticsEngine
@@ -49,6 +53,68 @@ namespace Unity.AssetManager.Editor
             }, ImportEndEventData.eventVersion);
 #else
             ImportEndEventAnalytic analytic = new ImportEndEventAnalytic(status, assetId, importAction, startTime, finishTime, error, importTarget);
+            var analyticsResult = m_EditorAnalytics.SendAnalytic(analytic);
+#endif
+        }
+
+        public void SendFilterDropdownEvent()
+        {
+#if !UNITY_2023_2_OR_NEWER
+            var register = m_EditorAnalytics.RegisterEventWithLimit(FilterDropdownEventData.eventName, k_MaxEventsPerHour,
+                k_MaxNumberOfElements, k_VendorKey, FilterDropdownEventData.eventVersion);
+
+            // This is one here for each event, so that if the call fails we don't try to send the event for nothing
+            if (register != AnalyticsResult.Ok)
+                return;
+
+            var sent = m_EditorAnalytics.SendEventWithLimit(FilterDropdownEventData.eventName,
+                new FilterDropdownEventData(),
+                FilterDropdownEventData.eventVersion);
+#else
+            var analytic = new FilterDropdownEventAnalytic();
+            var analyticsResult = m_EditorAnalytics.SendAnalytic(analytic);
+#endif
+    }
+
+        public void SendFilterSearchEvent(string filterName, string filterValue)
+        {
+#if !UNITY_2023_2_OR_NEWER
+            var register = m_EditorAnalytics.RegisterEventWithLimit(FilterSearchEventData.eventName, k_MaxEventsPerHour,
+                k_MaxNumberOfElements, k_VendorKey, FilterSearchEventData.eventVersion);
+
+            // This is one here for each event, so that if the call fails we don't try to send the event for nothing
+            if (register != AnalyticsResult.Ok)
+                return;
+
+            var sent = m_EditorAnalytics.SendEventWithLimit(FilterSearchEventData.eventName, new FilterSearchEventData()
+            {
+                FilterName = filterName,
+                FilterValue = filterValue
+            }, FilterSearchEventData.eventVersion);
+#else
+            var analytic = new FilterSearchEventAnalytic(filterName, filterValue);
+            var analyticsResult = m_EditorAnalytics.SendAnalytic(analytic);
+#endif
+        }
+
+        public void SendFilterSearchResultEvent(string filterName, string filterValue, int resultCount)
+        {
+#if !UNITY_2023_2_OR_NEWER
+            var register = m_EditorAnalytics.RegisterEventWithLimit(FilterSearchResultEventData.eventName, k_MaxEventsPerHour,
+                k_MaxNumberOfElements, k_VendorKey, FilterSearchResultEventData.eventVersion);
+
+            // This is one here for each event, so that if the call fails we don't try to send the event for nothing
+            if (register != AnalyticsResult.Ok)
+                return;
+
+            var sent = m_EditorAnalytics.SendEventWithLimit(FilterSearchResultEventData.eventName, new FilterSearchResultEventData()
+            {
+                FilterName = filterName,
+                FilterValue = filterValue,
+                ResultCount = resultCount
+            }, FilterSearchResultEventData.eventVersion);
+#else
+            var analytic = new FilterSearchResultEventAnalytic(filterName, filterValue, resultCount);
             var analyticsResult = m_EditorAnalytics.SendAnalytic(analytic);
 #endif
         }

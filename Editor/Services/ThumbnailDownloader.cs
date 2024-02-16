@@ -72,14 +72,14 @@ namespace Unity.AssetManager.Editor
             var thumbnailUrl = assetData.previewFileUrl;
             if (string.IsNullOrEmpty(thumbnailUrl))
             {
-                doneCallbackAction?.Invoke(assetData.id, null);
+                doneCallbackAction?.Invoke(assetData.identifier, null);
                 return;
             }
             var thumbnailFileName = Hash128.Compute(thumbnailUrl).ToString();
             var thumbnail = LoadThumbnail(thumbnailUrl, Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName));
             if (thumbnail != null)
             {
-                doneCallbackAction?.Invoke(assetData.id, thumbnail);
+                doneCallbackAction?.Invoke(assetData.identifier, thumbnail);
                 return;
             }
 
@@ -90,7 +90,7 @@ namespace Unity.AssetManager.Editor
             }
 
             var download = m_DownloadManager.StartDownload(thumbnailUrl, Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName + k_TempExt));
-            m_DownloadIdToAssetIdMap[download.id] = assetData.id;
+            m_DownloadIdToAssetIdMap[download.id] = assetData.identifier;
             var newCallbacks = new List<Action<AssetIdentifier, Texture2D>>();
             if (doneCallbackAction != null)
                 newCallbacks.Add(doneCallbackAction);

@@ -7,5 +7,11 @@ namespace Unity.AssetManager.Editor
     {
         public string guid;
         public string originalPath;
+        
+        public ImportedFileInfo(string guid, string originalPath)
+        {
+            this.guid = guid;
+            this.originalPath = originalPath;
+        }
     }
 }

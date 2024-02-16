@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
@@ -10,7 +11,12 @@ namespace Unity.AssetManager.Editor
         public long startTimeTicks;
         public string tempDownloadPath;
         public string destinationPath;
-        public AssetIdentifier assetId;
+        
+        [SerializeReference]
+        public IAssetData assetData;
+        
+        public AssetIdentifier assetId => assetData?.identifier;
+        
         public List<DownloadOperation> downloads = new();
         public OperationStatus status;
 
