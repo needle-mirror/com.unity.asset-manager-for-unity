@@ -3,28 +3,34 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
     internal abstract class CloudFilter : BaseFilter
     {
+        [SerializeReference]
+        IProjectOrganizationProvider m_ProjectOrganizationProvider;
+
+        public abstract void ResetSelectedFilter(AssetSearchFilter assetSearchFilter);
         protected abstract string Criterion { get; }
         protected abstract void ClearFilter();
-        protected abstract void ResetSelectedFilter();
         protected abstract void IncludeFilter(string selection);
 
-        protected List<string> m_CachedSelections = new();
-
-        protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        protected readonly IAssetsProvider m_AssetsProvider;
+        List<string> m_CachedSelections = new();
 
         CancellationTokenSource m_TokenSource;
 
-        internal CloudFilter(IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
+        void ResetSelectedFilter()
+        {
+            ResetSelectedFilter(m_Page.pageFilters.assetFilter);
+        }
+
+        internal CloudFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
+            : base(page)
         {
             m_ProjectOrganizationProvider = projectOrganizationProvider;
-            m_AssetsProvider = assetsProvider;
         }
 
         public override void Cancel()
@@ -46,10 +52,6 @@ namespace Unity.AssetManager.Editor
 
         public override bool ApplyFilter(string selection)
         {
-            bool reload = selection != SelectedFilter;
-
-            SelectedFilter = selection;
-
             if (string.IsNullOrEmpty(selection))
             {
                 ClearFilter();
@@ -59,7 +61,7 @@ namespace Unity.AssetManager.Editor
                 IncludeFilter(selection);
             }
 
-            return reload;
+            return base.ApplyFilter(selection);
         }
 
         public override async Task<List<string>> GetSelections()
@@ -82,16 +84,16 @@ namespace Unity.AssetManager.Editor
             try
             {
                 List<string> projects;
-                if (m_ProjectOrganizationProvider.selectedProject == ProjectInfo.AllAssetsProjectInfo)
+                if (m_ProjectOrganizationProvider.SelectedProject == ProjectInfo.AllAssetsProjectInfo)
                 {
-                    projects = m_ProjectOrganizationProvider.organization.projectInfos.Select(p => p.id).ToList();
+                    projects = m_ProjectOrganizationProvider.SelectedOrganization.projectInfos.Select(p => p.id).ToList();
                 }
                 else
                 {
-                    projects = new List<string> { m_ProjectOrganizationProvider.selectedProject.id };
+                    projects = new List<string> { m_ProjectOrganizationProvider.SelectedProject.id };
                 }
 
-                var selections = await m_AssetsProvider.GetFilterSelectionsAsync(m_ProjectOrganizationProvider.organization.id, projects, Criterion, m_TokenSource.Token);
+                var selections = await m_Page.GetFilterSelectionsAsync(m_ProjectOrganizationProvider.SelectedOrganization.id, projects, Criterion, m_TokenSource.Token);
                 return selections;
             }
             catch (OperationCanceledException)

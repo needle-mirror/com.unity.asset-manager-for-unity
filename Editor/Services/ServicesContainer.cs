@@ -1,35 +1,24 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IService
+    interface IService
     {
-        IReadOnlyCollection<IService> dependencies { get; }
         bool enabled { get; set; }
         Type registrationType { get; }
     }
 
-    internal abstract class BaseService : IService
+    abstract class BaseService : IService
     {
-        private readonly List<IService> m_Dependencies = new List<IService>();
-        public IReadOnlyCollection<IService> dependencies => m_Dependencies;
         public abstract Type registrationType { get; }
 
-        protected T RegisterDependency<T>(T dependency) where T : class, IService
-        {
-            if (dependency == null)
-                throw new ArgumentNullException(nameof(dependency));
-
-            m_Dependencies.Add(dependency);
-            return dependency;
-        }
-
-        private bool m_Enabled;
+        bool m_Enabled;
 
         public bool enabled
         {
@@ -38,10 +27,16 @@ namespace Unity.AssetManager.Editor
             {
                 if (m_Enabled == value)
                     return;
+
                 if (value)
+                {
                     OnEnable();
+                }
                 else
+                {
                     OnDisable();
+                }
+
                 m_Enabled = value;
             }
         }
@@ -51,143 +46,262 @@ namespace Unity.AssetManager.Editor
         public virtual void OnDisable() { }
     }
 
-    internal abstract class BaseService<T> : BaseService where T : IService
+    abstract class BaseService<T> : BaseService where T : IService
     {
         public override Type registrationType => typeof(T);
     }
 
+    [AttributeUsage(AttributeTargets.Method)]
+    public class ServiceInjectionAttribute : Attribute { }
+
+    [Serializable]
+    class SerializedService
+    {
+        [SerializeReference]
+        public IService Service;
+
+        [SerializeReference]
+        public List<IService> Dependencies;
+    }
+
     [Serializable]
     [ExcludeFromCodeCoverage]
-    internal sealed class ServicesContainer : ScriptableSingleton<ServicesContainer>
+    sealed class ServicesContainer : ScriptableSingleton<ServicesContainer>, ISerializationCallbackReceiver
     {
         [SerializeField]
-        private StateManager m_SerializedStateManager;
-        [SerializeField]
-        private UnityConnectProxy m_SerializedUnityConnectProxy;
-        [SerializeField]
-        private DownloadManager m_SerializedDownloadManager;
-        [SerializeField]
-        private AssetsSdkProvider m_SerializedAssetsSdkProvider;
-        [SerializeField]
-        private PageManager m_SerializedPageManager;
-        [SerializeField]
-        private AssetDataManager m_SerializedAssetDataManager;
-        [SerializeField]
-        private ImportedAssetsTracker m_SerializedImportedAssetsTracker;
-        [SerializeField]
-        private AssetImporter m_SerializedAssetImporter;
-        [SerializeField]
-        private ThumbnailDownloader m_SerializedThumbnailDownloader;
+        List<SerializedService> m_SerializedServices = new();
 
-        [SerializeField]
-        private ProjectOrganizationProvider m_SerializedProjectOrganizationProvider;
+        readonly Dictionary<IService, List<IService>> m_Dependencies = new();
 
-        [SerializeField]
-        private ProjectIconDownloader m_SerializedProjectIconDownloader;
+        readonly Dictionary<Type, IService> m_RegisteredServices = new();
 
-        private readonly Dictionary<Type, IService> m_RegisteredServices = new();
+        readonly Dictionary<IService, HashSet<IService>> m_ReverseDependencies = new();
 
-        private Dictionary<IService, HashSet<IService>> m_ReverseDependencies = new();
-
-        public ServicesContainer()
+        public void OnEnable()
         {
-            Reload();
+            if (m_RegisteredServices.Count != 0)
+                return;
+
+            // Services creation and Dependency Injection happens once.
+            InitializeServices();
         }
 
-        public void Reload()
+        public void InitializeServices()
         {
+            if (Utilities.IsDevMode)
+            {
+                Debug.Log("Initializing Asset Manager Services");
+            }
+
             m_RegisteredServices.Clear();
 
-            var ioProxy = Register(new IOProxy());
-            var applicationWrapper = Register(new ApplicationProxy());
-            var directoryInfoFactory = Register(new DirectoryInfoFactory());
-            var cachePathHelper = Register(new CachePathHelper(ioProxy, applicationWrapper, directoryInfoFactory));
-            var settingsManager = Register(new AssetManagerSettingsManager(cachePathHelper));
-            var fileInfoWrapper = Register(new FileInfoWrapper());
-            var cacheEvictionManager = Register(new CacheEvictionManager(fileInfoWrapper, settingsManager));
-            var webRequestProxy = Register(new WebRequestProxy());
-            var editorAnalyticsWrapper = Register(new EditorAnalyticsWrapper());
-            var analyticsEngine = Register(new AnalyticsEngine(editorAnalyticsWrapper));
-            var unityConnect = Register(new UnityConnectProxy());
-            var stateManager = Register(new StateManager());
-            var assetDataManager = Register(new AssetDataManager(unityConnect));
-            var assetDatabaseProxy = Register(new AssetDatabaseProxy());
-            var editorUtilityProxy = Register(new EditorUtilityProxy());
+            Register(new StateManager());
             Register(new EditorGUIUtilityProxy());
-            var downloadManager = Register(new DownloadManager(webRequestProxy, ioProxy));
-            var thumbnailDownloader = Register(new ThumbnailDownloader(downloadManager, ioProxy, settingsManager, cacheEvictionManager));
-            var importedAssetsTracker = Register(new ImportedAssetsTracker(ioProxy, assetDatabaseProxy, assetDataManager));
-            var assetsSdkProvider = Register(new AssetsSdkProvider(assetDataManager, unityConnect));
-            var projectOrganizationProvider = Register(new ProjectOrganizationProvider(unityConnect, assetsSdkProvider));
-            Register(new LinksProxy(projectOrganizationProvider));
-            var pageManager = Register(new PageManager(unityConnect, assetsSdkProvider, assetDataManager, projectOrganizationProvider));
-            var assetImporter = Register(new AssetImporter(downloadManager, analyticsEngine, ioProxy, assetDatabaseProxy, editorUtilityProxy, importedAssetsTracker, assetDataManager));
-            var projectIconDownloader = Register(new ProjectIconDownloader(downloadManager, ioProxy, settingsManager, cacheEvictionManager, projectOrganizationProvider, assetsSdkProvider));
+            Register(new IOProxy());
+            Register(new ApplicationProxy());
+            Register(new DirectoryInfoFactory());
+            Register(new WebRequestProxy());
+            Register(new DownloadManager());
+            Register(new CachePathHelper());
+            Register(new AssetManagerSettingsManager());
+            Register(new FileInfoWrapper());
+            Register(new CacheEvictionManager());
+            Register(new ThumbnailDownloader());
+            Register(new UnityConnectProxy());
+            Register(new AssetsSdkProvider());
+            Register(new ProjectOrganizationProvider());
+            Register(new LinksProxy());
+            Register(new AssetDataManager());
+            Register(new PageManager());
+            Register(new ProjectIconDownloader());
+            Register(new AssetDatabaseProxy());
+            Register(new ImportedAssetsTracker());
+            Register(new EditorUtilityProxy());
+            Register(new AssetImporter());
 
-            FindReverseDependencies();
+            InjectServicesAndBuildDependencies();
 
-            // We need to save some services as serialized members for them to survive domain reload properly
-            m_SerializedUnityConnectProxy = unityConnect;
-            m_SerializedStateManager = stateManager;
-            m_SerializedDownloadManager = downloadManager;
-            m_SerializedAssetsSdkProvider = assetsSdkProvider;
-            m_SerializedPageManager = pageManager;
-            m_SerializedAssetDataManager = assetDataManager;
-            m_SerializedImportedAssetsTracker = importedAssetsTracker;
-            m_SerializedAssetImporter = assetImporter;
-            m_SerializedThumbnailDownloader = thumbnailDownloader;
-            m_SerializedProjectOrganizationProvider = projectOrganizationProvider;
-            m_SerializedProjectIconDownloader = projectIconDownloader;
-        }
-
-        public void FindReverseDependencies()
-        {
-            foreach (var service in m_RegisteredServices.Values)
-            {
-                foreach (var dependency in service.dependencies ?? Array.Empty<IService>())
-                {
-                    if (m_ReverseDependencies.TryGetValue(dependency, out var result))
-                        result.Add(service);
-                    else
-                        m_ReverseDependencies[dependency] = new HashSet<IService> { service };
-                }
-            }
+            BuildReverseDependencies();
         }
 
         public void OnDisable()
         {
             foreach (var service in m_RegisteredServices.Values)
+            {
                 service.enabled = false;
+            }
         }
 
-        public T Register<T>(T service) where T : class, IService
+        void RegisterReverseDependencies(IService service)
+        {
+            if (!m_Dependencies.TryGetValue(service, out var dependencies))
+                return;
+
+            foreach (var dependency in dependencies)
+            {
+                if (m_ReverseDependencies.TryGetValue(dependency, out var result))
+                {
+                    result.Add(service);
+                }
+                else
+                {
+                    m_ReverseDependencies[dependency] = new HashSet<IService> { service };
+                }
+            }
+        }
+
+        public IService Register(IService service)
         {
             if (service == null)
                 return null;
-            m_RegisteredServices[typeof(T)] = service;
+
+            m_RegisteredServices[service.GetType()] = service;
+
             var registrationType = service.registrationType;
             if (registrationType != null)
+            {
                 m_RegisteredServices[registrationType] = service;
+            }
+
             return service;
+        }
+
+        void BuildReverseDependencies()
+        {
+            m_ReverseDependencies.Clear();
+
+            foreach (var service in m_RegisteredServices.Values)
+            {
+                RegisterReverseDependencies(service);
+            }
         }
 
         public T Resolve<T>() where T : class, IService
         {
             var service = m_RegisteredServices.TryGetValue(typeof(T), out var result) ? result as T : null;
-            EnableService(service);
+            if (service == null || service.enabled)
+                return service;
+
+            var serviceEnablingQueue = new Queue<IService>();
+            serviceEnablingQueue.Enqueue(service);
+            while (serviceEnablingQueue.Count > 0)
+            {
+                EnableService(serviceEnablingQueue.Dequeue(), serviceEnablingQueue);
+            }
+
             return service;
         }
 
-        private void EnableService(IService service)
+        void EnableService(IService service, Queue<IService> serviceEnablingQueue)
         {
             if (service == null || service.enabled)
                 return;
-            foreach (var dependency in service.dependencies ?? Array.Empty<IService>())
-                EnableService(dependency);
+
+            if (m_Dependencies.TryGetValue(service, out var dependencies))
+            {
+                foreach (var dependency in dependencies)
+                {
+                    EnableService(dependency, serviceEnablingQueue);
+                }
+            }
+
             service.enabled = true;
+
+            // All the reverse dependencies go into the queue to avoid nested enabling
             if (m_ReverseDependencies.TryGetValue(service, out var reverseDependencies))
+            {
                 foreach (var reverseDependency in reverseDependencies)
-                    EnableService(reverseDependency);
+                {
+                    serviceEnablingQueue.Enqueue(reverseDependency);
+                }
+            }
+        }
+
+        public void InjectServicesAndBuildDependencies()
+        {
+            m_Dependencies.Clear();
+
+            foreach (var service in m_RegisteredServices.Values)
+            {
+                InjectService(service);
+            }
+        }
+
+        public void InjectService(IService inst)
+        {
+            var type = inst.GetType();
+            var methods = type.GetMethods();
+
+            foreach (var method in methods)
+            {
+                var injectAttribute = (ServiceInjectionAttribute)Attribute.GetCustomAttribute(method, typeof(ServiceInjectionAttribute));
+                if (injectAttribute == null)
+                    continue;
+
+                var parameters = method.GetParameters();
+                var parameterValues = new object[parameters.Length];
+
+                for (var i = 0; i < parameters.Length; i++)
+                {
+                    var parameterType = parameters[i].ParameterType;
+                    if (m_RegisteredServices.ContainsKey(parameterType))
+                    {
+                        parameterValues[i] = m_RegisteredServices[parameterType];
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Service of type {parameterType} not registered.");
+                    }
+                }
+
+                if (m_Dependencies.TryGetValue(inst, out var list))
+                {
+                    list.AddRange(parameterValues.Cast<IService>().ToList());
+                }
+                else
+                {
+                    m_Dependencies[inst] = parameterValues.Cast<IService>().ToList();
+                }
+
+                method.Invoke(inst, parameterValues);
+            }
+        }
+
+        public void OnBeforeSerialize()
+        {
+            m_SerializedServices = new List<SerializedService>();
+
+            var processedServices = new HashSet<IService>();
+
+            foreach (var service in m_RegisteredServices.Values)
+            {
+                if (processedServices.Contains(service))
+                    continue;
+
+                m_SerializedServices.Add(new SerializedService
+                {
+                    Service = service,
+                    Dependencies = m_Dependencies.TryGetValue(service, out var dependencies)
+                        ? dependencies
+                        : new List<IService>()
+                });
+
+                processedServices.Add(service);
+            }
+        }
+
+        public void OnAfterDeserialize()
+        {
+            if (m_SerializedServices == null || m_SerializedServices.Count == 0)
+                return;
+
+            foreach (var serviceInfo in m_SerializedServices)
+            {
+                Register(serviceInfo.Service);
+                m_Dependencies.Add(serviceInfo.Service, serviceInfo.Dependencies);
+            }
+
+            BuildReverseDependencies();
         }
     }
 }

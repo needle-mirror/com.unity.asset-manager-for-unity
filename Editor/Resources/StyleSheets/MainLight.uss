@@ -264,11 +264,11 @@ TagPill:hover {
     background-image: resource("Images/Light/Folder-Closed");
 }
 
-.close-button {
+.details-page-close-button {
     background-image: resource('Images/Light/Close');
 }
 
-.close-button:hover, .details-page-download-cancel-button:hover {
+.details-page-close-button:hover, .details-page-download-cancel-button:hover {
     background-color: #EFEFEF;
 }
 

@@ -4,23 +4,18 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class SideBarButton : Button
+    internal class SideBarButton<T> : Button where T : IPage
     {
         private const string k_UnityListViewItem = "unity-list-view__item";
         private const string k_UnityListViewItemSelected = k_UnityListViewItem + "--selected";
 
-        private string m_CollectionPath;
-        private PageType m_PageType;
-
         private readonly IPageManager m_PageManager;
-        public SideBarButton(IPageManager pageManager, string collectionPath, string label, Texture icon, PageType pageType)
+        public SideBarButton(IPageManager pageManager, string label, Texture icon)
         {
             m_PageManager = pageManager;
-            m_CollectionPath = collectionPath;
-            m_PageType = pageType;
 
             focusable = true;
-            clickable.clicked += () => m_PageManager.activePage = m_PageManager.GetPage(m_PageType, m_CollectionPath);
+            clickable.clicked += () => m_PageManager.SetActivePage<T>();
 
             AddToClassList(k_UnityListViewItem);
             RemoveFromClassList("unity-button");
@@ -32,11 +27,12 @@ namespace Unity.AssetManager.Editor
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+
+            Refresh(m_PageManager.activePage);
         }
 
         private void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            Refresh(m_PageManager.activePage);
             m_PageManager.onActivePageChanged += Refresh;
         }
 
@@ -47,12 +43,7 @@ namespace Unity.AssetManager.Editor
 
         void Refresh(IPage page)
         {
-            var selected = page != null && m_PageType == page.pageType;
-            if (m_PageType == PageType.Collection)
-            {
-                var collectionPage = (CollectionPage)page;
-                selected = selected && (m_CollectionPath ?? string.Empty) == (collectionPage.collectionPath ?? string.Empty);
-            }
+            var selected = page is T;
             EnableInClassList(k_UnityListViewItemSelected, selected);
         }
     }

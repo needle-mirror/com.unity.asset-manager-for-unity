@@ -12,17 +12,30 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     internal class InProjectPage : BasePage
     {
-        public override PageType pageType => PageType.InProject;
+        public override bool DisplayTopBar => false;
 
-        public InProjectPage(IAssetDataManager assetDataManager) : base(assetDataManager)
+        public override string Title => L10n.Tr("In Project");
+
+        public InProjectPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, IProjectOrganizationProvider projectOrganizationProvider)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider)
         {
-            ResolveDependencies(assetDataManager);
+        }
+
+        protected override List<BaseFilter> InitFilters()
+        {
+            return new List<BaseFilter>
+            {
+                new LocalStatusFilter(this, m_ProjectOrganizationProvider),
+                new UnityTypeFilter(this)
+            };
         }
 
         public override void OnEnable()
         {
             base.OnEnable();
             m_AssetDataManager.onImportedAssetInfoChanged += OnImportedAssetInfoChanged;
+
+            AnalyticsSender.SendEvent(new ProjectSelectedEvent(ProjectSelectedEvent.ProjectType.InProject, m_AssetDataManager.importedAssetInfos.Count));
         }
 
         public override void OnDisable()
@@ -42,29 +55,29 @@ namespace Unity.AssetManager.Editor
 
         protected override async IAsyncEnumerable<IAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
         {
-            if (EditorPrefs.GetBool("DeveloperMode", false))
+            if (Utilities.IsDevMode)
             {
                 Debug.Log($"Retrieving import data for {m_AssetDataManager.importedAssetInfos.Count} asset(s)...");
             }
-            
+
             foreach (var importedAsset in m_AssetDataManager.importedAssetInfos)
-            {		  
+            {
                 var assetData = importedAsset.assetData;
                 if (assetData == null) // Can happen with corrupted serialization
                     continue;
 
                 if (await IsDiscardedByLocalFilter(assetData))
                     continue;
-                
+
                 yield return assetData;
             }
-            
+
             m_HasMoreItems = false;
 
             await Task.CompletedTask; // Remove warning about async
         }
 
-        protected override void OnLoadMoreSuccessCallBack(IReadOnlyCollection<AssetIdentifier> assetIdentifiers)
+        protected override void OnLoadMoreSuccessCallBack()
         {
             SetErrorOrMessageData(!m_AssetList.Any() ? L10n.Tr(Constants.EmptyInProjectText) : string.Empty, ErrorOrMessageRecommendedAction.None);
         }

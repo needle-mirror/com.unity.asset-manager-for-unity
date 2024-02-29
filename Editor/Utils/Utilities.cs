@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.RegularExpressions;
+using UnityEditor;
 
 namespace Unity.AssetManager.Editor
 {
@@ -73,5 +74,7 @@ namespace Unity.AssetManager.Editor
         {
             return Regex.Replace(input, "(\\B[A-Z])", " $1");
         }
+
+        internal static bool IsDevMode => EditorPrefs.GetBool("DeveloperMode", false);
     }
 }

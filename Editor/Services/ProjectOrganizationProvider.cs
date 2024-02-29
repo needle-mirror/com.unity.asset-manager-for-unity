@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Cloud.Assets;
 using UnityEditor;
 using UnityEngine;
 
@@ -20,7 +19,6 @@ namespace Unity.AssetManager.Editor
         public string id;
         public string name;
         public List<CollectionInfo> collectionInfos = new();
-        public IAssetProject assetProject;
 
         static readonly ProjectInfo s_ProjectInfoAllAssets = new()
         {
@@ -33,88 +31,121 @@ namespace Unity.AssetManager.Editor
 
     interface IProjectOrganizationProvider : IService
     {
-        // This event gets triggered when organization info changed, or when the loading for organizationInfo starts or finished.
-        // We combine these two events because loading start/finish usually happens together with an organization info change.
-        // If we have separate events, some UIs will need to hook on to all those events and call refresh multiple times in a row.
-        event Action<OrganizationInfo, bool> onOrganizationInfoOrLoadingChanged;
-        event Action<ProjectInfo, bool> onProjectInfoOrLoadingChanged;
-        event Action<ProjectInfo> onProjectSelectionChanged;
+        event Action<OrganizationInfo> OrganizationChanged;
+        event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
+        OrganizationInfo SelectedOrganization { get; }
+        ProjectInfo SelectedProject { get; }
+        CollectionInfo SelectedCollection { get; }
+        void SelectProject(ProjectInfo projectInfo, string collectionPath = null);
         bool isLoading { get; }
-        OrganizationInfo organization { get; }
-        ProjectInfo selectedProject { get; set; }
-        ErrorOrMessageHandlingData errorOrMessageHandlingData { get; }
-        void RefreshProjects();
+        ErrorOrMessageHandlingData errorOrMessageHandlingData { get; } // TODO Error reporting should be an event
     }
 
     [Serializable]
     internal class ProjectOrganizationProvider : BaseService<IProjectOrganizationProvider>, IProjectOrganizationProvider
     {
-        private static readonly string k_NoOrganizationMessage =
-            L10n.Tr("It seems your project is not linked to an organization. Please link your project to a Unity project ID to start using the Asset Manager service.");
+        private static readonly string k_NoOrganizationMessage = L10n.Tr("It seems your project is not linked to an organization. Please link your project to a Unity project ID to start using the Asset Manager service.");
         private static readonly string k_NoProjectsMessage = L10n.Tr("It seems you don't have any projects created in your Asset Manager Dashboard.");
 
-        public event Action<OrganizationInfo, bool> onOrganizationInfoOrLoadingChanged;
-        public event Action<ProjectInfo, bool> onProjectInfoOrLoadingChanged;
-        public event Action<ProjectInfo> onProjectSelectionChanged;
+        public event Action<OrganizationInfo> OrganizationChanged;
+        public event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
 
         [SerializeField]
         private AsyncLoadOperation m_LoadOrganizationOperation = new();
+
         public bool isLoading => m_LoadOrganizationOperation.isLoading;
 
         [SerializeField]
         private OrganizationInfo m_OrganizationInfo;
-        public OrganizationInfo organization => isLoading || string.IsNullOrEmpty(m_OrganizationInfo?.id) ? null : m_OrganizationInfo;
+
+        public OrganizationInfo SelectedOrganization => isLoading || string.IsNullOrEmpty(m_OrganizationInfo?.id) ? null : m_OrganizationInfo;
 
         [SerializeField]
         private string m_SelectedProjectId;
-        
+
+        [SerializeField]
+        string m_CollectionPath;
+
         static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
-        
-        string LoadSelectedProjectId()
+        static readonly string k_CollectionPathPrefKey = "com.unity.asset-manager-for-unity.selectedCollectionPath";
+
+        string SavedProjectId
         {
-            return EditorPrefs.GetString(k_ProjectPrefKey, null);
+            set => EditorPrefs.SetString(k_ProjectPrefKey, value);
+            get => EditorPrefs.GetString(k_ProjectPrefKey, null);
         }
-        
-        public ProjectInfo selectedProject
+
+        string SavedCollectionPath
+        {
+            set => EditorPrefs.SetString(k_CollectionPathPrefKey, value);
+            get => EditorPrefs.GetString(k_CollectionPathPrefKey, null);
+        }
+
+        public ProjectInfo SelectedProject
         {
             get
             {
                 return m_SelectedProjectId == ProjectInfo.AllAssetsProjectInfo.id ?
-                ProjectInfo.AllAssetsProjectInfo :
-                m_OrganizationInfo?.projectInfos?.FirstOrDefault(p => p.id == m_SelectedProjectId);
+                    ProjectInfo.AllAssetsProjectInfo : m_OrganizationInfo?.projectInfos?.Find(p => p.id == m_SelectedProjectId);
             }
-            set
+        }
+
+        public CollectionInfo SelectedCollection
+        {
+            get
             {
-                var oldSelectedProjectId = selectedProject?.id ?? string.Empty;
-                var newSelectedProjectId = value?.id ?? string.Empty;
-                if (oldSelectedProjectId == newSelectedProjectId)
-                    return;
-                m_SelectedProjectId = newSelectedProjectId;
-                EditorPrefs.SetString(k_ProjectPrefKey, m_SelectedProjectId);
-                
-                onProjectSelectionChanged?.Invoke(selectedProject);
+                var collection = SelectedProject?.collectionInfos.Find(c => c.GetFullPath() == m_CollectionPath);
+
+                if (collection != null)
+                    return collection;
+
+                return new CollectionInfo
+                {
+                    organizationId = SelectedOrganization?.id,
+                    projectId = SelectedProject?.id
+                };
             }
+        }
+
+        public void SelectProject(ProjectInfo projectInfo, string collectionPath = null)
+        {
+            var oldSelectedProjectId = SelectedProject?.id ?? string.Empty;
+            var newSelectedProjectId = projectInfo?.id ?? string.Empty;
+
+            if (oldSelectedProjectId == newSelectedProjectId && m_CollectionPath == collectionPath)
+                return;
+
+            m_SelectedProjectId = newSelectedProjectId;
+            m_CollectionPath = collectionPath;
+
+            SavedProjectId = m_SelectedProjectId;
+            SavedCollectionPath = m_CollectionPath;
+
+            ProjectSelectionChanged?.Invoke(SelectedProject, SelectedCollection);
         }
 
         [SerializeField]
         private ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
+
         public ErrorOrMessageHandlingData errorOrMessageHandlingData => m_ErrorOrMessageHandling;
 
-        private readonly IUnityConnectProxy m_UnityConnectProxy;
-        private readonly IAssetsProvider m_AssetsProvider;
-        public ProjectOrganizationProvider(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider)
-        {
-            m_UnityConnectProxy = RegisterDependency(unityConnectProxy);
-            m_AssetsProvider = RegisterDependency(assetsProvider);
+        [SerializeReference]
+        IUnityConnectProxy m_UnityConnectProxy;
 
-            m_ErrorOrMessageHandling.message = k_NoOrganizationMessage;
-            m_ErrorOrMessageHandling.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
+
+        [ServiceInjection]
+        public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider)
+        {
+            m_UnityConnectProxy = unityConnectProxy;
+            m_AssetsProvider = assetsProvider;
         }
 
         public override void OnEnable()
         {
-            FetchProjectOrganization(m_UnityConnectProxy.organizationId);
             m_UnityConnectProxy.onOrganizationIdChange += OnOrganizationIdChange;
+            FetchProjectOrganization(m_UnityConnectProxy.organizationId);
         }
 
         public override void OnDisable()
@@ -122,32 +153,32 @@ namespace Unity.AssetManager.Editor
             m_UnityConnectProxy.onOrganizationIdChange -= OnOrganizationIdChange;
         }
 
-        public void RefreshProjects()
-        {
-            FetchProjectOrganization(m_OrganizationInfo?.id, true);
-        }
-
         private void OnOrganizationIdChange(string newOrgId)
         {
             FetchProjectOrganization(newOrgId);
         }
 
-        private void FetchProjectOrganization(string newOrgId, bool refreshProjects = false)
+        private void FetchProjectOrganization(string newOrgId)
         {
-            var currentOrgId = m_OrganizationInfo?.id ?? string.Empty;
-            newOrgId ??= string.Empty;
-            if (currentOrgId == newOrgId && !refreshProjects)
+            if (!string.IsNullOrEmpty(m_OrganizationInfo?.id) && m_OrganizationInfo.id == newOrgId)
                 return;
 
             if (isLoading)
+            {
                 m_LoadOrganizationOperation.Cancel();
+            }
+
+            if (Utilities.IsDevMode)
+            {
+                Debug.Log($"Fetching organization info for '{newOrgId}'...");
+            }
 
             m_OrganizationInfo = new OrganizationInfo { id = newOrgId };
             if (string.IsNullOrEmpty(newOrgId))
             {
                 m_ErrorOrMessageHandling.message = k_NoOrganizationMessage;
                 m_ErrorOrMessageHandling.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
-                InvokeProjectOrganizationEvent(refreshProjects);
+                InvokeOrganizationChanged();
                 return;
             }
 
@@ -156,57 +187,67 @@ namespace Unity.AssetManager.Editor
                 {
                     errorOrMessageHandlingData.message = string.Empty;
                     errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
-                    InvokeProjectOrganizationEvent(refreshProjects);
+                    InvokeOrganizationChanged(); // TODO Should use a different event
                 },
-                onCancelledCallback: () => InvokeProjectOrganizationEvent(refreshProjects),
+                onCancelledCallback: InvokeOrganizationChanged,
                 onExceptionCallback: e =>
                 {
                     Debug.LogException(e);
                     errorOrMessageHandlingData.message = L10n.Tr("It seems there was an error while trying to retrieve assets.");
                     errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
-                    InvokeProjectOrganizationEvent(refreshProjects);
+                    InvokeOrganizationChanged(); // TODO Send exception event
                 },
                 onSuccessCallback: result =>
                 {
                     m_OrganizationInfo = result;
                     if (m_OrganizationInfo?.projectInfos.Any() == true)
                     {
-                        selectedProject = RestoreSelectedProject();
+                        SelectProject(RestoreSelectedProject(), RestoreSelectedCollection());
                     }
                     else
                     {
-                        selectedProject = null;
+                        SelectProject(null, null);
                         errorOrMessageHandlingData.message = k_NoProjectsMessage;
                         errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink;
                     }
-                    InvokeProjectOrganizationEvent(refreshProjects);
+
+                    InvokeOrganizationChanged();
                 });
         }
-        
+
         ProjectInfo RestoreSelectedProject()
         {
-            var savedProjectId = LoadSelectedProjectId();
-            
+            var savedProjectId = SavedProjectId;
+
             if (string.IsNullOrEmpty(savedProjectId))
             {
-                return selectedProject ?? m_OrganizationInfo.projectInfos.FirstOrDefault();
+                return SelectedProject ?? m_OrganizationInfo.projectInfos.FirstOrDefault();
             }
-            
+
             if (ProjectInfo.AllAssetsProjectInfo.id == savedProjectId)
             {
                 return ProjectInfo.AllAssetsProjectInfo;
             }
 
-            var saveProjectInfo = m_OrganizationInfo.projectInfos.FirstOrDefault(p => p.id == savedProjectId);
+            var saveProjectInfo = m_OrganizationInfo.projectInfos.Find(p => p.id == savedProjectId);
             return saveProjectInfo ?? m_OrganizationInfo.projectInfos.FirstOrDefault();
         }
 
-        private void InvokeProjectOrganizationEvent(bool refreshProjects)
+        string RestoreSelectedCollection()
         {
-            if (refreshProjects)
-                onProjectInfoOrLoadingChanged?.Invoke(selectedProject, isLoading);
-            else
-                onOrganizationInfoOrLoadingChanged?.Invoke(organization, isLoading);
+            return SavedCollectionPath;
+        }
+
+        void InvokeOrganizationChanged()
+        {
+            var selected = SelectedOrganization;
+
+            if (Utilities.IsDevMode)
+            {
+                Debug.Log($"OrganizationChanged '{selected?.id}'");
+            }
+
+            OrganizationChanged?.Invoke(selected);
         }
     }
 }

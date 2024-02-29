@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SettingsManagement;
+using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
@@ -47,9 +48,11 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        private readonly ICachePathHelper m_CachePathHelper;
+        [SerializeReference]
+        ICachePathHelper m_CachePathHelper;
 
-        internal AssetManagerSettingsManager(ICachePathHelper cachePathHelper)
+        [ServiceInjection]
+        public void Inject(ICachePathHelper cachePathHelper)
         {
             m_CachePathHelper = cachePathHelper;
         }

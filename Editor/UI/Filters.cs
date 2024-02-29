@@ -21,70 +21,50 @@ internal class Filters : VisualElement
     const string k_SelfCenterClassName = "self-center";
     const string k_CaretDownFillImage = "Caret-Down-Fill.png";
 
-    readonly List<BaseFilter> m_FilterTypes;
-    readonly List<BaseFilter> m_SelectedFilters = new();
-
     readonly IPageManager m_PageManager;
-    readonly IAssetsProvider m_AssetsProvider;
     readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-    readonly IAnalyticsEngine m_AnalyticsEngine;
-
-    string m_LastSelectedFilter;
-    string m_LastSelectedFilterSelection;
 
     VisualElement m_PillContainer;
     VisualElement m_PopupContainer;
     Button m_FilterButton;
 
-    public Filters(IPageManager pageManager, IAssetsProvider assetsProvider, IProjectOrganizationProvider projectOrganizationProvider, IAnalyticsEngine analyticsEngine)
+    PageFilters pageFilters => m_PageManager?.activePage?.pageFilters;
+    List<BaseFilter> selectedFilters => pageFilters?.selectedFilters ?? new List<BaseFilter>();
+    VisualElement popupContainer => m_PopupContainer ?? CreatePopupContainer();
+
+    public Filters(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
     {
         m_PageManager = pageManager;
-        m_AssetsProvider = assetsProvider;
         m_ProjectOrganizationProvider = projectOrganizationProvider;
-        m_AnalyticsEngine = analyticsEngine;
-
-        m_FilterTypes = new List<BaseFilter>
-        {
-            new StatusFilter(m_ProjectOrganizationProvider, m_AssetsProvider),
-            new UnityTypeFilter(m_PageManager)
-        };
 
         AddToClassList(k_UssClassName);
 
         RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
         RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
-        Refresh();
+
+        InitializeUI();
     }
 
     void OnAttachToPanel(AttachToPanelEvent evt)
     {
-        m_ProjectOrganizationProvider.onProjectSelectionChanged += OnProjectSelectionChanged;
-        m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
-        m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
+        m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
+        m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
         m_PageManager.onActivePageChanged += OnActivePageChanged;
-        m_PageManager.onSearchFiltersChanged += OnSearchFiltersChanged;
     }
 
     void OnDetachFromPanel(DetachFromPanelEvent evt)
     {
-        m_ProjectOrganizationProvider.onProjectSelectionChanged -= OnProjectSelectionChanged;
-        m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
-        m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
+        m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
+        m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
         m_PageManager.onActivePageChanged -= OnActivePageChanged;
-        m_PageManager.onSearchFiltersChanged -= OnSearchFiltersChanged;
     }
 
-    void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
+    void OrganizationChanged(OrganizationInfo organization)
     {
         Refresh();
     }
 
-    void OnOrganizationInfoOrLoadingChanged(OrganizationInfo organization, bool isLoading)
-    {
-        Refresh();
-    }
-
-    void OnProjectSelectionChanged(ProjectInfo projectInfo)
+    void ProjectSelectionChanged(ProjectInfo _, CollectionInfo __)
     {
         Refresh();
     }
@@ -94,20 +74,16 @@ internal class Filters : VisualElement
         Refresh();
     }
 
-    void OnSearchFiltersChanged(IPage page, IReadOnlyCollection<string> data)
-    {
-        // Clear the filter selection caches
-        foreach (var filterType in m_SelectedFilters)
-        {
-            filterType.IsDirty = true;
-        }
-    }
-
     void Refresh()
     {
         Clear();
-        ClearAllFilters();
+        pageFilters?.ClearFilters();
 
+        InitializeUI();
+    }
+
+    void InitializeUI()
+    {
         if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.errorOrMessageHandlingData.message))
         {
             return;
@@ -131,23 +107,16 @@ internal class Filters : VisualElement
         m_PillContainer = new VisualElement();
         m_PillContainer.AddToClassList(k_ItemPillContainerClassName);
         Add(m_PillContainer);
-    }
 
-    void ClearAllFilters()
-    {
-        bool hasFilters = m_AssetsProvider.AssetFilter.AllCriteria.Any();
-        foreach (var filter in m_SelectedFilters)
+        foreach (var filter in selectedFilters)
         {
-            filter.ApplyFilter(null);
-            filter.Clear();
-            filter.IsDirty = true;
+            m_PillContainer.Add(CreatePillButton(filter, filter.SelectedFilter));
         }
 
-        m_SelectedFilters.Clear();
-        m_PageManager.activePage?.Clear(hasFilters);
+        m_FilterButton.SetEnabled(pageFilters?.IsAvailableFilters() ?? false);
     }
 
-    void CreatePopupContainer()
+    VisualElement CreatePopupContainer()
     {
         m_PopupContainer = new VisualElement();
         m_PopupContainer.focusable = true;
@@ -159,130 +128,138 @@ internal class Filters : VisualElement
         {
             UIElementsUtils.Hide(m_PopupContainer);
         });
+
+        return m_PopupContainer;
     }
 
     void OnFilterButtonClicked()
     {
-        foreach (var filter in m_SelectedFilters)
+        foreach (var selectedFilter in selectedFilters)
         {
-            filter.Cancel();
+            selectedFilter.Cancel();
         }
 
-        if (m_PopupContainer == null)
-        {
-            CreatePopupContainer();
-        }
-        else
-        {
-            m_PopupContainer.Clear();
-        }
+        popupContainer.Clear();
 
         SetPopupPosition(m_FilterButton);
 
-        foreach (var filterType in m_FilterTypes)
-        {
-            if (!m_SelectedFilters.Contains(filterType))
-            {
-                var filterSelection = new TextElement();
-                filterSelection.style.paddingLeft = 24; // Add padding to match the checkmark icon
-                filterSelection.AddToClassList(k_ItemFilterSelectionClassName);
-                filterSelection.text = filterType.DisplayName;
-                filterSelection.RegisterCallback<ClickEvent>(evt =>
-                {
-                    evt.StopPropagation();
-                    AddFilter(filterType);
-                });
+        var availableFilters = pageFilters.GetAvailableFilters() ?? new List<BaseFilter>();
 
-                m_PopupContainer?.Add(filterSelection);
-            }
+        foreach (var filter in availableFilters)
+        {
+            var filterSelection = new TextElement();
+            filterSelection.style.paddingLeft = 24; // Add padding to match the checkmark icon
+            filterSelection.AddToClassList(k_ItemFilterSelectionClassName);
+            filterSelection.text = filter.DisplayName;
+            filterSelection.RegisterCallback<ClickEvent>(evt =>
+            {
+                evt.StopPropagation();
+                AddFilter(filter);
+            });
+
+            popupContainer.Add(filterSelection);
         }
 
-        UIElementsUtils.Show(m_PopupContainer);
-        m_PopupContainer?.Focus();
+        UIElementsUtils.Show(popupContainer);
+        popupContainer.Focus();
 
-        m_AnalyticsEngine.SendFilterDropdownEvent();
+        AnalyticsSender.SendEvent(new FilterDropdownEvent());
     }
 
     void SetPopupPosition(VisualElement item)
     {
         var worldPos = item.LocalToWorld(Vector2.zero);
-        var localPos = m_PopupContainer.parent.WorldToLocal(worldPos);
+        var localPos = popupContainer.parent.WorldToLocal(worldPos);
 
-        m_PopupContainer.style.left = localPos.x;
-        m_PopupContainer.style.top = localPos.y + item.resolvedStyle.height;
+        popupContainer.style.left = localPos.x;
+        popupContainer.style.top = localPos.y + item.resolvedStyle.height;
     }
 
-    void AddFilter(BaseFilter filterType)
+    Button CreatePillButton(BaseFilter filter, string selection = null)
     {
-        UIElementsUtils.Hide(m_PopupContainer);
-
-        m_SelectedFilters.Add(filterType);
-        m_FilterButton.SetEnabled(m_SelectedFilters.Count < m_FilterTypes.Count);
-
         var pill = new Button();
         pill.AddToClassList(k_ItemPillClassName);
-        pill.clicked += () => OnPillClicked(pill, filterType);
+        pill.clicked += () => OnPillClicked(pill, filter);
         m_PillContainer.Add(pill);
 
         var label = new TextElement();
         label.name = "label";
-        label.text = filterType.DisplayName;
+        if (string.IsNullOrEmpty(selection))
+        {
+            label.text = filter.DisplayName;
+        }
+        else
+        {
+            label.text = $"{filter.DisplayName}  |  {selection}";
+            pill.AddToClassList(k_ItemPillSetClassName);
+        }
+
         pill.Add(label);
 
         var delete = new Image();
         delete.image = UIElementsUtils.GetCategoryIcon("Close.png");
         delete.AddToClassList(k_ItemPillDeleteClassName);
-        delete.AddManipulator(new Clickable(() => OnPillDeleteClicked(pill, filterType)));
+        delete.AddManipulator(new Clickable(() => OnPillDeleteClicked(pill, filter)));
         pill.Add(delete);
 
-        filterType.IsDirty = true;
-
-        WaitUntilPillIsPositioned(pill, filterType);
+        return pill;
     }
 
-    void WaitUntilPillIsPositioned(Button pill, BaseFilter filterType)
+    void AddFilter(BaseFilter filter)
+    {
+        UIElementsUtils.Hide(popupContainer);
+
+        pageFilters.AddFilter(filter);
+        m_FilterButton.SetEnabled(pageFilters.IsAvailableFilters());
+
+        var pill = CreatePillButton(filter);
+        WaitUntilPillIsPositioned(pill, filter);
+    }
+
+    void WaitUntilPillIsPositioned(Button pill, BaseFilter filter)
     {
         if (pill.resolvedStyle.top == 0)
         {
-            EditorApplication.delayCall += () => WaitUntilPillIsPositioned(pill, filterType);
+            EditorApplication.delayCall += () => WaitUntilPillIsPositioned(pill, filter);
             return;
         }
 
-        OnPillClicked(pill, filterType);
+        OnPillClicked(pill, filter);
     }
 
-    void OnPillClicked(Button pill, BaseFilter filterType)
+    void OnPillClicked(Button pill, BaseFilter filter)
     {
-        UIElementsUtils.Show(m_PopupContainer);
-        m_PopupContainer.Focus();
+        UIElementsUtils.Show(popupContainer);
+        popupContainer.Focus();
         SetPopupPosition(pill);
-        m_PopupContainer.Clear();
+        popupContainer.Clear();
+
         var loadingLabel = new TextElement();
         loadingLabel.text = L10n.Tr("Loading...");
         loadingLabel.AddToClassList(k_SelfCenterClassName);
-        m_PopupContainer.Add(loadingLabel);
+        popupContainer.Add(loadingLabel);
 
-        _ = AddTextFilterSelectionItems(pill, filterType);
+        _ = AddTextFilterSelectionItems(pill, filter);
     }
 
-    void OnPillDeleteClicked(Button pill, BaseFilter filterType)
+    void OnPillDeleteClicked(Button pill, BaseFilter filter)
     {
         pill.RemoveFromHierarchy();
-        m_SelectedFilters.Remove(filterType);
-        m_FilterButton.SetEnabled(m_SelectedFilters.Count < m_FilterTypes.Count);
+        pageFilters.RemoveFilter(filter);
+        m_FilterButton.SetEnabled(pageFilters.IsAvailableFilters());
 
-        ApplyFilter(filterType, null);
+        ApplyFilter(filter, null);
 
-        UIElementsUtils.Hide(m_PopupContainer);
+        UIElementsUtils.Hide(popupContainer);
     }
 
-    async Task AddTextFilterSelectionItems(Button pill, BaseFilter filterType)
+    async Task AddTextFilterSelectionItems(Button pill, BaseFilter filter)
     {
-        List<string> selections = await filterType.GetSelections();
+        List<string> selections = await filter.GetSelections();
         if (selections == null)
             return;
 
-        m_PopupContainer.Clear();
+        popupContainer.Clear();
         foreach (var selection in selections)
         {
             var filterSelection = new VisualElement();
@@ -296,42 +273,31 @@ internal class Filters : VisualElement
             label.text = selection;
             filterSelection.Add(label);
 
-            checkmark.visible = filterType.SelectedFilter == selection;
+            checkmark.visible = filter.SelectedFilter == selection;
 
             filterSelection.RegisterCallback<ClickEvent>(evt =>
             {
                 evt.StopPropagation();
-                pill.Q<TextElement>("label").text = $"{filterType.DisplayName}  |  {selection}";
+                pill.Q<TextElement>("label").text = $"{filter.DisplayName}  |  {selection}";
                 pill.AddToClassList(k_ItemPillSetClassName);
-                UIElementsUtils.Hide(m_PopupContainer);
+                UIElementsUtils.Hide(popupContainer);
 
-                ApplyFilter(filterType, selection);
+                ApplyFilter(filter, selection);
             });
 
-            m_PopupContainer.Add(filterSelection);
+            popupContainer.Add(filterSelection);
         }
     }
 
-    void ApplyFilter(BaseFilter filterType, string selection)
+    void ApplyFilter(BaseFilter filter, string selection)
     {
-        var reload = filterType.ApplyFilter(selection);
-        if (reload)
-        {
-            foreach (var filter in m_SelectedFilters)
-            {
-                filter.IsDirty = filter != filterType;
-            }
-        }
-
         if (selection != null)
         {
-            m_AnalyticsEngine.SendFilterSearchEvent(filterType.DisplayName, selection);
-            m_LastSelectedFilter = filterType.DisplayName;
-            m_LastSelectedFilterSelection = selection;
+            AnalyticsSender.SendEvent(new FilterSearchEvent(filter.DisplayName, selection));
             m_PageManager.activePage.onLoadingStatusChanged += OnLoadingStatusChanged;
         }
 
-        m_PageManager.activePage.Clear(reload);
+        pageFilters.ApplyFilter(filter, selection);
     }
 
     void OnLoadingStatusChanged(bool isLoading)
@@ -339,7 +305,12 @@ internal class Filters : VisualElement
         if (!isLoading)
         {
             m_PageManager.activePage.onLoadingStatusChanged -= OnLoadingStatusChanged;
-            m_AnalyticsEngine.SendFilterSearchResultEvent(m_LastSelectedFilter, m_LastSelectedFilterSelection, m_PageManager.activePage.assetList.Count);
+            var filters = new List<FilterSearchResultEvent.FilterData>();
+            foreach (var filter in selectedFilters)
+            {
+                filters.Add(new FilterSearchResultEvent.FilterData{ FilterName = filter.DisplayName, FilterValue = filter.SelectedFilter});
+            }
+            AnalyticsSender.SendEvent(new FilterSearchResultEvent(filters, m_PageManager.activePage.assetList.Count));
         }
     }
 }

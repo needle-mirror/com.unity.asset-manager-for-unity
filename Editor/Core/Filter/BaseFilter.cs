@@ -1,19 +1,45 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
+    [Serializable]
     internal abstract class BaseFilter
     {
+        [SerializeField]
+        protected string m_SelectedFilter;
+
+        [SerializeReference]
+        protected IPage m_Page;
+
         public abstract string DisplayName { get; }
         public abstract Task<List<string>> GetSelections();
-        public abstract bool ApplyFilter(string selection);
 
         public bool IsDirty { get; set; } = true;
-        public string SelectedFilter { get; protected set; }
+        public string SelectedFilter => m_SelectedFilter;
 
-        public virtual void Cancel() {}
-        public virtual void Clear() {}
+        public virtual void Cancel() { }
+        public virtual void Clear() { }
+
+        protected BaseFilter(IPage page)
+        {
+            m_Page = page;
+        }
+
+        public virtual bool ApplyFilter(string selection)
+        {
+            bool reload = selection != SelectedFilter;
+
+            if (reload && selection == null)
+            {
+                m_Page.pageFilters.RemoveFilter(this);
+            }
+
+            m_SelectedFilter = selection;
+
+            return reload;
+        }
     }
 }

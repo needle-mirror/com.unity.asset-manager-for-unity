@@ -1,0 +1,57 @@
+using System;
+using UnityEngine;
+
+namespace Unity.AssetManager.Editor
+{
+    class FilterDropdownEvent : IBaseEvent
+    {
+        [Serializable]
+#if UNITY_2023_2_OR_NEWER
+        internal class FilterDropdownEventData : IAnalytic.IData
+#else
+        internal class FilterDropdownEventData : BaseEventData
+#endif
+        {
+        }
+
+        static string s_EventName = $"{AnalyticsSender.s_EventPrefix}FilterDropdown";
+        static int s_EventVersion = 1;
+
+        public string EventName => s_EventName;
+        public int EventVersion => s_EventVersion;
+
+        FilterDropdownEventData m_Data;
+
+        internal FilterDropdownEvent()
+        {
+            m_Data = new FilterDropdownEventData();
+        }
+
+#if UNITY_2023_2_OR_NEWER
+        [AnalyticInfo(eventName:s_EventName, vendorKey:AnalyticsSender.s_VendorKey, version:s_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        internal class FilterDropdownEventAnalytic : IAnalytic
+        {
+            FilterDropdownEventData m_Data;
+
+            public FilterDropdownEventAnalytic(FilterDropdownEventData data)
+            {
+                m_Data = data;
+            }
+
+            public bool TryGatherData(out IAnalytic.IData data, out Exception error)
+            {
+                error = null;
+                data = m_Data;
+                return data != null;
+            }
+        }
+
+        public IAnalytic GetAnalytic()
+        {
+            return new FilterDropdownEventAnalytic(m_Data);
+        }
+#else
+        public BaseEventData EventData => m_Data;
+#endif
+    }
+}

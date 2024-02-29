@@ -1,21 +1,22 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class UnityTypeFilter : LocalFilter
+    class UnityTypeFilter : LocalFilter, ISerializationCallbackReceiver
     {
         public override string DisplayName => "Type";
         public List<string> m_Selections = new();
-        Dictionary<string, UnityAssetType> m_AssetTypeMap = new();
+        Dictionary<string, UnityAssetType> m_AssetTypeMap;
 
-        public UnityTypeFilter(IPageManager pageManager)
-            : base(pageManager)
+        public UnityTypeFilter(IPage page)
+            : base(page)
         {
+            m_AssetTypeMap = new Dictionary<string, UnityAssetType>();
+
             var types = (UnityAssetType[])Enum.GetValues(typeof(UnityAssetType));
             foreach (var type in types)
             {
@@ -29,14 +30,14 @@ namespace Unity.AssetManager.Editor
         {
             return Task.FromResult(m_Selections);
         }
-        
+
         public override async Task<bool> Contains(IAssetData assetData)
         {
-            if (m_AssetTypeMap == null)
+            if (m_AssetTypeMap == null || SelectedFilter == null)
                 return true;
-            
-            var extension = await assetData.GetPrimaryExtension();
-            var type = AssetDataTypeHelper.GetUnityAssetType(extension);
+
+            await assetData.ResolvePrimaryExtensionAsync(null);
+            var type = AssetDataTypeHelper.GetUnityAssetType(assetData.primaryExtension);
 
             if(m_AssetTypeMap.TryGetValue(SelectedFilter, out var assetType))
             {
@@ -44,6 +45,23 @@ namespace Unity.AssetManager.Editor
             }
 
             return false;
+        }
+
+        public void OnBeforeSerialize()
+        {
+            // Do nothing
+        }
+
+        public void OnAfterDeserialize()
+        {
+            m_AssetTypeMap = new Dictionary<string, UnityAssetType>();
+
+            var types = (UnityAssetType[])Enum.GetValues(typeof(UnityAssetType));
+            foreach (var type in types)
+            {
+                var text = type.ToString().PascalCaseToSentence();
+                m_AssetTypeMap.Add(text, type);
+            }
         }
     }
 }

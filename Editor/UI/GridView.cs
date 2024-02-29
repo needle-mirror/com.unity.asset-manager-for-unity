@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -16,35 +17,30 @@ namespace Unity.AssetManager.Editor
         const int k_ExtraVisibleRows = 2;
         const float k_FooterHeight = 40;
         const float k_MinSidePadding = DefaultItemWidth / 2f;
-        internal int MaxVisibleItems;
-        internal virtual event Action onGridViewLastItemVisible = delegate { };
+        int m_MaxVisibleItems;
+        internal event Action onGridViewLastItemVisible;
 
         readonly ScrollView m_ScrollView;
         float m_ScrollOffset;
         float m_LastHeight;
-        DateTime m_lastTime;
+        
+        readonly Stopwatch m_Stopwatch = new ();
 
         // we keep this list in order to minimize temporary gc allocs
-        List<RecycledRow> m_ScrollInsertionList = new List<RecycledRow>();
+        List<RecycledRow> m_ScrollInsertionList = new ();
 
-        internal Action<VisualElement, int> bindItem;
-        internal Func<VisualElement> makeItem;
+        Action<VisualElement, int> bindItem;
+        Func<VisualElement> makeItem;
 
         IList m_ItemsSource;
-        Func<int, int> m_GetItemId;
         int m_FirstVisibleIndex;
 
         List<RecycledRow> m_RowPool = new List<RecycledRow>();
         public int VisibleRowCount { get; private set; }
 
         int m_ItemHeight = DefaultItemHeight;
-        int m_ItemWidth = DefaultItemWidth;
+        readonly int m_ItemWidth = DefaultItemWidth;
         int m_ColumnCount;
-
-        private VisualElement m_MessageContainer;
-        private Label m_NoDataLabel;
-        private Button m_LinkToDashboardButton;
-        private bool m_RequestInProgress;
 
         public new class UxmlFactory : UxmlFactory<GridView> { }
         
@@ -56,7 +52,7 @@ namespace Unity.AssetManager.Editor
             m_ScrollView.verticalScroller.valueChanged += OnScroll;
 
             RegisterCallback<GeometryChangedEvent>(OnSizeChanged);
-            m_lastTime = DateTime.Now;
+            m_Stopwatch.Start();
             hierarchy.Add(m_ScrollView);
 
             m_ScrollView.contentContainer.focusable = true;
@@ -116,28 +112,7 @@ namespace Unity.AssetManager.Editor
                 Refresh();
             }
         }
-
-        /// <summary>
-        /// Callback for unbinding a data item from the VisualElement.
-        /// </summary>
-        /// <remarks>
-        /// The method called by this callback receives the VisualElement to unbind, and the index of the
-        /// element to unbind it from.
-        /// </remarks>
-        Action<VisualElement, int> UnbindItem { get; set; }
-
-        /// <summary>
-        /// Callback for constructing the VisualElement that is the template for each recycled and re-bound element in the list.
-        /// </summary>
-        /// <remarks>
-        /// This callback needs to call a function that constructs a blank <see cref="VisualElement"/> that is
-        /// bound to an element from the list.
-        ///
-        /// The GridView automatically creates enough elements to fill the visible area, and adds more if the area
-        /// is expanded. As the user scrolls, the GridView cycles elements in and out as they appear or disappear.
-        ///
-        ///  This property must be set for the grid view to function.
-        /// </remarks>
+        
         Func<VisualElement> MakeItem
         {
             get => makeItem;
@@ -149,14 +124,7 @@ namespace Unity.AssetManager.Editor
                 Refresh();
             }
         }
-
-        /// <summary>
-        /// The data source for list items.
-        /// </summary>
-        /// <remarks>
-        /// This list contains the items that the <see cref="GridView"/> displays.
-        /// This property must be set for the grid view to function.
-        /// </remarks>
+        
         internal IList ItemsSource
         {
             get => m_ItemsSource;
@@ -177,9 +145,6 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        /// <summary>
-        /// Number of columns in the gridview
-        /// </summary>
         public int ColumnCount
         {
             get => m_ColumnCount;
@@ -370,9 +335,9 @@ namespace Unity.AssetManager.Editor
 
             var rowCountForHeight = Mathf.FloorToInt(height / pixelAlignedItemHeight) + k_ExtraVisibleRows;
             var rowCount = Math.Min(rowCountForHeight, rowCountForSource);
-            MaxVisibleItems = rowCountForHeight * ColumnCount;
+            m_MaxVisibleItems = rowCountForHeight * ColumnCount;
             
-            if (ItemsSource.Count <= MaxVisibleItems)
+            if (ItemsSource.Count <= m_MaxVisibleItems)
                 onGridViewLastItemVisible?.Invoke(); 
 
             if (VisibleRowCount != rowCount)
@@ -435,9 +400,7 @@ namespace Unity.AssetManager.Editor
 
         void Setup(VisualElement item, int newIndex)
         {
-            var newId = GetIdFromIndex(newIndex);
-
-            if (!(item.parent is RecycledRow recycledRow))
+            if (item.parent is not RecycledRow recycledRow)
                 throw new Exception("The item to setup can't be orphan");
 
             var indexInRow = recycledRow.IndexOf(item);
@@ -451,11 +414,8 @@ namespace Unity.AssetManager.Editor
             if (recycledRow.indices[indexInRow] == newIndex)
                 return;
 
-            if (recycledRow.indices[indexInRow] != RecycledRow.undefinedIndex)
-                UnbindItem?.Invoke(item, recycledRow.indices[indexInRow]);
-
             recycledRow.indices[indexInRow] = newIndex;
-            recycledRow.ids[indexInRow] = newId;
+            recycledRow.ids[indexInRow] = newIndex;
 
             BindItem.Invoke(item, recycledRow.indices[indexInRow]);
         }
@@ -467,13 +427,11 @@ namespace Unity.AssetManager.Editor
             if (!HasValidDataAndBindings())
                 return;
 
-            var diff = DateTime.Now - m_lastTime;
-            m_lastTime = DateTime.Now;
+            var diff = m_Stopwatch.Elapsed;
+            m_Stopwatch.Restart();
 
             if (diff.TotalSeconds < 1)
-            {
                 return;
-            }
 
             if (Mathf.Approximately(evt.newRect.height, evt.oldRect.height) &&
                 Mathf.Approximately(evt.newRect.width, evt.oldRect.width))
@@ -487,13 +445,6 @@ namespace Unity.AssetManager.Editor
             var item = new VisualElement();
             SetupDummyItemElement(item);
             return item;
-        }
-
-        int GetIdFromIndex(int index)
-        {
-            if (m_GetItemId == null)
-                return index;
-            return m_GetItemId(index);
         }
 
         bool HasValidDataAndBindings() => ItemsSource != null && MakeItem != null && BindItem != null;

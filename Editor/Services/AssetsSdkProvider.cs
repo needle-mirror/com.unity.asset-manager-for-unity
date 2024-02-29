@@ -12,21 +12,28 @@ using Unity.Cloud.Identity;
 using Unity.Cloud.Identity.Editor;
 using System.Reflection;
 using UnityEditor;
+using UnityEngine;
 using Debug = UnityEngine.Debug;
 using PackageInfo = UnityEditor.PackageManager.PackageInfo;
-using UnityEditor.PackageManager;
-using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
+    enum AssetComparisonResult
+    {
+        None,
+        UpToDate,
+        OutDated,
+        NotFoundOrInaccessible,
+        Unknown
+    }
+
     internal interface IAssetsProvider : IService
     {
         Task<OrganizationInfo> GetOrganizationInfoAsync(string organizationId, CancellationToken token);
-        IAsyncEnumerable<IAsset> SearchAsync(CollectionInfo collectionInfo, IEnumerable<string> searchFilters, int startIndex, int pageSize, CancellationToken token);
-        IAsyncEnumerable<IAsset> SearchAsync(OrganizationInfo organizationInfo, IEnumerable<string> searchFilters, int startIndex, int pageSize, CancellationToken token);
+        IAsyncEnumerable<IAsset> SearchAsync(string organizationId, IEnumerable<string> projectIds, IAssetSearchFilter assetSearchFilter, int startIndex, int pageSize, CancellationToken token);
         Task<Dictionary<string, string>> GetProjectIconUrlsAsync(string organizationId, CancellationToken token);
-        Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, string criterion, CancellationToken token);
-        AssetSearchFilter AssetFilter { get; }
+        Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, IAssetSearchFilter searchFilter, string criterion, CancellationToken token);
+        Task<AssetComparisonResult> CompareAssetWithCloudAsync(IAssetData assetData);
     }
 
     [Serializable]
@@ -34,22 +41,20 @@ namespace Unity.AssetManager.Editor
     {
         private static readonly Pagination k_DefaultPagination = new(nameof(IAsset.Name), Range.All);
 
-        private readonly CloudAssetsProxy m_CloudAssetsProxy;
-        private readonly IAssetDataManager m_AssetDataManager;
-        private readonly IUnityConnectProxy m_UnityConnectProxy;
-        private readonly AssetSearchFilter m_AssetSearchFilter;
+        CloudAssetsProxy m_CloudAssetsProxy;
 
-        public AssetSearchFilter AssetFilter => m_AssetSearchFilter;
+        [SerializeReference]
+        IUnityConnectProxy m_UnityConnectProxy;
 
-        public AssetsSdkProvider(IAssetDataManager assetDataManager, IUnityConnectProxy unityConnectProxy)
+        [ServiceInjection]
+        public void Inject(IUnityConnectProxy unityConnectProxy)
         {
-            m_AssetDataManager = RegisterDependency(assetDataManager);
-            m_UnityConnectProxy = RegisterDependency(unityConnectProxy);
+            m_UnityConnectProxy = unityConnectProxy;
+        }
+
+        public override void OnEnable()
+        {
             m_CloudAssetsProxy = new CloudAssetsProxy(m_UnityConnectProxy);
-            m_AssetSearchFilter = new AssetSearchFilter
-            {
-                IncludedFields = new FieldsFilter { AssetFields = AssetFields.previewFileUrl | AssetFields.files } // TODO Remove files when we have a better way to get the primary extension
-            };
         }
 
         public async Task<OrganizationInfo> GetOrganizationInfoAsync(string organizationId, CancellationToken token)
@@ -82,7 +87,7 @@ namespace Unity.AssetManager.Editor
             await Task.WhenAll(tasks);
 
             t.Stop();
-            if (EditorPrefs.GetBool("DeveloperMode", false))
+            if (Utilities.IsDevMode)
             {
                 Debug.Log($"Fetching {count} Projects took {t.ElapsedMilliseconds}ms");
             }
@@ -104,40 +109,11 @@ namespace Unity.AssetManager.Editor
             onCompleted?.Invoke(collections);
         }
 
-        public async IAsyncEnumerable<IAsset> SearchAsync(CollectionInfo collectionInfo, IEnumerable<string> searchFilters, int startIndex, int pageSize, [EnumeratorCancellation] CancellationToken token)
-        {
-            m_AssetSearchFilter.Collections.Clear();
-            var collectionPath = collectionInfo.GetFullPath();
-            if (!string.IsNullOrEmpty(collectionPath))
-            {
-                m_AssetSearchFilter.Collections.Add(new CollectionPath(collectionPath));
-            }
-
-            UpdateSearchFilter(searchFilters);
-
-            await foreach (var asset in SearchAsync(collectionInfo.organizationId, new List<string> { collectionInfo.projectId }, m_AssetSearchFilter, startIndex, pageSize, token))
-            {
-                yield return asset;
-            }
-        }
-
-        public async IAsyncEnumerable<IAsset> SearchAsync(OrganizationInfo organizationInfo, IEnumerable<string> searchFilters, int startIndex, int pageSize, [EnumeratorCancellation] CancellationToken token)
-        {
-            var projectIds = organizationInfo.projectInfos.Select(p => p.id).ToList();
-
-            UpdateSearchFilter(searchFilters);
-
-            await foreach (var asset in SearchAsync(organizationInfo.id, projectIds, m_AssetSearchFilter, startIndex, pageSize, token))
-            {
-                yield return asset;
-            }
-        }
-
-        async IAsyncEnumerable<IAsset> SearchAsync(string organizationId, IEnumerable<string> projectIds, IAssetSearchFilter assetSearchFilter, int startIndex, int pageSize, [EnumeratorCancellation] CancellationToken token)
+        public async IAsyncEnumerable<IAsset> SearchAsync(string organizationId, IEnumerable<string> projectIds, IAssetSearchFilter assetSearchFilter, int startIndex, int pageSize, [EnumeratorCancellation] CancellationToken token)
         {
             var pagination = new Pagination(nameof(IAsset.Name), new Range(startIndex, startIndex + pageSize));
 
-            var devMode = EditorPrefs.GetBool("DeveloperMode", false);
+            var devMode = Utilities.IsDevMode;
             if (devMode)
             {
                 Debug.Log($"Fetching {pagination.Range} Assets ...");
@@ -162,7 +138,7 @@ namespace Unity.AssetManager.Editor
 
         public async Task<Dictionary<string, string>> GetProjectIconUrlsAsync(string organizationId, CancellationToken token)
         {
-            var organizations = await m_CloudAssetsProxy.GetOrganizationsAsync(token);
+            var organizations = await m_CloudAssetsProxy.GetOrganizationsAsync();
             var selectedOrg = organizations?.FirstOrDefault(o => o.Id.ToString() == organizationId);
             if (selectedOrg == null)
                 return null;
@@ -183,26 +159,35 @@ namespace Unity.AssetManager.Editor
             return projectIconUrls;
         }
 
-        public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, string criterion, CancellationToken token)
+        public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, IAssetSearchFilter searchFilter, string criterion, CancellationToken token)
         {
-            return await m_CloudAssetsProxy.GetFilterSelectionsAsync(organizationId, projectIds, AssetFilter, criterion, token);
+            return await m_CloudAssetsProxy.GetFilterSelectionsAsync(organizationId, projectIds, searchFilter, criterion, token);
         }
 
-        private void UpdateSearchFilter(IEnumerable<string> searchFilters)
+        public async Task<AssetComparisonResult> CompareAssetWithCloudAsync(IAssetData assetData)
         {
-            if (searchFilters != null && searchFilters.Any())
+            if (assetData?.updated == null)
             {
-                var searchFilterString = string.Join(" ", searchFilters);
-
-                m_AssetSearchFilter.Name.ForAny(searchFilterString);
-                m_AssetSearchFilter.Description.ForAny(searchFilterString);
-                m_AssetSearchFilter.Tags.ForAny(searchFilterString);
+                return AssetComparisonResult.Unknown;
             }
-            else
+
+            try
             {
-                m_AssetSearchFilter.Name.Clear();
-                m_AssetSearchFilter.Description.Clear();
-                m_AssetSearchFilter.Tags.Clear();
+                var cloudAsset = await m_CloudAssetsProxy.GetAssetAsync(assetData.identifier.ToAssetDescriptor(),
+                    new FieldsFilter { AssetFields = AssetFields.authoring }, CancellationToken.None);
+
+                return assetData.updated == cloudAsset.AuthoringInfo.Updated
+                    ? AssetComparisonResult.UpToDate
+                    : AssetComparisonResult.OutDated;
+            }
+            catch (ForbiddenException)
+            {
+                return AssetComparisonResult.NotFoundOrInaccessible;
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                return AssetComparisonResult.None;
             }
         }
 
@@ -238,13 +223,13 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
-            public async Task<IAsset> SearchAsync(AssetDescriptor assetVersionDescriptor, FieldsFilter fieldsFilter, CancellationToken token)
+            public async Task<IAsset> GetAssetAsync(AssetDescriptor descriptor, FieldsFilter fieldsFilter, CancellationToken token)
             {
                 await InitializeAndCheckAuthenticationState();
-                return await Services.AssetRepository.GetAssetAsync(assetVersionDescriptor, fieldsFilter, token);
+                return await Services.AssetRepository.GetAssetAsync(descriptor, fieldsFilter, token);
             }
 
-            public async Task<IEnumerable<IOrganization>> GetOrganizationsAsync(CancellationToken token)
+            public async Task<IEnumerable<IOrganization>> GetOrganizationsAsync()
             {
                 await InitializeAndCheckAuthenticationState();
                 return await Services.OrganizationRepository.ListOrganizationsAsync();
@@ -263,7 +248,7 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
-            public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, AssetSearchFilter searchFilter, string criterion, CancellationToken token)
+            public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, IAssetSearchFilter searchFilter, string criterion, CancellationToken token)
             {
                 await InitializeAndCheckAuthenticationState();
                 var orgId = new OrganizationId(organizationId);
@@ -280,7 +265,6 @@ namespace Unity.AssetManager.Editor
     public static class Services
     {
         static IOrganizationRepository s_OrganizationRepository;
-        static ICompositeAuthenticator s_CompositeAuthenticator;
         static IAuthenticator s_Authenticator;
         static IAssetRepository s_AssetRepository;
 

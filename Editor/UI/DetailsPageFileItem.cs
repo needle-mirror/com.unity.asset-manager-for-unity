@@ -86,7 +86,7 @@ namespace Unity.AssetManager.Editor
         {
             var assetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId);
             var importedInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.identifier);
-            var importedFileInfo = importedInfo?.fileInfos?.FirstOrDefault(f => CompareAssetFileName(f.originalPath, MetafilesHelper.AssociatedAssetFile(m_FileName.text)));
+            var importedFileInfo = importedInfo?.fileInfos?.FirstOrDefault(f => CompareAssetFileName(f.originalPath, MetafilesHelper.RemoveMetaExtension(m_FileName.text)));
             if (importedFileInfo != null)
             {
                 var assetObject = m_AssetDatabaseProxy.LoadAssetAtPath(m_AssetDatabaseProxy.GuidToAssetPath(importedFileInfo.guid));

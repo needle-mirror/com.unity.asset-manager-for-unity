@@ -18,6 +18,7 @@ namespace Unity.AssetManager.Editor
 
             m_LoadingIcon = new LoadingIcon();
             m_Label = new Label(L10n.Tr("Loading Assets"));
+            m_Label.AddToClassList(k_LoadingBarLabelUssClassName);
 
             AddToClassList(k_LoadingBarUssClassName);
 
@@ -25,33 +26,29 @@ namespace Unity.AssetManager.Editor
             Add(m_Label);
         }
 
-        public void Refresh(IPage page, bool showMessageWhenNoMoreItem = false)
+        public void SetPosition(bool highPosition)
         {
-            if (page is { isLoading: true })
+            if (highPosition)
             {
-                m_Label.AddToClassList(k_LoadingBarLabelUssClassName);
-
-                if (page.assetList?.Count == 0)
-                {
-                    AddToClassList(k_LoadingBarHighPositionUssClassName);
-                }
-                else
-                {
-                    RemoveFromClassList(k_LoadingBarHighPositionUssClassName);
-                }
-                
-                m_LoadingIcon.PlayAnimation();
-                UIElementsUtils.Show(this);
+                AddToClassList(k_LoadingBarHighPositionUssClassName);
             }
             else
             {
                 RemoveFromClassList(k_LoadingBarHighPositionUssClassName);
-                if (!showMessageWhenNoMoreItem || page == null || page.hasMoreItems)
-                {
-                    m_LoadingIcon.StopAnimation();
-                    UIElementsUtils.Hide(this);
-                }
             }
+        }
+
+        public void Show()
+        {
+            m_LoadingIcon.PlayAnimation();
+            UIElementsUtils.Show(this);
+        }
+
+        public void Hide()
+        {
+            RemoveFromClassList(k_LoadingBarHighPositionUssClassName);
+            m_LoadingIcon.StopAnimation();
+            UIElementsUtils.Hide(this);
         }
     }
 }

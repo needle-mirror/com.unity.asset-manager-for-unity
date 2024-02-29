@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Unity.AssetManager.Editor
 {
@@ -7,15 +9,14 @@ namespace Unity.AssetManager.Editor
     {
         event Action<bool> onLoadingStatusChanged;
         event Action<AssetIdentifier> onSelectedAssetChanged;
-        event Action<IReadOnlyCollection<string>> onSearchFiltersChanged;
+        event Action<IEnumerable<string>> onSearchFiltersChanged;
         event Action<ErrorOrMessageHandlingData> onErrorOrMessageThrown;
-
         bool isLoading { get; }
         bool hasMoreItems { get; }
-        PageType pageType { get; }
-        IReadOnlyCollection<string> searchFilters { get; }
-        void AddLocalFilter(LocalFilter filter);
-        void RemoveLocalFilter(LocalFilter filter);
+
+        PageFilters pageFilters { get; }
+
+        Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, string criterion, CancellationToken token);
         bool isActivePage { get; }
 
         AssetIdentifier selectedAssetId { get; set; }
@@ -34,10 +35,8 @@ namespace Unity.AssetManager.Editor
 
         // Called when a page got activated (when it became the current visible page)
         void OnActivated();
+
         // Called when a page got deactivated (when it went from the current page to the previous page)
         void OnDeactivated();
-        void AddSearchFilter(IEnumerable<string> searchFilter, bool reloadImmediately);
-        void RemoveSearchFilter(string searchFilter, bool reloadImmediately);
-        void ClearSearchFilters(bool reloadImmediately);
     }
 }

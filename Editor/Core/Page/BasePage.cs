@@ -1,23 +1,30 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
     internal abstract class BasePage : IPage
     {
+        public virtual string Title => null;
+        public virtual bool DisplayTopBar => true; // TODO Use enum flags for visibility toggles
+        public virtual bool DisplayBreadcrumbs => false;
+        public virtual bool DisplaySideBar => true;
+
         public event Action<bool> onLoadingStatusChanged;
         public event Action<AssetIdentifier> onSelectedAssetChanged;
-        public event Action<IReadOnlyCollection<string>> onSearchFiltersChanged;
+        public event Action<IEnumerable<string>> onSearchFiltersChanged;
         public event Action<ErrorOrMessageHandlingData> onErrorOrMessageThrown;
 
         [SerializeField]
-        private AsyncLoadOperation m_LoadMoreAssetsOperation = new ();
+        private AsyncLoadOperation m_LoadMoreAssetsOperation = new();
         public bool isLoading => m_LoadMoreAssetsOperation.isLoading;
 
         [SerializeField]
@@ -27,14 +34,10 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         protected int m_NextStartIndex;
 
-        public abstract PageType pageType { get; }
-
         [SerializeField]
-        private List<string> m_SearchFilters = new();
-        public IReadOnlyCollection<string> searchFilters => m_SearchFilters;
+        PageFilters m_PageFilters;
 
-        [SerializeReference]
-        private List<LocalFilter> m_Filters = new();
+        public PageFilters pageFilters => m_PageFilters;
 
         [SerializeField]
         private bool m_IsActive;
@@ -42,6 +45,7 @@ namespace Unity.AssetManager.Editor
 
         [SerializeField]
         private AssetIdentifier m_SelectedAssetId;
+
         public AssetIdentifier selectedAssetId
         {
             get => m_SelectedAssetId?.IsValid() == true ? m_SelectedAssetId : null;
@@ -49,7 +53,7 @@ namespace Unity.AssetManager.Editor
             {
                 if ((m_SelectedAssetId?.IsValid() != true && value?.IsValid() != true) || value?.Equals(m_SelectedAssetId) == true)
                     return;
-                
+
                 m_SelectedAssetId = value;
                 onSelectedAssetChanged?.Invoke(m_SelectedAssetId);
             }
@@ -61,53 +65,81 @@ namespace Unity.AssetManager.Editor
 
         [SerializeField]
         ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
-        public ErrorOrMessageHandlingData errorOrMessageHandlingData { get => m_ErrorOrMessageHandling; }
 
-        [SerializeField]
-        private bool m_ReTriggerSearchAfterDomainReload = false;
-
-        protected IAssetDataManager m_AssetDataManager;
-
-        public void ResolveDependencies(IAssetDataManager assetDataManager)
+        public ErrorOrMessageHandlingData errorOrMessageHandlingData
         {
-            m_AssetDataManager = assetDataManager;
+            get => m_ErrorOrMessageHandling;
         }
 
-        protected BasePage(IAssetDataManager assetDataManager)
+        [SerializeField]
+        private bool m_ReTriggerSearchAfterDomainReload;
+
+        [SerializeReference]
+        protected IAssetDataManager m_AssetDataManager;
+
+        [SerializeReference]
+        protected IProjectOrganizationProvider m_ProjectOrganizationProvider;
+
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
+
+        protected BasePage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, IProjectOrganizationProvider projectOrganizationProvider)
         {
-            ResolveDependencies(assetDataManager);
+            m_AssetDataManager = assetDataManager;
+            m_AssetsProvider = assetsProvider;
+            m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             m_HasMoreItems = true;
             m_SelectedAssetId = null;
+
+            m_PageFilters = new PageFilters(this, projectOrganizationProvider, InitFilters());
         }
 
-        public void OnActivated()
+        protected virtual List<BaseFilter> InitFilters()
+        {
+            return new List<BaseFilter>
+            {
+                new StatusFilter(this, m_ProjectOrganizationProvider),
+                new UnityTypeFilter(this)
+            };
+        }
+
+        public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, string criterion, CancellationToken token)
+        {
+            return await m_AssetsProvider.GetFilterSelectionsAsync(organizationId, projectIds, m_PageFilters.assetFilter, criterion, token);
+        }
+
+        public virtual void OnActivated()
         {
             m_IsActive = true;
         }
 
-        public void OnDeactivated()
+        public virtual void OnDeactivated()
         {
             m_IsActive = false;
 
-            if (m_SearchFilters.Any())
-                ClearSearchFilters(false);
+            m_PageFilters.ClearSearchFilters();
+            Clear(false);
         }
 
         public virtual void OnEnable()
         {
-            if (!m_ReTriggerSearchAfterDomainReload) 
+            m_PageFilters.onSearchFiltersChanged += OnSearchFiltersChanged;
+
+            if (!m_ReTriggerSearchAfterDomainReload)
                 return;
-            
+
             m_ReTriggerSearchAfterDomainReload = false;
             LoadMore();
         }
 
         public virtual void OnDisable()
         {
-            if (!isLoading) 
+            m_PageFilters.onSearchFiltersChanged -= OnSearchFiltersChanged;
+
+            if (!isLoading)
                 return;
-            
+
             m_LoadMoreAssetsOperation.Cancel();
             m_ReTriggerSearchAfterDomainReload = true;
         }
@@ -148,7 +180,7 @@ namespace Unity.AssetManager.Editor
                     m_AssetDataManager.AddOrUpdateAssetDataFromCloudAsset(assetDatas);
                     m_AssetList.AddRange(assetDatas);
 
-                    OnLoadMoreSuccessCallBack(assetDatas.Select(assetData => assetData.identifier).ToList());
+                    OnLoadMoreSuccessCallBack();
                     onLoadingStatusChanged?.Invoke(isLoading);
                 });
         }
@@ -172,72 +204,106 @@ namespace Unity.AssetManager.Editor
             m_NextStartIndex = 0;
             SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
 
-            if(!keepSelection)
+            if (!keepSelection)
+            {
                 selectedAssetId = null;
+            }
+
             if (reloadImmediately)
+            {
                 LoadMore();
+            }
         }
 
         protected abstract IAsyncEnumerable<IAssetData> LoadMoreAssets(CancellationToken token);
-        protected abstract void OnLoadMoreSuccessCallBack(IReadOnlyCollection<AssetIdentifier> assetIdentifiers);
-        public void AddSearchFilter(IEnumerable<string> searchFiltersArg, bool reloadImmediately)
+        protected abstract void OnLoadMoreSuccessCallBack();
+
+        protected async IAsyncEnumerable<IAssetData> LoadMoreAssets(CollectionInfo collectionInfo, [EnumeratorCancellation] CancellationToken token)
         {
-            var searchFilterAdded = false;
-            foreach (var searchFilter in searchFiltersArg)
+            await foreach (var assetData in LoadMoreAssets(collectionInfo.organizationId, new List<string> { collectionInfo.projectId }, collectionInfo.GetFullPath(), token))
             {
-                if (m_SearchFilters.Contains(searchFilter))
-                    continue;
-                m_SearchFilters.Add(searchFilter);
-                searchFilterAdded = true;
+                yield return assetData;
+            }
+        }
+
+        protected async IAsyncEnumerable<IAssetData> LoadMoreAssets(OrganizationInfo organizationInfo, [EnumeratorCancellation] CancellationToken token)
+        {
+            await foreach (var assetData in LoadMoreAssets(organizationInfo.id, organizationInfo.projectInfos.Select(p => p.id), null, token))
+            {
+                yield return assetData;
+            }
+        }
+
+        async IAsyncEnumerable<IAssetData> LoadMoreAssets(string organizationId, IEnumerable<string> projectIds, string collectionPath, [EnumeratorCancellation] CancellationToken token)
+        {
+            var assetSearchFilter = m_PageFilters.assetFilter;
+            UpdateSearchFilter(assetSearchFilter, m_PageFilters.searchFilters);
+
+            if (!string.IsNullOrEmpty(collectionPath))
+            {
+                assetSearchFilter.Collections.Add(new CollectionPath(collectionPath));
             }
 
-            if (!searchFilterAdded) return;
-            Clear(reloadImmediately);
-            onSearchFiltersChanged?.Invoke(m_SearchFilters);
+            var count = 0;
+            await foreach (var asset in m_AssetsProvider.SearchAsync(organizationId, projectIds, assetSearchFilter, m_NextStartIndex, Constants.DefaultPageSize, token))
+            {
+                ++count;
+
+                var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(new AssetIdentifier(asset.Descriptor));
+                var assetData = importedAssetInfo != null ? importedAssetInfo.assetData : new AssetData(asset);
+
+                if (await IsDiscardedByLocalFilter(assetData))
+                    continue;
+
+                yield return assetData;
+            }
+
+            m_HasMoreItems = count == Constants.DefaultPageSize;
+            m_NextStartIndex += count;
         }
 
-        public void RemoveSearchFilter(string searchFilter, bool reloadImmediately)
+        void OnSearchFiltersChanged(IEnumerable<string> searchFilters)
         {
-            if (!m_SearchFilters.Contains(searchFilter))
-                return;
-            m_SearchFilters.Remove(searchFilter);
-            Clear(reloadImmediately);
-            onSearchFiltersChanged?.Invoke(m_SearchFilters);
+            Clear(true);
+            onSearchFiltersChanged?.Invoke(searchFilters);
         }
 
-        public void ClearSearchFilters(bool reloadImmediately)
+        private void UpdateSearchFilter(AssetSearchFilter assetFilter, IEnumerable<string> searchStrings)
         {
-            if (m_SearchFilters.Count == 0)
-                return;
-            m_SearchFilters.Clear();
-            Clear(reloadImmediately);
-            onSearchFiltersChanged?.Invoke(m_SearchFilters);
+            assetFilter.Collections.Clear();
+
+            if (searchStrings != null && searchStrings.Any())
+            {
+                var searchFilterString = string.Join(" ", searchStrings);
+
+                assetFilter.Name.ForAny(searchFilterString);
+                assetFilter.Description.ForAny(searchFilterString);
+                assetFilter.Tags.ForAny(searchFilterString);
+            }
+            else
+            {
+                assetFilter.Name.Clear();
+                assetFilter.Description.Clear();
+                assetFilter.Tags.Clear();
+            }
         }
 
-        public void AddLocalFilter(LocalFilter filter)
-        {
-            m_Filters.Add(filter);
-        }
-
-        public void RemoveLocalFilter(LocalFilter filter)
-        {
-            m_Filters.Remove(filter);
-        }
-        
         protected async Task<bool> IsDiscardedByLocalFilter(IAssetData assetData)
         {
-            var discarded = false;
-                
-            foreach (var filter in m_Filters)
+            foreach (var filter in m_PageFilters.selectedLocalFilters)
             {
                 if (await filter.Contains(assetData))
                     continue;
-                
-                discarded = true;
-                break;
+
+                return true;
             }
 
-            return discarded;
+            return false;
+        }
+
+        public virtual VisualElement CreateCustomUISection()
+        {
+            return null;
         }
     }
 }

@@ -1,4 +1,3 @@
-using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -8,73 +7,67 @@ namespace Unity.AssetManager.Editor
 {
     internal class AssetManagerWindowRoot : VisualElement
     {
-        private const int k_SidebarMinWidth = 160;
-        private const int k_InspectorPanelMaxWidth = 300;
-        private const int k_InspectorPanelMinWidth = 200;
-        private const string k_MainDarkUssName = "MainDark";
-        private const string k_MainLightUssName = "MainLight";
+        const int k_SidebarMinWidth = 160;
+        const int k_InspectorPanelMaxWidth = 300;
+        const int k_InspectorPanelMinWidth = 200;
+        const string k_MainDarkUssName = "MainDark";
+        const string k_MainLightUssName = "MainLight";
 
-        private VisualElement m_AssetManagerContainer;
-        private VisualElement m_SearchContentSplitViewContainer;
-        private VisualElement m_ContentContainer;
-        private VisualElement m_AssetDetailsContainer;
-        private LoadingScreen m_LoadingScreen;
+        VisualElement m_AssetManagerContainer;
+        VisualElement m_SearchContentSplitViewContainer;
+        VisualElement m_ContentContainer;
+        VisualElement m_AssetDetailsContainer;
+        LoadingScreen m_LoadingScreen;
 
-        private LoginPage m_LoginPage;
-        private SideBar m_SideBar;
-        private TopBar m_TopBar;
-        private Breadcrumbs m_Breadcrumbs;
+        LoginPage m_LoginPage;
+        SideBar m_SideBar;
+        Label m_Title;
+        TopBar m_TopBar;
+        Breadcrumbs m_Breadcrumbs;
         Filters m_Filters;
-        private TwoPaneSplitView m_CategoriesSplit;
-        private TwoPaneSplitView m_InspectorSplit;
+        TwoPaneSplitView m_CategoriesSplit;
+        TwoPaneSplitView m_InspectorSplit;
 
-        private AssetsGridView m_AssetsGridView;
-        private AssetDetailsPage m_AssetDetailsPage;
-        private ActionHelpBox m_ActionHelpBox;
+        AssetsGridView m_AssetsGridView;
+        AssetDetailsPage m_AssetDetailsPage;
+        ActionHelpBox m_ActionHelpBox;
 
-        private float m_InspectorPanelLastWidth = k_InspectorPanelMaxWidth;
+        VisualElement m_CustomizableSection;
 
-        private readonly IPageManager m_PageManager;
-        private readonly IAssetDataManager m_AssetDataManager;
-        private readonly IAssetImporter m_AssetImporter;
-        private readonly IStateManager m_StateManager;
-        private readonly IUnityConnectProxy m_UnityConnect;
-        private readonly IThumbnailDownloader m_ThumbnailDownloader;
-        private readonly IAssetsProvider m_AssetsProvider;
-        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        private readonly ILinksProxy m_LinksProxy;
-        private readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
-        private readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
-        private readonly IProjectIconDownloader m_ProjectIconDownloader;
-        private readonly IAnalyticsEngine m_AnalyticEngine;
+        float m_InspectorPanelLastWidth = k_InspectorPanelMaxWidth;
+
+        readonly IPageManager m_PageManager;
+        readonly IAssetDataManager m_AssetDataManager;
+        readonly IAssetImporter m_AssetImporter;
+        readonly IStateManager m_StateManager;
+        readonly IUnityConnectProxy m_UnityConnect;
+        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly ILinksProxy m_LinksProxy;
+        readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
+        readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
+        readonly IProjectIconDownloader m_ProjectIconDownloader;
 
         public AssetManagerWindowRoot(IPageManager pageManager,
             IAssetDataManager assetDataManager,
             IAssetImporter assetImporter,
             IStateManager stateManager,
             IUnityConnectProxy unityConnect,
-            IAssetsProvider assetsProvider,
-            IThumbnailDownloader thumbnailDownloader,
             IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy,
             IEditorGUIUtilityProxy editorGUIUtilityProxy,
             IAssetDatabaseProxy assetDatabaseProxy,
-            IProjectIconDownloader projectIconDownloader,
-            IAnalyticsEngine analyticsEngine)
+            IProjectIconDownloader projectIconDownloader)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
             m_AssetImporter = assetImporter;
             m_StateManager = stateManager;
             m_UnityConnect = unityConnect;
-            m_AssetsProvider = assetsProvider;
-            m_ThumbnailDownloader = thumbnailDownloader;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_LinksProxy = linksProxy;
             m_EditorGUIUtilityProxy = editorGUIUtilityProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
             m_ProjectIconDownloader = projectIconDownloader;
-            m_AnalyticEngine = analyticsEngine;
         }
 
         public void OnEnable()
@@ -92,10 +85,6 @@ namespace Unity.AssetManager.Editor
             UnregisterCallbacks();
         }
 
-        public void OnDestroy()
-        {
-        }
-
         private void InitializeLayout()
         {
             m_LoginPage = new LoginPage(m_UnityConnect);
@@ -109,7 +98,7 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.LoadCommonStyleSheet(m_AssetManagerContainer);
             UIElementsUtils.LoadCustomStyleSheet(m_AssetManagerContainer, EditorGUIUtility.isProSkin ? k_MainDarkUssName : k_MainLightUssName);
             m_AssetManagerContainer.StretchToParentSize();
-            
+
             m_LoadingScreen = new LoadingScreen();
             m_LoadingScreen.AddToClassList("LoadingScreen");
             m_AssetManagerContainer.Add(m_LoadingScreen);
@@ -132,19 +121,25 @@ namespace Unity.AssetManager.Editor
             actionHelpBoxContainer.Add(m_ActionHelpBox);
             m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
 
+            m_Title = new Label();
+            m_Title.AddToClassList("page-title-label");
+            m_SearchContentSplitViewContainer.Add(m_Title);
+
             m_TopBar = new TopBar(m_PageManager, m_ProjectOrganizationProvider);
             m_SearchContentSplitViewContainer.Add(m_TopBar);
-            m_Breadcrumbs = new Breadcrumbs(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider);
+
+            m_Breadcrumbs = new Breadcrumbs(m_PageManager, m_ProjectOrganizationProvider);
             m_SearchContentSplitViewContainer.Add(m_Breadcrumbs);
-            m_Filters = new Filters(m_PageManager, m_AssetsProvider, m_ProjectOrganizationProvider, m_AnalyticEngine);
+
+            m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider);
             m_SearchContentSplitViewContainer.Add(m_Filters);
 
             var content = new VisualElement();
             content.AddToClassList("AssetManagerContentView");
             m_SearchContentSplitViewContainer.Add(content);
 
-            m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager, m_AssetDataManager, m_AssetImporter, m_ThumbnailDownloader, m_LinksProxy);
-            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_StateManager, m_PageManager, m_AssetDataManager, m_ThumbnailDownloader, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_ProjectIconDownloader);
+            m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager, m_AssetDataManager, m_AssetImporter, m_LinksProxy);
+            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_StateManager, m_PageManager, m_AssetDataManager, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_ProjectIconDownloader);
 
             m_AssetDetailsContainer = new VisualElement();
             m_AssetDetailsContainer.AddToClassList("AssetDetailsContainer");
@@ -159,9 +154,17 @@ namespace Unity.AssetManager.Editor
 
             m_AssetManagerContainer.Add(m_InspectorSplit);
 
-            SetInspectorVisibility(m_PageManager.activePage?.selectedAssetId);
+            m_CustomizableSection = new VisualElement();
+            m_AssetManagerContainer.Add(m_CustomizableSection);
+
+            if (m_PageManager.activePage?.selectedAssetId == null)
+            {
+                SetInspectorVisibility(null);
+            }
 
             content.Add(m_AssetsGridView);
+
+            SetCustomFieldsVisibility(m_PageManager.activePage);
         }
 
         private void RegisterCallbacks()
@@ -171,8 +174,7 @@ namespace Unity.AssetManager.Editor
             m_UnityConnect.onUserLoginStateChange += OnUserLoginStateChange;
             m_PageManager.onSelectedAssetChanged += OnSelectedAssetChanged;
             m_PageManager.onActivePageChanged += OnActivePageChanged;
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
         }
 
         private void UnregisterCallbacks()
@@ -182,8 +184,7 @@ namespace Unity.AssetManager.Editor
             m_UnityConnect.onUserLoginStateChange -= OnUserLoginStateChange;
             m_PageManager.onSelectedAssetChanged -= OnSelectedAssetChanged;
             m_PageManager.onActivePageChanged -= OnActivePageChanged;
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
         }
 
         void OnInspectorResized(GeometryChangedEvent evt)
@@ -193,8 +194,7 @@ namespace Unity.AssetManager.Editor
 
         private void OnUserLoginStateChange(bool isUserInfoReady, bool isUserLoggedIn) => Refresh();
 
-        private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo organizationInfo, bool isLoading) => Refresh();
-        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading) => Refresh();
+        private void OrganizationChanged(OrganizationInfo organizationInfo) => Refresh();
 
         private void OnSelectedAssetChanged(IPage page, AssetIdentifier assetId)
         {
@@ -212,12 +212,54 @@ namespace Unity.AssetManager.Editor
             {
                 m_InspectorSplit.fixedPaneInitialDimension = m_InspectorPanelLastWidth;
                 m_InspectorSplit.UnCollapse();
+                _ = m_AssetDetailsPage.SelectedAsset(assetId);
+            }
+        }
+
+        void SetCustomFieldsVisibility(IPage page)
+        {
+            m_CustomizableSection.Clear();
+
+            if (page == null)
+                return;
+
+            var basePage = (BasePage)page;
+
+            if (!string.IsNullOrEmpty(basePage.Title))
+            {
+                m_Title.text = basePage.Title;
+                UIElementsUtils.Show(m_Title);
+            }
+            else
+            {
+                UIElementsUtils.Hide(m_Title);
+            }
+
+            UIElementsUtils.SetDisplay(m_TopBar, basePage.DisplayTopBar);
+
+            if (!basePage.DisplaySideBar)
+            {
+                m_CategoriesSplit.fixedPaneInitialDimension = 0;
+                m_CategoriesSplit.CollapseChild(0);
+            }
+            else
+            {
+                m_CategoriesSplit.UnCollapse();
+                m_CategoriesSplit.fixedPaneInitialDimension = m_StateManager.sideBarWidth;
+            }
+
+            var customSection = basePage.CreateCustomUISection();
+
+            if (customSection != null)
+            {
+                m_CustomizableSection.Add(customSection);
             }
         }
 
         void OnActivePageChanged(IPage page)
         {
             SetInspectorVisibility(page.selectedAssetId);
+            SetCustomFieldsVisibility(page);
         }
 
         private void Refresh()
@@ -228,6 +270,7 @@ namespace Unity.AssetManager.Editor
                 UIElementsUtils.Hide(m_AssetManagerContainer);
                 return;
             }
+
             UIElementsUtils.Hide(m_LoginPage);
             UIElementsUtils.Show(m_AssetManagerContainer);
 
@@ -263,31 +306,20 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void OnFocus()
+        public bool CurrentOrganizationIsEmpty()
         {
-            if (m_ProjectOrganizationProvider.organization?.projectInfos?.Any() != true && m_ProjectOrganizationProvider.isLoading == false)
-            {
-                m_ProjectOrganizationProvider.RefreshProjects();
-            }
-        }
-
-        public void OnLostFocus()
-        {
+            return m_ProjectOrganizationProvider.SelectedOrganization?.projectInfos?.Count == 0 && !m_ProjectOrganizationProvider.isLoading;
         }
 
         public void AddItemsToMenu(GenericMenu menu)
         {
-            var refreshItem = new GUIContent("Refresh");
-            if (m_ProjectOrganizationProvider is { organization: not null})
-                menu.AddItem(refreshItem, false, () => m_ProjectOrganizationProvider.RefreshProjects());
-            else
-                menu.AddDisabledItem(refreshItem, false);
-
-            GUIContent goToDashboard = new GUIContent(L10n.Tr("Go to Dashboard"));
+            var goToDashboard = new GUIContent(L10n.Tr("Go to Dashboard"));
             menu.AddItem(goToDashboard, false, m_LinksProxy.OpenAssetManagerDashboard);
-            GUIContent projectSettings = new GUIContent(L10n.Tr("Project Settings"));
+
+            var projectSettings = new GUIContent(L10n.Tr("Project Settings"));
             menu.AddItem(projectSettings, false, m_LinksProxy.OpenProjectSettingsServices);
-            GUIContent preferences = new GUIContent(L10n.Tr("Preferences"));
+
+            var preferences = new GUIContent(L10n.Tr("Preferences"));
             menu.AddItem(preferences, false, m_LinksProxy.OpenPreferences);
         }
     }
@@ -304,7 +336,7 @@ namespace Unity.AssetManager.Editor
             var loadingScreenContainer = new VisualElement();
             loadingScreenContainer.Add(m_LoadingIcon);
             loadingScreenContainer.Add(new Label { text = L10n.Tr("Loading...") });
-            
+
             Add(loadingScreenContainer);
         }
 

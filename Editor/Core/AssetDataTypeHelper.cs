@@ -108,24 +108,25 @@ namespace Unity.AssetManager.Editor
 
         static Dictionary<string, UnityTypeDescriptor> s_ExtensionToUnityTypeDescriptor;
 
-        public static async Task<string> GetAssetPrimaryExtension(IAssetData assetData)
+        public static string GetAssetPrimaryExtension(IEnumerable<string> extensions)
         {
             var assetExtensions = new HashSet<string>();
 
-            await foreach (var f in assetData.GetAllCloudFilesAsync()) // Actually we should only look at the Source dataset but for performance reason we rely on the cached files inside the Asset
+            foreach (var extension in extensions)
             {
-                var ext = Path.GetExtension(f.Descriptor.Path)?.ToLower();
+                if (string.IsNullOrEmpty(extension))
+                    continue;
                 
-                if (string.IsNullOrEmpty(ext) || ext == ".meta")
+                var ext = extension.ToLower();
+                
+                if (ext == ".meta")
                     continue;
 
                 assetExtensions.Add(ext);
             }
 
             if (assetExtensions.Count == 0)
-            {
                 return null;
-            }
 
             foreach (var unityTypeDescriptor in k_UnityTypeDescriptors)
             {

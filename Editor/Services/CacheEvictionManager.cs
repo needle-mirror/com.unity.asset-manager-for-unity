@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 namespace Unity.AssetManager.Editor
@@ -13,13 +14,22 @@ namespace Unity.AssetManager.Editor
     internal class CacheEvictionManager : BaseService<ICacheEvictionManager>, ICacheEvictionManager
     {
         double m_CurrentSizeMb;
-        private readonly IFileInfoWrapper m_FileInfoWrapper;
-        private readonly ISettingsManager m_SettingsManager;
-        public CacheEvictionManager(IFileInfoWrapper fileInfoWrapper, ISettingsManager settingsManager)
+        
+        [SerializeReference]
+        IFileInfoWrapper m_FileInfoWrapper;
+        
+        [SerializeReference]
+        ISettingsManager m_SettingsManager;
+        
+        [ServiceInjection]
+        public void Inject(IFileInfoWrapper fileInfoWrapper, ISettingsManager settingsManager)
         {
-            m_FileInfoWrapper = RegisterDependency(fileInfoWrapper);
-            m_SettingsManager = RegisterDependency(settingsManager);
+            m_FileInfoWrapper = fileInfoWrapper;
+            m_SettingsManager = settingsManager;
+        }
 
+        public override void OnEnable()
+        {
             SubscribeToEvents();
         }
 

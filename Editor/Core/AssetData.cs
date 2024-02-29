@@ -1,64 +1,124 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
-using Unity.Cloud.Common;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IAssetData
+    interface IAssetData
     {
         string name { get; }
         AssetIdentifier identifier { get; }
         AssetType assetType { get; }
         string status { get; }
-        string previewFilePath { get; }
-        string previewFileUrl { get; }
-        DateTime updated { get; }
-        DateTime created { get; }
+        DateTime? updated { get; }
+        DateTime? created { get; }
         IEnumerable<string> tags { get; }
         string description { get; }
         string authorName { get; }
         string defaultImportPath { get; }
-        Task<string> GetPrimaryExtension();
-        Task GetPrimaryExtension(Action<AssetIdentifier, string> callback);
-        IEnumerable<IAssetDataFile> cachedFiles { get; }
-        IAsyncEnumerable<IFile> GetAllCloudFilesAsync(CancellationToken token = default);
+        string primaryExtension { get; }
+        IEnumerable<IAssetDataFile> sourceFiles { get; }
+        AssetPreview.IStatus previewStatus { get; }
+
+        Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null);
+        Task GetPreviewStatusAsync(Action<AssetIdentifier, AssetPreview.IStatus> callback = null); // TODO Move away all methods not related to the actual IAssetData raw data
+        Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback);
         IAsyncEnumerable<IFile> GetSourceCloudFilesAsync(CancellationToken token = default);
-        Task SyncWithCloudAsync(CancellationToken token = default);
+        Task SyncWithCloudAsync(Action<AssetIdentifier> callback, CancellationToken token = default);
+    }
+
+    static class AssetDataExtension
+    {
+        public static bool IsTheSame(this IAssetData assetData, IAssetData other)
+        {
+            if (ReferenceEquals(null, other))
+                return false;
+
+            if (ReferenceEquals(assetData, other))
+                return true;
+
+            if (other.GetType() != assetData.GetType())
+                return false;
+
+            return assetData.name == other.name
+                   && assetData.identifier.Equals(other.identifier)
+                   && assetData.assetType == other.assetType
+                   && assetData.status == other.status
+                   && assetData.updated == other.updated
+                   && assetData.created == other.created
+                   && assetData.tags.SequenceEqual(other.tags)
+                   && assetData.description == other.description
+                   && assetData.authorName == other.authorName
+                   && assetData.defaultImportPath == other.defaultImportPath
+                   && assetData.primaryExtension == other.primaryExtension
+                   && assetData.sourceFiles.SequenceEqual(other.sourceFiles)
+                   && assetData.previewStatus == other.previewStatus;
+        }
     }
 
     [Serializable]
     internal class AssetData : IAssetData, ISerializationCallbackReceiver
     {
         public string defaultImportPath => Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName, $"{Regex.Replace(name, @"[\\\/:*?""<>|]", "").Trim()}");
-        
+
         public AssetIdentifier identifier => m_Identifier ??= new AssetIdentifier(Asset.Descriptor);
         public string name => Asset.Name;
         public AssetType assetType => Asset.Type.ConvertCloudAssetTypeToAssetType();
         public string status => Asset.Status;
         public string description => Asset.Description;
-        public DateTime created => Asset.AuthoringInfo?.Created ?? DateTime.MinValue;
-        public DateTime updated => Asset.AuthoringInfo?.Updated ?? DateTime.MinValue;
-        public string authorName => Asset.AuthoringInfo?.CreatedBy ?? "<None>";
+        public DateTime? created => Asset.AuthoringInfo?.Created;
+        public DateTime? updated => Asset.AuthoringInfo?.Updated;
+        public string authorName => Asset.AuthoringInfo?.CreatedBy ?? null;
         public IEnumerable<string> tags => Asset.Tags;
-        public string previewFilePath => Asset.PreviewFile;
-        public string previewFileUrl => Asset.PreviewFileUrl?.ToString() ?? string.Empty;
 
         [SerializeField]
         string m_PrimaryExtension;
- 
+
+        public string primaryExtension => m_PrimaryExtension;
+
         [SerializeReference]
-        List<IAssetDataFile> m_CachedFiles = new ();
-      
+        List<IAssetDataFile> m_SourceFiles = new();
+
+        public IEnumerable<IAssetDataFile> sourceFiles => m_SourceFiles;
+
         [SerializeField]
         string m_JsonAssetSerialized;
-        
+
+        [SerializeField]
+        AssetComparisonResult m_AssetComparisonResult = AssetComparisonResult.None;
+
+        public AssetPreview.IStatus previewStatus
+        {
+            get
+            {
+                AssetPreview.IStatus s = null;
+                switch (m_AssetComparisonResult)
+                {
+                    case AssetComparisonResult.UpToDate:
+                        s = AssetDataStatus.UpToDate;
+                        break;
+                    case AssetComparisonResult.OutDated:
+                        s = AssetDataStatus.OutOfDate;
+                        break;
+                    case AssetComparisonResult.NotFoundOrInaccessible:
+                        s = AssetDataStatus.Error;
+                        break;
+                    case AssetComparisonResult.Unknown:
+                        s = AssetDataStatus.Imported;
+                        break;
+                }
+
+                return s;
+            }
+        }
+
         IAsset m_Asset;
         IAsset Asset => m_Asset ??= Services.AssetRepository.DeserializeAsset(m_JsonAssetSerialized);
 
@@ -67,17 +127,36 @@ namespace Unity.AssetManager.Editor
         AssetIdentifier m_Identifier;
 
         const string k_SourceDataSetName = "Source"; // Temporary solution until we have a better way to identify the source dataset
-        
+
         public AssetData(IAsset cloudAsset)
         {
             m_Asset = cloudAsset;
         }
-        
+
         ~AssetData()
         {
             OnBeforeSerialize();
         }
-        
+
+        public Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null)
+        {
+            var previewFileUrl = Asset.PreviewFileUrl?.ToString() ?? string.Empty;
+            ServicesContainer.instance.Resolve<IThumbnailDownloader>().DownloadThumbnail(identifier, previewFileUrl, callback);
+            return Task.CompletedTask;
+        }
+
+        public async Task GetPreviewStatusAsync(Action<AssetIdentifier, AssetPreview.IStatus> callback = null)
+        {
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+            if (assetDataManager.IsInProject(identifier))
+            {
+                var result = await ServicesContainer.instance.Resolve<IAssetsProvider>().CompareAssetWithCloudAsync(this);
+                m_AssetComparisonResult = result;
+            }
+
+            callback?.Invoke(identifier, previewStatus); // TODO Use static instances?
+        }
+
         public async Task<string> GetPrimaryExtension()
         {
             if (!string.IsNullOrEmpty(m_PrimaryExtension))
@@ -85,54 +164,78 @@ namespace Unity.AssetManager.Editor
                 return m_PrimaryExtension;
             }
 
-            return m_PrimaryExtension = await AssetDataTypeHelper.GetAssetPrimaryExtension(this) ?? NoPrimaryExtension;
+            // Actually we should only look at the Source dataset but for performance reason we rely on the cached files inside the Asset
+            var extensions = new List<string>();
+            await foreach (var f in m_Asset.ListFilesAsync(Range.All, CancellationToken.None))
+            {
+                extensions.Add(Path.GetExtension(f.Descriptor.Path));
+            }
+
+            return m_PrimaryExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(extensions) ?? NoPrimaryExtension;
         }
 
-        public async Task GetPrimaryExtension(Action<AssetIdentifier, string> callback)
+        public async Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback)
         {
             var extension = await GetPrimaryExtension();
-            callback.Invoke(identifier, extension);
+            callback?.Invoke(identifier, extension);
         }
 
-        public async IAsyncEnumerable<IFile> GetAllCloudFilesAsync([EnumeratorCancellation] CancellationToken token)
+        public async Task CompareWithCloudAsync(Action<AssetIdentifier, AssetComparisonResult> callback, CancellationToken token = default)
         {
-            await foreach (var file in m_Asset.ListFilesAsync(Range.All, token))
-            {
-                yield return file;
-            }
+            var result = await ServicesContainer.instance.Resolve<IAssetsProvider>().CompareAssetWithCloudAsync(this);
+            m_AssetComparisonResult = result;
+            callback?.Invoke(identifier, result);
         }
 
-        public IEnumerable<IAssetDataFile> cachedFiles => m_CachedFiles;
-
-        public async IAsyncEnumerable<IFile> GetSourceCloudFilesAsync([EnumeratorCancellation] CancellationToken token)
+        public async IAsyncEnumerable<IFile> GetSourceCloudFilesAsync([EnumeratorCancellation] CancellationToken token = default)
         {
-            m_CachedFiles.Clear();
-            
+            IDataset sourceDataset = null;
+
             await foreach(var dataset in m_Asset.ListDatasetsAsync(Range.All, token))
             {
-                if (!dataset.Name.Contains(k_SourceDataSetName)) continue;
-                
-                await foreach(var file in dataset.ListFilesAsync(Range.All, token))
+                if (!dataset.Name.Contains(k_SourceDataSetName))
+                    continue;
+
+                sourceDataset = dataset;
+                break;
+            }
+
+            if (sourceDataset == null)
+                yield break;
+
+            // Note. dataset.ListFilesAsync generates downloadURLs and is very slow compared m_Asset.ListFilesAsync
+            await m_Asset.RefreshAsync(new FieldsFilter { AssetFields = AssetFields.files, FileFields = FileFields.fileSize }, token);
+            await foreach (var file in m_Asset.ListFilesAsync(Range.All, token))
+            {
+                if (file.Descriptor.DatasetId == sourceDataset.Descriptor.DatasetId)
                 {
-                    m_CachedFiles.Add(new AssetDataFile(file));
                     yield return file;
                 }
-                
-                yield break;
             }
         }
-        
-        public async Task SyncWithCloudAsync(CancellationToken token = default)
+
+        async Task RefreshSourceFilesFromCloudAsync(CancellationToken token = default)
         {
-            await m_Asset.RefreshAsync(new FieldsFilter { AssetFields = AssetFields.authoring }, token);
-            await foreach(var _ in GetSourceCloudFilesAsync(token)) { };
-            await GetPrimaryExtension();
+            m_SourceFiles.Clear();
+
+            await foreach (var file in GetSourceCloudFilesAsync(token))
+            {
+                m_SourceFiles.Add(new AssetDataFile(file));
+            }
         }
 
-        static AssetDescriptor BuildDescriptor(OrganizationId organizationId, ProjectId projectId, AssetId assetId, AssetVersion assetVersionId)
+        public async Task SyncWithCloudAsync(Action<AssetIdentifier> callback, CancellationToken token = default)
         {
-            var projectDescriptor = new ProjectDescriptor(organizationId, projectId);
-            return new AssetDescriptor(projectDescriptor, assetId, assetVersionId);
+            var tasks = new List<Task>
+            {
+                m_Asset.RefreshAsync(new FieldsFilter { AssetFields = AssetFields.authoring }, token),
+                RefreshSourceFilesFromCloudAsync(token),
+                GetPrimaryExtension()
+            };
+
+            await Task.WhenAll(tasks);
+
+            callback?.Invoke(identifier);
         }
 
         public void OnBeforeSerialize()
@@ -145,14 +248,6 @@ namespace Unity.AssetManager.Editor
 
         public void OnAfterDeserialize()
         {
-        }
-
-        public static bool IsDifferent(AssetData assetData1, AssetData assetData2)
-        {
-            if (assetData1?.m_Asset == null || assetData2?.m_Asset == null)
-                return false;
-
-            return assetData1.m_Asset.Descriptor != assetData2.m_Asset.Descriptor;
         }
     }
 }

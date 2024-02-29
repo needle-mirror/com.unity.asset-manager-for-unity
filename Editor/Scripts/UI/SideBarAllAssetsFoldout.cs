@@ -5,7 +5,8 @@ namespace Unity.AssetManager.Editor
 {
     internal class SideBarAllAssetsFoldout : SideBarFoldout
     {
-        internal SideBarAllAssetsFoldout(IPageManager pageManager, IStateManager stateManager, IProjectOrganizationProvider projectOrganizationProvider, string foldoutName)
+        internal SideBarAllAssetsFoldout(IPageManager pageManager, IStateManager stateManager,
+            IProjectOrganizationProvider projectOrganizationProvider, string foldoutName)
             : base(pageManager, stateManager, projectOrganizationProvider, foldoutName)
         {
             var image = this.Q<Image>();
@@ -22,16 +23,10 @@ namespace Unity.AssetManager.Editor
                 if (e.button != 0 || target.name == k_CheckMarkName)
                     return;
 
-                pageManager.activePage = pageManager.GetPage(PageType.AllAssets);
-                if (projectOrganizationProvider.selectedProject != ProjectInfo.AllAssetsProjectInfo)
-                {
-                    projectOrganizationProvider.selectedProject = ProjectInfo.AllAssetsProjectInfo;
-                }
+                pageManager.SetActivePage<AllAssetsPage>();
+                projectOrganizationProvider.SelectProject(ProjectInfo.AllAssetsProjectInfo);
+                AnalyticsSender.SendEvent(new ProjectSelectedEvent(ProjectSelectedEvent.ProjectType.AllAssets, projectOrganizationProvider.SelectedOrganization.projectInfos.Count));
             }, TrickleDown.TrickleDown);
-        }
-        protected override void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
-        {
-            Refresh();
         }
 
         protected override void OnRefresh(IPage page)
@@ -39,9 +34,9 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        internal void Refresh()
+        void Refresh()
         {
-            var selected = m_ProjectOrganizationProvider.selectedProject == ProjectInfo.AllAssetsProjectInfo;
+            var selected = m_ProjectOrganizationProvider.SelectedProject == ProjectInfo.AllAssetsProjectInfo;
             m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
         }
     }

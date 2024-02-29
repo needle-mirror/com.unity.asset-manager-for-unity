@@ -17,6 +17,7 @@ namespace Unity.AssetManager.Editor
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         private readonly IPageManager m_PageManager;
         private readonly IStateManager m_StateManager;
+
         public SidebarContent(IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager, IStateManager stateManager)
         {
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -52,8 +53,7 @@ namespace Unity.AssetManager.Editor
 
         private void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
 
             Refresh();
             ScrollToHeight(m_StateManager.sideBarScrollValue);
@@ -61,26 +61,20 @@ namespace Unity.AssetManager.Editor
 
         private void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
 
             m_StateManager.sideBarScrollValue = m_ScrollContainer.verticalScroller.value;
             m_StateManager.sideBarWidth = layout.width;
         }
 
-        private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo organization, bool isLoading)
-        {
-            Refresh();
-        }
-
-        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
+        private void OrganizationChanged(OrganizationInfo organization)
         {
             Refresh();
         }
 
         internal void Refresh()
         {
-            var projectInfos = m_ProjectOrganizationProvider.organization?.projectInfos as IList<ProjectInfo> ?? Array.Empty<ProjectInfo>();
+            var projectInfos = m_ProjectOrganizationProvider.SelectedOrganization?.projectInfos as IList<ProjectInfo> ?? Array.Empty<ProjectInfo>();
             if (projectInfos.Count == 0)
             {
                 UIElementsUtils.Hide(m_ScrollContainer);
@@ -90,9 +84,9 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.Show(m_ScrollContainer);
             UIElementsUtils.Hide(m_NoProjectSelectedContainer);
 
-            if (m_ProjectOrganizationProvider.organization != null)
+            if (m_ProjectOrganizationProvider.SelectedOrganization != null)
             {
-                var orderedProjectInfos = m_ProjectOrganizationProvider.organization.projectInfos.OrderBy(p => p.name);
+                var orderedProjectInfos = m_ProjectOrganizationProvider.SelectedOrganization.projectInfos.OrderBy(p => p.name);
                 RebuildProjectList(orderedProjectInfos.ToList());
             }
             else
@@ -124,40 +118,41 @@ namespace Unity.AssetManager.Editor
 
             foreach (var projectInfo in projectInfos)
             {
-                var projectFoldout = new SideBarProjectFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider, projectInfo.name, projectInfo);
+                var projectFoldout = new SideBarCollectionFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider, projectInfo.name, projectInfo, null);
                 m_ScrollContainer.Add(projectFoldout);
                 m_Foldouts.Add(projectFoldout);
-                if (projectInfo.collectionInfos?.Any() == true)
-                {
-                    projectFoldout.ChangeIntoParentFolder();
-                    projectFoldout.value = false;
-                    foreach (var collection in projectInfo.collectionInfos)
-                    {
-                        if (string.IsNullOrEmpty(collection.parentPath))
-                        {
-                            var collectionFoldout = CreateSideBarCollectionFoldout(collection.name, collection.GetFullPath());
-                            m_Foldouts.Add(collectionFoldout);
-                            projectFoldout.Add(collectionFoldout);
-                        }
-                        else
-                        {
-                            var parentFoldout = GetCollectionFoldout(collection.parentPath);
-                            if (parentFoldout == null)
-                                continue;
 
-                            var collectionFoldout = CreateSideBarCollectionFoldout(collection.name, collection.GetFullPath());
-                            parentFoldout.ChangeIntoParentFolder();
-                            parentFoldout.Add(collectionFoldout);
-                            m_Foldouts.Add(collectionFoldout);
-                        }
+                if (projectInfo.collectionInfos?.Any() != true)
+                    continue;
+
+                projectFoldout.ChangeIntoParentFolder();
+                projectFoldout.value = false;
+                foreach (var collection in projectInfo.collectionInfos)
+                {
+                    if (string.IsNullOrEmpty(collection.parentPath))
+                    {
+                        var collectionFoldout = CreateSideBarCollectionFoldout(collection.name, projectInfo, collection.GetFullPath());
+                        m_Foldouts.Add(collectionFoldout);
+                        projectFoldout.Add(collectionFoldout);
+                    }
+                    else
+                    {
+                        var parentFoldout = GetCollectionFoldout(collection.parentPath);
+                        if (parentFoldout == null)
+                            continue;
+
+                        var collectionFoldout = CreateSideBarCollectionFoldout(collection.name, projectInfo, collection.GetFullPath());
+                        parentFoldout.ChangeIntoParentFolder();
+                        parentFoldout.Add(collectionFoldout);
+                        m_Foldouts.Add(collectionFoldout);
                     }
                 }
             }
         }
 
-        private SideBarFoldout CreateSideBarCollectionFoldout(string foldoutName, string collectionPath)
+        private SideBarFoldout CreateSideBarCollectionFoldout(string foldoutName, ProjectInfo projectInfo, string collectionPath)
         {
-            return new SideBarCollectionFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider, foldoutName, collectionPath);
+            return new SideBarCollectionFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider, foldoutName, projectInfo, collectionPath);
         }
 
         private SideBarFoldout GetCollectionFoldout(string collectionPath)
@@ -169,7 +164,9 @@ namespace Unity.AssetManager.Editor
         private void ScrollToHeight(float height)
         {
             if (m_ScrollContainer != null)
+            {
                 m_ScrollContainer.verticalScroller.value = height;
+            }
         }
     }
 }

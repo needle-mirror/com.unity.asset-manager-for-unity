@@ -32,7 +32,7 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         private long m_FileSize;
         public long fileSize => m_FileSize;
-        
+
         public AssetDataFile(IFile file)
         {
             m_Path = file.Descriptor.Path;

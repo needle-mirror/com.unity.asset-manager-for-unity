@@ -13,15 +13,13 @@ namespace Unity.AssetManager.Editor
         internal const string k_ItemHighlightButtonClassName = "highlight";
 
         private readonly IPageManager m_PageManager;
-        private readonly IAssetDataManager m_AssetDataManager;
         private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         /// <summary>
         /// Constructs a breadcrumb UI element for the toolbar to help users navigate a hierarchy.
         /// </summary>
-        public Breadcrumbs(IPageManager pageManager, IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider)
+        public Breadcrumbs(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
         {
             m_PageManager = pageManager;
-            m_AssetDataManager = assetDataManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             AddToClassList(k_UssClassName);
@@ -34,32 +32,23 @@ namespace Unity.AssetManager.Editor
         private void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_PageManager.onActivePageChanged += OnActivePageChanged;
-            m_PageManager.onSelectedAssetChanged += OnSelectedAssetChanged;
-            m_ProjectOrganizationProvider.onProjectSelectionChanged += OnProjectSelectionChanged;
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
         }
 
         private void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_PageManager.onActivePageChanged -= OnActivePageChanged;
-            m_PageManager.onSelectedAssetChanged -= OnSelectedAssetChanged;
-            m_ProjectOrganizationProvider.onProjectSelectionChanged -= OnProjectSelectionChanged;
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
         }
 
-        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
+        private void OrganizationChanged(OrganizationInfo _)
         {
             Refresh();
         }
 
-        private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo organization, bool isLoading)
-        {
-            Refresh();
-        }
-
-        private void OnProjectSelectionChanged(ProjectInfo _)
+        private void ProjectSelectionChanged(ProjectInfo _, CollectionInfo __)
         {
             Refresh();
         }
@@ -67,33 +56,31 @@ namespace Unity.AssetManager.Editor
         private void Refresh()
         {
             var page = m_PageManager.activePage;
-            if (!ShowOrHideBreadCrumbs(page, m_ProjectOrganizationProvider.organization))
+            if (!ShowOrHideBreadCrumbs(page, m_ProjectOrganizationProvider.SelectedOrganization))
                 return;
 
             Clear();
 
             // Project breadcrumb
-            AddBreadcrumbItem(m_ProjectOrganizationProvider.selectedProject?.name, () =>
+            AddBreadcrumbItem(m_ProjectOrganizationProvider.SelectedProject?.name, () =>
                 {
                     m_PageManager.activePage.selectedAssetId = null;
-                    m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, string.Empty);
+                    m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject);
                 });
 
             // Collection/subcollection breadcrumb
-            if (page.pageType == PageType.Collection)
+            if (page is CollectionPage collectionPage && !string.IsNullOrEmpty(collectionPage.collectionPath))
             {
-                if (page is CollectionPage collectionPage && !string.IsNullOrEmpty(collectionPage.collectionPath))
+                var collectionPaths = collectionPage.collectionPath.Split("/");
+                foreach (var path in collectionPaths)
                 {
-                    var collectionPaths = collectionPage.collectionPath.Split("/");
-                    foreach (var path in collectionPaths)
+                    var collectionPath = collectionPage.collectionPath[..(collectionPage.collectionPath.IndexOf(path, StringComparison.Ordinal) + path.Length)];
+                    AddBreadcrumbItem(path, () =>
                     {
-                        var collectionPath = collectionPage.collectionPath[..(collectionPage.collectionPath.IndexOf(path) + path.Length)];
-                        AddBreadcrumbItem(path, () =>
-                        {
-                            m_PageManager.activePage.selectedAssetId = null;
-                            m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, collectionPath);
-                        });
-                    }
+                        m_PageManager.activePage.selectedAssetId = null;
+                        m_PageManager.SetActivePage<CollectionPage>();
+                        m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject, collectionPath);
+                    });
                 }
             }
 
@@ -109,6 +96,7 @@ namespace Unity.AssetManager.Editor
                 arrow.AddToClassList(k_ItemArrowClassName);
                 Add(arrow);
             }
+
             Add(new BreadcrumbItem(clickEvent) { text = label });
         }
 
@@ -117,19 +105,15 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        private void OnSelectedAssetChanged(IPage page, AssetIdentifier assetId)
-        {
-            Refresh();
-        }
-
         // Returns true if the breadcrumbs is visible
         private bool ShowOrHideBreadCrumbs(IPage page, OrganizationInfo currentOrganization)
         {
-            if (page == null || page.pageType == PageType.InProject || currentOrganization?.projectInfos.Any() != true)
+            if (page == null || !((BasePage)page).DisplayBreadcrumbs || currentOrganization?.projectInfos.Any() != true)
             {
                 UIElementsUtils.Hide(this);
                 return false;
             }
+
             UIElementsUtils.Show(this);
             return true;
         }

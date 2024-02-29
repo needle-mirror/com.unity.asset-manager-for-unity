@@ -10,7 +10,6 @@ namespace Unity.AssetManager.Editor
     {
         [SerializeReference]
         public IAssetData assetData;
-        
         public AssetIdentifier id => assetData?.identifier;
         
         public List<ImportedFileInfo> fileInfos;

@@ -16,6 +16,7 @@ namespace Unity.AssetManager.Editor
         protected readonly IPageManager m_PageManager;
         protected readonly IStateManager m_StateManager;
         protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+
         public SideBarFoldout(IPageManager pageManager, IStateManager stateManager, IProjectOrganizationProvider projectOrganizationProvider, string foldoutName)
         {
             m_PageManager = pageManager;
@@ -41,20 +42,16 @@ namespace Unity.AssetManager.Editor
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
 
-        internal void OnAttachToPanel(AttachToPanelEvent evt)
+        void OnAttachToPanel(AttachToPanelEvent evt)
         {
             OnRefresh(m_PageManager.activePage);
             m_PageManager.onActivePageChanged += OnRefresh;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
         }
 
-        internal void OnDetachFromPanel(DetachFromPanelEvent evt)
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_PageManager.onActivePageChanged -= OnRefresh;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
         }
-
-        protected virtual void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading) { }
 
         protected virtual void OnRefresh(IPage page) { }
 

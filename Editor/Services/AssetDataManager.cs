@@ -28,39 +28,34 @@ namespace Unity.AssetManager.Editor
         void AddOrUpdateAssetDataFromCloudAsset(IEnumerable<IAssetData> assetDatas);
         ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier id);
         ImportedAssetInfo GetImportedAssetInfo(string guid);
-        Task<ImportedStatus> GetImportedStatus(AssetIdentifier id);
-        Task GetImportedStatus(AssetIdentifier identifier, Action<AssetIdentifier, ImportedStatus> callback);
         IAssetData GetAssetData(AssetIdentifier id);
         bool IsInProject(AssetIdentifier id);
     }
 
-    enum ImportedStatus
-    {
-        None,
-        UpToDate,
-        OutDated,
-        Error,
-    }
-
     [Serializable]
-    internal class AssetDataManager : BaseService<IAssetDataManager>, IAssetDataManager, ISerializationCallbackReceiver
+    class AssetDataManager : BaseService<IAssetDataManager>, IAssetDataManager, ISerializationCallbackReceiver
     {
-        private readonly Dictionary<string, ImportedAssetInfo> m_GuidToImportedAssetInfoLookup = new();
-        private readonly Dictionary<AssetIdentifier, ImportedAssetInfo> m_AssetIdToImportedAssetInfoLookup = new();
-        private readonly Dictionary<AssetIdentifier, IAssetData> m_AssetData = new();
+        readonly Dictionary<string, ImportedAssetInfo> m_GuidToImportedAssetInfoLookup = new();
+        readonly Dictionary<AssetIdentifier, ImportedAssetInfo> m_AssetIdToImportedAssetInfoLookup = new();
+        readonly Dictionary<AssetIdentifier, IAssetData> m_AssetData = new();
+
         [SerializeField]
-        private ImportedAssetInfo[] m_SerializedImportedAssetInfos = Array.Empty<ImportedAssetInfo>();
-        [SerializeField]
-        private AssetData[] m_SerializedAssetData = Array.Empty<AssetData>();
+        ImportedAssetInfo[] m_SerializedImportedAssetInfos = Array.Empty<ImportedAssetInfo>();
+
+        [SerializeReference]
+        IAssetData[] m_SerializedAssetData = Array.Empty<IAssetData>();
 
         public event Action<AssetChangeArgs> onImportedAssetInfoChanged = delegate {};
         public event Action<AssetChangeArgs> onAssetDataChanged = delegate {};
         public IReadOnlyCollection<ImportedAssetInfo> importedAssetInfos => m_AssetIdToImportedAssetInfoLookup.Values;
-        
-        private readonly IUnityConnectProxy m_UnityConnect;
-        public AssetDataManager(IUnityConnectProxy unityConnect)
+
+        [SerializeReference]
+        IUnityConnectProxy m_UnityConnect;
+
+        [ServiceInjection]
+        public void Inject(IUnityConnectProxy unityConnect)
         {
-            m_UnityConnect = RegisterDependency(unityConnect);
+            m_UnityConnect = unityConnect;
         }
 
         public override void OnEnable()
@@ -176,20 +171,19 @@ namespace Unity.AssetManager.Editor
             var added = new HashSet<AssetIdentifier>();
 
             foreach (var assetData in assetDatas)
-            { 
-                
-                if(m_AssetData.ContainsKey(assetData.identifier))
+            {
+                if (m_AssetData.TryGetValue(assetData.identifier, out var existingAssetData))
                 {
-                    if (!AssetData.IsDifferent(assetData as AssetData, m_AssetData[assetData.identifier] as AssetData))
+                    if (existingAssetData.IsTheSame(assetData))
                         continue;
-                    
+
                     updated.Add(assetData.identifier);
                 }
                 else
                 {
                     added.Add(assetData.identifier);
                 }
-                
+
                 m_AssetData[assetData.identifier] = assetData;
             }
 
@@ -208,43 +202,16 @@ namespace Unity.AssetManager.Editor
             return m_GuidToImportedAssetInfoLookup.TryGetValue(guid, out var result) ? result : null;
         }
 
-        public async Task<ImportedStatus> GetImportedStatus(AssetIdentifier id)
-        {
-            var importedAssetInfo = GetImportedAssetInfo(id);
-            
-            if (importedAssetInfo == null)
-            {
-                return ImportedStatus.None;
-            }
-            
-            try
-            {
-                var cloudAsset = await Services.AssetRepository.GetAssetAsync(id.ToAssetDescriptor(), new FieldsFilter { AssetFields = AssetFields.authoring }, CancellationToken.None);
-
-                return importedAssetInfo.assetData.updated == cloudAsset.AuthoringInfo.Updated ? ImportedStatus.UpToDate : ImportedStatus.OutDated;
-            }
-            catch (Exception)
-            {
-                return ImportedStatus.Error;
-            }
-        }
-
-        public async Task GetImportedStatus(AssetIdentifier identifier, Action<AssetIdentifier, ImportedStatus> callback)
-        {
-            var importedStatus = await GetImportedStatus(identifier);
-            callback.Invoke(identifier, importedStatus);
-        }
-
         public IAssetData GetAssetData(AssetIdentifier id)
         {
             if (id?.IsValid() != true)
                 return null;
-            
+
             if (m_AssetIdToImportedAssetInfoLookup.TryGetValue(id, out var info))
             {
                 return info?.assetData;
             }
-            
+
             return m_AssetData.TryGetValue(id, out var result) ? result : null;
         }
 
@@ -266,7 +233,7 @@ namespace Unity.AssetManager.Editor
         public void OnBeforeSerialize()
         {
             m_SerializedImportedAssetInfos = m_GuidToImportedAssetInfoLookup.Values.ToArray();
-            m_SerializedAssetData = m_AssetData.Values.OfType<AssetData>().ToArray();
+            m_SerializedAssetData = m_AssetData.Values.ToArray();
         }
 
         public void OnAfterDeserialize()

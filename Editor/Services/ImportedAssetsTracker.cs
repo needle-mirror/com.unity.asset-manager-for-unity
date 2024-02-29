@@ -10,7 +10,7 @@ namespace Unity.AssetManager.Editor
     internal interface IImportedAssetsTracker : IService
     {
         void TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, IAssetData assetData);
-        public void UntrackAsset(IAssetData assetData);
+        public void UntrackAsset(AssetIdentifier identifier);
     }
 
     [Serializable]
@@ -64,14 +64,21 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         private bool m_InitialImportedAssetInfoLoaded;
 
-        private readonly IIOProxy m_IOProxy;
-        private readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
-        private readonly IAssetDataManager m_AssetDataManager;
-        public ImportedAssetsTracker(IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy, IAssetDataManager assetDataManager)
+        [SerializeReference]
+        IIOProxy m_IOProxy;
+        
+        [SerializeReference]
+        IAssetDatabaseProxy m_AssetDatabaseProxy;
+        
+        [SerializeReference]
+        IAssetDataManager m_AssetDataManager;
+
+        [ServiceInjection]
+        public void Inject(IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy, IAssetDataManager assetDataManager)
         {
-            m_IOProxy = RegisterDependency(ioProxy);
-            m_AssetDatabaseProxy = RegisterDependency(assetDatabaseProxy);
-            m_AssetDataManager = RegisterDependency(assetDataManager);
+            m_IOProxy = ioProxy;
+            m_AssetDatabaseProxy = assetDatabaseProxy;
+            m_AssetDataManager = assetDataManager;
         }
 
         public override void OnEnable()
@@ -217,12 +224,12 @@ namespace Unity.AssetManager.Editor
             }
         }
         
-        public void UntrackAsset(IAssetData assetData)
+        public void UntrackAsset(AssetIdentifier identifier)
         {
-            if (assetData == null)
+            if (identifier == null)
                 return;
             
-            var filename = assetData.identifier.assetId;
+            var filename = identifier.assetId;
             var importInfoFilePath = Path.Combine(m_ImportedAssetInfoFolderPath, filename);
             m_IOProxy.DeleteFileIfExists(importInfoFilePath);
         }

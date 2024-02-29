@@ -8,7 +8,7 @@ namespace Unity.AssetManager.Editor
 {
     internal interface IThumbnailDownloader : IService
     {
-        void DownloadThumbnail(IAssetData assetData, Action<AssetIdentifier, Texture2D> doneCallbackAction = null);
+        void DownloadThumbnail(AssetIdentifier identifier, string thumbnailUrl, Action<AssetIdentifier, Texture2D> doneCallbackAction = null);
     }
 
     [Serializable]
@@ -25,16 +25,25 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         private Texture2D[] m_SerializedThumbnails;
 
-        private readonly IDownloadManager m_DownloadManager;
-        private readonly IIOProxy m_IOProxy;
-        private readonly ISettingsManager m_SettingsManager;
-        private readonly ICacheEvictionManager m_CacheEvictionManager;
-        public ThumbnailDownloader(IDownloadManager downloadManager, IIOProxy ioProxy, ISettingsManager settingsManager, ICacheEvictionManager cacheEvictionManager)
+        [SerializeReference]
+        IDownloadManager m_DownloadManager;
+
+        [SerializeReference]
+        IIOProxy m_IOProxy;
+
+        [SerializeReference]
+        ISettingsManager m_SettingsManager;
+
+        [SerializeReference]
+        ICacheEvictionManager m_CacheEvictionManager;
+
+        [ServiceInjection]
+        public void Inject(IDownloadManager downloadManager, IIOProxy ioProxy, ISettingsManager settingsManager, ICacheEvictionManager cacheEvictionManager)
         {
-            m_DownloadManager = RegisterDependency(downloadManager);
-            m_IOProxy = RegisterDependency(ioProxy);
-            m_SettingsManager = RegisterDependency(settingsManager);
-            m_CacheEvictionManager = RegisterDependency(cacheEvictionManager);
+            m_DownloadManager = downloadManager;
+            m_IOProxy = ioProxy;
+            m_SettingsManager = settingsManager;
+            m_CacheEvictionManager = cacheEvictionManager;
         }
 
         public override void OnEnable()
@@ -67,19 +76,18 @@ namespace Unity.AssetManager.Editor
                 callback?.Invoke(assetId, thumbnail);
         }
 
-        public void DownloadThumbnail(IAssetData assetData, Action<AssetIdentifier, Texture2D> doneCallbackAction = null)
+        public void DownloadThumbnail(AssetIdentifier identifier, string thumbnailUrl, Action<AssetIdentifier, Texture2D> doneCallbackAction = null)
         {
-            var thumbnailUrl = assetData.previewFileUrl;
             if (string.IsNullOrEmpty(thumbnailUrl))
             {
-                doneCallbackAction?.Invoke(assetData.identifier, null);
+                doneCallbackAction?.Invoke(identifier, null);
                 return;
             }
             var thumbnailFileName = Hash128.Compute(thumbnailUrl).ToString();
             var thumbnail = LoadThumbnail(thumbnailUrl, Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName));
             if (thumbnail != null)
             {
-                doneCallbackAction?.Invoke(assetData.identifier, thumbnail);
+                doneCallbackAction?.Invoke(identifier, thumbnail);
                 return;
             }
 
@@ -89,8 +97,9 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            var download = m_DownloadManager.StartDownload(thumbnailUrl, Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName + k_TempExt));
-            m_DownloadIdToAssetIdMap[download.id] = assetData.identifier;
+            var download = m_DownloadManager.CreateDownloadOperation(thumbnailUrl, Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName + k_TempExt));
+            m_DownloadManager.StartDownload(download);
+            m_DownloadIdToAssetIdMap[download.id] = identifier;
             var newCallbacks = new List<Action<AssetIdentifier, Texture2D>>();
             if (doneCallbackAction != null)
                 newCallbacks.Add(doneCallbackAction);

@@ -17,7 +17,7 @@ namespace Unity.AssetManager.Editor
             var footerContainer = new VisualElement {name = "FooterContainer"};
             footerContainer.Add(new HorizontalSeparator());
             footerContainer.AddToClassList("mb-1");
-            footerContainer.Add(new SideBarButton(pageManager, string.Empty, "In Project", UIElementsUtils.GetCategoryIcon("In-Project.png"), PageType.InProject));
+            footerContainer.Add(new SideBarButton<InProjectPage>(pageManager, "In Project", UIElementsUtils.GetCategoryIcon("In-Project.png")));
             Add(footerContainer);
         }
     }

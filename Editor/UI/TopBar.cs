@@ -20,7 +20,6 @@ namespace Unity.AssetManager.Editor
         private TextField m_SearchTextField;
         private VisualElement m_SearchPillsContainer;
         private Button m_ClearAllButton;
-        private Label m_InProjectLabel;
         private Button m_RefreshButton;
 
         private bool m_Focused;
@@ -52,11 +51,8 @@ namespace Unity.AssetManager.Editor
                 m_ClearAllButton.clicked += OnSearchCancelClick;
             }
 
-            m_InProjectLabel = this.Q<Label>("in-project-label");
-            m_InProjectLabel.text = L10n.Tr("In Project");
-
             m_SearchPillsContainer = new VisualElement();
-            m_SearchPillsContainer.AddToClassList("m_SearchPillsContainer");
+            m_SearchPillsContainer.AddToClassList("search-pill-container");
             m_ToolbarSearchField.Insert(1, m_SearchPillsContainer);
 
             m_TextInput = m_ToolbarSearchField.Q<TextField>().Q("unity-text-input");
@@ -72,7 +68,7 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager.onActivePageChanged += OnActivePageChanged;
             m_PageManager.onSearchFiltersChanged += OnPageSearchFiltersChanged;
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged += OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
             Refresh(m_PageManager.activePage);
         }
 
@@ -80,10 +76,10 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager.onActivePageChanged -= OnActivePageChanged;
             m_PageManager.onSearchFiltersChanged -= OnPageSearchFiltersChanged;
-            m_ProjectOrganizationProvider.onOrganizationInfoOrLoadingChanged -= OnOrganizationInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
         }
 
-        void OnPageSearchFiltersChanged(IPage page, IReadOnlyCollection<string> searchFilters)
+        void OnPageSearchFiltersChanged(IPage page, IEnumerable<string> searchFilters)
         {
             if (page.isActivePage)
                 Refresh(page);
@@ -117,20 +113,8 @@ namespace Unity.AssetManager.Editor
         private void Refresh(IPage page)
         {
             if (page == null)
-            {
-                UIElementsUtils.Hide(this);
                 return;
-            }
-            UIElementsUtils.Show(this);
 
-            if (page.pageType == PageType.InProject)
-            {
-                UIElementsUtils.Hide(m_ToolbarSearchField);
-                UIElementsUtils.Show(m_InProjectLabel);
-                return;
-            }
-
-            UIElementsUtils.Hide(m_InProjectLabel);
             if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.errorOrMessageHandlingData.message))
             {
                 UIElementsUtils.Hide(m_RefreshButton);
@@ -142,16 +126,16 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.Show(m_ToolbarSearchField);
             m_SearchPillsContainer.Clear();
             m_ToolbarSearchField.SetValueWithoutNotify(string.Empty);
-            foreach (var filter in page.searchFilters)
+            foreach (var filter in page.pageFilters.searchFilters)
                 m_SearchPillsContainer.Add(new SearchFilterPill(filter, DismissSearchFilter));
 
             ShowSearchTermsTextIfNeeded();
-            m_ClearAllButton.visible = page.searchFilters.Any();
+            m_ClearAllButton.visible = page.pageFilters.searchFilters.Any();
         }
 
         private void OnSearchCancelClick()
         {
-            m_PageManager.activePage.ClearSearchFilters(true);
+            m_PageManager.activePage.pageFilters.ClearSearchFilters();
             ShowSearchTermsTextIfNeeded();
         }
 
@@ -161,7 +145,10 @@ namespace Unity.AssetManager.Editor
                 return;
             var searchFilters = evt.newValue.Split(" ").Where(s => !string.IsNullOrEmpty(s));
             if (searchFilters.Any())
-                m_PageManager.activePage.AddSearchFilter(searchFilters, true);
+            {
+                AnalyticsSender.SendEvent(new SearchAttemptEvent(searchFilters.Count()));
+                m_PageManager.activePage.pageFilters.AddSearchFilter(searchFilters);
+            }
 
             if (m_Focused)
                 SetKeyboardFocusOnSearchField();
@@ -173,7 +160,7 @@ namespace Unity.AssetManager.Editor
             {
                 case KeyCode.Escape:
                     m_ToolbarSearchField.value = "";
-                    m_PageManager.activePage.ClearSearchFilters(true);
+                    m_PageManager.activePage.pageFilters.ClearSearchFilters();
                     SetKeyboardFocusOnSearchField();
                     return;
                 case KeyCode.Backspace when string.IsNullOrWhiteSpace(m_SearchTextField.text):
@@ -190,20 +177,24 @@ namespace Unity.AssetManager.Editor
 
         private void PopSearchPill()
         {
-            if (!m_PageManager.activePage.searchFilters.Any())
+            var pageFilters = m_PageManager.activePage.pageFilters;
+
+            if (!m_PageManager.activePage.pageFilters.searchFilters.Any())
                 return;
 
-            m_PageManager.activePage.RemoveSearchFilter(m_PageManager.activePage.searchFilters.Last(), true);
-            if (!m_PageManager.activePage.searchFilters.Any())
+            pageFilters.RemoveSearchFilter(pageFilters.searchFilters.Last());
+            if (!pageFilters.searchFilters.Any())
                 ShowSearchTermsTextIfNeeded();
         }
 
         private void DismissSearchFilter(string searchFilter)
         {
-            if (!m_PageManager.activePage.searchFilters.Contains(searchFilter))
+            var pageFilters = m_PageManager.activePage.pageFilters;
+
+            if (!pageFilters.searchFilters.Contains(searchFilter))
                 return;
 
-            m_PageManager.activePage.RemoveSearchFilter(searchFilter, true);
+            pageFilters.RemoveSearchFilter(searchFilter);
             SetKeyboardFocusOnSearchField();
         }
 
@@ -213,7 +204,7 @@ namespace Unity.AssetManager.Editor
                 m_SearchTextField.SetValueWithoutNotify(k_SearchTerms);
         }
 
-        private void OnOrganizationInfoOrLoadingChanged(OrganizationInfo org, bool isLoading)
+        private void OrganizationChanged(OrganizationInfo organizationInfo)
         {
             Refresh(m_PageManager.activePage);
         }

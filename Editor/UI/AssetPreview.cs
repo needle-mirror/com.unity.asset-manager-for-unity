@@ -3,7 +3,7 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class AssetPreview : VisualElement
+    class AssetPreview : VisualElement
     {
         static class UssStyles
         {
@@ -12,14 +12,10 @@ namespace Unity.AssetManager.Editor
             public static readonly string AssetTypeIcon = "asset-preview-asset-type-icon";
             public static readonly string DefaultAssetIcon = "default-asset-icon";
             public static readonly string ImportedStatus = Constants.GridItemStyleClassName + "-imported_status";
-            public static readonly string ImportedStatusImported = ImportedStatus + "-imported";
-            public static readonly string ImportedStatusUpToDate = ImportedStatus + "-up_to_date";
-            public static readonly string ImportedStatusOutOfDate = ImportedStatus + "-out_of_date";
-            public static readonly string ImportedStatusError = ImportedStatus + "-error";
         }
 
-        private readonly DraggableImage m_DraggableImage;
-        private readonly VisualElement m_AssetTypeIcon;
+        readonly DraggableImage m_DraggableImage;
+        readonly VisualElement m_AssetTypeIcon;
         readonly VisualElement m_ImportedStatusIcon;
 
         public AssetPreview()
@@ -38,55 +34,40 @@ namespace Unity.AssetManager.Editor
             Add(m_AssetTypeIcon);
             Add(m_ImportedStatusIcon);
         }
-        
-        public void SetImportStatusIcon(ImportedStatus importedStatus)
+
+        public interface IStatus
         {
-            UIElementsUtils.SetDisplay(m_ImportedStatusIcon, importedStatus != ImportedStatus.None);
+            string Description { get; }
+            VisualElement CreateVisualTree();
+        }
 
-            m_ImportedStatusIcon.RemoveFromClassList(UssStyles.ImportedStatusImported);
-            m_ImportedStatusIcon.RemoveFromClassList(UssStyles.ImportedStatusUpToDate);
-            m_ImportedStatusIcon.RemoveFromClassList(UssStyles.ImportedStatusOutOfDate);
-            m_ImportedStatusIcon.RemoveFromClassList(UssStyles.ImportedStatusError);
-            
-            var tooltipStr = "Asset is imported";
-            
-            switch (importedStatus)
-            {
-                case ImportedStatus.UpToDate:
-                    m_ImportedStatusIcon.AddToClassList(UssStyles.ImportedStatusUpToDate);
-                    tooltipStr = "Asset is up to date";
-                    break;
-                
-                case ImportedStatus.OutDated:
-                    m_ImportedStatusIcon.AddToClassList(UssStyles.ImportedStatusOutOfDate);
-                    tooltipStr = "Asset is outdated";
-                    break;
-                
-                case ImportedStatus.Error:
-                    m_ImportedStatusIcon.AddToClassList(UssStyles.ImportedStatusError);
-                    tooltipStr = "Asset was deleted or is not accessible";
-                    break;
-                default:
-                    m_ImportedStatusIcon.AddToClassList(UssStyles.ImportedStatusImported);
-                    break;
-            }
+        public void SetStatus(IStatus status)
+        {
+            UIElementsUtils.SetDisplay(m_ImportedStatusIcon, status != null);
 
-            m_ImportedStatusIcon.tooltip = tooltipStr;
+            m_ImportedStatusIcon.Clear();
+
+            if (status == null)
+                return;
+
+            m_ImportedStatusIcon.Add(status.CreateVisualTree());
+            m_ImportedStatusIcon.tooltip = status.Description;
         }
 
         public void SetAssetType(string extension, bool useAssetTypeAsTooltip)
         {
             var icon = AssetDataTypeHelper.GetIconForExtension(extension);
 
+            UIElementsUtils.Show(m_AssetTypeIcon);
             m_AssetTypeIcon.EnableInClassList(UssStyles.DefaultAssetIcon, icon == null);
             m_AssetTypeIcon.style.backgroundImage = icon == null ? StyleKeyword.Null : icon;
-            m_AssetTypeIcon.tooltip = useAssetTypeAsTooltip ? extension : string.Empty;
+            m_AssetTypeIcon.tooltip = useAssetTypeAsTooltip ? extension : null;
         }
 
         public void ClearPreview()
         {
             SetThumbnail(null);
-            
+
             m_AssetTypeIcon.EnableInClassList(UssStyles.DefaultAssetIcon, false);
             m_AssetTypeIcon.style.backgroundImage = StyleKeyword.Null;
             m_AssetTypeIcon.tooltip = string.Empty;

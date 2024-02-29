@@ -2,11 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 using Button = UnityEngine.UIElements.Button;
 
@@ -14,53 +11,47 @@ namespace Unity.AssetManager.Editor
 {
     internal class AssetDetailsPage : VisualElement
     {
-        private string k_LoadingText = L10n.Tr("Loading...");
-        private ScrollView m_ScrollView;
-        private AssetPreview m_AssetPreview;
-        private VisualElement m_ThumbnailContainer;
-        private Label m_AssetName;
-        private Label m_AssetId;
-        private Image m_AssetDashboardLink;
-        private Label m_Version;
-        private Label m_Description;
-        private Label m_LastEdited;
-        private Label m_UploadDate;
-        private Label m_Filesize;
-        private Label m_AssetType;
-        private Label m_Status;
-        private Label m_TotalFiles;
-        private VisualElement m_TagsContainer;
-        private Button m_ImportButton;
-        private Button m_ShowInProjectBrowserButton;
-        private Button m_RemoveImportButton;
-        private Button m_PreviewButton;
-        private Button m_CloseButton;
-        private VisualElement m_Footer;
-        private Label m_FilesLoadingLabel;
-        private ListView m_FilesListView;
-        private Foldout m_FilesFoldout;
-        private ImportProgressBar m_ImportProgressBar;
-        private VisualElement m_NoFilesWarningBox;
-        private VisualElement m_ProjectContainer;
+        readonly string k_LoadingText = L10n.Tr("Loading...");
+        readonly AssetPreview m_AssetPreview;
+        readonly Label m_AssetName;
+        readonly Label m_AssetId;
+        readonly Label m_Version;
+        readonly Label m_Description;
+        readonly Label m_LastEdited;
+        readonly Label m_UploadDate;
+        readonly Label m_Filesize;
+        readonly Label m_AssetType;
+        readonly Label m_Status;
+        readonly Label m_TotalFiles;
+        readonly VisualElement m_TagsContainer;
+        readonly VisualElement m_TagSection;
+        readonly VisualElement m_ButtonsContainer;
+        readonly Button m_ImportButton;
+        readonly Button m_ShowInProjectBrowserButton;
+        readonly Button m_RemoveImportButton;
+        readonly Label m_FilesLoadingLabel;
+        readonly ListView m_FilesListView;
+        readonly Foldout m_FilesFoldout;
+        readonly OperationProgressBar m_OperationProgressBar;
+        readonly VisualElement m_NoFilesWarningBox;
+        readonly VisualElement m_ProjectContainer;
 
-        private List<string> m_FilesList;
+        List<string> m_FilesList = new ();
 
-        private readonly IAssetImporter m_AssetImporter;
-        private readonly IStateManager m_StateManager;
-        private readonly IPageManager m_PageManager;
-        private readonly IAssetDataManager m_AssetDataManager;
-        private readonly IThumbnailDownloader m_ThumbnailDownloader;
-        private readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
-        private readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
-        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        private readonly ILinksProxy m_LinksProxy;
-        private readonly IProjectIconDownloader m_ProjectIconDownloader;
+        readonly IAssetImporter m_AssetImporter;
+        readonly IPageManager m_PageManager;
+        readonly IAssetDataManager m_AssetDataManager;
+        readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
+        readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
+        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly IProjectIconDownloader m_ProjectIconDownloader;
+
+        IAssetData m_SelectedAssetData;
 
         public AssetDetailsPage(IAssetImporter assetImporter,
             IStateManager stateManager,
             IPageManager pageManager,
             IAssetDataManager assetDataManager,
-            IThumbnailDownloader thumbnailDownloader,
             IEditorGUIUtilityProxy editorGUIUtilityProxy,
             IAssetDatabaseProxy assetDatabaseProxy,
             IProjectOrganizationProvider projectOrganizationProvider,
@@ -68,25 +59,22 @@ namespace Unity.AssetManager.Editor
             IProjectIconDownloader projectIconDownloader)
         {
             m_AssetImporter = assetImporter;
-            m_StateManager = stateManager;
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
-            m_ThumbnailDownloader = thumbnailDownloader;
             m_EditorGUIUtilityProxy = editorGUIUtilityProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
-            m_LinksProxy = linksProxy;
             m_ProjectIconDownloader = projectIconDownloader;
 
             var treeAsset = UIElementsUtils.LoadUXML("DetailsPageContainer");
             treeAsset.CloneTree(this);
 
-            m_ScrollView = this.Q<ScrollView>("details-page-scrollview");
+            var scrollView = this.Q<VisualElement>("details-page-scrollview");
             m_AssetName = this.Q<Label>("asset-name");
             m_AssetId = this.Q<Label>("id");
             m_Version = this.Q<Label>("version");
             m_Description = this.Q<Label>("description");
-            m_ThumbnailContainer = this.Q<VisualElement>("details-page-thumbnail-container");
+            var thumbnailContainer = this.Q<VisualElement>("details-page-thumbnail-container");
             m_Filesize = this.Q<Label>("filesize");
             m_AssetType = this.Q<Label>("assetType");
             m_Status = this.Q<Label>("status");
@@ -96,211 +84,172 @@ namespace Unity.AssetManager.Editor
             m_FilesFoldout = this.Q<Foldout>("details-files-foldout");
             m_LastEdited = this.Q<Label>("last-edited");
             m_UploadDate = this.Q<Label>("upload-date");
-            m_CloseButton = this.Q<Button>("closeButton");
+            var closeButton = this.Q<Button>("closeButton");
+
             m_ImportButton = this.Q<Button>("importButton");
+            m_ImportButton.text = Constants.ImportActionText;
+
             m_ShowInProjectBrowserButton = this.Q<Button>("showInProjectBrowserButton");
+            m_ShowInProjectBrowserButton.text = Constants.ShowInProjectActionText;
+
             m_RemoveImportButton = this.Q<Button>("removeImportButton");
+            m_RemoveImportButton.text = Constants.RemoveFromProjectActionText;
+
+            m_TagSection = this.Q<VisualElement>("details-page-tag-section");
             m_TagsContainer = this.Q<VisualElement>("details-page-tags-container");
-            m_Footer = this.Q<VisualElement>("footer");
             m_NoFilesWarningBox = this.Q<VisualElement>("no-files-warning-box");
             m_NoFilesWarningBox.Q<Label>().text = L10n.Tr("No files were found in this asset.");
             m_ProjectContainer = this.Q<VisualElement>("details-page-project-pill-container");
 
-            m_AssetDashboardLink = this.Q<Image>("asset-dashboard-link");
-            m_AssetDashboardLink.image = UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ExternalLinkName]);
-            m_AssetDashboardLink.tooltip = L10n.Tr("Open asset in the dashboard");
-            m_AssetDashboardLink.RegisterCallback<ClickEvent>(e =>
+            var assetDashboardLink = this.Q<Image>("asset-dashboard-link");
+            assetDashboardLink.image = UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ExternalLinkName]);
+            assetDashboardLink.tooltip = L10n.Tr("Open asset in the dashboard");
+            assetDashboardLink.RegisterCallback<ClickEvent>(e =>
             {
-                var assetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId);
-                m_LinksProxy.OpenAssetManagerDashboard(assetData.identifier.projectId, assetData.identifier.assetId);
+                linksProxy.OpenAssetManagerDashboard(m_SelectedAssetData?.identifier);
             });
 
             m_AssetPreview = new AssetPreview { name = "details-page-asset-preview" };
             m_AssetPreview.AddToClassList("image-container");
             m_AssetPreview.AddToClassList("details-page-asset-preview-thumbnail");
-            m_ThumbnailContainer.Add(m_AssetPreview);
+            thumbnailContainer.Add(m_AssetPreview);
 
-            var footerContainer = this.Q<VisualElement>("footer-container");
-            m_ImportProgressBar = new ImportProgressBar(m_PageManager, m_AssetImporter, true);
-            footerContainer.Add(m_ImportProgressBar);
+            m_ButtonsContainer = this.Q<VisualElement>("footer-container");
+            m_OperationProgressBar = new OperationProgressBar(m_PageManager, m_AssetImporter, true);
+            m_ButtonsContainer.Add(m_OperationProgressBar);
 
             m_FilesLoadingLabel.text = k_LoadingText;
-            m_ScrollView.viewDataKey = "details-page-scrollview";
+            UIElementsUtils.Hide(m_FilesLoadingLabel);
+            scrollView.viewDataKey = "details-page-scrollview";
             m_FilesFoldout.viewDataKey = "details-files-foldout";
             m_FilesListView.viewDataKey = "details-files-listview";
 
             m_FilesFoldout.RegisterValueChangedCallback(e =>
             {
-                m_StateManager.detailsFileFoldoutValue = m_FilesFoldout.value;
+                stateManager.detailsFileFoldoutValue = m_FilesFoldout.value;
                 RefreshFoldoutStyleBasedOnExpansionStatus();
 
                 // Bug in UI Toolkit where the scrollview does not update its size when the foldout is expanded/collapsed.
                 schedule.Execute(e => { this.Q<ScrollView>("details-page-scrollview").verticalScrollerVisibility = ScrollerVisibility.Auto; }).StartingIn(25);
             });
 
-            m_FilesFoldout.value = m_StateManager.detailsFileFoldoutValue;
+            m_FilesFoldout.value = stateManager.detailsFileFoldoutValue;
             RefreshFoldoutStyleBasedOnExpansionStatus();
 
             // Setup the import button logic here. Since we have the assetData information both in this object's properties
             // and in AssetManagerWindow.m_CurrentAssetData, we should not need any special method with arguments
             m_ImportButton.clicked += ImportAssetAsync;
-            m_ShowInProjectBrowserButton.clicked += m_ShowInProjectBrowser;
+            m_ShowInProjectBrowserButton.clicked += ShowInProjectBrowser;
             m_RemoveImportButton.clicked += RemoveFromProject;
-            m_CloseButton.clicked += () => m_PageManager.activePage.selectedAssetId = null;
+            closeButton.clicked += () => m_PageManager.activePage.selectedAssetId = null;
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
 
             // We need to manually refresh once to make sure the UI is updated when the window is opened.
-            Refresh(m_PageManager.activePage);
+
+            m_SelectedAssetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage?.selectedAssetId);
+            RefreshUI();
         }
 
-        internal void OnAttachToPanel(AttachToPanelEvent evt)
+        void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged += Refresh;
-            m_PageManager.onSelectedAssetChanged += onSelectedAssetChanged;
             m_AssetImporter.onImportProgress += OnImportProgress;
             m_AssetImporter.onImportFinalized += OnImportFinalized;
             m_AssetDataManager.onImportedAssetInfoChanged += OnImportedAssetInfoChanged;
             m_AssetDataManager.onAssetDataChanged += OnAssetDataChanged;
         }
 
-        internal void OnDetachFromPanel(DetachFromPanelEvent evt)
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged -= Refresh;
-            m_PageManager.onSelectedAssetChanged -= onSelectedAssetChanged;
             m_AssetImporter.onImportProgress -= OnImportProgress;
             m_AssetImporter.onImportFinalized -= OnImportFinalized;
             m_AssetDataManager.onImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
             m_AssetDataManager.onAssetDataChanged -= OnAssetDataChanged;
         }
 
-        private void onSelectedAssetChanged(IPage page, AssetIdentifier _)
+        public async Task SelectedAsset(AssetIdentifier assetIdentifier)
         {
-            if (m_PageManager.activePage != page)
-                return;
-            
-            Refresh(page);
+            var assetData = m_AssetDataManager.GetAssetData(assetIdentifier);
+            await SelectAssetDataAsync(assetData);
         }
 
         private void OnImportProgress(ImportOperation importOperation)
         {
-            if (!importOperation.assetId.Equals(m_PageManager.activePage.selectedAssetId))
+            if (!importOperation.assetId.Equals(m_SelectedAssetData?.identifier))
                 return;
-            
-            RefreshImportVisibility(importOperation.assetData, importOperation);
-            m_ImportProgressBar.Refresh(importOperation);
+
+            RefreshButtons(m_SelectedAssetData, importOperation);
+            m_OperationProgressBar.Refresh(importOperation);
+
+            if (importOperation.Status != OperationStatus.InProgress)
+            {
+                _ = SelectAssetDataAsync(importOperation.assetData);
+            }
         }
 
         private void OnImportFinalized(ImportOperation importOperation)
         {
-            if (!importOperation.assetId.Equals(m_PageManager.activePage.selectedAssetId))
+            if (!importOperation.assetId.Equals(m_SelectedAssetData?.identifier))
                 return;
-            
-            Refresh(m_PageManager.activePage);
+
+            RefreshUI();
         }
 
         private void OnImportedAssetInfoChanged(AssetChangeArgs args)
         {
-            if (!args.added.Concat(args.updated).Concat(args.removed).Any(a => a.Equals(m_PageManager.activePage.selectedAssetId)))
+            if (!args.added.Concat(args.updated).Concat(args.removed).Any(a => a.Equals(m_SelectedAssetData?.identifier)))
                 return;
-            
-            Refresh(m_PageManager.activePage);
+
+            RefreshUI();
         }
 
         private void ImportAssetAsync()
         {
+            var buttonType = m_ImportButton.text == Constants.ImportingText ?
+                DetailsButtonClickedEvent.ButtonType.Import :
+                DetailsButtonClickedEvent.ButtonType.Reimport;
+            AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(buttonType));
+
             m_ImportButton.SetEnabled(false);
-            var assetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId);
             try
             {
-                m_AssetImporter.StartImportAsync(assetData, ImportAction.ImportButton);
+                m_AssetImporter.StartImportAsync(m_SelectedAssetData, ImportAction.ImportButton);
             }
             catch (Exception)
             {
-                RefreshImportVisibility(assetData, m_AssetImporter.GetImportOperation(assetData.identifier));
+                RefreshButtons(m_SelectedAssetData, m_AssetImporter.GetImportOperation(m_SelectedAssetData?.identifier));
                 throw;
             }
         }
 
-        void m_ShowInProjectBrowser()
+        void ShowInProjectBrowser()
         {
             var assetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId);
-            m_AssetImporter.ShowInProject(assetData);
+            m_AssetImporter.ShowInProject(assetData.identifier);
+
+            AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Show));
         }
 
         void RemoveFromProject()
         {
+            AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Remove));
+
             m_RemoveImportButton.SetEnabled(false);
             m_ShowInProjectBrowserButton.SetEnabled(false);
-            var assetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId);
+
             try
             {
-                m_AssetImporter.RemoveImport(assetData, true);
+                m_AssetImporter.RemoveImport(m_SelectedAssetData?.identifier, true);
             }
             catch (Exception)
             {
-                RefreshImportVisibility(assetData, m_AssetImporter.GetImportOperation(assetData.identifier));
+                RefreshButtons(m_SelectedAssetData, m_AssetImporter.GetImportOperation(m_SelectedAssetData?.identifier));
                 throw;
             }
         }
 
-        private async void RefreshImportVisibility(IAssetData assetData, ImportOperation importOperation)
-        {
-            ClearUI(assetData);
-            
-            var isInProject = m_AssetDataManager.IsInProject(assetData.identifier);
-            
-            _ = m_AssetDataManager.GetImportedStatus(assetData.identifier, async (identifier, importedStatus) =>
-            {
-                if (!identifier.Equals(assetData.identifier))
-                    return;
-                
-                RefreshFilesInformation(assetData, importedStatus);
-            
-                m_AssetPreview.SetImportStatusIcon(importedStatus);
-            });
-
-            if (m_PageManager.activePage.selectedAssetId == null) 
-                return;
-            
-            var isImporting = importOperation?.status == OperationStatus.InProgress;
-            var isEnabled = !isImporting;
-
-            m_ImportButton.SetEnabled(isEnabled);
-            m_ImportButton.tooltip = !isEnabled ? L10n.Tr(Constants.ImportButtonDisabledToolTip) : string.Empty;
-            if (isImporting)
-            {
-                m_ImportButton.text = $"{Constants.ImportingText} ({importOperation.progress * 100:0.#}%)";
-            }
-            else
-            {
-                m_ImportButton.text = isInProject ? Constants.ReimportText : Constants.ImportText;
-                if (isInProject)
-                {
-                    m_ImportButton.tooltip = L10n.Tr("Restore the asset to it's original state");
-                }
-            }
-            
-            m_ShowInProjectBrowserButton.SetEnabled(isInProject);
-            m_RemoveImportButton.SetEnabled(isInProject);
-            m_RemoveImportButton.tooltip = isInProject ? string.Empty : L10n.Tr(Constants.RemoveFromProjectButtonDisabledToolTip);
-        }
-
-        void Refresh(IPage page)
-        {
-            var assetData = m_AssetDataManager.GetAssetData(page?.selectedAssetId);
-            if (assetData == null)
-            {
-                UIElementsUtils.Hide(this);
-                return;
-            }
-
-            UIElementsUtils.Show(this);
-            RefreshUI(assetData);
-        }
-
-        void ClearUI(IAssetData assetData)
+        void RefreshBaseInformationUI(IAssetData assetData)
         {
             m_AssetName.text = assetData.name;
             m_AssetId.text = assetData.identifier.assetId;
@@ -308,153 +257,213 @@ namespace Unity.AssetManager.Editor
             m_Status.text = assetData.status;
             m_Version.text = assetData.identifier.version;
 
-            m_FilesListView.itemsSource = null;
-            UIElementsUtils.Hide(m_NoFilesWarningBox);
-            UIElementsUtils.Show(m_FilesFoldout);
-            UIElementsUtils.Show(m_FilesLoadingLabel);
+            m_UploadDate.text = assetData.updated?.ToString("G", CultureInfo.CurrentCulture);
+            m_LastEdited.text = assetData.created?.ToString("G", CultureInfo.CurrentCulture);
+            m_Description.text = assetData.description;
+            UIElementsUtils.SetDisplay(m_Description, !string.IsNullOrEmpty(m_Description.text));
 
-            m_Filesize.text = m_TotalFiles.text = "...";
-            m_LastEdited.text = m_UploadDate.text = "...";
-            m_Description.text = "...";
-            
-            m_AssetPreview.SetImportStatusIcon(ImportedStatus.None);
+            m_AssetPreview.SetAssetType(assetData.primaryExtension, true);
+            m_AssetPreview.SetStatus(assetData.previewStatus);
+
+            RefreshProjectPill(assetData.identifier.projectId);
+            RefreshTags(assetData.tags);
+
+            var importOperation = m_AssetImporter.GetImportOperation(assetData.identifier);
+            RefreshButtons(assetData, importOperation);
+
+            m_OperationProgressBar.Refresh(importOperation);
+
+            RefreshFoldoutStyleBasedOnExpansionStatus();
         }
 
-        async void RefreshUI(IAssetData assetData)
+        void RefreshUI()
         {
-            ClearUI(assetData);
-            
-            m_TagsContainer.Clear();
-            m_ProjectContainer.Clear();
-
-            var projectInfo = m_ProjectOrganizationProvider.organization?.projectInfos.FirstOrDefault(p => p.id == assetData.identifier.projectId);
-            if (projectInfo != null)
+            if (m_SelectedAssetData == null)
             {
-                var projectPill = new ProjectPill(projectInfo);
-                projectPill.ProjectPillClickAction += pi =>
-                {
-                    m_ProjectOrganizationProvider.selectedProject = pi;
-                };
-                m_ProjectIconDownloader.DownloadIcon(projectInfo.id, (projectId, icon) =>
-                {
-                    if (projectId == projectInfo.id)
-                    {
-                        projectPill.SetIcon(icon);
-                    }
-                });
-                m_ProjectContainer.Add(projectPill);
-
-                var projectDashboardButton = new Image();
-                projectDashboardButton.AddToClassList("details-page-project-dashboard-button");
-                projectDashboardButton.image = UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ExternalLinkName]);
-                projectDashboardButton.tooltip = L10n.Tr("Open project in the dashboard");
-                projectDashboardButton.RegisterCallback<ClickEvent>(e => m_LinksProxy.OpenAssetManagerDashboard(projectInfo.id));
-                m_ProjectContainer.Add(projectDashboardButton);
+                UIElementsUtils.Hide(this);
+                return;
             }
 
-            foreach (var tag in assetData.tags)
+            UIElementsUtils.Show(this);
+
+            RefreshBaseInformationUI(m_SelectedAssetData);
+
+            _ = m_SelectedAssetData.GetThumbnailAsync((identifier, texture2D) =>
+            {
+                if (!identifier.Equals(m_SelectedAssetData?.identifier))
+                    return;
+
+                m_AssetPreview.SetThumbnail(texture2D);
+            });
+
+            RefreshFilesInformationUI(m_SelectedAssetData.sourceFiles);
+        }
+
+        async Task SelectAssetDataAsync(IAssetData assetData)
+        {
+            m_SelectedAssetData = assetData;
+
+            if (m_SelectedAssetData == null)
+                return;
+
+            RefreshUI();
+
+            var isInProject = m_AssetDataManager.IsInProject(m_SelectedAssetData.identifier); // TODO remove the notion of InProject
+            var tasks = new List<Task>();
+
+            if (!isInProject)
+            {
+                m_FilesListView.itemsSource = null;
+                UIElementsUtils.Hide(m_NoFilesWarningBox);
+                UIElementsUtils.Show(m_FilesLoadingLabel);
+                UIElementsUtils.Show(m_FilesFoldout);
+
+                m_TotalFiles.text = "-";
+                m_Filesize.text = "-";
+
+                tasks.Add(assetData.SyncWithCloudAsync(identifier =>
+                {
+                    if (!identifier.Equals(m_SelectedAssetData?.identifier))
+                        return;
+
+                    RefreshBaseInformationUI(assetData);
+
+                    RefreshFilesInformationUI(assetData.sourceFiles);
+
+                    UIElementsUtils.Hide(m_FilesLoadingLabel);
+                }));
+            }
+
+            m_AssetPreview.SetStatus(null);
+
+            tasks.Add(assetData.GetPreviewStatusAsync((identifier, status) =>
+            {
+                if (!identifier.Equals(m_SelectedAssetData?.identifier))
+                    return;
+
+                m_AssetPreview.SetStatus(status);
+            }));
+
+            await Task.WhenAll(tasks);
+
+            UIElementsUtils.Hide(m_FilesLoadingLabel);
+        }
+
+        void RefreshProjectPill(string projectId)
+        {
+            m_ProjectContainer.Clear();
+
+            var projectInfo = m_ProjectOrganizationProvider.SelectedOrganization?.projectInfos.Find(p => p.id == projectId);
+
+            if (projectInfo == null)
+                return;
+
+            var projectPill = new ProjectPill(projectInfo);
+            projectPill.ProjectPillClickAction += pi => { m_ProjectOrganizationProvider.SelectProject(pi); };
+
+            m_ProjectIconDownloader.DownloadIcon(projectInfo.id, (id, icon) =>
+            {
+                if (id == projectInfo.id)
+                {
+                    projectPill.SetIcon(icon);
+                }
+            });
+
+            m_ProjectContainer.Add(projectPill);
+        }
+
+        void RefreshTags(IEnumerable<string> tags)
+        {
+            m_TagsContainer.Clear();
+
+            foreach (var tag in tags)
             {
                 var tagPill = new TagPill(tag);
                 tagPill.TagPillClickAction += tagText =>
                 {
                     var words = tagText.Split(' ').Where(w => !string.IsNullOrEmpty(w));
-                    m_PageManager.activePage.AddSearchFilter(words, true);
+                    m_PageManager.activePage.pageFilters.AddSearchFilter(words);
                 };
                 m_TagsContainer.Add(tagPill);
             }
 
-            var importOperation = m_AssetImporter.GetImportOperation(assetData.identifier);
-            RefreshImportVisibility(assetData, importOperation);
-            m_ImportProgressBar.Refresh(importOperation);
-            
-            _ = assetData.GetPrimaryExtension((identifier, extension) =>
-            {
-                if (!identifier.Equals(assetData.identifier))
-                    return;
-                
-                m_AssetPreview.SetAssetType(extension, true);
-            });
-            
-            m_ThumbnailDownloader.DownloadThumbnail(assetData, (identifier, texture2D) =>
-            {
-                if (identifier.Equals(assetData.identifier))
-                {
-                    m_AssetPreview.SetThumbnail(texture2D);
-                }
-            });
-
-            RefreshFoldoutStyleBasedOnExpansionStatus();
+            UIElementsUtils.SetDisplay(m_TagSection, m_TagsContainer.childCount > 0);
         }
 
         void RefreshFoldoutStyleBasedOnExpansionStatus()
         {
             if (m_FilesFoldout.value)
             {
-                m_FilesFoldout.RemoveFromClassList("details-files-foldout-collapsed");
                 m_FilesFoldout.AddToClassList("details-files-foldout-expanded");
             }
             else
             {
                 m_FilesFoldout.RemoveFromClassList("details-files-foldout-expanded");
-                m_FilesFoldout.AddToClassList("details-files-foldout-collapsed");
             }
         }
 
-        private async void OnAssetDataChanged(AssetChangeArgs args)
+        void OnAssetDataChanged(AssetChangeArgs args)
         {
-            if (!args.added.Concat(args.removed).Concat(args.updated).Any(a => a.Equals(m_PageManager.activePage.selectedAssetId)))
+            if (!args.added.Concat(args.removed).Concat(args.updated).Any(a => a.Equals(m_SelectedAssetData?.identifier)))
                 return;
-            
-            var assetData = m_AssetDataManager.GetAssetData(m_PageManager.activePage.selectedAssetId);
-            
-            RefreshImportVisibility(assetData, m_AssetImporter.GetImportOperation(assetData.identifier));
+
+            RefreshButtons(m_SelectedAssetData, m_AssetImporter.GetImportOperation(m_SelectedAssetData?.identifier));
         }
 
-        async void RefreshFilesInformation(IAssetData assetData, ImportedStatus importedStatus)
+        void RefreshFilesInformationUI(IEnumerable<IAssetDataFile> assetDataFiles)
         {
-            if (assetData == null)
-                return;
-            
-            if (importedStatus == ImportedStatus.None)
-            {
-                await assetData.SyncWithCloudAsync();
-            }
+            var files = assetDataFiles.ToList();
 
-            m_FilesList = new List<string>();
-            var files = assetData.cachedFiles.ToList();
-            foreach (var file in files.OrderBy(f => f.path))
-            {
-                m_FilesList.Add(file.path);
-            }
-
-            m_UploadDate.text = assetData.updated.ToString("G", CultureInfo.CurrentCulture);
-            m_LastEdited.text = assetData.created.ToString("G", CultureInfo.CurrentCulture);
-            m_Description.text = assetData.description;
-
-
-            files = assetData.cachedFiles.ToList();
-            
-            var assetFileSize = files.Sum(i => i.fileSize);
-            m_Filesize.text = Utilities.BytesToReadableString(assetFileSize);
-            m_TotalFiles.text = files.Count.ToString();
-            
             var hasFiles = files.Any();
+
+            if (hasFiles)
+            {
+                var assetFileSize = files.Sum(i => i.fileSize);
+                m_Filesize.text = Utilities.BytesToReadableString(assetFileSize);
+                m_TotalFiles.text = files.Count.ToString();
+
+                m_FilesList = files.OrderBy(f => f.path).Select(f => f.path).ToList();
+
+                m_FilesListView.makeItem = () => new DetailsPageFileItem(m_AssetDataManager, m_PageManager, m_AssetImporter, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy);
+                m_FilesListView.bindItem = (element, i) => { ((DetailsPageFileItem)element).Refresh(m_FilesList[i], m_FilesList); };
+                m_FilesListView.itemsSource = m_FilesList;
+                m_FilesListView.fixedItemHeight = 30;
+            }
+            else
+            {
+                m_Filesize.text = Utilities.BytesToReadableString(0);
+                m_TotalFiles.text = "0";
+
+                m_FilesListView.itemsSource = null;
+            }
+
             UIElementsUtils.SetDisplay(m_FilesFoldout, hasFiles);
             UIElementsUtils.SetDisplay(m_NoFilesWarningBox, !hasFiles);
-            
-            UIElementsUtils.Hide(m_FilesLoadingLabel);
-            UIElementsUtils.Show(m_FilesListView);
-            
-            m_FilesList = new List<string>();
-            foreach (var file in files.OrderBy(f => f.path))
+            UIElementsUtils.SetDisplay(m_FilesListView, hasFiles);
+        }
+
+        void RefreshButtons(IAssetData assetData, BaseOperation importOperation)
+        {
+            UIElementsUtils.SetDisplay(m_ButtonsContainer, assetData is AssetData); // TODO Expose per button override per IAssetData
+
+            var isInProject = m_AssetDataManager.IsInProject(assetData.identifier);
+            var isImporting = importOperation?.Status == OperationStatus.InProgress;
+            var isEnabled = !isImporting;
+
+            m_ImportButton.SetEnabled(isEnabled);
+            m_ImportButton.tooltip = !isEnabled ? L10n.Tr(Constants.ImportButtonDisabledToolTip) : string.Empty;
+            if (isImporting)
             {
-                m_FilesList.Add(file.path);
+                m_ImportButton.text = $"{Constants.ImportingText} ({importOperation.Progress * 100:0.#}%)";
+            }
+            else
+            {
+                m_ImportButton.text = isInProject ? Constants.ReimportActionText : Constants.ImportActionText;
             }
 
-            m_FilesListView.makeItem = () => new DetailsPageFileItem(m_AssetDataManager, m_PageManager, m_AssetImporter, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy);
-            m_FilesListView.bindItem = (element, i) => { ((DetailsPageFileItem)element).Refresh(m_FilesList[i], m_FilesList); };
-            m_FilesListView.itemsSource = m_FilesList;
-            m_FilesListView.fixedItemHeight = 30;
+            m_ShowInProjectBrowserButton.SetEnabled(isInProject);
+            m_RemoveImportButton.SetEnabled(isInProject);
+            m_RemoveImportButton.tooltip = isInProject ? string.Empty : L10n.Tr(Constants.RemoveFromProjectButtonDisabledToolTip);
         }
     }
 }

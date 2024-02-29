@@ -4,27 +4,27 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class AssetManagerTypeFilter : CloudFilter
+    class AssetManagerTypeFilter : CloudFilter
     {
-        public AssetManagerTypeFilter(IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
-            : base(projectOrganizationProvider, assetsProvider) { }
+        public AssetManagerTypeFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
+            : base(page, projectOrganizationProvider) { }
 
         public override string DisplayName => "Type";
         protected override string Criterion => AssetTypeSearchCriteria.SearchKey;
 
+        public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
+        {
+            assetSearchFilter.Type.Include(SelectedFilter);
+        }
+
         protected override void IncludeFilter(string selection)
         {
-            m_AssetsProvider.AssetFilter.Type.Include(selection);
+            m_Page.pageFilters.assetFilter.Type.Include(selection);
         }
 
         protected override void ClearFilter()
         {
-            m_AssetsProvider.AssetFilter.Type.Clear();
-        }
-
-        protected override void ResetSelectedFilter()
-        {
-            m_AssetsProvider.AssetFilter.Type.Include(SelectedFilter);
+            m_Page.pageFilters.assetFilter.Type.Clear();
         }
     }
 }

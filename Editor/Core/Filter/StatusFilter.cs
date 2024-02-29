@@ -1,29 +1,30 @@
 using System.Threading;
+using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class StatusFilter : CloudFilter
+    class StatusFilter : CloudFilter
     {
-        public StatusFilter(IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
-            : base(projectOrganizationProvider, assetsProvider) { }
+        public StatusFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
+            : base(page, projectOrganizationProvider) { }
 
         public override string DisplayName => "Status";
         protected override string Criterion => "status";
 
+        public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
+        {
+            assetSearchFilter.Status.Include(SelectedFilter);
+        }
+
         protected override void IncludeFilter(string selection)
         {
-            m_AssetsProvider.AssetFilter.Status.Include(selection);
+            m_Page.pageFilters.assetFilter.Status.Include(selection);
         }
 
-        protected override void ClearFilter()
+        protected override void ClearFilter()  
         {
-            m_AssetsProvider.AssetFilter.Status.Clear();
-        }
-
-        protected override void ResetSelectedFilter()
-        {
-            m_AssetsProvider.AssetFilter.Status.Include(SelectedFilter);
+            m_Page.pageFilters.assetFilter.Status.Clear();
         }
     }
 }

@@ -1,26 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class ImportOperation
+    internal class ImportOperation : BaseOperation
     {
         public ImportAction importAction;
-        public long startTimeTicks;
+        public DateTime startTime;
         public string tempDownloadPath;
         public string destinationPath;
-        
+
         [SerializeReference]
         public IAssetData assetData;
-        
-        public AssetIdentifier assetId => assetData?.identifier;
-        
-        public List<DownloadOperation> downloads = new();
-        public OperationStatus status;
 
-        public float progress
+        public AssetIdentifier assetId => assetData?.identifier;
+
+        public List<DownloadOperation> downloads = new();
+
+        protected override string OperationName => $"Importing {assetData?.name}";
+        protected override string Description => downloads.Count > 0 ? "Downloading files..." : "Preparing download...";
+        protected override bool StartIndefinite => true;
+        protected override bool IsSticky => true;
+
+        public ImportOperation() : base(null)
+        {
+        }
+
+        public override float Progress
         {
             get
             {
@@ -29,8 +38,9 @@ namespace Unity.AssetManager.Editor
                 foreach (var download in downloads)
                 {
                     totalBytes += download.totalBytes;
-                    downloadedBytes += download.progress * download.totalBytes;
+                    downloadedBytes += download.Progress * download.totalBytes;
                 }
+
                 return totalBytes > 0 ? downloadedBytes / totalBytes : 0;
             }
         }
@@ -48,4 +58,3 @@ namespace Unity.AssetManager.Editor
         }
     }
 }
-

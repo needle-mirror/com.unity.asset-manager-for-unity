@@ -26,13 +26,13 @@ namespace Unity.AssetManager.Editor
         public bool Refresh()
         {
             var isProjectError = !string.IsNullOrEmpty(m_ProjectOrganizationProvider.errorOrMessageHandlingData?.message);
-            var isInProject = m_PageManager.activePage is { pageType: PageType.InProject };
+            var isInProject = m_PageManager.activePage is InProjectPage;
             ErrorOrMessageHandlingData errorHandlingData;
             if (isInProject || !isProjectError)
                 errorHandlingData = m_PageManager.activePage?.errorOrMessageHandlingData;
             else
                 errorHandlingData = m_ProjectOrganizationProvider.errorOrMessageHandlingData;
-            
+
             if (string.IsNullOrWhiteSpace(errorHandlingData?.message))
             {
                 UIElementsUtils.Hide(this);

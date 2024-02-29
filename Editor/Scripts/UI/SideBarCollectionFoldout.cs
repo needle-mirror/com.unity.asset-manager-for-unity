@@ -4,14 +4,19 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class SideBarCollectionFoldout : SideBarFoldout
+    class SideBarCollectionFoldout : SideBarFoldout
     {
-        public string CollectionPath { get; }
+        public string CollectionPath => m_CollectionPath;
 
-        internal SideBarCollectionFoldout(IPageManager pageManager, IStateManager stateManager, IProjectOrganizationProvider projectOrganizationProvider, string foldoutName, string collectionPath)
+        readonly ProjectInfo m_ProjectInfo;
+        readonly string m_CollectionPath;
+
+        internal SideBarCollectionFoldout(IPageManager pageManager, IStateManager stateManager, IProjectOrganizationProvider projectOrganizationProvider,
+             string foldoutName, ProjectInfo projectInfo, string collectionPath)
             : base(pageManager, stateManager, projectOrganizationProvider, foldoutName)
         {
-            CollectionPath = collectionPath;
+            m_ProjectInfo = projectInfo;
+            m_CollectionPath = collectionPath;
 
             RegisterEventForIconChange();
 
@@ -23,32 +28,31 @@ namespace Unity.AssetManager.Editor
                 // to only select foldouts when they click on it's title/label
                 if (e.button != 0 || target.name == k_CheckMarkName)
                     return;
-                pageManager.activePage = pageManager.GetPage(PageType.Collection, collectionPath);
-            }, TrickleDown.TrickleDown);
-        }
 
-        protected override void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
-        {
-            if (m_PageManager.activePage?.pageType == PageType.Collection)
-            {
-                var activePage = (CollectionPage)m_PageManager.activePage;
-                // When browsing, make sure to return to All Assets selection if there is no collections or the one we had
-                // selected does not exist anymore
-                if (!isLoading && m_ProjectOrganizationProvider.selectedProject?.collectionInfos?.Any(i => string.Equals(i.GetFullPath(), activePage.collectionPath)) != true)
+                if (m_ProjectInfo.id == m_ProjectOrganizationProvider.SelectedProject?.id)
                 {
-                    m_PageManager.activePage = m_PageManager.GetPage(PageType.Collection, string.Empty);
+                    pageManager.SetActivePage<CollectionPage>();
                 }
-            }
 
-            OnRefresh(m_PageManager.activePage);
+                m_ProjectOrganizationProvider.SelectProject(m_ProjectInfo, m_CollectionPath);
+                if (string.IsNullOrEmpty(m_CollectionPath))
+                {
+                    AnalyticsSender.SendEvent(new ProjectSelectedEvent(ProjectSelectedEvent.ProjectType.Project, m_ProjectInfo.collectionInfos.Count));
+                }
+                else
+                {
+                    AnalyticsSender.SendEvent(new ProjectSelectedEvent(ProjectSelectedEvent.ProjectType.Collection));
+                }
+            }, TrickleDown.TrickleDown);
         }
 
         protected override void OnRefresh(IPage page)
         {
-            if (page != null && page.pageType == PageType.Collection)
+            if (page is CollectionPage)
             {
-                var collectionPage = (CollectionPage)page;
-                var selected = (CollectionPath ?? string.Empty) == (collectionPage.collectionPath ?? string.Empty);
+                var selected = m_ProjectOrganizationProvider.SelectedProject?.id == m_ProjectInfo.id
+                               && m_ProjectOrganizationProvider.SelectedCollection?.GetFullPath() == (m_CollectionPath ?? string.Empty);
+
                 m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
             }
             else
@@ -61,11 +65,11 @@ namespace Unity.AssetManager.Editor
         {
             base.ChangeIntoParentFolder();
 
-            if (!string.IsNullOrEmpty(CollectionPath))
-            {
-                value = !m_StateManager.collapsedCollections.Contains(CollectionPath);
-                SetIcon();
-            }
+            if (string.IsNullOrEmpty(m_CollectionPath))
+                return;
+
+            value = !m_StateManager.collapsedCollections.Contains(m_CollectionPath);
+            SetIcon();
         }
 
         void RegisterEventForIconChange()
@@ -73,23 +77,24 @@ namespace Unity.AssetManager.Editor
             this.RegisterValueChangedCallback(e =>
             {
                 SetIcon();
-                if (m_HasChild)
+
+                if (!m_HasChild)
+                    return;
+
+                if (!value)
                 {
-                    if (!value)
-                    {
-                        m_StateManager.collapsedCollections.Add(CollectionPath);
-                    }
-                    else
-                    {
-                        m_StateManager.collapsedCollections.Remove(CollectionPath);
-                    }
+                    m_StateManager.collapsedCollections.Add(m_CollectionPath);
+                }
+                else
+                {
+                    m_StateManager.collapsedCollections.Remove(m_CollectionPath);
                 }
             });
         }
 
         void SetIcon()
         {
-            if (!m_HasChild)
+            if (string.IsNullOrEmpty(m_CollectionPath) || !m_HasChild)
                 return;
 
             var iconParent = this.Q(className: inputUssClassName);

@@ -18,11 +18,17 @@ namespace Unity.AssetManager.Editor
     {
         internal const string k_UnsupportedPlatformError = "Unsupported platform";
 
-        private readonly IIOProxy m_IOProxy;
-        private readonly IApplicationProxy m_ApplicationProxy;
-        private readonly IDirectoryInfoFactory m_DirectoryInfoFactory;
+        [SerializeReference]
+        IIOProxy m_IOProxy;
+        
+        [SerializeReference]
+        IApplicationProxy m_ApplicationProxy;
+        
+        [SerializeReference]
+        IDirectoryInfoFactory m_DirectoryInfoFactory;
 
-        public CachePathHelper(IIOProxy ioProxy, IApplicationProxy applicationProxy, IDirectoryInfoFactory directoryInfoFactory)
+        [ServiceInjection]
+        public void Inject(IIOProxy ioProxy, IApplicationProxy applicationProxy, IDirectoryInfoFactory directoryInfoFactory)
         {
             m_IOProxy = ioProxy;
             m_ApplicationProxy = applicationProxy;

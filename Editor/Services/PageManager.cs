@@ -9,60 +9,73 @@ namespace Unity.AssetManager.Editor
     {
         event Action<IPage> onActivePageChanged;
         event Action<IPage, bool> onLoadingStatusChanged;
-        event Action<IPage, IReadOnlyCollection<string>> onSearchFiltersChanged;
+        event Action<IPage, IEnumerable<string>> onSearchFiltersChanged;
         event Action<IPage, AssetIdentifier> onSelectedAssetChanged;
         event Action<IPage, ErrorOrMessageHandlingData> onErrorOrMessageThrown;
 
-        IPage activePage { get; set; }
-        IPage GetPage(PageType pageType, string collectionPath = null);
+        IPage activePage { get; }
+        void SetActivePage<T>() where T : IPage;
     }
 
     [Serializable]
     internal class PageManager : BaseService<IPageManager>, IPageManager, ISerializationCallbackReceiver
     {
         public event Action<IPage> onActivePageChanged = delegate { };
-        public event Action<IPage, bool> onLoadingStatusChanged = delegate {};
-        public event Action<IPage, IReadOnlyCollection<string>> onSearchFiltersChanged = delegate {};
-        public event Action<IPage, AssetIdentifier> onSelectedAssetChanged = delegate {};
+        public event Action<IPage, bool> onLoadingStatusChanged = delegate { };
+        public event Action<IPage, IEnumerable<string>> onSearchFiltersChanged = delegate { };
+        public event Action<IPage, AssetIdentifier> onSelectedAssetChanged = delegate { };
         public event Action<IPage, ErrorOrMessageHandlingData> onErrorOrMessageThrown = delegate { };
 
-        private Dictionary<string, IPage> m_Pages = new();
+        private Dictionary<Type, IPage> m_Pages = new();
 
         [SerializeReference]
         private IPage[] m_SerializedPages = Array.Empty<IPage>();
 
-        public IPage activePage
-        {
-            get =>  m_Pages.Values.FirstOrDefault(p => p.isActivePage);
-            set
-            {
-                var lastActivePage = activePage;
-                if (value == lastActivePage)
-                    return;
+        public IPage activePage => m_Pages.Values.FirstOrDefault(p => p.isActivePage);
 
-                value?.OnActivated();
-                lastActivePage?.OnDeactivated();
-                onActivePageChanged?.Invoke(activePage);
-            }
+        public void SetActivePage(IPage page)
+        {
+            var lastActivePage = activePage;
+            if (page == lastActivePage)
+                return;
+
+            page?.OnActivated();
+            lastActivePage?.OnDeactivated();
+            onActivePageChanged?.Invoke(activePage);
         }
 
-        private readonly IUnityConnectProxy m_UnityConnect;
-        private readonly IAssetsProvider m_AssetsProvider;
-        private readonly IAssetDataManager m_AssetDataManager;
-        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        public PageManager(IUnityConnectProxy unityConnect, IAssetsProvider assetsProvider, IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider)
+        public void SetActivePage<T>() where T : IPage
         {
-            m_UnityConnect = RegisterDependency(unityConnect);
-            m_AssetsProvider = RegisterDependency(assetsProvider);
-            m_AssetDataManager = RegisterDependency(assetDataManager);
-            m_ProjectOrganizationProvider = RegisterDependency(projectOrganizationProvider);
+            var page = m_Pages.TryGetValue(typeof(T), out var existingPage) ? existingPage : CreatePage<T>();
+
+            SetActivePage(page);
+        }
+
+        [SerializeReference]
+        IUnityConnectProxy m_UnityConnect;
+
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
+
+        [SerializeReference]
+        IAssetDataManager m_AssetDataManager;
+
+        [SerializeReference]
+        IProjectOrganizationProvider m_ProjectOrganizationProvider;
+
+        [ServiceInjection]
+        public void Inject(IUnityConnectProxy unityConnect, IAssetsProvider assetsProvider, IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider)
+        {
+            m_UnityConnect = unityConnect;
+            m_AssetsProvider = assetsProvider;
+            m_AssetDataManager = assetDataManager;
+            m_ProjectOrganizationProvider = projectOrganizationProvider;
         }
 
         public override void OnEnable()
         {
             m_UnityConnect.onUserLoginStateChange += OnUserLoginStateChange;
-            m_ProjectOrganizationProvider.onProjectSelectionChanged += OnProjectSelectionChanged;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged += OnProjectInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
 
             foreach (var page in m_Pages.Values)
                 page.OnEnable();
@@ -71,8 +84,7 @@ namespace Unity.AssetManager.Editor
         public override void OnDisable()
         {
             m_UnityConnect.onUserLoginStateChange -= OnUserLoginStateChange;
-            m_ProjectOrganizationProvider.onProjectSelectionChanged -= OnProjectSelectionChanged;
-            m_ProjectOrganizationProvider.onProjectInfoOrLoadingChanged -= OnProjectInfoOrLoadingChanged;
+            m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
 
             foreach (var page in m_Pages.Values)
                 page.OnDisable();
@@ -84,30 +96,27 @@ namespace Unity.AssetManager.Editor
                 page.Clear(false);
         }
 
-        private void OnProjectSelectionChanged(ProjectInfo projectInfo)
+        private void ProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
         {
             foreach (var page in m_Pages.Values)
+            {
                 page.OnDestroy();
+            }
+
             m_Pages.Clear();
 
-            if (projectInfo != null)
+            if (projectInfo != null && activePage == null)
             {
-                activePage ??= GetPage(projectInfo.id == ProjectInfo.AllAssetsProjectInfo.id ? PageType.AllAssets : PageType.Collection, string.Empty);
+                // TODO Fix Me, switching pages should not be handled by this class
+                if (projectInfo.id == ProjectInfo.AllAssetsProjectInfo.id)
+                {
+                    SetActivePage<AllAssetsPage>();
+                }
+                else
+                {
+                    SetActivePage<CollectionPage>();
+                }
             }
-        }
-
-        private void OnProjectInfoOrLoadingChanged(ProjectInfo projectInfo, bool isLoading)
-        {
-            if (!isLoading)
-                return;
-            
-            activePage?.Clear(true);
-        }
-
-        public IPage GetPage(PageType pageType, string collectionPath = null)
-        {
-            var pageId = GetPageId(pageType, collectionPath);
-            return m_Pages.TryGetValue(pageId, out var page) ? page : CreatePage(pageType, collectionPath);
         }
 
         private void RegisterPageEvents(IPage page)
@@ -127,72 +136,19 @@ namespace Unity.AssetManager.Editor
         {
             foreach (var page in m_SerializedPages)
             {
-                ResolveDependenciesForPage(page);
                 RegisterPageEvents(page);
 
-                var pageId = GetPageId(page);
-                m_Pages[pageId] = page;
+                m_Pages[page.GetType()] = page;
             }
         }
 
-        static string GetPageId(PageType pageType, string collectionPath = null)
+        IPage CreatePage<T>()
         {
-            return string.IsNullOrEmpty(collectionPath) ? pageType.ToString() : $"{pageType}/{collectionPath}";
-        }
-
-        static string GetPageId(IPage page)
-        {
-            if (page.pageType == PageType.Collection)
-            {
-                var collectionPage = (CollectionPage)page;
-                return GetPageId(page.pageType, collectionPage.collectionPath);
-            }
-
-            return page.pageType.ToString();
-        }
-
-        IPage CreatePage(PageType pageType, string collectionPath = null)
-        {
-            IPage page = null;
-            switch (pageType)
-            {
-                case PageType.Collection:
-                    if (string.IsNullOrEmpty(m_ProjectOrganizationProvider.selectedProject?.id))
-                        return null;
-
-                    var collectionInfo = CollectionInfo.CreateFromFullPath(collectionPath);
-                    collectionInfo.projectId = m_ProjectOrganizationProvider.selectedProject.id;
-                    collectionInfo.organizationId = m_ProjectOrganizationProvider.organization.id;
-                    page = new CollectionPage(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider, collectionInfo);
-                    break;
-                case PageType.InProject:
-                    page = new InProjectPage(m_AssetDataManager);
-                    break;
-                case PageType.AllAssets:
-                    page = new AllAssetsPage(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
-                    break;
-            }
-
-            m_Pages[GetPageId(page)] = page;
+            var page = (IPage)Activator.CreateInstance(typeof(T), m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
+            m_Pages[typeof(T)] = page;
             page?.OnEnable();
             RegisterPageEvents(page);
             return page;
-        }
-
-        private void ResolveDependenciesForPage(IPage page)
-        {
-            switch (page)
-            {
-                case CollectionPage collectionPage:
-                    collectionPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
-                    break;
-                case InProjectPage inProjectPage:
-                    inProjectPage.ResolveDependencies(m_AssetDataManager);
-                    break;
-                case AllAssetsPage allAssetsPage:
-                    allAssetsPage.ResolveDependencies(m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
-                    break;
-            }
         }
     }
 }

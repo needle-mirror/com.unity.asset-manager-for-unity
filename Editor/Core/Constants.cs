@@ -11,7 +11,6 @@ namespace Unity.AssetManager.Editor
             { AllAssetsFolderName, "All-Assets.png" },
             { LocalFilesCategoryName, "Local-Files.png" },
             { BrowseCategoryName, "Browse-Assets.png" },
-            { InProjectTabName, "Folder-Closed.png" },
             { MyAssetsCategoryName, "Downloads.png" },
             { ClosedFoldoutName, "Folder-Closed.png" },
             { OpenFoldoutName, "Folder-Open.png" },
@@ -31,8 +30,6 @@ namespace Unity.AssetManager.Editor
         public const string ProjectIconName = "Project Icon";
         public const string ExternalLinkName = "External Link";
 
-        public const string InProjectTabName = "In Project";
-
         public const string CategoriesScrollViewUssName = "categories-scrollView";
 
         public const int DefaultPageSize = 25;
@@ -40,10 +37,15 @@ namespace Unity.AssetManager.Editor
         // This exists here for compatibility with 2020.x versions
         public static DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0);
 
-        // AssetDetailsView Import button text
-        public const string ImportText = "Import";
+        // AssetDetailsView Import action text
+        public const string ImportActionText = "Import";
+        public const string ReimportActionText = "Reimport";
+        public const string RemoveFromProjectActionText = "Remove From Project";
+        public const string CancelImportActionText = "Cancel Import";
+        public const string ShowInProjectActionText = "Show In Project";
+        public const string ShowInDashboardActionText = "Show In Dashboard";
+
         public const string ImportingText = "Importing";
-        public const string ReimportText = "Reimport";
 
         public const string RemoveFromProjectButtonDisabledToolTip = "There is nothing to remove from the project.";
         public const string ImportButtonDisabledToolTip = "There is nothing to import.";
@@ -52,10 +54,6 @@ namespace Unity.AssetManager.Editor
         public const string CacheTexturesFolderName = "Textures";
         public const string AssetManagerCacheLocationFolder = "AssetManager";
         public const string PackageName = "com.unity.asset-manager-for-unity";
-
-        // Context menu
-        public const string ContextMenuImport = "Import";
-        public const string ContextMenuRemoveFromLibrary = "Remove From Project";
 
         // Grid View
         public const string GridViewStyleClassName = "grid-view";

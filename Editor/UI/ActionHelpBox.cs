@@ -24,7 +24,7 @@ namespace Unity.AssetManager.Editor
         // Returns true if help box is visible, otherwise returns false
         public bool Refresh()
         {
-            var notInProject = m_PageManager.activePage is not { pageType: PageType.InProject };
+            var notInProject = m_PageManager.activePage is not InProjectPage;
             var errorHandlingData = string.IsNullOrEmpty(m_ProjectOrganizationProvider.errorOrMessageHandlingData?.message) && notInProject
                 ? m_PageManager.activePage?.errorOrMessageHandlingData
                 : m_ProjectOrganizationProvider.errorOrMessageHandlingData;

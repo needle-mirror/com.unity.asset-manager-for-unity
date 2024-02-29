@@ -13,11 +13,10 @@ namespace Unity.AssetManager.Editor
         event Action<DownloadOperation> onDownloadProgress;
         event Action<DownloadOperation> onDownloadFinalized;
 
-        DownloadOperation StartDownload(string url, string path);
+        DownloadOperation CreateDownloadOperation(string url, string path, BaseOperation parentOperation = null);
 
-        DownloadOperation CreateDownloadOperation(string url, string path);
         void StartDownload(DownloadOperation operation);
-        
+
         void Cancel(ulong downloadId);
     }
 
@@ -41,32 +40,29 @@ namespace Unity.AssetManager.Editor
 
         private readonly List<DownloadOperation> m_DownloadInProgress = new();
 
-        private readonly IWebRequestProxy m_WebRequestProxy;
-        private readonly IIOProxy m_IOProxy;
-        public DownloadManager(IWebRequestProxy webRequestProxy, IIOProxy ioProxy)
+        [SerializeReference]
+        IWebRequestProxy m_WebRequestProxy;
+
+        [SerializeReference]
+        IIOProxy m_IOProxy;
+
+        [ServiceInjection]
+        public void Inject(IWebRequestProxy webRequestProxy, IIOProxy ioProxy)
         {
-            m_WebRequestProxy = RegisterDependency(webRequestProxy);
-            m_IOProxy = RegisterDependency(ioProxy);
+            m_WebRequestProxy = webRequestProxy;
+            m_IOProxy = ioProxy;
         }
 
-        public DownloadOperation StartDownload(string url, string path)
+        public DownloadOperation CreateDownloadOperation(string url, string path, BaseOperation parentOperation = null)
         {
-            var operation = CreateDownloadOperation(url, path);
-            StartDownload(operation);
-            return operation;
-        }
-        
-        public DownloadOperation CreateDownloadOperation(string url, string path)
-        {
-            return new DownloadOperation
+            return new DownloadOperation(parentOperation)
             {
                 id = ++m_LastDownloadOperationId,
                 url = url,
                 path = path,
-                status = OperationStatus.InProgress
             };
         }
-        
+
         public void StartDownload(DownloadOperation operation)
         {
             m_PendingDownloads.Add(operation);
@@ -119,7 +115,7 @@ namespace Unity.AssetManager.Editor
             foreach (var operation in m_DownloadInProgress)
                 UpdateOperation(operation);
 
-            m_DownloadInProgress.RemoveAll(o => o.status != OperationStatus.InProgress);
+            m_DownloadInProgress.RemoveAll(o => o.Status != OperationStatus.InProgress);
         }
 
         private void HandleResume()
@@ -134,11 +130,13 @@ namespace Unity.AssetManager.Editor
                     InitializeOperation(operation);
                 else if (fileSizeInBytes == operation.totalBytes)
                 {
-                    operation.progress = 1.0f;
+                    operation.SetProgress(1.0f);
                     FinalizeOperation(operation, null, OperationStatus.Success);
                 }
                 else
+                {
                     InitializeOperation(operation, true, $"bytes={fileSizeInBytes}-");
+                }
             }
             m_PendingResume = null;
         }
@@ -166,8 +164,8 @@ namespace Unity.AssetManager.Editor
         {
             var newRequest = m_WebRequestProxy.SendWebRequest(operation.url, operation.path, append, bytesRange);
             m_WebRequests[operation.id] = newRequest;
-            operation.status = OperationStatus.InProgress;
             m_DownloadInProgress.Add(operation);
+            operation.Start();
         }
 
         private void FinalizeOperation(DownloadOperation operation, IWebRequestItem request, OperationStatus finalStatus, string errorMessage = null)
@@ -175,7 +173,7 @@ namespace Unity.AssetManager.Editor
             if (!string.IsNullOrEmpty(errorMessage))
                 Debug.LogError($"Encountered error while downloading {Path.GetFileName(operation.path)}: {errorMessage}");
 
-            operation.status = finalStatus;
+            operation.Finish(finalStatus);
             operation.error = errorMessage ?? string.Empty;
             m_WebRequests.Remove(operation.id);
             request?.Dispose();
@@ -212,16 +210,15 @@ namespace Unity.AssetManager.Editor
 
             if (request.isDone)
             {
-                operation.progress = request.downloadProgress;
                 FinalizeOperation(operation, request, OperationStatus.Success);
                 return;
             }
 
-            var progressUpdate = request.downloadProgress - operation.progress;
+            var progressUpdate = request.downloadProgress - operation.Progress;
             // We are reducing how often we are reporting download progress to avoid expensive frequent UI refreshes.
             if (progressUpdate >= 0.05 || progressUpdate * operation.totalBytes > 1024 * 1024)
             {
-                operation.progress = request.downloadProgress;
+                operation.SetProgress(request.downloadProgress);
                 onDownloadProgress?.Invoke(operation);
             }
         }
