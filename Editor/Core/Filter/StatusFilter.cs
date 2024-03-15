@@ -10,21 +10,21 @@ namespace Unity.AssetManager.Editor
             : base(page, projectOrganizationProvider) { }
 
         public override string DisplayName => "Status";
-        protected override string Criterion => "status";
+        protected override GroupableField GroupBy => GroupableField.Status;
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
-            assetSearchFilter.Status.Include(SelectedFilter);
+            assetSearchFilter.Include().Status.WithValue(SelectedFilter);
         }
 
         protected override void IncludeFilter(string selection)
         {
-            m_Page.pageFilters.assetFilter.Status.Include(selection);
+            m_Page.pageFilters.assetFilter.Include().Status.WithValue(selection);
         }
 
         protected override void ClearFilter()  
         {
-            m_Page.pageFilters.assetFilter.Status.Clear();
+            m_Page.pageFilters.assetFilter.Include().Status.Clear();
         }
     }
 }

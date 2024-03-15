@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Editor
 {
@@ -24,11 +25,11 @@ namespace Unity.AssetManager.Editor
             public int ResultCount;
         }
 
-        static string s_EventName = $"{AnalyticsSender.s_EventPrefix}SearchFilteredResult";
-        static int s_EventVersion = 1;
+        const string k_EventName = AnalyticsSender.k_EventPrefix + "SearchFilteredResult";
+        const int k_EventVersion = 1;
 
-        public string EventName => s_EventName;
-        public int EventVersion => s_EventVersion;
+        public string EventName => k_EventName;
+        public int EventVersion => k_EventVersion;
 
         FilterSearchResultEventData m_Data;
 
@@ -42,12 +43,12 @@ namespace Unity.AssetManager.Editor
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:s_EventName, vendorKey:AnalyticsSender.s_VendorKey, version:s_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class FilterSearchResultEventAnalytic : IAnalytic
         {
             FilterSearchResultEventData m_Data;
 
-            public FilterSearchEventAnalytic(FilterSearchResultEventData data)
+            public FilterSearchResultEventAnalytic(FilterSearchResultEventData data)
             {
                 m_Data = data;
             }

@@ -244,15 +244,15 @@ TagPill:hover {
     background-image: resource("Images/Light/Close");
 }
 
-#details-files-foldout > Toggle{
+.details-files-foldout > Toggle{
     background-color: rgba(198, 198, 198, 1);
 }
 
-#no-files-warning-box {
+.no-files-warning-box {
     background-color: rgba(198, 198, 198, 1);
  }
 
-#no-files-warning-box > Label{
+.no-files-warning-box > Label{
     color: black;
 }
 

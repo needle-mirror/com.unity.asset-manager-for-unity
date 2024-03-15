@@ -1,16 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using UnityEditor;
+using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal static class Utilities
+    static class Utilities
     {
-        public static string[] k_SizeSuffixes = new string[] {"B", "Kb", "Mb", "Gb", "Tb"};
+        static readonly string[] k_SizeSuffixes = { "B", "Kb", "Mb", "Gb", "Tb" };
 
-        // Sometimes when trying to display high resolution images at a small size they will look too sharp
-        // This function makes them look normal at any size
         internal static string BytesToReadableString(double bytes)
         {
             if (bytes == 0)
@@ -22,18 +23,18 @@ namespace Unity.AssetManager.Editor
             return place >= k_SizeSuffixes.Length ? $"{bytes} {k_SizeSuffixes[0]}" : $"{value} {k_SizeSuffixes[place]}";
         }
 
-        internal static string NormalizePath(string path)
+        public static string NormalizePath(string path)
         {
             return EscapeBackslashes(Path.GetFullPath(path)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         }
 
-        internal static string EscapeBackslashes(this string path)
+        public static string EscapeBackslashes(this string path)
         {
             return string.IsNullOrWhiteSpace(path) ? path : path.Replace(@"\", @"\\");
         }
 
-        internal static bool DeleteAllFilesAndFoldersFromDirectory(string path)
+        public static bool DeleteAllFilesAndFoldersFromDirectory(string path)
         {
             var directory = new DirectoryInfo(path);
             var success = true;
@@ -65,16 +66,42 @@ namespace Unity.AssetManager.Editor
             return success;
         }
 
-        internal static long DatetimeToTimestamp(DateTime value)
+        public static long DatetimeToTimestamp(DateTime value)
         {
-            return (long) (value - Constants.UnixEpoch).TotalMilliseconds;
+            return (long)(value - Constants.UnixEpoch).TotalMilliseconds;
         }
 
-        internal static string PascalCaseToSentence(this string input)
+        public static string PascalCaseToSentence(this string input)
         {
             return Regex.Replace(input, "(\\B[A-Z])", " $1");
         }
 
-        internal static bool IsDevMode => EditorPrefs.GetBool("DeveloperMode", false);
+        public static bool IsDevMode => EditorPrefs.GetBool("DeveloperMode", false);
+
+        public static void DevLog(string message)
+        {
+            if (IsDevMode)
+            {
+                Debug.Log(message);
+            }
+        }
+
+        public static async Task WaitForTasksAndHandleExceptions(IEnumerable<Task> tasks)
+        {
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception)
+            {
+                foreach (var task in tasks)
+                {
+                    if (task.IsFaulted && task.Exception != null)
+                    {
+                        Debug.LogException(task.Exception);
+                    }
+                }
+            }
+        }
     }
 }

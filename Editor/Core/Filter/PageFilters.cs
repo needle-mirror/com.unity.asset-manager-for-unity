@@ -25,14 +25,13 @@ namespace Unity.AssetManager.Editor
         IPage m_Page;
 
         public List<BaseFilter> selectedFilters => m_SelectedFilters;
-        public List<BaseFilter> filters => m_Filters;
         public IEnumerable<LocalFilter> selectedLocalFilters => m_SelectedFilters.OfType<LocalFilter>();
 
         AssetSearchFilter m_AssetSearchFilter;
 
         public AssetSearchFilter assetFilter => m_AssetSearchFilter ?? InitializeAssetSearchFilter();
 
-        public PageFilters(IPage page, IProjectOrganizationProvider projectOrganizationProvider, List<BaseFilter> filters)
+        public PageFilters(IPage page, List<BaseFilter> filters)
         {
             m_Page = page;
             m_Filters = filters;
@@ -142,11 +141,7 @@ namespace Unity.AssetManager.Editor
 
         AssetSearchFilter InitializeAssetSearchFilter()
         {
-            m_AssetSearchFilter = new AssetSearchFilter
-            {
-                // TODO Remove files when we have a better way to get the primary extension
-                IncludedFields = new FieldsFilter { AssetFields = AssetFields.previewFileUrl | AssetFields.files | AssetFields.datasets, FileFields = FileFields.none }
-            };
+            m_AssetSearchFilter = new AssetSearchFilter();
 
             if (m_SelectedFilters != null && m_SelectedFilters.Any())
             {

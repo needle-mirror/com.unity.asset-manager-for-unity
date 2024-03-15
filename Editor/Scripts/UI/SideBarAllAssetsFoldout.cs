@@ -25,7 +25,6 @@ namespace Unity.AssetManager.Editor
 
                 pageManager.SetActivePage<AllAssetsPage>();
                 projectOrganizationProvider.SelectProject(ProjectInfo.AllAssetsProjectInfo);
-                AnalyticsSender.SendEvent(new ProjectSelectedEvent(ProjectSelectedEvent.ProjectType.AllAssets, projectOrganizationProvider.SelectedOrganization.projectInfos.Count));
             }, TrickleDown.TrickleDown);
         }
 

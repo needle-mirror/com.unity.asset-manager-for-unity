@@ -6,27 +6,32 @@ using UnityEngine.Serialization;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class ImportOperation : BaseOperation
+    internal class ImportOperation : AssetDataOperation
     {
-        public ImportAction importAction;
         public DateTime startTime;
         public string tempDownloadPath;
         public string destinationPath;
 
         [SerializeReference]
-        public IAssetData assetData;
+        IAssetData m_AssetData;
 
-        public AssetIdentifier assetId => assetData?.identifier;
+        public IAssetData assetData => m_AssetData;
 
-        public List<DownloadOperation> downloads = new();
+        public override AssetIdentifier AssetId => m_AssetData?.identifier;
 
-        protected override string OperationName => $"Importing {assetData?.name}";
-        protected override string Description => downloads.Count > 0 ? "Downloading files..." : "Preparing download...";
-        protected override bool StartIndefinite => true;
-        protected override bool IsSticky => true;
+        [SerializeField]
+        List<DownloadOperation> m_Downloads = new();
 
-        public ImportOperation() : base(null)
+        public IReadOnlyCollection<DownloadOperation> downloads => m_Downloads;
+
+        public override string OperationName => $"Importing {m_AssetData?.name}";
+        public override string Description => downloads.Count > 0 ? "Downloading files..." : "Preparing download...";
+        public override bool StartIndefinite => true;
+        public override bool IsSticky => false;
+
+        public ImportOperation(IAssetData assetData)
         {
+            m_AssetData = assetData;
         }
 
         public override float Progress
@@ -47,14 +52,19 @@ namespace Unity.AssetManager.Editor
 
         public void UpdateDownloadOperation(DownloadOperation downloadOperation)
         {
-            for (var i = 0; i < downloads.Count; i++)
+            for (var i = 0; i < m_Downloads.Count; i++)
             {
-                if (downloads[i].id != downloadOperation.id)
+                if (m_Downloads[i].id != downloadOperation.id)
                     continue;
 
-                downloads[i] = downloadOperation;
+                m_Downloads[i] = downloadOperation;
                 return;
             }
+        }
+
+        public void AddDownload(DownloadOperation downloadOperation)
+        {
+            m_Downloads.Add(downloadOperation);
         }
     }
 }

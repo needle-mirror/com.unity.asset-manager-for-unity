@@ -1,4 +1,5 @@
 using System;
+using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Editor
 {
@@ -14,11 +15,11 @@ namespace Unity.AssetManager.Editor
             public int KeywordCount;
         }
 
-        static string s_EventName = $"{AnalyticsSender.s_EventPrefix}SearchAttempt";
-        static int s_EventVersion = 1;
+        const string k_EventName = AnalyticsSender.k_EventPrefix + "SearchAttempt";
+        const int k_EventVersion = 1;
 
-        public string EventName => s_EventName;
-        public int EventVersion => s_EventVersion;
+        public string EventName => k_EventName;
+        public int EventVersion => k_EventVersion;
 
         SearchAttemptEventData m_Data;
 
@@ -31,7 +32,7 @@ namespace Unity.AssetManager.Editor
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:s_EventName, vendorKey:AnalyticsSender.s_VendorKey, version:s_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class SearchAttemptEventAnalytic : IAnalytic
         {
             SearchAttemptEventData m_Data;
@@ -44,7 +45,7 @@ namespace Unity.AssetManager.Editor
             public bool TryGatherData(out IAnalytic.IData data, out Exception error)
             {
                 error = null;
-                data = m_Data
+                data = m_Data;
                 return data != null;
             }
         }

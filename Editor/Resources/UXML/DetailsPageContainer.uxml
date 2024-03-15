@@ -25,11 +25,11 @@
                         <ui:VisualElement name="details-page-tags-container" class="flex-row flex-wrap flex-grow-1" />
                     </ui:VisualElement>
                     <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Total Files" class="details-page-entry-label" />
+                        <ui:Label text="Total file(s)" class="details-page-entry-label" />
                         <ui:Label name="total-files" class="details-page-entry-value" />
                     </ui:VisualElement>
                     <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="File Size" class="details-page-entry-label" />
+                        <ui:Label text="File(s) size" class="details-page-entry-label" />
                         <ui:Label name="filesize" class="details-page-entry-value" />
                     </ui:VisualElement>
                     <ui:VisualElement class="details-page-entry">
@@ -37,31 +37,40 @@
                         <ui:Label name="id" class="details-page-entry-value" />
                     </ui:VisualElement>
                     <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Asset Type" class="details-page-entry-label" />
+                        <ui:Label text="Asset type" class="details-page-entry-label" />
                         <ui:Label name="assetType" class="details-page-entry-value" />
                     </ui:VisualElement>
                     <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Upload Date" class="details-page-entry-label" />
-                        <ui:Label name="upload-date" class="details-page-entry-value" />
+                        <ui:Label text="Upload date" class="details-page-entry-label" />
+                        <ui:Label name="created-date" class="details-page-entry-value" />
                     </ui:VisualElement>
                     <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Last Edited" class="details-page-entry-label" />
-                        <ui:Label name="last-edited" class="details-page-entry-value" />
+                        <ui:Label text="Last modified" class="details-page-entry-label" />
+                        <ui:Label name="updated-date" class="details-page-entry-value" />
                     </ui:VisualElement>
                     <ui:VisualElement class="details-page-entry">
                         <ui:Label text="Version" class="details-page-entry-label" />
                         <ui:Label name="version" class="details-page-entry-value" />
                     </ui:VisualElement>
                 </ui:VisualElement>
-                <ui:VisualElement name="no-files-warning-box">
+                <ui:VisualElement name="no-files-warning-box" class="no-files-warning-box">
                     <ui:Image name="no-files-warning-icon" />
                     <ui:Label name="no-files-warning-label" class="text-bold" />
                 </ui:VisualElement>
-                <ui:VisualElement name="details-files-foldout-container" class="flex-row">
-                    <ui:Foldout text="Included Files" name="details-files-foldout" class="details-files-foldout">
-                        <ui:Label name="details-files-loading-label"/>
+                <ui:VisualElement name="details-files-foldout-container" class="details-files-foldout-container">
+                    <ui:Foldout text="Files" name="details-files-foldout" class="details-files-foldout">
+                        <ui:Label name="details-files-loading-label" class="details-files-loading-label"/>
                         <ui:ListView name="details-files-listview" />
                     </ui:Foldout>
+                    <ui:VisualElement name="no-dependencies-box" class="no-dependencies-box">
+                        <ui:Label name="no-dependencies-label" class="text-bold" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="details-dependencies-foldout-container" class="details-dependencies-foldout-container flex-row">
+                        <ui:Foldout text="Dependencies" name="details-dependencies-foldout" class="details-files-foldout">
+                            <ui:Label name="details-dependencies-loading-label" class="details-files-loading-label"/>
+                            <ui:ListView name="details-dependencies-listview" />
+                        </ui:Foldout>
+                    </ui:VisualElement>
                 </ui:VisualElement>
             </ui:VisualElement>
         </ui:ScrollView>

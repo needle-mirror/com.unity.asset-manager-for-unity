@@ -39,7 +39,7 @@ namespace Unity.AssetManager.Editor
             await assetData.ResolvePrimaryExtensionAsync(null);
             var type = AssetDataTypeHelper.GetUnityAssetType(assetData.primaryExtension);
 
-            if(m_AssetTypeMap.TryGetValue(SelectedFilter, out var assetType))
+            if (m_AssetTypeMap.TryGetValue(SelectedFilter, out var assetType))
             {
                 return type == assetType;
             }

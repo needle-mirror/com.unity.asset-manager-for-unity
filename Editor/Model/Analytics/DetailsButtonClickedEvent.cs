@@ -1,4 +1,5 @@
 using System;
+using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Editor
 {
@@ -19,14 +20,14 @@ namespace Unity.AssetManager.Editor
         internal class DetailsButtonClickedEventData : BaseEventData
 #endif
         {
-            public ButtonType ButtonType;
+            public string ButtonType;
         }
 
-        static string s_EventName = $"{AnalyticsSender.s_EventPrefix}DetailsButtonClicked";
-        static int s_EventVersion = 1;
+        const string k_EventName = AnalyticsSender.k_EventPrefix + "DetailsButtonClicked";
+        const int k_EventVersion = 1;
 
-        public string EventName => s_EventName;
-        public int EventVersion => s_EventVersion;
+        public string EventName => k_EventName;
+        public int EventVersion => k_EventVersion;
 
         DetailsButtonClickedEventData m_Data;
 
@@ -34,12 +35,12 @@ namespace Unity.AssetManager.Editor
         {
             m_Data = new DetailsButtonClickedEventData()
             {
-                ButtonType = buttonType
+                ButtonType = buttonType.ToString()
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:s_EventName, vendorKey:AnalyticsSender.s_VendorKey, version:s_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class DetailsButtonClickedEventAnalytic : IAnalytic
         {
             DetailsButtonClickedEventData m_Data;
@@ -52,7 +53,7 @@ namespace Unity.AssetManager.Editor
             public bool TryGatherData(out IAnalytic.IData data, out Exception error)
             {
                 error = null;
-                data = m_Data
+                data = m_Data;
                 return data != null;
             }
         }

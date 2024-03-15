@@ -20,23 +20,21 @@ namespace Unity.AssetManager.Editor
         readonly IUnityConnectProxy m_UnityConnect;
         readonly IPageManager m_PageManager;
         readonly IAssetDataManager m_AssetDataManager;
-        readonly IAssetImporter m_AssetImporter;
+        readonly IAssetOperationManager m_AssetOperationManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        readonly ILinksProxy m_LinkProxy;
 
         public AssetsGridView(IProjectOrganizationProvider projectOrganizationProvider,
             IUnityConnectProxy unityConnect,
             IPageManager pageManager,
             IAssetDataManager assetDataManager,
-            IAssetImporter assetImporter,
+            IAssetOperationManager assetOperationManager,
             ILinksProxy linksProxy)
         {
             m_UnityConnect = unityConnect;
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
-            m_AssetImporter = assetImporter;
+            m_AssetOperationManager = assetOperationManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
-            m_LinkProxy = linksProxy;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
             m_Gridview.onGridViewLastItemVisible += OnLastGridViewItemVisible;
@@ -93,7 +91,7 @@ namespace Unity.AssetManager.Editor
 
         private VisualElement MakeGridViewItem()
         {
-            var item = new GridItem(m_AssetDataManager, m_AssetImporter, m_PageManager, m_LinkProxy);
+            var item = new GridItem(m_AssetOperationManager, m_PageManager);
 
             item.Clicked += () =>
             {

@@ -9,6 +9,7 @@ namespace Unity.AssetManager.Editor
     internal interface IThumbnailDownloader : IService
     {
         void DownloadThumbnail(AssetIdentifier identifier, string thumbnailUrl, Action<AssetIdentifier, Texture2D> doneCallbackAction = null);
+        Texture2D GetCachedThumbnail(string thumbnailUrl);
     }
 
     [Serializable]
@@ -106,16 +107,24 @@ namespace Unity.AssetManager.Editor
             m_ThumbnailDownloadCallbacks[thumbnailUrl] = newCallbacks;
         }
 
+        public Texture2D GetCachedThumbnail(string thumbnailUrl)
+        {
+            return m_Thumbnails.TryGetValue(thumbnailUrl, out var result) ? result : null;
+        }
+
         private Texture2D LoadThumbnail(string url, string thumbnailPath)
         {
             if (m_Thumbnails.TryGetValue(url, out var result))
                 return result;
+
             if (!m_IOProxy.FileExists(thumbnailPath))
                 return null;
+
             var texture2D = new Texture2D(1, 1);
             texture2D.LoadImage(File.ReadAllBytes(thumbnailPath));
             texture2D.hideFlags = HideFlags.HideAndDontSave;
             m_Thumbnails[url] = texture2D;
+
             return texture2D;
         }
 

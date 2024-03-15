@@ -1,5 +1,5 @@
 using System;
-using UnityEngine.Serialization;
+using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Editor
 {
@@ -20,16 +20,14 @@ namespace Unity.AssetManager.Editor
         internal class MenuItemSelectedEventData : BaseEventData
 #endif
         {
-            [FormerlySerializedAs("MenuItemSelectedd")]
-            [FormerlySerializedAs("MenuItemType")]
-            public MenuItemType MenuItemSelected;
+            public string MenuItemSelected;
         }
 
-        static string s_EventName = $"{AnalyticsSender.s_EventPrefix}MenuItemSelected";
-        static int s_EventVersion = 1;
+        const string k_EventName = AnalyticsSender.k_EventPrefix + "MenuItemSelected";
+        const int k_EventVersion = 1;
 
-        public string EventName => s_EventName;
-        public int EventVersion => s_EventVersion;
+        public string EventName => k_EventName;
+        public int EventVersion => k_EventVersion;
 
         MenuItemSelectedEventData m_Data;
 
@@ -37,12 +35,12 @@ namespace Unity.AssetManager.Editor
         {
             m_Data = new MenuItemSelectedEventData()
             {
-                MenuItemSelected = menuItemType
+                MenuItemSelected = menuItemType.ToString()
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:s_EventName, vendorKey:AnalyticsSender.s_VendorKey, version:s_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class MenuItemSelectedEventAnalytic : IAnalytic
         {
             MenuItemSelectedEventData m_Data;

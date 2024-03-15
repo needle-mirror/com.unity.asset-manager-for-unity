@@ -47,26 +47,12 @@ internal class Filters : VisualElement
 
     void OnAttachToPanel(AttachToPanelEvent evt)
     {
-        m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
-        m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
         m_PageManager.onActivePageChanged += OnActivePageChanged;
     }
 
     void OnDetachFromPanel(DetachFromPanelEvent evt)
     {
-        m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
-        m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
         m_PageManager.onActivePageChanged -= OnActivePageChanged;
-    }
-
-    void OrganizationChanged(OrganizationInfo organization)
-    {
-        Refresh();
-    }
-
-    void ProjectSelectionChanged(ProjectInfo _, CollectionInfo __)
-    {
-        Refresh();
     }
 
     void OnActivePageChanged(IPage page)

@@ -14,7 +14,7 @@ namespace Unity.AssetManager.Editor
         IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
         public abstract void ResetSelectedFilter(AssetSearchFilter assetSearchFilter);
-        protected abstract string Criterion { get; }
+        protected abstract GroupableField GroupBy { get; }
         protected abstract void ClearFilter();
         protected abstract void IncludeFilter(string selection);
 
@@ -93,7 +93,7 @@ namespace Unity.AssetManager.Editor
                     projects = new List<string> { m_ProjectOrganizationProvider.SelectedProject.id };
                 }
 
-                var selections = await m_Page.GetFilterSelectionsAsync(m_ProjectOrganizationProvider.SelectedOrganization.id, projects, Criterion, m_TokenSource.Token);
+                var selections = await m_Page.GetFilterSelectionsAsync(m_ProjectOrganizationProvider.SelectedOrganization.id, projects, GroupBy, m_TokenSource.Token);
                 return selections;
             }
             catch (OperationCanceledException)

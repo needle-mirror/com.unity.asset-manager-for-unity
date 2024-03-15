@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -9,16 +10,15 @@ using Button = UnityEngine.UIElements.Button;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class AssetDetailsPage : VisualElement
+    class AssetDetailsPage : VisualElement
     {
-        readonly string k_LoadingText = L10n.Tr("Loading...");
         readonly AssetPreview m_AssetPreview;
         readonly Label m_AssetName;
         readonly Label m_AssetId;
         readonly Label m_Version;
         readonly Label m_Description;
-        readonly Label m_LastEdited;
-        readonly Label m_UploadDate;
+        readonly Label m_UpdatedDate;
+        readonly Label m_CreatedDate;
         readonly Label m_Filesize;
         readonly Label m_AssetType;
         readonly Label m_Status;
@@ -29,40 +29,40 @@ namespace Unity.AssetManager.Editor
         readonly Button m_ImportButton;
         readonly Button m_ShowInProjectBrowserButton;
         readonly Button m_RemoveImportButton;
-        readonly Label m_FilesLoadingLabel;
-        readonly ListView m_FilesListView;
-        readonly Foldout m_FilesFoldout;
+
         readonly OperationProgressBar m_OperationProgressBar;
         readonly VisualElement m_NoFilesWarningBox;
+        readonly VisualElement m_NoDependenciesBox;
         readonly VisualElement m_ProjectContainer;
+        readonly Image m_AssetDashboardLink;
 
-        List<string> m_FilesList = new ();
+        readonly FilesFoldout m_FilesFoldout;
+        readonly DependenciesFoldout m_DependenciesFoldout;
 
         readonly IAssetImporter m_AssetImporter;
+        readonly IAssetOperationManager m_AssetOperationManager;
         readonly IPageManager m_PageManager;
         readonly IAssetDataManager m_AssetDataManager;
-        readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
-        readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IProjectIconDownloader m_ProjectIconDownloader;
 
         IAssetData m_SelectedAssetData;
 
+
         public AssetDetailsPage(IAssetImporter assetImporter,
+            IAssetOperationManager assetOperationManager,
             IStateManager stateManager,
             IPageManager pageManager,
             IAssetDataManager assetDataManager,
-            IEditorGUIUtilityProxy editorGUIUtilityProxy,
             IAssetDatabaseProxy assetDatabaseProxy,
             IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy,
             IProjectIconDownloader projectIconDownloader)
         {
             m_AssetImporter = assetImporter;
+            m_AssetOperationManager = assetOperationManager;
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
-            m_EditorGUIUtilityProxy = editorGUIUtilityProxy;
-            m_AssetDatabaseProxy = assetDatabaseProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_ProjectIconDownloader = projectIconDownloader;
 
@@ -75,15 +75,19 @@ namespace Unity.AssetManager.Editor
             m_Version = this.Q<Label>("version");
             m_Description = this.Q<Label>("description");
             var thumbnailContainer = this.Q<VisualElement>("details-page-thumbnail-container");
-            m_Filesize = this.Q<Label>("filesize");
             m_AssetType = this.Q<Label>("assetType");
             m_Status = this.Q<Label>("status");
             m_TotalFiles = this.Q<Label>("total-files");
-            m_FilesLoadingLabel = this.Q<Label>("details-files-loading-label");
-            m_FilesListView = this.Q<ListView>("details-files-listview");
-            m_FilesFoldout = this.Q<Foldout>("details-files-foldout");
-            m_LastEdited = this.Q<Label>("last-edited");
-            m_UploadDate = this.Q<Label>("upload-date");
+            m_Filesize = this.Q<Label>("filesize");
+
+            m_FilesFoldout = new FilesFoldout(this, "details-files-foldout", "details-files-listview", "details-files-loading-label",
+                assetDataManager, pageManager, assetImporter, assetDatabaseProxy);
+
+            m_DependenciesFoldout = new DependenciesFoldout(this, "details-dependencies-foldout", "details-dependencies-listview", "details-dependencies-loading-label",
+                pageManager);
+
+            m_CreatedDate = this.Q<Label>("created-date");
+            m_UpdatedDate = this.Q<Label>("updated-date");
             var closeButton = this.Q<Button>("closeButton");
 
             m_ImportButton = this.Q<Button>("importButton");
@@ -97,14 +101,19 @@ namespace Unity.AssetManager.Editor
 
             m_TagSection = this.Q<VisualElement>("details-page-tag-section");
             m_TagsContainer = this.Q<VisualElement>("details-page-tags-container");
+
             m_NoFilesWarningBox = this.Q<VisualElement>("no-files-warning-box");
             m_NoFilesWarningBox.Q<Label>().text = L10n.Tr("No files were found in this asset.");
+
+            m_NoDependenciesBox = this.Q<VisualElement>("no-dependencies-box");
+            m_NoDependenciesBox.Q<Label>().text = L10n.Tr("This asset has no dependencies");
+
             m_ProjectContainer = this.Q<VisualElement>("details-page-project-pill-container");
 
-            var assetDashboardLink = this.Q<Image>("asset-dashboard-link");
-            assetDashboardLink.image = UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ExternalLinkName]);
-            assetDashboardLink.tooltip = L10n.Tr("Open asset in the dashboard");
-            assetDashboardLink.RegisterCallback<ClickEvent>(e =>
+            m_AssetDashboardLink = this.Q<Image>("asset-dashboard-link");
+            m_AssetDashboardLink.image = UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ExternalLinkName]);
+            m_AssetDashboardLink.tooltip = L10n.Tr("Open asset in the dashboard");
+            m_AssetDashboardLink.RegisterCallback<ClickEvent>(e =>
             {
                 linksProxy.OpenAssetManagerDashboard(m_SelectedAssetData?.identifier);
             });
@@ -115,26 +124,29 @@ namespace Unity.AssetManager.Editor
             thumbnailContainer.Add(m_AssetPreview);
 
             m_ButtonsContainer = this.Q<VisualElement>("footer-container");
-            m_OperationProgressBar = new OperationProgressBar(m_PageManager, m_AssetImporter, true);
+            m_OperationProgressBar = new OperationProgressBar(() =>
+            {
+                assetImporter.CancelImport(pageManager.activePage.selectedAssetId, true);
+            });
             m_ButtonsContainer.Add(m_OperationProgressBar);
 
-            m_FilesLoadingLabel.text = k_LoadingText;
-            UIElementsUtils.Hide(m_FilesLoadingLabel);
             scrollView.viewDataKey = "details-page-scrollview";
-            m_FilesFoldout.viewDataKey = "details-files-foldout";
-            m_FilesListView.viewDataKey = "details-files-listview";
 
-            m_FilesFoldout.RegisterValueChangedCallback(e =>
+            m_FilesFoldout.RegisterValueChangedCallback(_ =>
             {
-                stateManager.detailsFileFoldoutValue = m_FilesFoldout.value;
-                RefreshFoldoutStyleBasedOnExpansionStatus();
-
-                // Bug in UI Toolkit where the scrollview does not update its size when the foldout is expanded/collapsed.
-                schedule.Execute(e => { this.Q<ScrollView>("details-page-scrollview").verticalScrollerVisibility = ScrollerVisibility.Auto; }).StartingIn(25);
+                stateManager.detailsFileFoldoutValue = m_FilesFoldout.Expanded;
+                RefreshScrollView();
             });
 
-            m_FilesFoldout.value = stateManager.detailsFileFoldoutValue;
-            RefreshFoldoutStyleBasedOnExpansionStatus();
+            m_FilesFoldout.Expanded = stateManager.detailsFileFoldoutValue;
+
+            m_DependenciesFoldout.RegisterValueChangedCallback(_ =>
+            {
+                stateManager.detailsFileFoldoutValue = m_DependenciesFoldout.Expanded; // TODO Use own state
+                RefreshScrollView();
+            });
+
+            m_DependenciesFoldout.Expanded = stateManager.detailsFileFoldoutValue;
 
             // Setup the import button logic here. Since we have the assetData information both in this object's properties
             // and in AssetManagerWindow.m_CurrentAssetData, we should not need any special method with arguments
@@ -152,45 +164,46 @@ namespace Unity.AssetManager.Editor
             RefreshUI();
         }
 
+        void RefreshScrollView()
+        {
+            // Bug in UI Toolkit where the scrollview does not update its size when the foldout is expanded/collapsed.
+            schedule.Execute(_ => { this.Q<ScrollView>("details-page-scrollview").verticalScrollerVisibility = ScrollerVisibility.Auto; }).StartingIn(25);
+        }
+
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_AssetImporter.onImportProgress += OnImportProgress;
-            m_AssetImporter.onImportFinalized += OnImportFinalized;
+            m_AssetOperationManager.OperationProgressChanged += OnOperationProgress;
+            m_AssetOperationManager.OperationFinished += OnOperationFinished;
             m_AssetDataManager.onImportedAssetInfoChanged += OnImportedAssetInfoChanged;
             m_AssetDataManager.onAssetDataChanged += OnAssetDataChanged;
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_AssetImporter.onImportProgress -= OnImportProgress;
-            m_AssetImporter.onImportFinalized -= OnImportFinalized;
+            m_AssetOperationManager.OperationProgressChanged -= OnOperationProgress;
+            m_AssetOperationManager.OperationFinished -= OnOperationFinished;
             m_AssetDataManager.onImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
             m_AssetDataManager.onAssetDataChanged -= OnAssetDataChanged;
         }
 
         public async Task SelectedAsset(AssetIdentifier assetIdentifier)
         {
-            var assetData = m_AssetDataManager.GetAssetData(assetIdentifier);
+            var assetData = await m_AssetDataManager.GetOrSearchAssetData(assetIdentifier, default);
             await SelectAssetDataAsync(assetData);
         }
 
-        private void OnImportProgress(ImportOperation importOperation)
+        private void OnOperationProgress(AssetDataOperation operation)
         {
-            if (!importOperation.assetId.Equals(m_SelectedAssetData?.identifier))
+            if (!operation.AssetId.Equals(m_SelectedAssetData?.identifier))
                 return;
 
-            RefreshButtons(m_SelectedAssetData, importOperation);
-            m_OperationProgressBar.Refresh(importOperation);
-
-            if (importOperation.Status != OperationStatus.InProgress)
-            {
-                _ = SelectAssetDataAsync(importOperation.assetData);
-            }
+            RefreshButtons(m_SelectedAssetData, operation);
+            m_OperationProgressBar.Refresh(operation);
         }
 
-        private void OnImportFinalized(ImportOperation importOperation)
+        private void OnOperationFinished(AssetDataOperation operation)
         {
-            if (!importOperation.assetId.Equals(m_SelectedAssetData?.identifier))
+            if (!operation.AssetId.Equals(m_SelectedAssetData?.identifier))
                 return;
 
             RefreshUI();
@@ -201,12 +214,13 @@ namespace Unity.AssetManager.Editor
             if (!args.added.Concat(args.updated).Concat(args.removed).Any(a => a.Equals(m_SelectedAssetData?.identifier)))
                 return;
 
-            RefreshUI();
+            // In case of an import, force a full refresh of the displayed information
+            _ = SelectAssetDataAsync(m_SelectedAssetData);
         }
 
         private void ImportAssetAsync()
         {
-            var buttonType = m_ImportButton.text == Constants.ImportingText ?
+            var buttonType = m_ImportButton.text == Constants.ImportActionText ?
                 DetailsButtonClickedEvent.ButtonType.Import :
                 DetailsButtonClickedEvent.ButtonType.Reimport;
             AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(buttonType));
@@ -214,11 +228,11 @@ namespace Unity.AssetManager.Editor
             m_ImportButton.SetEnabled(false);
             try
             {
-                m_AssetImporter.StartImportAsync(m_SelectedAssetData, ImportAction.ImportButton);
+                m_AssetImporter.StartImportAsync(m_SelectedAssetData);
             }
             catch (Exception)
             {
-                RefreshButtons(m_SelectedAssetData, m_AssetImporter.GetImportOperation(m_SelectedAssetData?.identifier));
+                RefreshButtons(m_SelectedAssetData, m_AssetOperationManager.GetAssetOperation(m_SelectedAssetData?.identifier));
                 throw;
             }
         }
@@ -240,7 +254,11 @@ namespace Unity.AssetManager.Editor
 
             try
             {
-                m_AssetImporter.RemoveImport(m_SelectedAssetData?.identifier, true);
+                if (!m_AssetImporter.RemoveImport(m_SelectedAssetData?.identifier, true))
+                {
+                    m_RemoveImportButton.SetEnabled(true);
+                    m_ShowInProjectBrowserButton.SetEnabled(true);
+                }
             }
             catch (Exception)
             {
@@ -253,27 +271,42 @@ namespace Unity.AssetManager.Editor
         {
             m_AssetName.text = assetData.name;
             m_AssetId.text = assetData.identifier.assetId;
-            m_AssetType.text = assetData.assetType.DisplayValue();
-            m_Status.text = assetData.status;
-            m_Version.text = assetData.identifier.version;
+            UIElementsUtils.SetDisplay(m_AssetId.parent, !string.IsNullOrEmpty(m_AssetId.text));
 
-            m_UploadDate.text = assetData.updated?.ToString("G", CultureInfo.CurrentCulture);
-            m_LastEdited.text = assetData.created?.ToString("G", CultureInfo.CurrentCulture);
+            m_AssetType.text = assetData.assetType.DisplayValue();
+            UIElementsUtils.SetDisplay(m_AssetType.parent, !string.IsNullOrEmpty(m_AssetType.text));
+
+            m_Status.text = assetData.status;
+            UIElementsUtils.SetDisplay(m_Status.parent, !string.IsNullOrEmpty(m_Status.text));
+
+            m_Version.text = assetData.identifier.version;
+            UIElementsUtils.SetDisplay(m_Version.parent, !string.IsNullOrEmpty(m_Version.text));
+
+            m_CreatedDate.text = assetData.created?.ToLocalTime().ToString("G");
+            UIElementsUtils.SetDisplay(m_CreatedDate.parent, !string.IsNullOrEmpty(m_CreatedDate.text));
+            UIElementsUtils.SetDisplay(m_AssetDashboardLink,
+                !(string.IsNullOrEmpty(assetData.identifier.organizationId) || string.IsNullOrEmpty(assetData.identifier.projectId) || string.IsNullOrEmpty(assetData.identifier.assetId)));
+
+
+            m_UpdatedDate.text = assetData.updated?.ToLocalTime().ToString("G");
+            UIElementsUtils.SetDisplay(m_UpdatedDate.parent, !string.IsNullOrEmpty(m_UpdatedDate.text));
+
             m_Description.text = assetData.description;
             UIElementsUtils.SetDisplay(m_Description, !string.IsNullOrEmpty(m_Description.text));
 
-            m_AssetPreview.SetAssetType(assetData.primaryExtension, true);
-            m_AssetPreview.SetStatus(assetData.previewStatus);
+            m_AssetPreview.SetAssetType(assetData.primaryExtension);
+            m_AssetPreview.SetStatuses(assetData.previewStatus);
 
             RefreshProjectPill(assetData.identifier.projectId);
             RefreshTags(assetData.tags);
 
-            var importOperation = m_AssetImporter.GetImportOperation(assetData.identifier);
-            RefreshButtons(assetData, importOperation);
+            var operation = m_AssetOperationManager.GetAssetOperation(assetData.identifier);
+            RefreshButtons(assetData, operation);
 
-            m_OperationProgressBar.Refresh(importOperation);
+            m_OperationProgressBar.Refresh(operation);
 
-            RefreshFoldoutStyleBasedOnExpansionStatus();
+            m_FilesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
+            m_DependenciesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
         }
 
         void RefreshUI()
@@ -283,6 +316,8 @@ namespace Unity.AssetManager.Editor
                 UIElementsUtils.Hide(this);
                 return;
             }
+
+            m_AssetPreview.ClearPreview();
 
             UIElementsUtils.Show(this);
 
@@ -297,6 +332,7 @@ namespace Unity.AssetManager.Editor
             });
 
             RefreshFilesInformationUI(m_SelectedAssetData.sourceFiles);
+            RefreshDependenciesInformationUI(m_SelectedAssetData.dependencies);
         }
 
         async Task SelectAssetDataAsync(IAssetData assetData)
@@ -313,10 +349,11 @@ namespace Unity.AssetManager.Editor
 
             if (!isInProject)
             {
-                m_FilesListView.itemsSource = null;
                 UIElementsUtils.Hide(m_NoFilesWarningBox);
-                UIElementsUtils.Show(m_FilesLoadingLabel);
-                UIElementsUtils.Show(m_FilesFoldout);
+                UIElementsUtils.Hide(m_NoDependenciesBox);
+
+                m_FilesFoldout.StartPopulating();
+                m_DependenciesFoldout.StartPopulating();
 
                 m_TotalFiles.text = "-";
                 m_Filesize.text = "-";
@@ -326,27 +363,25 @@ namespace Unity.AssetManager.Editor
                     if (!identifier.Equals(m_SelectedAssetData?.identifier))
                         return;
 
-                    RefreshBaseInformationUI(assetData);
-
-                    RefreshFilesInformationUI(assetData.sourceFiles);
-
-                    UIElementsUtils.Hide(m_FilesLoadingLabel);
+                    RefreshUI();
                 }));
             }
 
-            m_AssetPreview.SetStatus(null);
+            m_AssetPreview.SetStatuses(null);
 
             tasks.Add(assetData.GetPreviewStatusAsync((identifier, status) =>
             {
                 if (!identifier.Equals(m_SelectedAssetData?.identifier))
                     return;
 
-                m_AssetPreview.SetStatus(status);
+                m_AssetPreview.SetStatuses(status);
             }));
 
-            await Task.WhenAll(tasks);
+            // TODO Display global loading state
 
-            UIElementsUtils.Hide(m_FilesLoadingLabel);
+            await Utilities.WaitForTasksAndHandleExceptions(tasks);
+
+            // TODO Hide global loading state
         }
 
         void RefreshProjectPill(string projectId)
@@ -356,7 +391,12 @@ namespace Unity.AssetManager.Editor
             var projectInfo = m_ProjectOrganizationProvider.SelectedOrganization?.projectInfos.Find(p => p.id == projectId);
 
             if (projectInfo == null)
+            {
+                UIElementsUtils.Hide(m_ProjectContainer.parent);
                 return;
+            }
+
+            UIElementsUtils.Show(m_ProjectContainer.parent);
 
             var projectPill = new ProjectPill(projectInfo);
             projectPill.ProjectPillClickAction += pi => { m_ProjectOrganizationProvider.SelectProject(pi); };
@@ -390,18 +430,6 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.SetDisplay(m_TagSection, m_TagsContainer.childCount > 0);
         }
 
-        void RefreshFoldoutStyleBasedOnExpansionStatus()
-        {
-            if (m_FilesFoldout.value)
-            {
-                m_FilesFoldout.AddToClassList("details-files-foldout-expanded");
-            }
-            else
-            {
-                m_FilesFoldout.RemoveFromClassList("details-files-foldout-expanded");
-            }
-        }
-
         void OnAssetDataChanged(AssetChangeArgs args)
         {
             if (!args.added.Concat(args.removed).Concat(args.updated).Any(a => a.Equals(m_SelectedAssetData?.identifier)))
@@ -422,24 +450,26 @@ namespace Unity.AssetManager.Editor
                 m_Filesize.text = Utilities.BytesToReadableString(assetFileSize);
                 m_TotalFiles.text = files.Count.ToString();
 
-                m_FilesList = files.OrderBy(f => f.path).Select(f => f.path).ToList();
-
-                m_FilesListView.makeItem = () => new DetailsPageFileItem(m_AssetDataManager, m_PageManager, m_AssetImporter, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy);
-                m_FilesListView.bindItem = (element, i) => { ((DetailsPageFileItem)element).Refresh(m_FilesList[i], m_FilesList); };
-                m_FilesListView.itemsSource = m_FilesList;
-                m_FilesListView.fixedItemHeight = 30;
+                m_FilesFoldout.Populate(files);
             }
             else
             {
                 m_Filesize.text = Utilities.BytesToReadableString(0);
                 m_TotalFiles.text = "0";
 
-                m_FilesListView.itemsSource = null;
+                m_FilesFoldout.Clear();
             }
 
-            UIElementsUtils.SetDisplay(m_FilesFoldout, hasFiles);
             UIElementsUtils.SetDisplay(m_NoFilesWarningBox, !hasFiles);
-            UIElementsUtils.SetDisplay(m_FilesListView, hasFiles);
+            m_FilesFoldout.StopPopulating();
+        }
+
+        void RefreshDependenciesInformationUI(IEnumerable<DependencyAsset> dependencies)
+        {
+            var dependencyAssets = dependencies.ToList();
+            m_DependenciesFoldout.Populate(dependencyAssets);
+            UIElementsUtils.SetDisplay(m_NoDependenciesBox, !dependencyAssets.Any());
+            m_DependenciesFoldout.StopPopulating();
         }
 
         void RefreshButtons(IAssetData assetData, BaseOperation importOperation)

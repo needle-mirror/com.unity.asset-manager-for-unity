@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Cloud.Assets;
 
 namespace Unity.AssetManager.Editor
 {
@@ -16,7 +17,7 @@ namespace Unity.AssetManager.Editor
 
         PageFilters pageFilters { get; }
 
-        Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, string criterion, CancellationToken token);
+        Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, GroupableField groupBy, CancellationToken token);
         bool isActivePage { get; }
 
         AssetIdentifier selectedAssetId { get; set; }

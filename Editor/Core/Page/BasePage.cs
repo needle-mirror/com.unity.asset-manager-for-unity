@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
 using UnityEngine;
+using UnityEngine.Analytics;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -66,10 +67,7 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
 
-        public ErrorOrMessageHandlingData errorOrMessageHandlingData
-        {
-            get => m_ErrorOrMessageHandling;
-        }
+        public ErrorOrMessageHandlingData errorOrMessageHandlingData => m_ErrorOrMessageHandling;
 
         [SerializeField]
         private bool m_ReTriggerSearchAfterDomainReload;
@@ -92,7 +90,7 @@ namespace Unity.AssetManager.Editor
             m_HasMoreItems = true;
             m_SelectedAssetId = null;
 
-            m_PageFilters = new PageFilters(this, projectOrganizationProvider, InitFilters());
+            m_PageFilters = new PageFilters(this, InitFilters());
         }
 
         protected virtual List<BaseFilter> InitFilters()
@@ -104,14 +102,17 @@ namespace Unity.AssetManager.Editor
             };
         }
 
-        public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, string criterion, CancellationToken token)
+        public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, GroupableField groupBy, CancellationToken token)
         {
-            return await m_AssetsProvider.GetFilterSelectionsAsync(organizationId, projectIds, m_PageFilters.assetFilter, criterion, token);
+            return await m_AssetsProvider.GetFilterSelectionsAsync(organizationId, projectIds, m_PageFilters.assetFilter,
+                groupBy, token);
         }
 
         public virtual void OnActivated()
         {
             m_IsActive = true;
+
+            AnalyticsSender.SendEvent(new PageSelectedEvent(GetPageName()));
         }
 
         public virtual void OnDeactivated()
@@ -237,18 +238,14 @@ namespace Unity.AssetManager.Editor
         async IAsyncEnumerable<IAssetData> LoadMoreAssets(string organizationId, IEnumerable<string> projectIds, string collectionPath, [EnumeratorCancellation] CancellationToken token)
         {
             var assetSearchFilter = m_PageFilters.assetFilter;
-            UpdateSearchFilter(assetSearchFilter, m_PageFilters.searchFilters);
-
-            if (!string.IsNullOrEmpty(collectionPath))
-            {
-                assetSearchFilter.Collections.Add(new CollectionPath(collectionPath));
-            }
+            UpdateSearchFilter(assetSearchFilter, collectionPath, m_PageFilters.searchFilters);
 
             var count = 0;
             await foreach (var asset in m_AssetsProvider.SearchAsync(organizationId, projectIds, assetSearchFilter, m_NextStartIndex, Constants.DefaultPageSize, token))
             {
                 ++count;
 
+                // If an asset was imported, we need to display it's state and not the one from the cloud
                 var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(new AssetIdentifier(asset.Descriptor));
                 var assetData = importedAssetInfo != null ? importedAssetInfo.assetData : new AssetData(asset);
 
@@ -268,23 +265,30 @@ namespace Unity.AssetManager.Editor
             onSearchFiltersChanged?.Invoke(searchFilters);
         }
 
-        private void UpdateSearchFilter(AssetSearchFilter assetFilter, IEnumerable<string> searchStrings)
+        private void UpdateSearchFilter(AssetSearchFilter assetFilter, string collectionPath, IEnumerable<string> searchStrings)
         {
-            assetFilter.Collections.Clear();
+            if (!string.IsNullOrEmpty(collectionPath))
+            {
+                assetFilter.Collections.WhereContains(new CollectionPath(collectionPath));
+            }
+            else
+            {
+                assetFilter.Collections.WhereContains(new List<CollectionPath>());
+            }
 
             if (searchStrings != null && searchStrings.Any())
             {
                 var searchFilterString = string.Join(" ", searchStrings);
 
-                assetFilter.Name.ForAny(searchFilterString);
-                assetFilter.Description.ForAny(searchFilterString);
-                assetFilter.Tags.ForAny(searchFilterString);
+                assetFilter.Any().Name.WithValue(searchFilterString);
+                assetFilter.Any().Description.WithValue(searchFilterString);
+                assetFilter.Any().Tags.WithValue(searchFilterString);
             }
             else
             {
-                assetFilter.Name.Clear();
-                assetFilter.Description.Clear();
-                assetFilter.Tags.Clear();
+                assetFilter.Any().Name.Clear();
+                assetFilter.Any().Description.Clear();
+                assetFilter.Any().Tags.Clear();
             }
         }
 
@@ -304,6 +308,12 @@ namespace Unity.AssetManager.Editor
         public virtual VisualElement CreateCustomUISection()
         {
             return null;
+        }
+
+        protected virtual string GetPageName()
+        {
+            var name = GetType().Name;
+            return name.EndsWith("Page") ? name.Substring(0, name.Length - 4) : name;
         }
     }
 }

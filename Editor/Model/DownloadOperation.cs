@@ -14,12 +14,8 @@ namespace Unity.AssetManager.Editor
         float m_Progress;
 
         public override float Progress => m_Progress;
-        protected override string OperationName => "Downloading";
-        protected override string Description => $"{System.IO.Path.GetFileName(path)}";
-
-        public DownloadOperation(BaseOperation parent) : base(parent)
-        {
-        }
+        public override string OperationName => "Downloading";
+        public override string Description => $"{System.IO.Path.GetFileName(path)}";
 
         public void SetProgress(float progress)
         {

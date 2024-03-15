@@ -5,11 +5,17 @@ namespace Unity.AssetManager.Editor
 {
     static class AssetDataStatus
     {
+        // Import
         public static readonly AssetPreview.IStatus Imported = new PreviewStatus("Asset is imported", UssStyles.StatusIcon, UssStyles.StatusImported);
-        public static readonly AssetPreview.IStatus UpToDate = new PreviewStatus("Asset is up to date", UssStyles.StatusIcon, UssStyles.StatusUpToDate);
-        public static readonly AssetPreview.IStatus OutOfDate = new PreviewStatus("Asset is outdated", UssStyles.StatusIcon, UssStyles.StatusOutOfDate);
-        public static readonly AssetPreview.IStatus Error = new PreviewStatus("Asset was deleted or is not accessible", UssStyles.StatusIcon, UssStyles.StatusError);
-        public static readonly AssetPreview.IStatus Linked = new PreviewStatus("This asset is dependency of another asset", "grid-view--item-linked");
+        public static readonly AssetPreview.IStatus UpToDate = new PreviewStatus("Asset is up to date", UssStyles.StatusUpToDate);
+        public static readonly AssetPreview.IStatus OutOfDate = new PreviewStatus("Asset is outdated", UssStyles.StatusOutOfDate);
+        public static readonly AssetPreview.IStatus Error = new PreviewStatus("Asset was deleted or is not accessible", UssStyles.StatusError);
+
+        // Upload
+        public static readonly AssetPreview.IStatus Linked = new PreviewStatus("This asset is a dependency of another asset", "grid-view--item-linked");
+        public static readonly AssetPreview.IStatus UploadSkip = new PreviewStatus("This asset already exists on the cloud and will not be uploaded", "grid-view--item-upload-skip");
+        public static readonly AssetPreview.IStatus UploadOverride = new PreviewStatus("This asset will override its cloud version", "grid-view--item-upload-override");
+        public static readonly AssetPreview.IStatus UploadDuplicate = new PreviewStatus("This asset already exists on the cloud but a new cloud asset will be uploaded", "grid-view--item-upload-duplicate");
 
         static class UssStyles
         {

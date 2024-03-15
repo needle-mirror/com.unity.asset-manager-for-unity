@@ -54,5 +54,15 @@ namespace Unity.AssetManager.Editor
                 SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
             }
         }
+
+        protected override string GetPageName()
+        {
+            if(m_CollectionInfo == null || string.IsNullOrEmpty(m_CollectionInfo.name))
+            {
+                return "Project";
+            }
+
+            return "Collection";
+        }
     }
 }

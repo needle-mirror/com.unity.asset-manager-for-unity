@@ -10,21 +10,21 @@ namespace Unity.AssetManager.Editor
             : base(page, projectOrganizationProvider) { }
 
         public override string DisplayName => "Type";
-        protected override string Criterion => AssetTypeSearchCriteria.SearchKey;
+        protected override GroupableField GroupBy => GroupableField.Type;
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
-            assetSearchFilter.Type.Include(SelectedFilter);
+            assetSearchFilter.Include().Type.WithValue(SelectedFilter);
         }
 
         protected override void IncludeFilter(string selection)
         {
-            m_Page.pageFilters.assetFilter.Type.Include(selection);
+            m_Page.pageFilters.assetFilter.Include().Type.WithValue(selection);
         }
 
         protected override void ClearFilter()
         {
-            m_Page.pageFilters.assetFilter.Type.Clear();
+            m_Page.pageFilters.assetFilter.Include().Type.Clear();
         }
     }
 }

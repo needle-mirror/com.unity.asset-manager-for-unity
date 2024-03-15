@@ -4,6 +4,38 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2024-03-15
+
+### Added
+* Asset uploading to Unity Cloud
+* Analytics to improve user experience
+* Support for Unity 2023.3
+* Support for opening assets from the Unity Cloud Dashboard
+
+### Changed
+* Static placements of UI elements on the Asset Details page
+* Context menu for Assets
+* Icons for state of Assets
+
+### Fixed 
+* Window code optimization improvements
+* Loading more than 100 assets may result in unexpected behaviour
+* Slow HTTP connections
+* Import progress
+* HTTP errors not being revealed in console
+* "Open the Asset Manager Dashboard" link does not link to the specific project
+* Sometimes clicking on project does not register
+* Inactive "Remove From Project" button
+* Highlighting and focused state colours being the same
+* Thumbnails not being updaated properly
+* Updating and re-importing assets may cause data sync issues
+
+### Known Issues
+* Uploading and downloading in the same project may cause issues
+* In-Project view may behave incorrectly
+* Cannot cancel imports
+* Uploading lighting data from a Scene causes a crash
+
 ## [0.4.4] - 2024-02-29
 
 ### Changed

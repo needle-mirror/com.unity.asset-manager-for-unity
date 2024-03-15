@@ -1,0 +1,61 @@
+using System;
+using UnityEngine.Analytics;
+
+namespace Unity.AssetManager.Editor
+{
+    class PageSelectedEvent : IBaseEvent
+    {
+        [Serializable]
+#if UNITY_2023_2_OR_NEWER
+        internal class PageSelectedEventData : IAnalytic.IData
+#else
+        internal class PageSelectedEventData : BaseEventData
+#endif
+        {
+            public string SelectedPage;
+        }
+
+        const string k_EventName = AnalyticsSender.k_EventPrefix + "PageSelected";
+        const int k_EventVersion = 1;
+
+        public string EventName => k_EventName;
+        public int EventVersion => k_EventVersion;
+
+        PageSelectedEventData m_Data;
+
+        internal PageSelectedEvent(string selectPage)
+        {
+            m_Data = new PageSelectedEventData()
+            {
+                SelectedPage = selectPage
+            };
+        }
+
+#if UNITY_2023_2_OR_NEWER
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        internal class PageSelectedEventAnalytic : IAnalytic
+        {
+            PageSelectedEventData m_Data;
+
+            public PageSelectedEventAnalytic(PageSelectedEventData data)
+            {
+                m_Data = data;
+            }
+
+            public bool TryGatherData(out IAnalytic.IData data, out Exception error)
+            {
+                error = null;
+                data = m_Data;
+                return data != null;
+            }
+        }
+
+        public IAnalytic GetAnalytic()
+        {
+            return new PageSelectedEventAnalytic(m_Data);
+        }
+#else
+        public BaseEventData EventData => m_Data;
+#endif
+    }
+}

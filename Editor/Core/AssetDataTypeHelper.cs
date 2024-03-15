@@ -116,10 +116,13 @@ namespace Unity.AssetManager.Editor
             {
                 if (string.IsNullOrEmpty(extension))
                     continue;
-                
+
                 var ext = extension.ToLower();
-                
-                if (ext == ".meta")
+
+                if (ext == MetafilesHelper.MetaFileExtension)
+                    continue;
+
+                if (AssetDataDependencyHelper.IsASystemFile(ext))
                     continue;
 
                 assetExtensions.Add(ext);
@@ -210,7 +213,7 @@ namespace Unity.AssetManager.Editor
 
                 return type;
             }
-            
+
             return null;
         }
 

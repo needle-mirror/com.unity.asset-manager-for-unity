@@ -12,7 +12,8 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
-            m_ErrorOrMessageActionButton = new ErrorOrMessageActionButton(pageManager, linksProxy);
+            m_ErrorOrMessageActionButton = new ErrorOrMessageActionButton(pageManager, projectOrganizationProvider,
+                linksProxy);
 
             messageType = HelpBoxMessageType.Info;
             Add(m_ErrorOrMessageActionButton);

@@ -26,14 +26,14 @@ namespace Unity.AssetManager.Editor
         public static readonly int k_MaxNumberOfElements = 1000;
 
         // Vendor key must start with unity.
-        public static readonly string s_VendorKey = "unity.asset-explorer";
-        public static readonly string s_EventPrefix = "assetManager";
+        public const string k_VendorKey = "unity.asset-explorer";
+        public const string k_EventPrefix = "assetManager";
 
         internal static AnalyticsResult SendEvent(IBaseEvent aEvent)
         {
 #if !UNITY_2023_2_OR_NEWER
             var register = EditorAnalytics.RegisterEventWithLimit(aEvent.EventName, k_MaxEventsPerHour,
-                k_MaxNumberOfElements, s_VendorKey, aEvent.EventVersion);
+                k_MaxNumberOfElements, k_VendorKey, aEvent.EventVersion);
 
             // This is one here for each event, so that if the call fails we don't try to send the event for nothing
             if (register != AnalyticsResult.Ok)

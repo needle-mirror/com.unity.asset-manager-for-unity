@@ -18,14 +18,14 @@ namespace Unity.AssetManager.Editor
     {
         [SerializeReference]
         IAssetData m_AssetData;
-            
+
         [SerializeField]
         List<ImportedFileInfo> m_FileInfos;
 
         public IAssetData assetData => m_AssetData;
-            
+
         public IEnumerable<ImportedFileInfo> fileInfos => m_FileInfos;
-            
+
         public TrackedData(IAssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
         {
             m_AssetData = assetData;
@@ -53,7 +53,7 @@ namespace Unity.AssetManager.Editor
             return JsonUtility.ToJson(trackedData, true);
         }
     }
-    
+
     [Serializable]
     internal class ImportedAssetsTracker : BaseService<IImportedAssetsTracker>, IImportedAssetsTracker
     {
@@ -66,10 +66,10 @@ namespace Unity.AssetManager.Editor
 
         [SerializeReference]
         IIOProxy m_IOProxy;
-        
+
         [SerializeReference]
         IAssetDatabaseProxy m_AssetDatabaseProxy;
-        
+
         [SerializeReference]
         IAssetDataManager m_AssetDataManager;
 
@@ -117,18 +117,17 @@ namespace Unity.AssetManager.Editor
                     }
                     else
                     {
-                        var guid = Path.GetFileName(filePath); // TODO Fix Me and Serialize
                         foreach (var file in trackedData.fileInfos)
                         {
                             if (result.TryGetValue(assetData.identifier, out var importedAssetInfo))
                             {
-                                importedAssetInfo.fileInfos.Add(new ImportedFileInfo(guid, file.originalPath));
+                                importedAssetInfo.fileInfos.Add(file);
                             }
                             else
                             {
-                                result[assetData.identifier] = new ImportedAssetInfo(assetData, new List<ImportedFileInfo> { new (guid, file.originalPath) });
-                            }    
-                        }    
+                                result[assetData.identifier] = new ImportedAssetInfo(assetData, new List<ImportedFileInfo> { file });
+                            }
+                        }
                     }
                 }
 
@@ -161,7 +160,7 @@ namespace Unity.AssetManager.Editor
                 }
 
                 m_IOProxy.FileWriteAllText(importInfoFilePath, TrackedData.ToJson(assetData, fileInfos));
-                
+
                 return true;
             }
             catch (IOException e)
@@ -170,11 +169,11 @@ namespace Unity.AssetManager.Editor
                 return false;
             }
         }
-        
+
         public static string GetSafeFilename(string input, int maxSize = 20)
         {
             var safeFilename = Regex.Replace(input, "[^a-zA-Z0-9_\\-\\.]", "");
-            
+
             if (safeFilename.Length > maxSize)
             {
                 safeFilename = safeFilename[0..maxSize];
@@ -223,12 +222,12 @@ namespace Unity.AssetManager.Editor
                 m_AssetDataManager.AddGuidsToImportedAssetInfo(assetData, fileInfos);
             }
         }
-        
+
         public void UntrackAsset(AssetIdentifier identifier)
         {
             if (identifier == null)
                 return;
-            
+
             var filename = identifier.assetId;
             var importInfoFilePath = Path.Combine(m_ImportedAssetInfoFolderPath, filename);
             m_IOProxy.DeleteFileIfExists(importInfoFilePath);

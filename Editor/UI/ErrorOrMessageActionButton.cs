@@ -1,3 +1,4 @@
+using System.Threading;
 using UnityEditor;
 using UnityEngine.UIElements;
 
@@ -7,11 +8,16 @@ namespace Unity.AssetManager.Editor
     {
         private const string k_ButtonClassName = "errorOrMessageView-button";
         private const string k_LinkClassName = "errorOrMessageView-action-button-link";
+        
         private readonly IPageManager m_PageManager;
         private readonly ILinksProxy m_LinksProxy;
-        public ErrorOrMessageActionButton(IPageManager pageManager, ILinksProxy linksProxy)
+        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        
+        public ErrorOrMessageActionButton(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            ILinksProxy linksProxy)
         {
             m_PageManager = pageManager;
+            m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_LinksProxy = linksProxy;
         }
 
@@ -29,6 +35,16 @@ namespace Unity.AssetManager.Editor
                     clicked += m_LinksProxy.OpenProjectSettingsServices;
 
                     tooltip = L10n.Tr("Open Project Settings");
+                    text = tooltip;
+                }
+                break;
+                case ErrorOrMessageRecommendedAction.EnableProject:
+                {
+                    RemoveFromClassList(k_LinkClassName);
+                    AddToClassList(k_ButtonClassName);
+                    clicked += m_ProjectOrganizationProvider.EnableProject;
+
+                    tooltip = L10n.Tr("Enable Project");
                     text = tooltip;
                 }
                 break;

@@ -35,6 +35,8 @@ namespace Unity.AssetManager.Editor
         // Note that the `OrganizationForeignKey` in UnityConnect matches with `OrganizationId` in AssetSDK
         // We rename the function here so it's more consistent in the rest of the code.
         public string GetOrganizationId() => UnityConnect.instance.GetOrganizationForeignKey();
+        
+        public string GetProjectId() => UnityConnect.instance.GetProjectGUID();
 
         public string GetAccessToken() => UnityConnect.instance.GetAccessToken();
 

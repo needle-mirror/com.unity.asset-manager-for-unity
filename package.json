@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "unity": "2022.3",
   "description": "An in-Editor tool that allows you to import assets directly into your project.",
   "keywords": [
@@ -11,22 +11,22 @@
   ],
   "dependencies": {
     "com.unity.settings-manager": "1.0.2",
-    "com.unity.cloud.assets": "1.0.0-exp.6",
-    "com.unity.cloud.identity": "1.0.0-pre.5"
+    "com.unity.cloud.assets": "1.0.0",
+    "com.unity.cloud.identity": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "0.4.4"
+    "com.unity.asset-manager-for-unity.tests": "0.5.0"
   },
   "_upm": {
-    "changelog": "### Changed\n* Look and feel of Asset Details page\n* Removed re-import tooltip\n* Hid description and tag when empty\n* Fixed import status not updating after a re-import\n* Removed Project dashboard link\n\n### Fixed \n* Window code improvements\n* Multiple tags in detail view were stacked in column instead of row\n* \"Open the Asset Manager Dashboard\" not correctly linking to current empty project\n\n### Known Issues\n* Updating and re-importing assets may cause data sync issues\n* Loading more than 100 assets may result in unexpected behaviour"
+    "changelog": "### Added\n* Asset uploading to Unity Cloud\n* Analytics to improve user experience\n* Support for Unity 2023.3\n* Support for opening assets from the Unity Cloud Dashboard\n\n### Changed\n* Static placements of UI elements on the Asset Details page\n* Context menu for Assets\n* Icons for state of Assets\n\n### Fixed \n* Window code optimization improvements\n* Loading more than 100 assets may result in unexpected behaviour\n* Slow HTTP connections\n* Import progress\n* HTTP errors not being revealed in console\n* \"Open the Asset Manager Dashboard\" link does not link to the specific project\n* Sometimes clicking on project does not register\n* Inactive \"Remove From Project\" button\n* Highlighting and focused state colours being the same\n* Thumbnails not being updaated properly\n* Updating and re-importing assets may cause data sync issues\n\n### Known Issues\n* Uploading and downloading in the same project may cause issues\n* In-Project view may behave incorrectly\n* Cannot cancel imports\n* Uploading lighting data from a Scene causes a crash"
   },
   "upmCi": {
-    "footprint": "f37912e6807237d40b6e3e12368f51ba3626ed69"
+    "footprint": "7d949b5625f41f5d5c913e85fc2d0fedceb9f163"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.4/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.5/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "302ca2c700b61e79063b1515c024dbfc69a8cfd3"
+    "revision": "3e3e63d625c84ff285cc881ae08bba7a5a09d9d3"
   }
 }

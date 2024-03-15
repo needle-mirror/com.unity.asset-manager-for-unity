@@ -88,10 +88,7 @@ namespace Unity.AssetManager.Editor
 
         public void InitializeServices()
         {
-            if (Utilities.IsDevMode)
-            {
-                Debug.Log("Initializing Asset Manager Services");
-            }
+            Utilities.DevLog("Initializing Asset Manager Services");
 
             m_RegisteredServices.Clear();
 
@@ -101,7 +98,9 @@ namespace Unity.AssetManager.Editor
             Register(new ApplicationProxy());
             Register(new DirectoryInfoFactory());
             Register(new WebRequestProxy());
+            Register(new AssetOperationManager());
             Register(new DownloadManager());
+            Register(new UploadManager());
             Register(new CachePathHelper());
             Register(new AssetManagerSettingsManager());
             Register(new FileInfoWrapper());
@@ -118,6 +117,7 @@ namespace Unity.AssetManager.Editor
             Register(new ImportedAssetsTracker());
             Register(new EditorUtilityProxy());
             Register(new AssetImporter());
+            Register(new ContextMenuBuilder());
 
             InjectServicesAndBuildDependencies();
 

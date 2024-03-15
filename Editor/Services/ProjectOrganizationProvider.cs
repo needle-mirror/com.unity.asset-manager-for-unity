@@ -37,6 +37,8 @@ namespace Unity.AssetManager.Editor
         ProjectInfo SelectedProject { get; }
         CollectionInfo SelectedCollection { get; }
         void SelectProject(ProjectInfo projectInfo, string collectionPath = null);
+        void SelectProject(string projectId, string collectionPath = null);
+        void EnableProject();
         bool isLoading { get; }
         ErrorOrMessageHandlingData errorOrMessageHandlingData { get; } // TODO Error reporting should be an event
     }
@@ -45,7 +47,7 @@ namespace Unity.AssetManager.Editor
     internal class ProjectOrganizationProvider : BaseService<IProjectOrganizationProvider>, IProjectOrganizationProvider
     {
         private static readonly string k_NoOrganizationMessage = L10n.Tr("It seems your project is not linked to an organization. Please link your project to a Unity project ID to start using the Asset Manager service.");
-        private static readonly string k_NoProjectsMessage = L10n.Tr("It seems you don't have any projects created in your Asset Manager Dashboard.");
+        private static readonly string k_CurrentProjectNotEnabledMessage = L10n.Tr("It seems your current project is not enabled for use in the Asset Manager.");
 
         public event Action<OrganizationInfo> OrganizationChanged;
         public event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
@@ -85,8 +87,9 @@ namespace Unity.AssetManager.Editor
         {
             get
             {
-                return m_SelectedProjectId == ProjectInfo.AllAssetsProjectInfo.id ?
-                    ProjectInfo.AllAssetsProjectInfo : m_OrganizationInfo?.projectInfos?.Find(p => p.id == m_SelectedProjectId);
+                return m_SelectedProjectId == ProjectInfo.AllAssetsProjectInfo.id
+                    ? ProjectInfo.AllAssetsProjectInfo
+                    : m_OrganizationInfo?.projectInfos?.Find(p => p.id == m_SelectedProjectId);
             }
         }
 
@@ -109,19 +112,41 @@ namespace Unity.AssetManager.Editor
 
         public void SelectProject(ProjectInfo projectInfo, string collectionPath = null)
         {
-            var oldSelectedProjectId = SelectedProject?.id ?? string.Empty;
-            var newSelectedProjectId = projectInfo?.id ?? string.Empty;
+            SelectProject(projectInfo?.id, collectionPath);
+        }
 
-            if (oldSelectedProjectId == newSelectedProjectId && m_CollectionPath == collectionPath)
+        public void SelectProject(string projectId, string collectionPath = null)
+        {
+            var currentProjectId = SelectedProject?.id;
+
+            if (string.IsNullOrEmpty(projectId) && string.IsNullOrEmpty(currentProjectId))
                 return;
 
-            m_SelectedProjectId = newSelectedProjectId;
+            if (currentProjectId == projectId && (m_CollectionPath ?? string.Empty) == (collectionPath ?? string.Empty))
+                return;
+
+            if (!string.IsNullOrEmpty(currentProjectId) &&
+                !m_OrganizationInfo.projectInfos.Exists(p => p.id == currentProjectId) &&
+                currentProjectId != ProjectInfo.AllAssetsProjectInfo.id)
+            {
+                Debug.LogError($"Project with id '{currentProjectId}' is not part of the organization '{m_OrganizationInfo.id}'");
+                return;
+            }
+
+            m_SelectedProjectId = projectId;
             m_CollectionPath = collectionPath;
 
             SavedProjectId = m_SelectedProjectId;
             SavedCollectionPath = m_CollectionPath;
 
             ProjectSelectionChanged?.Invoke(SelectedProject, SelectedCollection);
+        }
+
+        public async void EnableProject()
+        {
+            await m_AssetsProvider.EnableProjectAsync();
+
+            FetchProjectOrganization(m_UnityConnectProxy.organizationId);
         }
 
         [SerializeField]
@@ -144,36 +169,34 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
-            m_UnityConnectProxy.onOrganizationIdChange += OnOrganizationIdChange;
+            m_UnityConnectProxy.onOrganizationIdChange += OnProjectStateChanged;
             FetchProjectOrganization(m_UnityConnectProxy.organizationId);
         }
 
         public override void OnDisable()
         {
-            m_UnityConnectProxy.onOrganizationIdChange -= OnOrganizationIdChange;
+            m_UnityConnectProxy.onOrganizationIdChange -= OnProjectStateChanged;
         }
 
-        private void OnOrganizationIdChange(string newOrgId)
+        private void OnProjectStateChanged(string newOrgId)
         {
             FetchProjectOrganization(newOrgId);
         }
 
         private void FetchProjectOrganization(string newOrgId)
         {
-            if (!string.IsNullOrEmpty(m_OrganizationInfo?.id) && m_OrganizationInfo.id == newOrgId)
-                return;
+            if (!string.IsNullOrEmpty(m_OrganizationInfo?.id) && m_OrganizationInfo.id != newOrgId)
+            {
+                m_OrganizationInfo = new OrganizationInfo { id = newOrgId };
+            }
 
             if (isLoading)
             {
                 m_LoadOrganizationOperation.Cancel();
             }
 
-            if (Utilities.IsDevMode)
-            {
-                Debug.Log($"Fetching organization info for '{newOrgId}'...");
-            }
+            Utilities.DevLog($"Fetching organization info for '{newOrgId}'...");
 
-            m_OrganizationInfo = new OrganizationInfo { id = newOrgId };
             if (string.IsNullOrEmpty(newOrgId))
             {
                 m_ErrorOrMessageHandling.message = k_NoOrganizationMessage;
@@ -200,15 +223,15 @@ namespace Unity.AssetManager.Editor
                 onSuccessCallback: result =>
                 {
                     m_OrganizationInfo = result;
-                    if (m_OrganizationInfo?.projectInfos.Any() == true)
+                    if (m_OrganizationInfo?.projectInfos.Any(x => x.id == m_UnityConnectProxy.projectId) == false)
                     {
-                        SelectProject(RestoreSelectedProject(), RestoreSelectedCollection());
+                        SelectProject(string.Empty);
+                        errorOrMessageHandlingData.message = k_CurrentProjectNotEnabledMessage;
+                        errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.EnableProject;
                     }
                     else
                     {
-                        SelectProject(null, null);
-                        errorOrMessageHandlingData.message = k_NoProjectsMessage;
-                        errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink;
+                        SelectProject(RestoreSelectedProject(), RestoreSelectedCollection());
                     }
 
                     InvokeOrganizationChanged();

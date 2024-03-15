@@ -256,11 +256,11 @@ TagPill:hover {
     background-image: resource("Images/Dark/Close");
 }
 
-#details-files-foldout > Toggle{
+.details-files-foldout > Toggle{
     background-color: rgba(32, 32, 32, 1);
 }
 
-#no-files-warning-box {
+.no-files-warning-box {
     background-color: rgba(27, 27, 27, 1);
     border-color: rgba(84, 84, 84, 1);
 }

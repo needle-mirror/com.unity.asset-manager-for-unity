@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
+using Unity.Cloud.Common;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -27,8 +28,10 @@ namespace Unity.AssetManager.Editor
         void RemoveGuidsFromImportedAssetInfos(IReadOnlyCollection<string> guidsToRemove);
         void AddOrUpdateAssetDataFromCloudAsset(IEnumerable<IAssetData> assetDatas);
         ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier id);
+        void RemoveImportedAssetInfo(AssetIdentifier id);
         ImportedAssetInfo GetImportedAssetInfo(string guid);
         IAssetData GetAssetData(AssetIdentifier id);
+        Task<IAssetData> GetOrSearchAssetData(AssetIdentifier assetIdentifier, CancellationToken token);
         bool IsInProject(AssetIdentifier id);
     }
 
@@ -161,7 +164,7 @@ namespace Unity.AssetManager.Editor
             }
 
             if (updated.Count + removed.Count > 0)
-                onImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { added = Array.Empty<AssetIdentifier>(), removed =  removed, updated = updated });
+                onImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { added = Array.Empty<AssetIdentifier>(), removed = removed, updated = updated });
         }
 
         public void AddOrUpdateAssetDataFromCloudAsset(IEnumerable<IAssetData> assetDatas)
@@ -197,6 +200,12 @@ namespace Unity.AssetManager.Editor
             return id?.IsValid() == true && m_AssetIdToImportedAssetInfoLookup.TryGetValue(id, out var result) ? result : null;
         }
 
+        public void RemoveImportedAssetInfo(AssetIdentifier id)
+        {
+            m_AssetIdToImportedAssetInfoLookup.Remove(id);
+            onImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { removed = new[] { id } });
+        }
+
         public ImportedAssetInfo GetImportedAssetInfo(string guid)
         {
             return m_GuidToImportedAssetInfoLookup.TryGetValue(guid, out var result) ? result : null;
@@ -213,6 +222,43 @@ namespace Unity.AssetManager.Editor
             }
 
             return m_AssetData.TryGetValue(id, out var result) ? result : null;
+        }
+
+        public async Task<IAssetData> GetOrSearchAssetData(AssetIdentifier assetIdentifier, CancellationToken token)
+        {
+            var assetData = GetAssetData(assetIdentifier);
+
+            if (assetData != null)
+            {
+                return assetData;
+            }
+
+            var assetRepository = Services.AssetRepository; // TODO investigate how to clean this dependency
+
+            IAsset asset = null;
+
+            try
+            {
+                asset = await assetRepository.GetAssetAsync(assetIdentifier.ToAssetDescriptor(), token);
+            }
+            catch (ForbiddenException)
+            {
+                // Unavailable
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+
+            if (asset != null)
+            {
+                assetData = new AssetData(asset);
+                AddOrUpdateAssetDataFromCloudAsset(new[] { assetData });
+
+                return assetData;
+            }
+
+            return null;
         }
 
         public bool IsInProject(AssetIdentifier id)

@@ -39,33 +39,33 @@ namespace Unity.AssetManager.Editor
         readonly IPageManager m_PageManager;
         readonly IAssetDataManager m_AssetDataManager;
         readonly IAssetImporter m_AssetImporter;
+        readonly IAssetOperationManager m_AssetOperationManager;
         readonly IStateManager m_StateManager;
         readonly IUnityConnectProxy m_UnityConnect;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly ILinksProxy m_LinksProxy;
-        readonly IEditorGUIUtilityProxy m_EditorGUIUtilityProxy;
         readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
         readonly IProjectIconDownloader m_ProjectIconDownloader;
 
         public AssetManagerWindowRoot(IPageManager pageManager,
             IAssetDataManager assetDataManager,
             IAssetImporter assetImporter,
+            IAssetOperationManager assetOperationManager,
             IStateManager stateManager,
             IUnityConnectProxy unityConnect,
             IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy,
-            IEditorGUIUtilityProxy editorGUIUtilityProxy,
             IAssetDatabaseProxy assetDatabaseProxy,
             IProjectIconDownloader projectIconDownloader)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
             m_AssetImporter = assetImporter;
+            m_AssetOperationManager = assetOperationManager;
             m_StateManager = stateManager;
             m_UnityConnect = unityConnect;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_LinksProxy = linksProxy;
-            m_EditorGUIUtilityProxy = editorGUIUtilityProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
             m_ProjectIconDownloader = projectIconDownloader;
         }
@@ -138,8 +138,20 @@ namespace Unity.AssetManager.Editor
             content.AddToClassList("AssetManagerContentView");
             m_SearchContentSplitViewContainer.Add(content);
 
-            m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager, m_AssetDataManager, m_AssetImporter, m_LinksProxy);
-            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_StateManager, m_PageManager, m_AssetDataManager, m_EditorGUIUtilityProxy, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_ProjectIconDownloader);
+            if (!ServicesContainer.instance.Resolve<IContextMenuBuilder>().IsContextMenuRegistered(typeof(AssetData)))
+            {
+                ServicesContainer.instance.Resolve<IContextMenuBuilder>()
+                    .RegisterContextMenu(typeof(AssetData), typeof(CloudAssetContextMenu));
+            }
+
+            if(!ServicesContainer.instance.Resolve<IContextMenuBuilder>().IsContextMenuRegistered(typeof(UploadAssetData)))
+            {
+                ServicesContainer.instance.Resolve<IContextMenuBuilder>()
+                    .RegisterContextMenu(typeof(UploadAssetData), typeof(LocalAssetContextMenu));
+            }
+            
+            m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager, m_AssetDataManager,m_AssetOperationManager, m_LinksProxy);
+            m_AssetDetailsPage = new AssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager, m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_ProjectIconDownloader);
 
             m_AssetDetailsContainer = new VisualElement();
             m_AssetDetailsContainer.AddToClassList("AssetDetailsContainer");

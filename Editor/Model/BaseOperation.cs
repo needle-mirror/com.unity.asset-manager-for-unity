@@ -1,5 +1,6 @@
 ﻿using System;
 using UnityEditor;
+using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
@@ -12,28 +13,30 @@ namespace Unity.AssetManager.Editor
         Error
     }
 
-    abstract class BaseOperation
+    [Serializable]
+    abstract class AssetDataOperation : BaseOperation
+    {
+        public abstract AssetIdentifier AssetId { get; }
+    }
+
+    abstract class BaseOperation // TODO Add a interface
     {
         int m_ProgressId;
 
         public abstract float Progress { get; }
 
-        protected abstract string OperationName { get; }
+        public abstract string OperationName { get; }
 
-        protected abstract string Description { get; }
+        public abstract string Description { get; }
 
-        protected virtual bool StartIndefinite { get; } = false;
+        public virtual bool StartIndefinite { get; } = false;
 
-        protected virtual bool IsSticky { get; } = false;
+        public virtual bool IsSticky { get; } = false;
+
+        public Action<float> ProgressChanged; // TODO Leverage those events for DownloadOperation and ImportOperation
+        public Action<OperationStatus> Finished;
 
         public OperationStatus Status { get; private set; } = OperationStatus.None;
-
-        readonly BaseOperation m_Parent;
-
-        protected BaseOperation(BaseOperation parent)
-        {
-            m_Parent = parent;
-        }
 
         public void Start()
         {
@@ -45,7 +48,8 @@ namespace Unity.AssetManager.Editor
                 options |= UnityEditor.Progress.Options.Sticky;
             }
 
-            m_ProgressId = UnityEditor.Progress.Start(OperationName, Description, options, m_Parent?.m_ProgressId ?? -1);
+            m_ProgressId = UnityEditor.Progress.Start(OperationName, Description, options);
+            ProgressChanged?.Invoke(0.0f);
         }
 
         public void Report()
@@ -60,10 +64,12 @@ namespace Unity.AssetManager.Editor
             if (StartIndefinite && progress > 0.0f && (UnityEditor.Progress.GetOptions(m_ProgressId) & UnityEditor.Progress.Options.Indefinite) != 0)
             {
                 UnityEditor.Progress.Remove(m_ProgressId);
-                m_ProgressId = UnityEditor.Progress.Start(OperationName, Description, IsSticky ? UnityEditor.Progress.Options.Sticky : UnityEditor.Progress.Options.None, m_Parent?.m_ProgressId ?? -1);
+                m_ProgressId = UnityEditor.Progress.Start(OperationName, Description, IsSticky ? UnityEditor.Progress.Options.Sticky : UnityEditor.Progress.Options.None);
             }
 
             UnityEditor.Progress.Report(m_ProgressId, progress, Description);
+
+            ProgressChanged?.Invoke(progress);
         }
 
         public void Finish(OperationStatus status)
@@ -71,6 +77,8 @@ namespace Unity.AssetManager.Editor
             Status = status;
             UnityEditor.Progress.Finish(m_ProgressId, FromOperationStatus(status));
             m_ProgressId = 0;
+
+            Finished?.Invoke(status);
         }
 
         static Progress.Status FromOperationStatus(OperationStatus status)
@@ -81,6 +89,7 @@ namespace Unity.AssetManager.Editor
                 OperationStatus.Success => UnityEditor.Progress.Status.Succeeded,
                 OperationStatus.Cancelled => UnityEditor.Progress.Status.Canceled,
                 OperationStatus.Error => UnityEditor.Progress.Status.Failed,
+                OperationStatus.None => UnityEditor.Progress.Status.Succeeded,
                 _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
             };
         }

@@ -28,29 +28,29 @@ namespace Unity.AssetManager.Editor
 
             style.height = k_Height;
             style.width = k_Width;
-            
+
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
 
             m_Scheduler = schedule.Execute(UpdateAnimation).Every(50);
             m_Scheduler.Pause();
         }
-        
+
         public void PlayAnimation()
         {
             m_Scheduler.Resume();
         }
-        
+
         public void StopAnimation()
         {
             m_Scheduler.Pause();
         }
-        
+
         void UpdateAnimation(TimerState timerState)
         {
-            if(style.visibility == Visibility.Hidden)
+            if (style.visibility == Visibility.Hidden)
                 return;
-            
+
             transform.rotation = Quaternion.Euler(0, 0, m_CurrentAngle);
             m_CurrentAngle += 0.6f * timerState.deltaTime;
         }

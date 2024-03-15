@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
+using Unity.Cloud.Common;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -25,13 +26,15 @@ namespace Unity.AssetManager.Editor
         string defaultImportPath { get; }
         string primaryExtension { get; }
         IEnumerable<IAssetDataFile> sourceFiles { get; }
-        AssetPreview.IStatus previewStatus { get; }
+        IEnumerable<AssetPreview.IStatus> previewStatus { get; }
+        IEnumerable<DependencyAsset> dependencies { get; }
 
-        Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null);
-        Task GetPreviewStatusAsync(Action<AssetIdentifier, AssetPreview.IStatus> callback = null); // TODO Move away all methods not related to the actual IAssetData raw data
-        Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback);
-        IAsyncEnumerable<IFile> GetSourceCloudFilesAsync(CancellationToken token = default);
+        Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null, CancellationToken token = default);
+        Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback, CancellationToken token = default);
         Task SyncWithCloudAsync(Action<AssetIdentifier> callback, CancellationToken token = default);
+
+        Task GetPreviewStatusAsync(Action<AssetIdentifier, IEnumerable<AssetPreview.IStatus>> callback = null, CancellationToken token = default); // TODO Move away all methods not related to the actual IAssetData raw data
+        IAsyncEnumerable<IFile> GetSourceCloudFilesAsync(CancellationToken token = default); // TODO Move away all methods not related to the actual IAssetData raw data
     }
 
     static class AssetDataExtension
@@ -58,8 +61,7 @@ namespace Unity.AssetManager.Editor
                    && assetData.authorName == other.authorName
                    && assetData.defaultImportPath == other.defaultImportPath
                    && assetData.primaryExtension == other.primaryExtension
-                   && assetData.sourceFiles.SequenceEqual(other.sourceFiles)
-                   && assetData.previewStatus == other.previewStatus;
+                   && assetData.sourceFiles.SequenceEqual(other.sourceFiles);
         }
     }
 
@@ -75,7 +77,7 @@ namespace Unity.AssetManager.Editor
         public string description => Asset.Description;
         public DateTime? created => Asset.AuthoringInfo?.Created;
         public DateTime? updated => Asset.AuthoringInfo?.Updated;
-        public string authorName => Asset.AuthoringInfo?.CreatedBy ?? null;
+        public string authorName => Asset.AuthoringInfo?.CreatedBy.ToString() ?? null;
         public IEnumerable<string> tags => Asset.Tags;
 
         [SerializeField]
@@ -89,12 +91,26 @@ namespace Unity.AssetManager.Editor
         public IEnumerable<IAssetDataFile> sourceFiles => m_SourceFiles;
 
         [SerializeField]
+        List<DependencyAsset> m_DependencyAssets = new();
+
+        public IEnumerable<DependencyAsset> dependencies => m_DependencyAssets;
+
+        [SerializeField]
         string m_JsonAssetSerialized;
 
         [SerializeField]
         AssetComparisonResult m_AssetComparisonResult = AssetComparisonResult.None;
 
-        public AssetPreview.IStatus previewStatus
+        [SerializeField]
+        string m_ThumbnailUrl;
+
+        Task m_PrimaryExtensionTask;
+        Task<AssetComparisonResult> m_PreviewStatusTask;
+        Task m_SyncWithCloudTask;
+        Task m_RefreshFilesTask;
+        Task<Uri> m_GetPreviewStatusTask;
+
+        public IEnumerable<AssetPreview.IStatus> previewStatus
         {
             get
             {
@@ -115,7 +131,7 @@ namespace Unity.AssetManager.Editor
                         break;
                 }
 
-                return s;
+                return new[] { s };
             }
         }
 
@@ -125,8 +141,6 @@ namespace Unity.AssetManager.Editor
         public static readonly string NoPrimaryExtension = "unknown";
 
         AssetIdentifier m_Identifier;
-
-        const string k_SourceDataSetName = "Source"; // Temporary solution until we have a better way to identify the source dataset
 
         public AssetData(IAsset cloudAsset)
         {
@@ -138,104 +152,170 @@ namespace Unity.AssetManager.Editor
             OnBeforeSerialize();
         }
 
-        public Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null)
+        void CleanCachedData()
         {
-            var previewFileUrl = Asset.PreviewFileUrl?.ToString() ?? string.Empty;
-            ServicesContainer.instance.Resolve<IThumbnailDownloader>().DownloadThumbnail(identifier, previewFileUrl, callback);
-            return Task.CompletedTask;
+            m_PrimaryExtension = null;
+            m_ThumbnailUrl = null;
+            m_SourceFiles.Clear();
+            m_DependencyAssets.Clear();
         }
 
-        public async Task GetPreviewStatusAsync(Action<AssetIdentifier, AssetPreview.IStatus> callback = null)
+        public async Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null, CancellationToken token = default)
         {
-            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
-            if (assetDataManager.IsInProject(identifier))
+            if (!string.IsNullOrEmpty(m_ThumbnailUrl))
             {
-                var result = await ServicesContainer.instance.Resolve<IAssetsProvider>().CompareAssetWithCloudAsync(this);
-                m_AssetComparisonResult = result;
+                var texture = ServicesContainer.instance.Resolve<IThumbnailDownloader>().GetCachedThumbnail(m_ThumbnailUrl);
+
+                if (texture != null)
+                {
+                    callback?.Invoke(identifier, texture);
+                    return;
+                }
             }
 
-            callback?.Invoke(identifier, previewStatus); // TODO Use static instances?
+            await GetThumbnailUrlAsync(token);
+
+            ServicesContainer.instance.Resolve<IThumbnailDownloader>().DownloadThumbnail(identifier, m_ThumbnailUrl, callback);
         }
 
-        public async Task<string> GetPrimaryExtension()
+        async Task GetThumbnailUrlAsync(CancellationToken token)
         {
-            if (!string.IsNullOrEmpty(m_PrimaryExtension))
+            m_GetPreviewStatusTask ??= Asset.GetPreviewUrlAsync(token);
+
+            Uri previewFileUrl = null;
+
+            try
             {
-                return m_PrimaryExtension;
+                previewFileUrl = await m_GetPreviewStatusTask;
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if the Asset is unavailable
+            }
+            finally
+            {
+                m_GetPreviewStatusTask = null;
             }
 
-            // Actually we should only look at the Source dataset but for performance reason we rely on the cached files inside the Asset
-            var extensions = new List<string>();
-            await foreach (var f in m_Asset.ListFilesAsync(Range.All, CancellationToken.None))
+            m_ThumbnailUrl = previewFileUrl?.ToString() ?? string.Empty;
+        }
+
+        public async Task GetPreviewStatusAsync(Action<AssetIdentifier, IEnumerable<AssetPreview.IStatus>> callback = null, CancellationToken token = default)
+        {
+            if (m_PreviewStatusTask == null)
             {
-                extensions.Add(Path.GetExtension(f.Descriptor.Path));
+                var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+                if (assetDataManager.IsInProject(identifier))
+                {
+                    m_PreviewStatusTask = ServicesContainer.instance.Resolve<IAssetsProvider>()
+                        .CompareAssetWithCloudAsync(this, token);
+                }
+                else
+                {
+                    m_AssetComparisonResult = AssetComparisonResult.None;
+                }
             }
 
-            return m_PrimaryExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(extensions) ?? NoPrimaryExtension;
+            if (m_PreviewStatusTask != null)
+            {
+                m_AssetComparisonResult = await m_PreviewStatusTask;
+                m_PreviewStatusTask = null;
+            }
+
+            callback?.Invoke(identifier, previewStatus);
         }
 
-        public async Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback)
+        public async Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback, CancellationToken token = default)
         {
-            var extension = await GetPrimaryExtension();
-            callback?.Invoke(identifier, extension);
-        }
+            if (string.IsNullOrEmpty(m_PrimaryExtension))
+            {
+                m_PrimaryExtensionTask ??= RefreshSourceFilesAndPrimaryExtensionAsync(token);
 
-        public async Task CompareWithCloudAsync(Action<AssetIdentifier, AssetComparisonResult> callback, CancellationToken token = default)
-        {
-            var result = await ServicesContainer.instance.Resolve<IAssetsProvider>().CompareAssetWithCloudAsync(this);
-            m_AssetComparisonResult = result;
-            callback?.Invoke(identifier, result);
+                try
+                {
+                    await m_PrimaryExtensionTask;
+                }
+                catch (ForbiddenException)
+                {
+                    // Ignore if the Asset is unavailable
+                }
+                finally
+                {
+                    m_PrimaryExtensionTask = null;
+                }
+            }
+
+            callback?.Invoke(identifier, m_PrimaryExtension);
         }
 
         public async IAsyncEnumerable<IFile> GetSourceCloudFilesAsync([EnumeratorCancellation] CancellationToken token = default)
         {
-            IDataset sourceDataset = null;
-
-            await foreach(var dataset in m_Asset.ListDatasetsAsync(Range.All, token))
-            {
-                if (!dataset.Name.Contains(k_SourceDataSetName))
-                    continue;
-
-                sourceDataset = dataset;
-                break;
-            }
+            var sourceDataset = await Asset.GetSourceDatasetAsync(token);
 
             if (sourceDataset == null)
                 yield break;
 
-            // Note. dataset.ListFilesAsync generates downloadURLs and is very slow compared m_Asset.ListFilesAsync
-            await m_Asset.RefreshAsync(new FieldsFilter { AssetFields = AssetFields.files, FileFields = FileFields.fileSize }, token);
-            await foreach (var file in m_Asset.ListFilesAsync(Range.All, token))
+            await foreach (var file in sourceDataset.ListFilesAsync(Range.All, token))
             {
-                if (file.Descriptor.DatasetId == sourceDataset.Descriptor.DatasetId)
-                {
-                    yield return file;
-                }
+                yield return file;
             }
         }
 
-        async Task RefreshSourceFilesFromCloudAsync(CancellationToken token = default)
+        public async Task RefreshSourceFilesAndPrimaryExtensionAsync(CancellationToken token = default)
         {
-            m_SourceFiles.Clear();
+            m_RefreshFilesTask ??= RefreshSourceFilesAndPrimaryExtensionInternalAsync(token);
 
+            await m_RefreshFilesTask;
+            m_RefreshFilesTask = null;
+        }
+
+        async Task RefreshSourceFilesAndPrimaryExtensionInternalAsync(CancellationToken token)
+        {
+            var files = new List<IAssetDataFile>();
+
+            var extensions = new List<string>();
             await foreach (var file in GetSourceCloudFilesAsync(token))
             {
-                m_SourceFiles.Add(new AssetDataFile(file));
+                files.Add(new AssetDataFile(file));
+                extensions.Add(Path.GetExtension(file.Descriptor.Path));
             }
+
+            m_SourceFiles = files;
+            m_PrimaryExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(extensions) ?? NoPrimaryExtension;
         }
 
         public async Task SyncWithCloudAsync(Action<AssetIdentifier> callback, CancellationToken token = default)
         {
-            var tasks = new List<Task>
+            if (m_SyncWithCloudTask == null)
             {
-                m_Asset.RefreshAsync(new FieldsFilter { AssetFields = AssetFields.authoring }, token),
-                RefreshSourceFilesFromCloudAsync(token),
-                GetPrimaryExtension()
-            };
+                CleanCachedData();
 
-            await Task.WhenAll(tasks);
+                var tasks = new List<Task>
+                {
+                    Asset.RefreshAsync(token),
+                    RefreshSourceFilesAndPrimaryExtensionAsync(token),
+                    GetThumbnailUrlAsync(token),
+                    GetDependenciesAsync(token)
+                };
+
+                m_SyncWithCloudTask = Task.WhenAll(tasks);
+            }
+
+            await m_SyncWithCloudTask;
+            m_SyncWithCloudTask = null;
 
             callback?.Invoke(identifier);
+        }
+
+        async Task GetDependenciesAsync(CancellationToken token)
+        {
+            var deps = new List<DependencyAsset>();
+            await foreach (var dep in AssetDataDependencyHelper.LoadDependenciesAsync(this, false, token))
+            {
+                deps.Add(new DependencyAsset(dep.Identifier, dep.AssetData));
+            }
+
+            m_DependencyAssets = deps;
         }
 
         public void OnBeforeSerialize()

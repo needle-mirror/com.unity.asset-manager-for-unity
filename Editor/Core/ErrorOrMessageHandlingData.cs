@@ -6,6 +6,7 @@ namespace Unity.AssetManager.Editor
     {
         OpenServicesSettingButton,
         OpenAssetManagerDashboardLink,
+        EnableProject,
         Retry,
         None
     }

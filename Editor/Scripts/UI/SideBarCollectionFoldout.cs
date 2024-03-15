@@ -22,27 +22,17 @@ namespace Unity.AssetManager.Editor
 
             RegisterCallback<PointerDownEvent>(e =>
             {
-                var target = (VisualElement)e.target;
-
                 // We skip the user's click if they aimed the check mark of the foldout
                 // to only select foldouts when they click on it's title/label
-                if (e.button != 0 || target.name == k_CheckMarkName)
+                if (e.target != this)
                     return;
 
-                if (m_ProjectInfo.id == m_ProjectOrganizationProvider.SelectedProject?.id)
+                if (m_PageManager.activePage is not CollectionPage)
                 {
-                    pageManager.SetActivePage<CollectionPage>();
+                    m_PageManager.SetActivePage<CollectionPage>();
                 }
 
                 m_ProjectOrganizationProvider.SelectProject(m_ProjectInfo, m_CollectionPath);
-                if (string.IsNullOrEmpty(m_CollectionPath))
-                {
-                    AnalyticsSender.SendEvent(new ProjectSelectedEvent(ProjectSelectedEvent.ProjectType.Project, m_ProjectInfo.collectionInfos.Count));
-                }
-                else
-                {
-                    AnalyticsSender.SendEvent(new ProjectSelectedEvent(ProjectSelectedEvent.ProjectType.Collection));
-                }
             }, TrickleDown.TrickleDown);
         }
 

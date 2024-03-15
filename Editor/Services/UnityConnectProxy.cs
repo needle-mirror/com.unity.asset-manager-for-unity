@@ -10,6 +10,7 @@ namespace Unity.AssetManager.Editor
         event Action<string> onOrganizationIdChange;
         bool isUserLoggedIn { get; }
         string organizationId { get; }
+        string projectId { get; }
         void ShowLogin();
     }
 
@@ -34,6 +35,10 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         private string m_OrganizationId;
         public string organizationId => m_OrganizationId;
+        
+        [SerializeField]
+        private string m_ProjectId;
+        public string projectId => m_ProjectId;
 
         private readonly UnityConnectSession m_UnityConnectSession = new();
 
@@ -44,6 +49,7 @@ namespace Unity.AssetManager.Editor
             m_IsUserInfoReady = m_UnityConnectSession.isUserInfoReady;
             m_HasAccessToken = !string.IsNullOrEmpty(m_UnityConnectSession.GetAccessToken());
             m_OrganizationId = m_UnityConnectSession.GetOrganizationId();
+            m_ProjectId = m_UnityConnectSession.GetProjectId();
 
             m_UnityConnectSession.onUserStateChanged += OnUserStateChanged;
             m_UnityConnectSession.onProjectStateChanged += OnProjectStateChanged;
@@ -76,10 +82,13 @@ namespace Unity.AssetManager.Editor
 
         private void OnProjectStateChanged()
         {
+            m_ProjectId = m_UnityConnectSession.GetProjectId()?? string.Empty;
+            
             var oldOrganizationId = m_OrganizationId ?? string.Empty;
             m_OrganizationId = m_UnityConnectSession.GetOrganizationId() ?? string.Empty;
             if (oldOrganizationId == m_OrganizationId)
                 return;
+
             onOrganizationIdChange?.Invoke(m_OrganizationId);
         }
     }

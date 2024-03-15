@@ -54,7 +54,6 @@ namespace Unity.AssetManager.Editor
                     tasks.Add(UploadRecursive(node, settings, taskDispatcher, database));
                 }
 
-                // TODO Check for errors
                 await Task.WhenAll(tasks);
             }
 

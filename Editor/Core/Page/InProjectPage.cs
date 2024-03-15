@@ -34,8 +34,6 @@ namespace Unity.AssetManager.Editor
         {
             base.OnEnable();
             m_AssetDataManager.onImportedAssetInfoChanged += OnImportedAssetInfoChanged;
-
-            AnalyticsSender.SendEvent(new ProjectSelectedEvent(ProjectSelectedEvent.ProjectType.InProject, m_AssetDataManager.importedAssetInfos.Count));
         }
 
         public override void OnDisable()
@@ -55,10 +53,7 @@ namespace Unity.AssetManager.Editor
 
         protected override async IAsyncEnumerable<IAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
         {
-            if (Utilities.IsDevMode)
-            {
-                Debug.Log($"Retrieving import data for {m_AssetDataManager.importedAssetInfos.Count} asset(s)...");
-            }
+            Utilities.DevLog($"Retrieving import data for {m_AssetDataManager.importedAssetInfos.Count} asset(s)...");
 
             foreach (var importedAsset in m_AssetDataManager.importedAssetInfos)
             {

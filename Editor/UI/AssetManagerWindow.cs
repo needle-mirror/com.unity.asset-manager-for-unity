@@ -37,11 +37,13 @@ namespace Unity.AssetManager.Editor
             window.Show();
         }
 
-        void OnEnable()
+        async void OnEnable()
         {
             if (instance == null) instance = this;
             if (instance != this)
                 return;
+
+            await Services.Authenticator.InitializeAsync();
 
             m_IsDocked = docked;
 
@@ -51,11 +53,11 @@ namespace Unity.AssetManager.Editor
                 container.Resolve<IPageManager>(),
                 container.Resolve<IAssetDataManager>(),
                 container.Resolve<IAssetImporter>(),
+                container.Resolve<IAssetOperationManager>(),
                 container.Resolve<IStateManager>(),
                 container.Resolve<IUnityConnectProxy>(),
                 container.Resolve<IProjectOrganizationProvider>(),
                 container.Resolve<ILinksProxy>(),
-                container.Resolve<IEditorGUIUtilityProxy>(),
                 container.Resolve<IAssetDatabaseProxy>(),
                 container.Resolve<IProjectIconDownloader>());
 
@@ -65,12 +67,16 @@ namespace Unity.AssetManager.Editor
             rootVisualElement.Add(m_Root);
 
             AnalyticsSender.SendEvent(new ServicesInitializationCompletedEvent(position.size));
+            if (docked)
+            {
+                AnalyticsSender.SendEvent(new WindowDockedEvent(true));
+            }
             Enabled?.Invoke();
         }
 
         void OnGUI()
         {
-            m_Root.OnGUI();
+            m_Root?.OnGUI();
         }
 
         void OnDisable()
@@ -85,7 +91,11 @@ namespace Unity.AssetManager.Editor
 
         void OnDestroy()
         {
-            rootVisualElement.Remove(m_Root);
+            if (rootVisualElement.Contains(m_Root))
+            {
+                rootVisualElement.Remove(m_Root);
+            }
+
             instance = null;
         }
 

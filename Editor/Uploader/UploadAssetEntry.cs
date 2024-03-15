@@ -4,8 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using Unity.Cloud.Assets;
-using Unity.Cloud.Common;
 using UnityEditor;
 using UnityEngine;
 
@@ -72,6 +70,7 @@ namespace Unity.AssetManager.Editor
             else
             {
                 m_Dependencies = AssetDatabase.GetDependencies(assetPath, false)
+                    .Where(IsInsideAssetsFolder)
                     .Select(AssetDatabase.AssetPathToGUID)
                     .ToList();
             }
@@ -79,11 +78,16 @@ namespace Unity.AssetManager.Editor
 
         void AddAssetAndItsMetaFile(string assetPath)
         {
-            if (!Sanitize(assetPath).StartsWith("assets/"))
+            if (!IsInsideAssetsFolder(assetPath))
                 return;
 
             m_Files.Add(assetPath);
             m_Files.Add(MetafilesHelper.AssetMetaFile(assetPath));
+        }
+
+        static bool IsInsideAssetsFolder(string assetPath)
+        {
+            return Sanitize(assetPath).StartsWith("assets/");
         }
 
         static IEnumerable<string> ExtractTags(string assetPath)
@@ -111,20 +115,20 @@ namespace Unity.AssetManager.Editor
 
             foreach (var dependenciesPath in AssetDatabase.GetDependencies(assetPath, true))
             {
-                var sanitisedPath = Sanitize(dependenciesPath);
+                var sanitizedPath = Sanitize(dependenciesPath);
 
-                if (!isHDRP && sanitisedPath.StartsWith("packages/com.unity.render-pipelines.high-definition/"))
+                if (!isHDRP && sanitizedPath.StartsWith("packages/com.unity.render-pipelines.high-definition/"))
                 {
                     isHDRP = true;
                     yield return "HDRP";
                 }
-                else if (!isURP && sanitisedPath.StartsWith("packages/com.unity.render-pipelines.universal/"))
+                else if (!isURP && sanitizedPath.StartsWith("packages/com.unity.render-pipelines.universal/"))
                 {
                     isURP = true;
                     yield return "URP";
                 }
 
-                if (ExtractStringBetweenPackages(sanitisedPath, out var packageName))
+                if (ExtractStringBetweenPackages(sanitizedPath, out var packageName))
                 {
                     if (!extractedPackageNames.Add(packageName))
                         continue;

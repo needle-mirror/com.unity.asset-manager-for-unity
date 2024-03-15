@@ -16,7 +16,7 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             m_ErrorMessageLabel = new Label();
-            m_ErrorOrMessageActionButton = new ErrorOrMessageActionButton(pageManager, linksProxy);
+            m_ErrorOrMessageActionButton = new ErrorOrMessageActionButton(pageManager, projectOrganizationProvider, linksProxy);
 
             Add(m_ErrorMessageLabel);
             Add(m_ErrorOrMessageActionButton);

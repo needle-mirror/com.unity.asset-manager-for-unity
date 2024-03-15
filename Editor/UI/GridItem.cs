@@ -1,5 +1,6 @@
 using System;
-using UnityEngine;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -13,8 +14,6 @@ namespace Unity.AssetManager.Editor
             public static readonly string ItemOverlay = Constants.GridItemStyleClassName + "-overlay";
         }
 
-        bool m_IsLoading;
-
         readonly Label m_AssetNameLabel;
         readonly AssetPreview m_AssetPreview;
         readonly OperationProgressBar m_OperationProgressBar;
@@ -24,15 +23,16 @@ namespace Unity.AssetManager.Editor
 
         public event Action Clicked;
 
-        readonly IAssetDataManager m_AssetDataManager;
-        readonly IAssetImporter m_AssetImporter;
         readonly IPageManager m_PageManager;
+        readonly IAssetOperationManager m_OperationManager;
+        
+        AssetContextMenu m_ContextMenu;
+        ContextualMenuManipulator m_ContextualMenuManipulator;
 
-        internal GridItem(IAssetDataManager assetDataManager, IAssetImporter assetImporter, IPageManager pageManager, ILinksProxy linksProxy)
+        internal GridItem(IAssetOperationManager operationManager, IPageManager pageManager)
         {
-            m_AssetDataManager = assetDataManager;
-            m_AssetImporter = assetImporter;
             m_PageManager = pageManager;
+            m_OperationManager = operationManager;
 
             AddToClassList(Constants.GridItemStyleClassName);
 
@@ -46,8 +46,9 @@ namespace Unity.AssetManager.Editor
             m_AssetNameLabel.AddToClassList(UssStyles.ItemLabel);
 
             m_LoadingIcon = new LoadingIcon();
+            UIElementsUtils.Hide(m_LoadingIcon);
 
-            m_OperationProgressBar = new OperationProgressBar(m_PageManager, m_AssetImporter)
+            m_OperationProgressBar = new OperationProgressBar
             {
                 pickingMode = PickingMode.Ignore
             };
@@ -63,39 +64,43 @@ namespace Unity.AssetManager.Editor
             Add(m_LoadingIcon);
             Add(m_OperationProgressBar);
             Add(overlay);
-
-            var contextMenu = new GridItemContextMenu(this, assetDataManager, m_AssetImporter, linksProxy);
-
-            this.AddManipulator(new ContextualMenuManipulator(contextMenu.SetupContextMenuEntries));
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_PageManager.onSelectedAssetChanged += OnSelectedAssetChanged;
 
-            m_AssetImporter.onImportFinalized += OnImportProgress;
-            m_AssetImporter.onImportProgress += OnImportProgress;
+            m_OperationManager.OperationProgressChanged += RefreshOperationProgress;
+            m_OperationManager.OperationFinished += OnOperationFinalized;
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_PageManager.onSelectedAssetChanged -= OnSelectedAssetChanged;
 
-            m_AssetImporter.onImportFinalized -= OnImportProgress;
-            m_AssetImporter.onImportProgress -= OnImportProgress;
+            m_OperationManager.OperationProgressChanged -= RefreshOperationProgress;
+            m_OperationManager.OperationFinished -= OnOperationFinalized;
         }
 
-        void OnImportProgress(ImportOperation operation)
+        void RefreshOperationProgress(AssetDataOperation operation)
         {
-            if (!operation.assetId.Equals(AssetData?.identifier))
+            if (!operation.AssetId.Equals(AssetData?.identifier))
+                return;
+
+            m_OperationProgressBar.Refresh(operation);
+        }
+
+        void OnOperationFinalized(AssetDataOperation operation)
+        {
+            if (!operation.AssetId.Equals(AssetData?.identifier))
                 return;
 
             m_OperationProgressBar.Refresh(operation);
 
-            if (operation.Status != OperationStatus.InProgress)
+            if (operation is ImportOperation importOperation)
             {
                 AssetData = null;
-                BindWithItem(operation.assetData);
+                BindWithItem(importOperation.assetData);
             }
         }
 
@@ -103,7 +108,7 @@ namespace Unity.AssetManager.Editor
         {
             RefreshHighlight();
         }
-
+        
         public void BindWithItem(IAssetData assetData)
         {
             if (AssetData != null && AssetData.identifier.Equals(assetData.identifier))
@@ -111,50 +116,72 @@ namespace Unity.AssetManager.Editor
 
             AssetData = assetData;
 
+            if (m_ContextMenu == null)
+            {
+                m_ContextMenu = (AssetContextMenu)ServicesContainer.instance.Resolve<IContextMenuBuilder>().BuildContextMenu(assetData.GetType());
+                m_ContextualMenuManipulator = new ContextualMenuManipulator(m_ContextMenu.SetupContextMenuEntries);
+                this.AddManipulator(m_ContextualMenuManipulator);
+            }
+            else if (!ServicesContainer.instance.Resolve<IContextMenuBuilder>().IsContextMenuMatchingAssetDataType(assetData.GetType(), m_ContextMenu.GetType()))
+            {
+                this.RemoveManipulator(m_ContextualMenuManipulator);
+                m_ContextMenu = (AssetContextMenu)ServicesContainer.instance.Resolve<IContextMenuBuilder>().BuildContextMenu(assetData.GetType());
+                m_ContextualMenuManipulator = new ContextualMenuManipulator(m_ContextMenu.SetupContextMenuEntries);
+                this.AddManipulator(m_ContextualMenuManipulator);
+            }
+            
+            if(m_ContextMenu != null)
+                m_ContextMenu.TargetAssetData = assetData;
+            
             RefreshHighlight();
 
-            // Re-add everything important
             m_AssetNameLabel.text = assetData.name;
             m_AssetNameLabel.tooltip = assetData.name;
 
             m_AssetPreview.ClearPreview();
 
-            m_OperationProgressBar.Refresh(m_AssetImporter.GetImportOperation(assetData.identifier));
+            m_OperationProgressBar.Refresh(m_OperationManager.GetAssetOperation(assetData.identifier));
 
-            m_AssetPreview.SetStatus(assetData.previewStatus);
+            m_AssetPreview.SetStatuses(assetData.previewStatus);
 
-            m_IsLoading = true;
+            var tasks = new List<Task>();
 
+            tasks.Add(assetData.GetThumbnailAsync((identifier, texture2D) =>
+            {
+                if (!identifier.Equals(AssetData.identifier))
+                    return;
+
+                m_AssetPreview.SetThumbnail(texture2D);
+            }));
+
+            tasks.Add(assetData.GetPreviewStatusAsync((identifier, status) =>
+            {
+                if (!identifier.Equals(AssetData.identifier))
+                    return;
+
+                m_AssetPreview.SetStatuses(status);
+            }));
+
+            tasks.Add(assetData.ResolvePrimaryExtensionAsync((identifier, extension) =>
+            {
+                if (!identifier.Equals(AssetData.identifier))
+                    return;
+
+                m_AssetPreview.SetAssetType(extension);
+            }));
+
+            _ = WaitForResultsAsync(tasks);
+        }
+
+        async Task WaitForResultsAsync(IEnumerable<Task> tasks)
+        {
             m_LoadingIcon.PlayAnimation();
             UIElementsUtils.Show(m_LoadingIcon);
 
-            _ = assetData.GetThumbnailAsync((identifier, texture2D) =>
-            {
-                if (!identifier.Equals(AssetData.identifier))
-                    return;
+            await Utilities.WaitForTasksAndHandleExceptions(tasks);
 
-                m_IsLoading = false;
-                m_LoadingIcon.StopAnimation();
-                UIElementsUtils.Hide(m_LoadingIcon);
-
-                m_AssetPreview.SetThumbnail(texture2D);
-            });
-
-            _ = assetData.GetPreviewStatusAsync((identifier, status) =>
-            {
-                if (!identifier.Equals(AssetData.identifier))
-                    return;
-
-                m_AssetPreview.SetStatus(status);
-            });
-
-            _ = assetData.ResolvePrimaryExtensionAsync((identifier, extension) =>
-            {
-                if (!identifier.Equals(AssetData.identifier))
-                    return;
-
-                m_AssetPreview.SetAssetType(extension, true);
-            });
+            m_LoadingIcon.StopAnimation();
+            UIElementsUtils.Hide(m_LoadingIcon);
         }
 
         private void RefreshHighlight()
@@ -173,11 +200,8 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        void OnClick(ClickEvent e)
+        void OnClick(ClickEvent _)
         {
-            if (m_IsLoading)
-                return;
-
             Clicked?.Invoke();
         }
     }

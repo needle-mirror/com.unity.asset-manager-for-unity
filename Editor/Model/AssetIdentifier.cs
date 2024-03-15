@@ -32,7 +32,7 @@ namespace Unity.AssetManager.Editor
         {
             m_AssetId = descriptor.AssetId.ToString();
             m_Version = descriptor.AssetVersion.ToString();
-            m_OrganizationId = descriptor.OrganizationGenesisId.ToString();
+            m_OrganizationId = descriptor.OrganizationId.ToString();
             m_ProjectId = descriptor.ProjectId.ToString();
         }
 

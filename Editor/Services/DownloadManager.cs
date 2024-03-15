@@ -13,7 +13,7 @@ namespace Unity.AssetManager.Editor
         event Action<DownloadOperation> onDownloadProgress;
         event Action<DownloadOperation> onDownloadFinalized;
 
-        DownloadOperation CreateDownloadOperation(string url, string path, BaseOperation parentOperation = null);
+        DownloadOperation CreateDownloadOperation(string url, string path);
 
         void StartDownload(DownloadOperation operation);
 
@@ -53,9 +53,9 @@ namespace Unity.AssetManager.Editor
             m_IOProxy = ioProxy;
         }
 
-        public DownloadOperation CreateDownloadOperation(string url, string path, BaseOperation parentOperation = null)
+        public DownloadOperation CreateDownloadOperation(string url, string path)
         {
-            return new DownloadOperation(parentOperation)
+            return new DownloadOperation
             {
                 id = ++m_LastDownloadOperationId,
                 url = url,

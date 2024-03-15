@@ -1,3 +1,4 @@
+using System;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -6,13 +7,17 @@ namespace Unity.AssetManager.Editor
 {
     class OperationProgressBar : VisualElement
     {
-        const string k_ProgressBarContainerUssClassName = "download-progress-bar-container";
-        const string k_ProgressBarBackgroundUssClassName = "download-progress-bar-background";
-        const string k_ProgressBarColorUssClassName = "download-progress-bar";
-        const string k_ProgressBarGridItemUssClassName = Constants.GridItemStyleClassName + "-download_progress_bar";
-        const string k_ProgressBarDetailsPageUssClassName = "details-page-download-progress-bar";
-        const string k_ProgressBarDetailsPageContainerUssClassName = "details-page-download-progress-container";
-        const string k_ProgressBarDetailsPageCancelButtonUssClassName = "details-page-download-cancel-button";
+        static class Styles
+        {
+            public static readonly string k_ProgressBarContainer = "download-progress-bar-container";
+            public static readonly string k_ProgressBarBackground = "download-progress-bar-background";
+            public static readonly string k_ProgressBarColor = "download-progress-bar";
+            public static readonly string k_ProgressBarError = "download-progress-bar-error";
+            public static readonly string k_ProgressBarGridItem = "grid-view--item-download_progress_bar";
+            public static readonly string k_ProgressBarDetailsPage = "details-page-download-progress-bar";
+            public static readonly string k_ProgressBarDetailsPageContainer = "details-page-download-progress-container";
+            public static readonly string k_ProgressBarDetailsPageCancelButton = "details-page-download-cancel-button";
+        }
 
         readonly VisualElement m_ProgressBar;
 
@@ -45,7 +50,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public OperationProgressBar(IPageManager pageManager, IAssetImporter assetImporter, bool isCancellable = false)
+        public OperationProgressBar(Action cancelCallback = null)
         {
             UIElementsUtils.Show(this);
 
@@ -55,30 +60,27 @@ namespace Unity.AssetManager.Editor
             Add(progressBarContainer);
             progressBarContainer.Add(m_ProgressBar);
 
-            progressBarContainer.AddToClassList(k_ProgressBarBackgroundUssClassName);
-            m_ProgressBar.AddToClassList(k_ProgressBarColorUssClassName);
+            progressBarContainer.AddToClassList(Styles.k_ProgressBarBackground);
+            m_ProgressBar.AddToClassList(Styles.k_ProgressBarColor);
 
-            if (!isCancellable)
+            if (cancelCallback == null)
             {
-                progressBarContainer.AddToClassList(k_ProgressBarGridItemUssClassName);
-                progressBarContainer.AddToClassList(k_ProgressBarContainerUssClassName);
+                progressBarContainer.AddToClassList(Styles.k_ProgressBarGridItem);
+                progressBarContainer.AddToClassList(Styles.k_ProgressBarContainer);
             }
             else
             {
                 var cancelButton = new Button();
                 Add(cancelButton);
 
-                AddToClassList(k_ProgressBarDetailsPageContainerUssClassName);
-                AddToClassList(k_ProgressBarContainerUssClassName);
-                AddToClassList(k_ProgressBarDetailsPageUssClassName);
+                AddToClassList(Styles.k_ProgressBarDetailsPageContainer);
+                AddToClassList(Styles.k_ProgressBarContainer);
+                AddToClassList(Styles.k_ProgressBarDetailsPage);
 
-                cancelButton.AddToClassList(k_ProgressBarDetailsPageCancelButtonUssClassName);
+                cancelButton.AddToClassList(Styles.k_ProgressBarDetailsPageCancelButton);
                 cancelButton.RemoveFromClassList("unity-button");
                 cancelButton.tooltip = L10n.Tr(Constants.CancelImportActionText);
-                cancelButton.clicked += () =>
-                {
-                    assetImporter.CancelImport(pageManager.activePage.selectedAssetId, true);
-                };
+                cancelButton.clicked += cancelCallback.Invoke;
             }
 
             m_AnimationUpdate = schedule.Execute(UpdateProgressBar).Every(30);
@@ -96,23 +98,57 @@ namespace Unity.AssetManager.Editor
             m_ProgressBar.style.left = Length.Percent(m_AnimationLeftOffset * 100.0f);
         }
 
-        internal void Refresh(BaseOperation operation)
+        internal void Refresh(AssetDataOperation operation)
         {
-            if (operation?.Status == OperationStatus.InProgress)
+            if (operation == null)
             {
-                UIElementsUtils.Show(this);
-                IsIndefinite = operation.Progress <= 0.0f;
+                Hide();
+                return;
+            }
 
-                if (!IsIndefinite)
-                {
-                    m_ProgressBar.style.left = 0.0f;
-                    m_ProgressBar.style.width = Length.Percent(operation.Progress * 100);
-                }
+            if (operation.Status != OperationStatus.Error)
+            {
+                m_ProgressBar.AddToClassList(Styles.k_ProgressBarColor);
+                m_ProgressBar.RemoveFromClassList(Styles.k_ProgressBarError);
             }
             else
             {
-                UIElementsUtils.Hide(this);
-                m_IsIndefinite = false;
+                m_ProgressBar.RemoveFromClassList(Styles.k_ProgressBarColor);
+                m_ProgressBar.AddToClassList(Styles.k_ProgressBarError);
+            }
+
+            if (operation.Status == OperationStatus.InProgress)
+            {
+                SetProgress(operation.Progress);
+            }
+            else
+            {
+                if (operation.IsSticky || operation.Status == OperationStatus.Error)
+                {
+                    SetProgress(1.0f);
+                }
+                else
+                {
+                    Hide();
+                }
+            }
+        }
+
+        void Hide()
+        {
+            UIElementsUtils.Hide(this);
+            m_IsIndefinite = false;
+        }
+
+        void SetProgress(float progress)
+        {
+            UIElementsUtils.Show(this);
+            IsIndefinite = progress <= 0.0f;
+
+            if (!IsIndefinite)
+            {
+                m_ProgressBar.style.left = 0.0f;
+                m_ProgressBar.style.width = Length.Percent(progress * 100);
             }
         }
     }
