@@ -74,6 +74,7 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnLoadMoreSuccessCallBack()
         {
+            pageFilters.EnableFilters(m_AssetList.Any());
             SetErrorOrMessageData(!m_AssetList.Any() ? L10n.Tr(Constants.EmptyInProjectText) : string.Empty, ErrorOrMessageRecommendedAction.None);
         }
     }

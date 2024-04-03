@@ -42,12 +42,12 @@ namespace Unity.AssetManager.Editor
                 Finish(OperationStatus.Success);
             }
 
-            if (ImportOperations.Any(x => x.Status == OperationStatus.Error))
+            if (ImportOperations.Exists(x => x.Status == OperationStatus.Error))
             {
                 Finish(OperationStatus.Error);
             }
 
-            if (ImportOperations.Any(x => x.Status == OperationStatus.Cancelled))
+            if (ImportOperations.Exists(x => x.Status == OperationStatus.Cancelled))
             {
                 Finish(OperationStatus.Cancelled);
             }
@@ -182,18 +182,24 @@ namespace Unity.AssetManager.Editor
 
         private void FinalizeImport(ImportOperation importOperation, OperationStatus finalStatus, string errorMessage = null)
         {
+            ImportEndStatus status;
             switch (finalStatus)
             {
                 case OperationStatus.Success:
-                    AnalyticsSender.SendEvent(new ImportEndEvent(ImportEndStatus.Ok, importOperation.AssetId.ToString(), importOperation.startTime, DateTime.Now, importOperation.assetData?.sourceFiles.Count() ?? 0));
-                    break;
-                case OperationStatus.Error:
-                    AnalyticsSender.SendEvent(new ImportEndEvent(ImportEndStatus.DownloadError, importOperation.AssetId.ToString(), importOperation.startTime, DateTime.Now, 0, errorMessage));
+                    status = ImportEndStatus.Ok;
                     break;
                 case OperationStatus.Cancelled:
-                    AnalyticsSender.SendEvent(new ImportEndEvent(ImportEndStatus.Cancelled, importOperation.AssetId.ToString(), importOperation.startTime, DateTime.Now));
+                    status = ImportEndStatus.Cancelled;
+                    break;
+                case OperationStatus.Error:
+                    status = ImportEndStatus.DownloadError;
+                    break;
+                default:
+                    status = ImportEndStatus.GenericError;
                     break;
             }
+
+            AnalyticsSender.SendEvent(new ImportEndEvent(status, importOperation.AssetId.ToString(), importOperation.startTime, DateTime.Now, finalStatus == OperationStatus.Success ? importOperation.assetData?.sourceFiles.Count() ?? 0 : 0, errorMessage));
 
             importOperation.Finish(finalStatus);
 
@@ -212,8 +218,14 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        private void ProcessImports(IList<ImportOperation> imports)
+        private void ProcessImports(OperationStatus status, IList<ImportOperation> imports)
         {
+            m_PendingImports.RemoveAll(pending =>
+                imports.Any(import => pending.assetData.identifier.Equals(import.assetData.identifier)));
+
+            if (status != OperationStatus.Success)
+                return;
+
             var filesToTrack = new Dictionary<ImportOperation, List<(string originalPath, string finalPath)>>();
             AssetDatabase.StartAssetEditing();
             foreach (var import in imports)
@@ -221,10 +233,6 @@ namespace Unity.AssetManager.Editor
                 var files = MoveImportedFiles(import);
                 filesToTrack[import] = files;
             }
-
-            m_PendingImports.RemoveAll(pending =>
-                imports.Any(import =>
-                    pending.assetData.identifier == import.assetData.identifier));
 
             AssetDatabase.StopAssetEditing();
             AssetDatabase.Refresh();
@@ -322,13 +330,18 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        static string GetDestinationPath(IAssetData assetData)
+        {
+            return Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName, $"{Regex.Replace(assetData.name, @"[\\\/:*?""<>|]", "").Trim()}");
+        }
+
         private string GetDefaultDestinationPath(IAssetData assetData, out bool cancelImport)
         {
             cancelImport = false;
             var assetsPath = Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName);
             var tempPath = m_IOProxy.GetUniqueTempPathInProject();
             var tempFilesToTrack = new List<string>();
-            var destinationPath = assetData.defaultImportPath;
+            var destinationPath = GetDestinationPath(assetData);
 
             var existingImport = m_AssetDataManager.GetImportedAssetInfo(assetData.identifier);
             if (existingImport != null)
@@ -421,9 +434,14 @@ namespace Unity.AssetManager.Editor
             {
                 Debug.LogWarning($"Asset {importOperation.assetData.name} has no files to download.");
                 FinalizeImport(importOperation, OperationStatus.Error, "No files to download.");
+                return;
             }
 
             await Task.WhenAll(tasks);
+
+            // Import might have been cancelled by the user
+            if (importOperation.Status != OperationStatus.InProgress)
+                return;
 
             var allFiles = tasks.Where(t => t.Result != null)
                 .Select(d => d.Result.path)
@@ -549,7 +567,7 @@ namespace Unity.AssetManager.Editor
             }
 
             var bulkImports = new BulkImportOperation(importOperations);
-            bulkImports.Finished += _ => ProcessImports(importOperations);
+            bulkImports.Finished += status => ProcessImports(status, importOperations);
             bulkImports.Start();
 
             foreach (var importOperation in importOperations)
@@ -609,7 +627,7 @@ namespace Unity.AssetManager.Editor
                 if (!assetsAndFoldersToRemove.Any())
                 {
                     m_AssetDataManager.RemoveImportedAssetInfo(identifier);
-                    Debug.LogWarning("Asset was removed but file were deleted because they were not found in the project.");
+                    Debug.LogWarning("Asset was removed, but no files were deleted because they weren't found in the project.");
                     return false;
                 }
 

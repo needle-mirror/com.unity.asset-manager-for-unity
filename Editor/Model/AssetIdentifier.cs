@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
+    
     [Serializable]
     internal class AssetIdentifier : IEquatable<AssetIdentifier>
     {
@@ -44,14 +45,14 @@ namespace Unity.AssetManager.Editor
             m_ProjectId = projectId;
         }
 
-        public bool IsValid() => !string.IsNullOrEmpty(m_AssetId);
+        public virtual bool IsIdValid() => !string.IsNullOrEmpty(m_AssetId);
 
         static bool IsSameId(string str1, string str2)
         {
             return (str1 ?? string.Empty) == (str2 ?? string.Empty);
         }
 
-        public bool Equals(AssetIdentifier other)
+        public virtual bool Equals(AssetIdentifier other)
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;

@@ -12,7 +12,7 @@ namespace Unity.AssetManager.Editor
         readonly string m_CollectionPath;
 
         internal SideBarCollectionFoldout(IPageManager pageManager, IStateManager stateManager, IProjectOrganizationProvider projectOrganizationProvider,
-             string foldoutName, ProjectInfo projectInfo, string collectionPath)
+            string foldoutName, ProjectInfo projectInfo, string collectionPath)
             : base(pageManager, stateManager, projectOrganizationProvider, foldoutName)
         {
             m_ProjectInfo = projectInfo;
@@ -27,12 +27,8 @@ namespace Unity.AssetManager.Editor
                 if (e.target != this)
                     return;
 
-                if (m_PageManager.activePage is not CollectionPage)
-                {
-                    m_PageManager.SetActivePage<CollectionPage>();
-                }
-
                 m_ProjectOrganizationProvider.SelectProject(m_ProjectInfo, m_CollectionPath);
+                m_PageManager.SetActivePage<CollectionPage>();
             }, TrickleDown.TrickleDown);
         }
 

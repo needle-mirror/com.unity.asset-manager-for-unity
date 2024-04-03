@@ -4,6 +4,25 @@ using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Editor
 {
+    internal enum ImportEndImportTarget
+    {
+        NotSet = -1,
+        PrefabOrObject = 0,
+        Scene = 1,
+        ProjectFolder = 2,
+        InspectorWindow = 3
+    }
+
+    internal enum ImportEndStatus
+    {
+        Ok = 0,
+        GenericError = 1,
+        HttpError = 2,
+        GenerationError = 3,
+        DownloadError = 4,
+        Cancelled = 5
+    }
+
     class ImportEndEvent : IBaseEvent
     {
         [Serializable]
@@ -49,7 +68,7 @@ namespace Unity.AssetManager.Editor
             public int FileCount;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix+"ImportEnd";
+        const string k_EventName = AnalyticsSender.k_EventPrefix + "ImportEnd";
         const int k_EventVersion = 3;
 
         public string EventName => k_EventName;

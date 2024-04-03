@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
@@ -23,7 +22,6 @@ namespace Unity.AssetManager.Editor
         IEnumerable<string> tags { get; }
         string description { get; }
         string authorName { get; }
-        string defaultImportPath { get; }
         string primaryExtension { get; }
         IEnumerable<IAssetDataFile> sourceFiles { get; }
         IEnumerable<AssetPreview.IStatus> previewStatus { get; }
@@ -59,7 +57,6 @@ namespace Unity.AssetManager.Editor
                    && assetData.tags.SequenceEqual(other.tags)
                    && assetData.description == other.description
                    && assetData.authorName == other.authorName
-                   && assetData.defaultImportPath == other.defaultImportPath
                    && assetData.primaryExtension == other.primaryExtension
                    && assetData.sourceFiles.SequenceEqual(other.sourceFiles);
         }
@@ -68,8 +65,6 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     internal class AssetData : IAssetData, ISerializationCallbackReceiver
     {
-        public string defaultImportPath => Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName, $"{Regex.Replace(name, @"[\\\/:*?""<>|]", "").Trim()}");
-
         public AssetIdentifier identifier => m_Identifier ??= new AssetIdentifier(Asset.Descriptor);
         public string name => Asset.Name;
         public AssetType assetType => Asset.Type.ConvertCloudAssetTypeToAssetType();

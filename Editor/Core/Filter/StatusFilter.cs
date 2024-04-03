@@ -1,6 +1,4 @@
-using System.Threading;
 using Unity.Cloud.Assets;
-using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {

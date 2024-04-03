@@ -4,6 +4,22 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2024-04-03
+
+### Added
+* Displaying subshader graph icons
+
+### Fixed 
+* Fixed Details Page Scrollview issues
+* Fix detail panel close button overlapping
+* Filter visibility when window is too tight
+* Disable filter dropdown when there is no asset visible in the current page
+* Fixed Loading when entering play mode
+* Removed "All Assets" ProjectInfo object that was used by default.
+* Fixed missing dependencies foldout bug
+* Upload support for asset with circular dependencies
+* Fixed a bug that was preventing project selection
+
 ## [0.5.0] - 2024-03-15
 
 ### Added

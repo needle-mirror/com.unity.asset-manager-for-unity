@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
 using UnityEngine;
-using UnityEngine.Analytics;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -49,11 +48,19 @@ namespace Unity.AssetManager.Editor
 
         public AssetIdentifier selectedAssetId
         {
-            get => m_SelectedAssetId?.IsValid() == true ? m_SelectedAssetId : null;
+            get => m_SelectedAssetId?.IsIdValid() == true ? m_SelectedAssetId : null;
             set
             {
-                if ((m_SelectedAssetId?.IsValid() != true && value?.IsValid() != true) || value?.Equals(m_SelectedAssetId) == true)
-                    return;
+                if (value is LocalAssetIdentifier uploadAsset)
+                {
+                    if (!uploadAsset.IsIdValid() || (m_SelectedAssetId is LocalAssetIdentifier && uploadAsset.Equals(m_SelectedAssetId)))
+                        return;
+                }
+                else
+                {
+                    if ((m_SelectedAssetId?.IsIdValid() != true && value?.IsIdValid() != true) || value?.Equals(m_SelectedAssetId) == true)
+                        return;
+                }
 
                 m_SelectedAssetId = value;
                 onSelectedAssetChanged?.Invoke(m_SelectedAssetId);
@@ -111,6 +118,7 @@ namespace Unity.AssetManager.Editor
         public virtual void OnActivated()
         {
             m_IsActive = true;
+            m_PageFilters.EnableFilters(false);
 
             AnalyticsSender.SendEvent(new PageSelectedEvent(GetPageName()));
         }
@@ -125,7 +133,7 @@ namespace Unity.AssetManager.Editor
 
         public virtual void OnEnable()
         {
-            m_PageFilters.onSearchFiltersChanged += OnSearchFiltersChanged;
+            m_PageFilters.SearchFiltersChanged += OnSearchFiltersChanged;
 
             if (!m_ReTriggerSearchAfterDomainReload)
                 return;
@@ -136,7 +144,7 @@ namespace Unity.AssetManager.Editor
 
         public virtual void OnDisable()
         {
-            m_PageFilters.onSearchFiltersChanged -= OnSearchFiltersChanged;
+            m_PageFilters.SearchFiltersChanged -= OnSearchFiltersChanged;
 
             if (!isLoading)
                 return;
@@ -160,7 +168,7 @@ namespace Unity.AssetManager.Editor
             if (!hasMoreItems || isLoading)
                 return;
 
-            m_LoadMoreAssetsOperation.Start(LoadMoreAssets,
+            _ = m_LoadMoreAssetsOperation.Start(LoadMoreAssets,
                 onLoadingStartCallback: () =>
                 {
                     errorOrMessageHandlingData.message = default;

@@ -63,10 +63,10 @@ namespace Unity.AssetManager.Editor
 
             // Project breadcrumb
             AddBreadcrumbItem(m_ProjectOrganizationProvider.SelectedProject?.name, () =>
-                {
-                    m_PageManager.activePage.selectedAssetId = null;
-                    m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject);
-                });
+            {
+                m_PageManager.activePage.selectedAssetId = null;
+                m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject);
+            });
 
             // Collection/subcollection breadcrumb
             if (page is CollectionPage collectionPage && !string.IsNullOrEmpty(collectionPage.collectionPath))
@@ -78,7 +78,6 @@ namespace Unity.AssetManager.Editor
                     AddBreadcrumbItem(path, () =>
                     {
                         m_PageManager.activePage.selectedAssetId = null;
-                        m_PageManager.SetActivePage<CollectionPage>();
                         m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject, collectionPath);
                     });
                 }

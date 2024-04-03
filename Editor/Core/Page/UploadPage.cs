@@ -21,8 +21,16 @@ namespace Unity.AssetManager.Editor
             windowHook.OpenAssetManagerWindow();
         }
 
+        [MenuItem("Assets/Upload to Asset Manager", true, 21)]
+        static bool UploadToAssetManagerMenuItemValidation()
+        {
+            return Selection.assetGUIDs is { Length: > 0 } && Selection.activeObject != null;
+        }
+
         static void LoadUploadPage()
         {
+            AssetManagerWindow.instance.Focus();
+
             var provider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
             if (string.IsNullOrEmpty(provider.SelectedOrganization?.id))
                 return;
@@ -36,12 +44,6 @@ namespace Unity.AssetManager.Editor
 
             var uploadPage = pageManager.activePage as UploadPage;
             uploadPage?.AddAssets(Selection.assetGUIDs);
-        }
-
-        [MenuItem("Assets/Upload to Asset Manager", true, 21)]
-        static bool UploadToAssetManagerMenuItemValidation()
-        {
-            return Selection.assetGUIDs is { Length: > 0 } && Selection.activeObject != null;
         }
 
         public override bool DisplayTopBar => false;
@@ -157,7 +159,7 @@ namespace Unity.AssetManager.Editor
 
             var allAssetGuids = ProcessAssetGuids(m_AssetSelection, out var mainAssetGuids);
 
-            var uploadAssetEntries = AssetManagerUploader.GenerateAssetEntries(allAssetGuids, m_UploadContext.BundleDependencies).ToList();
+            var uploadAssetEntries = GenerateAssetEntries(allAssetGuids, m_UploadContext.BundleDependencies).ToList();
 
             m_UploadContext.SetUploadAssetEntries(uploadAssetEntries);
 
@@ -245,15 +247,20 @@ namespace Unity.AssetManager.Editor
 
         async Task UploadAssetEntries()
         {
-            var assetManagerUploader = new AssetManagerUploader(m_UploadContext.Settings);
-            var task = assetManagerUploader.UploadAssetEntries(m_UploadContext.UploadAssetEntries);
+            var uploadEntries = m_UploadContext.UploadAssetEntries;
+
+            var uploadManager = ServicesContainer.instance.Resolve<IUploadManager>();
+            var task = uploadManager.UploadAsync(uploadEntries, m_UploadContext.Settings);
+
+            AnalyticsSender.SendEvent(new UploadEvent(uploadEntries.Count, m_UploadContext.BundleDependencies, !string.IsNullOrEmpty(m_UploadContext.CollectionPath), m_UploadContext.Settings.AssetUploadMode));
+
             try
             {
                 await task;
             }
             catch (Exception)
             {
-                // Errors are supposed to be logged in the AssetManagerUploader
+                // Errors are supposed to be logged in the IUploaderManager
             }
 
             if (task.IsCompletedSuccessfully)
@@ -436,8 +443,25 @@ namespace Unity.AssetManager.Editor
             if (projectInfo != null)
             {
                 m_ProjectOrganizationProvider.SelectProject(projectInfo, m_UploadContext.CollectionPath);
-                pageManager.SetActivePage<CollectionPage>();
             }
+        }
+
+        static IEnumerable<IUploadAssetEntry> GenerateAssetEntries(IEnumerable<string> mainAssetGuids, bool bundleDependencies)
+        {
+            var processedGuids = new HashSet<string>();
+
+            var uploadEntries = new List<IUploadAssetEntry>();
+
+            foreach (var assetGuid in mainAssetGuids)
+            {
+                if (processedGuids.Contains(assetGuid))
+                    continue;
+
+                uploadEntries.Add(new AssetUploadEntry(assetGuid, bundleDependencies));
+                processedGuids.Add(assetGuid);
+            }
+
+            return uploadEntries;
         }
     }
 }

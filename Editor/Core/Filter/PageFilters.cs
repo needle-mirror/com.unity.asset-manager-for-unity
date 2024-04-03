@@ -9,7 +9,8 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class PageFilters
     {
-        public event Action<IEnumerable<string>> onSearchFiltersChanged;
+        public event Action<IEnumerable<string>> SearchFiltersChanged;
+        public event Action<bool> EnableStatusChanged;
 
         [SerializeField]
         List<string> m_SearchFilters = new();
@@ -23,6 +24,9 @@ namespace Unity.AssetManager.Editor
 
         [SerializeReference]
         IPage m_Page;
+
+        [SerializeReference]
+        bool m_IsEnabled;
 
         public List<BaseFilter> selectedFilters => m_SelectedFilters;
         public IEnumerable<LocalFilter> selectedLocalFilters => m_SelectedFilters.OfType<LocalFilter>();
@@ -57,7 +61,7 @@ namespace Unity.AssetManager.Editor
                 filterType.IsDirty = true;
             }
 
-            onSearchFiltersChanged?.Invoke(m_SearchFilters);
+            SearchFiltersChanged?.Invoke(m_SearchFilters);
         }
 
         public void RemoveSearchFilter(string searchFilter)
@@ -72,7 +76,7 @@ namespace Unity.AssetManager.Editor
                 filterType.IsDirty = true;
             }
 
-            onSearchFiltersChanged?.Invoke(m_SearchFilters);
+            SearchFiltersChanged?.Invoke(m_SearchFilters);
         }
 
         public void ClearSearchFilters()
@@ -87,7 +91,7 @@ namespace Unity.AssetManager.Editor
                 filterType.IsDirty = true;
             }
 
-            onSearchFiltersChanged?.Invoke(m_SearchFilters);
+            SearchFiltersChanged?.Invoke(m_SearchFilters);
         }
 
         public void AddFilter(BaseFilter filter)
@@ -115,9 +119,15 @@ namespace Unity.AssetManager.Editor
             m_Page?.Clear(reload);
         }
 
+        public void EnableFilters(bool value = true)
+        {
+            m_IsEnabled = value;
+            EnableStatusChanged?.Invoke(value);
+        }
+
         public bool IsAvailableFilters()
         {
-            return m_SelectedFilters.Count < m_Filters.Count;
+            return m_IsEnabled && m_SelectedFilters.Count < m_Filters.Count;
         }
 
         public List<BaseFilter> GetAvailableFilters()

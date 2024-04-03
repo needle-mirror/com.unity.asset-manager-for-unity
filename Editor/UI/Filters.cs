@@ -27,6 +27,7 @@ internal class Filters : VisualElement
     VisualElement m_PillContainer;
     VisualElement m_PopupContainer;
     Button m_FilterButton;
+    PageFilters m_OldPageFilters;
 
     PageFilters pageFilters => m_PageManager?.activePage?.pageFilters;
     List<BaseFilter> selectedFilters => pageFilters?.selectedFilters ?? new List<BaseFilter>();
@@ -57,6 +58,11 @@ internal class Filters : VisualElement
 
     void OnActivePageChanged(IPage page)
     {
+        if (m_OldPageFilters != null)
+        {
+            m_OldPageFilters.EnableStatusChanged -= OnEnableStatusChanged;
+        }
+        pageFilters.EnableStatusChanged += OnEnableStatusChanged;
         Refresh();
     }
 
@@ -298,5 +304,10 @@ internal class Filters : VisualElement
             }
             AnalyticsSender.SendEvent(new FilterSearchResultEvent(filters, m_PageManager.activePage.assetList.Count));
         }
+    }
+
+    void OnEnableStatusChanged(bool isEnabled)
+    {
+        m_FilterButton.SetEnabled(isEnabled);
     }
 }

@@ -19,14 +19,6 @@ namespace Unity.AssetManager.Editor
         public string id;
         public string name;
         public List<CollectionInfo> collectionInfos = new();
-
-        static readonly ProjectInfo s_ProjectInfoAllAssets = new()
-        {
-            id = "AllAssets",
-            name = Constants.AllAssetsFolderName
-        };
-
-        internal static ProjectInfo AllAssetsProjectInfo => s_ProjectInfoAllAssets;
     }
 
     interface IProjectOrganizationProvider : IService
@@ -38,7 +30,7 @@ namespace Unity.AssetManager.Editor
         CollectionInfo SelectedCollection { get; }
         void SelectProject(ProjectInfo projectInfo, string collectionPath = null);
         void SelectProject(string projectId, string collectionPath = null);
-        void EnableProject();
+        void EnableProjectForAssetManager();
         bool isLoading { get; }
         ErrorOrMessageHandlingData errorOrMessageHandlingData { get; } // TODO Error reporting should be an event
     }
@@ -87,9 +79,7 @@ namespace Unity.AssetManager.Editor
         {
             get
             {
-                return m_SelectedProjectId == ProjectInfo.AllAssetsProjectInfo.id
-                    ? ProjectInfo.AllAssetsProjectInfo
-                    : m_OrganizationInfo?.projectInfos?.Find(p => p.id == m_SelectedProjectId);
+                return m_OrganizationInfo?.projectInfos?.Find(p => p.id == m_SelectedProjectId);
             }
         }
 
@@ -125,9 +115,7 @@ namespace Unity.AssetManager.Editor
             if (currentProjectId == projectId && (m_CollectionPath ?? string.Empty) == (collectionPath ?? string.Empty))
                 return;
 
-            if (!string.IsNullOrEmpty(currentProjectId) &&
-                !m_OrganizationInfo.projectInfos.Exists(p => p.id == currentProjectId) &&
-                currentProjectId != ProjectInfo.AllAssetsProjectInfo.id)
+            if (!string.IsNullOrEmpty(currentProjectId) && !m_OrganizationInfo.projectInfos.Exists(p => p.id == currentProjectId))
             {
                 Debug.LogError($"Project with id '{currentProjectId}' is not part of the organization '{m_OrganizationInfo.id}'");
                 return;
@@ -140,13 +128,6 @@ namespace Unity.AssetManager.Editor
             SavedCollectionPath = m_CollectionPath;
 
             ProjectSelectionChanged?.Invoke(SelectedProject, SelectedCollection);
-        }
-
-        public async void EnableProject()
-        {
-            await m_AssetsProvider.EnableProjectAsync();
-
-            FetchProjectOrganization(m_UnityConnectProxy.organizationId);
         }
 
         [SerializeField]
@@ -178,14 +159,24 @@ namespace Unity.AssetManager.Editor
             m_UnityConnectProxy.onOrganizationIdChange -= OnProjectStateChanged;
         }
 
-        private void OnProjectStateChanged(string newOrgId)
+        void OnProjectStateChanged(string newOrgId)
         {
             FetchProjectOrganization(newOrgId);
         }
 
-        private void FetchProjectOrganization(string newOrgId)
+        public async void EnableProjectForAssetManager()
         {
-            if (!string.IsNullOrEmpty(m_OrganizationInfo?.id) && m_OrganizationInfo.id != newOrgId)
+            await m_AssetsProvider.EnableProjectAsync();
+
+            FetchProjectOrganization(m_UnityConnectProxy.organizationId, true);
+        }
+
+        void FetchProjectOrganization(string newOrgId, bool forceRefresh = false)
+        {
+            if (!forceRefresh && !string.IsNullOrEmpty(m_OrganizationInfo?.id) && m_OrganizationInfo.id == newOrgId)
+                return;
+
+            if (m_OrganizationInfo?.id != newOrgId)
             {
                 m_OrganizationInfo = new OrganizationInfo { id = newOrgId };
             }
@@ -205,7 +196,7 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            m_LoadOrganizationOperation.Start(token => m_AssetsProvider.GetOrganizationInfoAsync(newOrgId, token),
+            _ = m_LoadOrganizationOperation.Start(token => m_AssetsProvider.GetOrganizationInfoAsync(newOrgId, token),
                 onLoadingStartCallback: () =>
                 {
                     errorOrMessageHandlingData.message = string.Empty;
@@ -223,7 +214,7 @@ namespace Unity.AssetManager.Editor
                 onSuccessCallback: result =>
                 {
                     m_OrganizationInfo = result;
-                    if (m_OrganizationInfo?.projectInfos.Any(x => x.id == m_UnityConnectProxy.projectId) == false)
+                    if (m_OrganizationInfo?.projectInfos.Any() == false)
                     {
                         SelectProject(string.Empty);
                         errorOrMessageHandlingData.message = k_CurrentProjectNotEnabledMessage;
@@ -245,11 +236,6 @@ namespace Unity.AssetManager.Editor
             if (string.IsNullOrEmpty(savedProjectId))
             {
                 return SelectedProject ?? m_OrganizationInfo.projectInfos.FirstOrDefault();
-            }
-
-            if (ProjectInfo.AllAssetsProjectInfo.id == savedProjectId)
-            {
-                return ProjectInfo.AllAssetsProjectInfo;
             }
 
             var saveProjectInfo = m_OrganizationInfo.projectInfos.Find(p => p.id == savedProjectId);

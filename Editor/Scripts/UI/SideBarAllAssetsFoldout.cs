@@ -23,8 +23,8 @@ namespace Unity.AssetManager.Editor
                 if (e.button != 0 || target.name == k_CheckMarkName)
                     return;
 
-                pageManager.SetActivePage<AllAssetsPage>();
-                projectOrganizationProvider.SelectProject(ProjectInfo.AllAssetsProjectInfo);
+                m_PageManager.SetActivePage<AllAssetsPage>();
+
             }, TrickleDown.TrickleDown);
         }
 
@@ -35,7 +35,7 @@ namespace Unity.AssetManager.Editor
 
         void Refresh()
         {
-            var selected = m_ProjectOrganizationProvider.SelectedProject == ProjectInfo.AllAssetsProjectInfo;
+            var selected = m_PageManager?.activePage is AllAssetsPage;
             m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
         }
     }

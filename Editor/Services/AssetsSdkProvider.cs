@@ -2,17 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reflection;
 using Unity.Cloud.Assets;
 using Unity.Cloud.Common;
 using Unity.Cloud.Common.Runtime;
 using Unity.Cloud.Identity;
 using Unity.Cloud.Identity.Editor;
-using System.Reflection;
-using System.Text;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 using PackageInfo = UnityEditor.PackageManager.PackageInfo;
@@ -210,18 +208,8 @@ namespace Unity.AssetManager.Editor
                 m_UnityConnect = unityConnect;
             }
 
-            private async Task InitializeAndCheckAuthenticationState()
-            {
-                // Most of the UI and other services are relying on UnityConnect events to know user login status change, but the SDK uses UnityEditorAuthenticator
-                // So we need to do a special handling here for when UnityConnect tells us that the user is logged in but the UnityEditorAuthenticator is saying otherwise
-                while (m_UnityConnect.isUserLoggedIn && Services.AuthenticationState != AuthenticationState.LoggedIn)
-                    await Task.Delay(50);
-            }
-
             public async IAsyncEnumerable<IAssetProject> GetCurrentUserProjectList(string organizationId, Range range, [EnumeratorCancellation] CancellationToken token)
             {
-                await InitializeAndCheckAuthenticationState();
-
                 await foreach (var project in Services.AssetRepository.ListAssetProjectsAsync(new OrganizationId(organizationId), range, token))
                 {
                     yield return project;
@@ -230,13 +218,11 @@ namespace Unity.AssetManager.Editor
 
             public async Task<IAsset> GetAssetAsync(AssetDescriptor descriptor, CancellationToken token)
             {
-                await InitializeAndCheckAuthenticationState();
                 return await Services.AssetRepository.GetAssetAsync(descriptor, token);
             }
 
             public async Task<IEnumerable<IOrganization>> GetOrganizationsAsync()
             {
-                await InitializeAndCheckAuthenticationState();
                 var organizationsAsync = Services.OrganizationRepository.ListOrganizationsAsync(Range.All);
                 var organizations = new List<IOrganization>();
                 await foreach (var organization in organizationsAsync)
@@ -250,8 +236,6 @@ namespace Unity.AssetManager.Editor
             public async IAsyncEnumerable<IAsset> SearchAsync(string organizationId, IEnumerable<string> projectIds,
                 IAssetSearchFilter assetSearchFilter, Range range, [EnumeratorCancellation] CancellationToken token)
             {
-                await InitializeAndCheckAuthenticationState();
-
                 var strongTypedOrgId = new OrganizationId(organizationId);
                 var projectDescriptors = new List<ProjectDescriptor>();
                 foreach (var projectId in projectIds)
@@ -272,8 +256,6 @@ namespace Unity.AssetManager.Editor
             public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
                 IAssetSearchFilter searchFilter, GroupableField groupBy, CancellationToken token)
             {
-                await InitializeAndCheckAuthenticationState();
-
                 var strongTypedOrgId = new OrganizationId(organizationId);
                 var strongTypedProjectIds = projectIds.Select(p => new ProjectId(p)).ToList();
 
@@ -295,8 +277,6 @@ namespace Unity.AssetManager.Editor
 
             public async Task EnableProjectAsync(CancellationToken token)
             {
-                _ = InitializeAndCheckAuthenticationState();
-
                 await Services.ProjectEnabler.EnableProjectAsync(m_UnityConnect.projectId, token);
             }
         }

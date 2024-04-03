@@ -105,18 +105,10 @@ namespace Unity.AssetManager.Editor
 
             m_Pages.Clear();
 
-            if (projectInfo != null && activePage == null)
-            {
-                // TODO Fix Me, switching pages should not be handled by this class
-                if (projectInfo.id == ProjectInfo.AllAssetsProjectInfo.id)
-                {
-                    SetActivePage<AllAssetsPage>();
-                }
-                else
-                {
-                    SetActivePage<CollectionPage>();
-                }
-            }
+            // TODO Move this code outside this class
+            // Handling page selection should happen outside the PageManager
+            // Use a new class that listens to m_ProjectOrganizationProvider.ProjectSelectionChanged event and sets the active page accordingly
+            SetActivePage<CollectionPage>();
         }
 
         private void RegisterPageEvents(IPage page)

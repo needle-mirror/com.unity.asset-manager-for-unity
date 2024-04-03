@@ -8,7 +8,8 @@ namespace Unity.AssetManager.Editor
 {
     internal class AllAssetsPage : BasePage
     {
-        public override bool DisplayBreadcrumbs => true;
+        public override string Title => Constants.AllAssetsFolderName;
+        public override bool DisplayBreadcrumbs => false;
 
         public AllAssetsPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, IProjectOrganizationProvider projectOrganizationProvider)
             : base(assetDataManager, assetsProvider, projectOrganizationProvider)
@@ -17,7 +18,7 @@ namespace Unity.AssetManager.Editor
 
         public override void LoadMore()
         {
-            if(m_ProjectOrganizationProvider?.SelectedOrganization == null)
+            if (m_ProjectOrganizationProvider?.SelectedOrganization == null)
                 return;
 
             base.LoadMore();
@@ -25,10 +26,7 @@ namespace Unity.AssetManager.Editor
 
         protected override async IAsyncEnumerable<IAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
         {
-            if (m_ProjectOrganizationProvider.SelectedProject?.id != ProjectInfo.AllAssetsProjectInfo.id)
-                yield return null;
-
-            await foreach(var assetData in LoadMoreAssets(m_ProjectOrganizationProvider.SelectedOrganization, token))
+            await foreach (var assetData in LoadMoreAssets(m_ProjectOrganizationProvider.SelectedOrganization, token))
             {
                 yield return assetData;
             }
@@ -46,6 +44,7 @@ namespace Unity.AssetManager.Editor
             }
             else
             {
+                pageFilters.EnableFilters();
                 SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
             }
         }

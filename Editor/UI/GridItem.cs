@@ -188,7 +188,7 @@ namespace Unity.AssetManager.Editor
         {
             if (AssetData == null)
                 return;
-
+            
             var isSelected = AssetData.identifier.Equals(m_PageManager.activePage?.selectedAssetId);
             if (isSelected)
             {

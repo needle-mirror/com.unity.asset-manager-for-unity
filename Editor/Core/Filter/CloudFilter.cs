@@ -84,7 +84,7 @@ namespace Unity.AssetManager.Editor
             try
             {
                 List<string> projects;
-                if (m_ProjectOrganizationProvider.SelectedProject == ProjectInfo.AllAssetsProjectInfo)
+                if (m_Page is AllAssetsPage) // FixMe Each page should provide the list of projects or the filter selection but do not use a cast like this.
                 {
                     projects = m_ProjectOrganizationProvider.SelectedOrganization.projectInfos.Select(p => p.id).ToList();
                 }

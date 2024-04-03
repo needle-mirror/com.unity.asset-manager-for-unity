@@ -96,6 +96,7 @@ namespace Unity.AssetManager.Editor
             new UnityTypeDescriptor(UnityAssetType.Script, ".cs"),
             new UnityTypeDescriptor(UnityAssetType.Shader, ".shader"),
             new UnityTypeDescriptor(UnityAssetType.Shader, IconSource.Resource, "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_graph_icon.png", ".shadergraph"),
+            new UnityTypeDescriptor(UnityAssetType.Shader, IconSource.Resource, "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_subgraph_icon.png", ".shadersubgraph"),
             new UnityTypeDescriptor(UnityAssetType.Texture, ".ai", ".apng", ".bmp", ".cdr", ".dib", ".eps",
                 ".exif", ".exr", ".gif", ".hdr", ".ico", ".icon", ".j", ".j2c", ".j2k", ".jas", ".jiff", ".jng", ".jp2",
                 ".jpc", ".jpe", ".jpeg", ".jpf", ".jpg", ".jpw", ".jpx", ".jtf", ".mac", ".omf", ".png", ".psd", ".qif",

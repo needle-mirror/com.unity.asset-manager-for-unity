@@ -42,7 +42,7 @@ namespace Unity.AssetManager.Editor
                 {
                     RemoveFromClassList(k_LinkClassName);
                     AddToClassList(k_ButtonClassName);
-                    clicked += m_ProjectOrganizationProvider.EnableProject;
+                    clicked += m_ProjectOrganizationProvider.EnableProjectForAssetManager;
 
                     tooltip = L10n.Tr("Enable Project");
                     text = tooltip;

@@ -51,6 +51,7 @@ namespace Unity.AssetManager.Editor
             }
             else
             {
+                pageFilters.EnableFilters();
                 SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
             }
         }

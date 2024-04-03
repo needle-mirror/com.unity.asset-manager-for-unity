@@ -197,7 +197,7 @@ namespace Unity.AssetManager.Editor
 
         public ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier id)
         {
-            return id?.IsValid() == true && m_AssetIdToImportedAssetInfoLookup.TryGetValue(id, out var result) ? result : null;
+            return id?.IsIdValid() == true && m_AssetIdToImportedAssetInfoLookup.TryGetValue(id, out var result) ? result : null;
         }
 
         public void RemoveImportedAssetInfo(AssetIdentifier id)
@@ -213,7 +213,7 @@ namespace Unity.AssetManager.Editor
 
         public IAssetData GetAssetData(AssetIdentifier id)
         {
-            if (id?.IsValid() != true)
+            if (id?.IsIdValid() != true)
                 return null;
 
             if (m_AssetIdToImportedAssetInfoLookup.TryGetValue(id, out var info))

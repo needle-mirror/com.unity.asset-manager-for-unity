@@ -343,6 +343,7 @@ namespace Unity.AssetManager.Editor
                 return;
 
             RefreshUI();
+            RefreshScrollView();
 
             var isInProject = m_AssetDataManager.IsInProject(m_SelectedAssetData.identifier); // TODO remove the notion of InProject
             var tasks = new List<Task>();
@@ -399,7 +400,10 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.Show(m_ProjectContainer.parent);
 
             var projectPill = new ProjectPill(projectInfo);
-            projectPill.ProjectPillClickAction += pi => { m_ProjectOrganizationProvider.SelectProject(pi); };
+            projectPill.ProjectPillClickAction += pi =>
+            {
+                m_ProjectOrganizationProvider.SelectProject(pi);
+            };
 
             m_ProjectIconDownloader.DownloadIcon(projectInfo.id, (id, icon) =>
             {

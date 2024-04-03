@@ -34,6 +34,8 @@ namespace Unity.AssetManager.Editor
 
         public const int DefaultPageSize = 25;
 
+        public const string ThumbnailFilename = "unity_thumbnail.png";
+
         // This exists here for compatibility with 2020.x versions
         public static DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0);
 

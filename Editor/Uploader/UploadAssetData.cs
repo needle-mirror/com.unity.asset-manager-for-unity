@@ -24,7 +24,6 @@ namespace Unity.AssetManager.Editor
         public IEnumerable<string> tags => m_AssetEntry.Tags;
         public string description => "";
         public string authorName => "";
-        public string defaultImportPath => m_AssetPath;
         public string primaryExtension => Path.GetExtension(m_AssetPath);
 
         public IEnumerable<AssetPreview.IStatus> previewStatus
@@ -89,6 +88,7 @@ namespace Unity.AssetManager.Editor
             m_Settings = settings;
 
             m_Identifier = LocalAssetIdentifier(m_AssetGuid);
+            m_ExistingStatus = m_IsADependency ? AssetDataStatus.Linked : null;
 
             // Files
             foreach (var file in assetEntry.Files)
@@ -106,7 +106,7 @@ namespace Unity.AssetManager.Editor
 
         static AssetIdentifier LocalAssetIdentifier(string guid)
         {
-            return new AssetIdentifier(null, null, guid, "1");
+            return new LocalAssetIdentifier(null, null, null, "1", guid);
         }
 
         static long GetFileSize(string assetPath)
