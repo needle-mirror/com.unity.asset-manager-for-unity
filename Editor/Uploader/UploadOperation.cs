@@ -194,7 +194,8 @@ namespace Unity.AssetManager.Editor
         async Task UploadDependencySystemFileAsync(IDataset sourceDataset, IAsset asset, CancellationToken token)
         {
             var assetId = asset.Descriptor.AssetId.ToString();
-            var depFile = AssetDataDependencyHelper.GenerateDependencySystemFilename(assetId);
+            var assetVersion = asset.Descriptor.AssetVersion.ToString();
+            var depFile = AssetDataDependencyHelper.EncodeDependencySystemFilename(assetId, assetVersion);
 
             await UploadFile(new byte[] { }, depFile, sourceDataset, token);
         }

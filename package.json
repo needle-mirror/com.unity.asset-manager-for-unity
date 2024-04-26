@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "unity": "2021.3",
   "description": "An in-Editor tool that allows you to import assets directly into your project.",
   "keywords": [
@@ -15,18 +15,18 @@
     "com.unity.cloud.identity": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "0.5.1"
+    "com.unity.asset-manager-for-unity.tests": "0.5.2"
   },
   "_upm": {
-    "changelog": "### Added\n* Displaying subshader graph icons\n\n### Fixed \n* Fixed Details Page Scrollview issues\n* Fix detail panel close button overlapping\n* Filter visibility when window is too tight\n* Disable filter dropdown when there is no asset visible in the current page\n* Fixed Loading when entering play mode\n* Removed \"All Assets\" ProjectInfo object that was used by default.\n* Fixed missing dependencies foldout bug\n* Upload support for asset with circular dependencies\n* Fixed a bug that was preventing project selection"
+    "changelog": "### Fixed \n* Fixed for Versioning API breaking uploads"
   },
   "upmCi": {
-    "footprint": "f6701fad7c750e95801c07e1e2500a13c14fa056"
+    "footprint": "f3fef3b15260ab724b59ef834af06caaf9c63d6d"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.5/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "563eeb49e85a909df279fe4bea75158965d5fbba"
+    "revision": "f7e2ae7e917dffc7ac9834f02a6e82f752e0741f"
   }
 }

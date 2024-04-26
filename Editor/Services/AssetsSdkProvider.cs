@@ -287,6 +287,7 @@ namespace Unity.AssetManager.Editor
         static IAuthenticator s_Authenticator;
         static IAssetRepository s_AssetRepository;
         static ProjectEnabler s_ProjectEnabler;
+        static AssetVersionsSearch s_AssetVersionSearch;
 
         public static IAssetRepository AssetRepository
         {
@@ -327,6 +328,19 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        public static AssetVersionsSearch AssetVersionsSearch
+        {
+            get
+            {
+                if (s_AssetVersionSearch == null)
+                {
+                    CreateServices();
+                }
+
+                return s_AssetVersionSearch;
+            }
+        }
+
         public static IAuthenticator Authenticator
         {
             get
@@ -359,6 +373,7 @@ namespace Unity.AssetManager.Editor
             s_AssetRepository = AssetRepositoryFactory.Create(serviceHttpClient, serviceHostResolver);
 
             s_ProjectEnabler = new ProjectEnabler(serviceHttpClient, serviceHostResolver);
+            s_AssetVersionSearch = new AssetVersionsSearch(serviceHttpClient, serviceHostResolver);
         }
 
         static void OnAuthenticationStateChanged(AuthenticationState state)

@@ -44,12 +44,33 @@ namespace Unity.AssetManager.Editor
 
     static class AssetDataDependencyHelper
     {
+        const int k_MaxRunningTasks = 5;
+        const char k_AssetIdAssetVersionSeparator = '_';
+
         public static readonly string DependencyExtension = ".am4u_dep";
         public static readonly string GuidExtension = ".am4u_guid";
 
-        public static string GenerateDependencySystemFilename(string assetId)
+        static readonly SemaphoreSlim s_SearchForAssetWithGuidSemaphore = new(k_MaxRunningTasks);
+
+        public static string EncodeDependencySystemFilename(string assetId, string assetVersion)
         {
-            return $"{assetId}{DependencyExtension}";
+            return $"{assetId}{k_AssetIdAssetVersionSeparator}{assetVersion}{DependencyExtension}";
+        }
+
+        public static bool DecodeDependencySystemFilename(string filename, out string assetId, out string assetVersion)
+        {
+            assetId = string.Empty;
+            assetVersion = string.Empty;
+
+            if (Path.GetExtension(filename) != DependencyExtension)
+                return false;
+
+            var filenameParts = Path.GetFileNameWithoutExtension(filename)
+                .Split(k_AssetIdAssetVersionSeparator, StringSplitOptions.RemoveEmptyEntries);
+            
+            assetId = filenameParts[0];
+            assetVersion = filenameParts.Length >= 2 ? filenameParts[1] : string.Empty;
+            return true;
         }
 
         public static string GenerateGuidSystemFilename(IUploadAssetEntry uploadAssetEntry)
@@ -82,7 +103,7 @@ namespace Unity.AssetManager.Editor
                 files = assetData.sourceFiles.ToList();
             }
 
-            var dependencies = files.Where(f => IsADependencySystemFile(f.path)).Select(f => Path.GetFileNameWithoutExtension(f.path)).ToList();
+            var dependencies = files.Where(f => IsADependencySystemFile(f.path)).ToList();
 
             if (!dependencies.Any())
                 yield break;
@@ -91,9 +112,15 @@ namespace Unity.AssetManager.Editor
 
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
 
-            foreach (var assetId in dependencies)
+            foreach (var dependency in dependencies)
             {
-                var assetDescriptor = new AssetDescriptor(parentAssetDescriptor.ProjectDescriptor, new AssetId(assetId), new AssetVersion("1"));
+                DecodeDependencySystemFilename(dependency.path, out var assetId, out var assetVersion);
+                if (string.IsNullOrEmpty(assetVersion))
+                    assetVersion = await Services.AssetVersionsSearch.GetFirstVersionAsync(new ProjectId(assetData.identifier.projectId), new AssetId(assetId), token);
+                
+                var assetDescriptor = new AssetDescriptor(parentAssetDescriptor.ProjectDescriptor, 
+                    new AssetId(assetId),
+                    new AssetVersion(assetVersion));
                 var assetIdentifier = new AssetIdentifier(assetDescriptor);
 
                 var dependencyAssetData = await assetDataManager.GetOrSearchAssetData(assetIdentifier, token);
@@ -113,10 +140,7 @@ namespace Unity.AssetManager.Editor
                 }
             }
         }
-
-        const int k_MaxRunningTasks = 5;
-        static readonly SemaphoreSlim s_SearchForAssetWithGuidSemaphore = new(k_MaxRunningTasks);
-
+        
         public static async Task<IAsset> SearchForAssetWithGuid(string organizationId, string projectId, string guid, CancellationToken token)
         {
             if (string.IsNullOrEmpty(organizationId) || string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(guid))
