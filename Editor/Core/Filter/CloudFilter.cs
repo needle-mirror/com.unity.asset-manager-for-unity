@@ -8,23 +8,23 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal abstract class CloudFilter : BaseFilter
+    abstract class CloudFilter : BaseFilter
     {
         [SerializeReference]
-        IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        protected IProjectOrganizationProvider m_ProjectOrganizationProvider;
+
+        List<string> m_CachedSelections = new();
+        CancellationTokenSource m_TokenSource;
+
+        protected abstract GroupableField GroupBy { get; }
 
         public abstract void ResetSelectedFilter(AssetSearchFilter assetSearchFilter);
-        protected abstract GroupableField GroupBy { get; }
         protected abstract void ClearFilter();
         protected abstract void IncludeFilter(string selection);
 
-        List<string> m_CachedSelections = new();
-
-        CancellationTokenSource m_TokenSource;
-
         void ResetSelectedFilter()
         {
-            ResetSelectedFilter(m_Page.pageFilters.assetFilter);
+            ResetSelectedFilter(m_Page.PageFilters.AssetFilter);
         }
 
         internal CloudFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
@@ -75,7 +75,7 @@ namespace Unity.AssetManager.Editor
             return m_CachedSelections;
         }
 
-        async Task<List<string>> GetSelectionsAsync()
+        protected virtual async Task<List<string>> GetSelectionsAsync()
         {
             ClearFilter();
 
@@ -86,14 +86,16 @@ namespace Unity.AssetManager.Editor
                 List<string> projects;
                 if (m_Page is AllAssetsPage) // FixMe Each page should provide the list of projects or the filter selection but do not use a cast like this.
                 {
-                    projects = m_ProjectOrganizationProvider.SelectedOrganization.projectInfos.Select(p => p.id).ToList();
+                    projects = m_ProjectOrganizationProvider.SelectedOrganization.ProjectInfos.Select(p => p.Id)
+                        .ToList();
                 }
                 else
                 {
-                    projects = new List<string> { m_ProjectOrganizationProvider.SelectedProject.id };
+                    projects = new List<string> { m_ProjectOrganizationProvider.SelectedProject.Id };
                 }
 
-                var selections = await m_Page.GetFilterSelectionsAsync(m_ProjectOrganizationProvider.SelectedOrganization.id, projects, GroupBy, m_TokenSource.Token);
+                var selections = await m_Page.GetFilterSelectionsAsync(
+                    m_ProjectOrganizationProvider.SelectedOrganization.Id, projects, GroupBy, m_TokenSource.Token);
                 return selections;
             }
             catch (OperationCanceledException)

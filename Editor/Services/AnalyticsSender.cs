@@ -6,7 +6,7 @@ using UnityEngine.Analytics;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    abstract class BaseEventData{}
+    abstract class BaseEventData { }
 
     interface IBaseEvent
     {
@@ -22,18 +22,18 @@ namespace Unity.AssetManager.Editor
 
     static class AnalyticsSender
     {
-        public static readonly int k_MaxEventsPerHour = 1000;
-        public static readonly int k_MaxNumberOfElements = 1000;
+        static readonly int k_MaxEventsPerHour = 1000;
+        static readonly int k_MaxNumberOfElements = 1000;
 
         // Vendor key must start with unity.
-        public const string k_VendorKey = "unity.asset-explorer";
-        public const string k_EventPrefix = "assetManager";
+        public const string VendorKey = "unity.asset-explorer";
+        public const string EventPrefix = "assetManager";
 
         internal static AnalyticsResult SendEvent(IBaseEvent aEvent)
         {
 #if !UNITY_2023_2_OR_NEWER
             var register = EditorAnalytics.RegisterEventWithLimit(aEvent.EventName, k_MaxEventsPerHour,
-                k_MaxNumberOfElements, k_VendorKey, aEvent.EventVersion);
+                k_MaxNumberOfElements, VendorKey, aEvent.EventVersion);
 
             // This is one here for each event, so that if the call fails we don't try to send the event for nothing
             if (register != AnalyticsResult.Ok)

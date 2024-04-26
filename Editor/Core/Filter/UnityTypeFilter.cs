@@ -1,22 +1,22 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    [Serializable]
-    class UnityTypeFilter : LocalFilter, ISerializationCallbackReceiver
+    class UnityTypeFilter : CloudFilter
     {
+        readonly Dictionary<string, UnityAssetType> m_AssetTypeMap = new();
+        List<string> m_Selections = new();
+
         public override string DisplayName => "Type";
-        public List<string> m_Selections = new();
-        Dictionary<string, UnityAssetType> m_AssetTypeMap;
+        protected override GroupableField GroupBy => GroupableField.Name;
 
-        public UnityTypeFilter(IPage page)
-            : base(page)
+        public UnityTypeFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
+            : base(page, projectOrganizationProvider)
         {
-            m_AssetTypeMap = new Dictionary<string, UnityAssetType>();
-
             var types = (UnityAssetType[])Enum.GetValues(typeof(UnityAssetType));
             foreach (var type in types)
             {
@@ -26,41 +26,47 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public override Task<List<string>> GetSelections()
+        public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
-            return Task.FromResult(m_Selections);
-        }
-
-        public override async Task<bool> Contains(IAssetData assetData)
-        {
-            if (m_AssetTypeMap == null || SelectedFilter == null)
-                return true;
-
-            await assetData.ResolvePrimaryExtensionAsync(null);
-            var type = AssetDataTypeHelper.GetUnityAssetType(assetData.primaryExtension);
-
             if (m_AssetTypeMap.TryGetValue(SelectedFilter, out var assetType))
             {
-                return type == assetType;
+                var regex = AssetDataTypeHelper.GetRegexForExtensions(assetType);
+                assetSearchFilter.Include().Files.Path.WithValue(regex);
             }
-
-            return false;
         }
 
-        public void OnBeforeSerialize()
+        protected override void IncludeFilter(string selection)
         {
-            // Do nothing
+            if (m_AssetTypeMap.TryGetValue(selection, out var assetType))
+            {
+                var regex = AssetDataTypeHelper.GetRegexForExtensions(assetType);
+                m_Page.PageFilters.AssetFilter.Include().Files.Path.WithValue(regex);
+            }
+        }
+
+        protected override void ClearFilter()
+        {
+            m_Page.PageFilters.AssetFilter.Include().Files.Path.Clear();
+        }
+
+        protected override Task<List<string>> GetSelectionsAsync()
+        {
+            ClearFilter();
+
+            return Task.FromResult(m_Selections);
         }
 
         public void OnAfterDeserialize()
         {
-            m_AssetTypeMap = new Dictionary<string, UnityAssetType>();
+            m_AssetTypeMap.Clear();
+            m_Selections.Clear();
 
             var types = (UnityAssetType[])Enum.GetValues(typeof(UnityAssetType));
             foreach (var type in types)
             {
                 var text = type.ToString().PascalCaseToSentence();
                 m_AssetTypeMap.Add(text, type);
+                m_Selections.Add(text);
             }
         }
     }

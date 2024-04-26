@@ -3,19 +3,26 @@ using System;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class CollectionInfo
+    class CollectionInfo
     {
-        public string organizationId;
-        public string projectId;
-        public string name;
-        public string parentPath;
+        public string OrganizationId;
+        public string ProjectId;
+        public string Name;
+        public string ParentPath;
 
-        public string GetFullPath() => string.IsNullOrEmpty(parentPath) ? name ?? string.Empty : $"{parentPath}/{name ?? string.Empty}";
+        public string GetFullPath()
+        {
+            return string.IsNullOrEmpty(ParentPath) ? Name ?? string.Empty : $"{ParentPath}/{Name ?? string.Empty}";
+        }
+
         public string GetUniqueIdentifier()
         {
-            if (string.IsNullOrEmpty(organizationId) || string.IsNullOrEmpty(projectId))
+            if (string.IsNullOrEmpty(OrganizationId) || string.IsNullOrEmpty(ProjectId))
+            {
                 return string.Empty;
-            return $"{organizationId}/{projectId}/{GetFullPath()}";
+            }
+
+            return $"{OrganizationId}/{ProjectId}/{GetFullPath()}";
         }
 
         public static bool AreEquivalent(CollectionInfo left, CollectionInfo right)
@@ -34,10 +41,11 @@ namespace Unity.AssetManager.Editor
                 {
                     var parentPath = fullPath.Substring(0, slashIndex);
                     var name = fullPath.Substring(slashIndex + 1);
-                    return new CollectionInfo {name = name, parentPath = parentPath};
+                    return new CollectionInfo { Name = name, ParentPath = parentPath };
                 }
             }
-            return new CollectionInfo { name = fullPath, parentPath = string.Empty };
+
+            return new CollectionInfo { Name = fullPath, ParentPath = string.Empty };
         }
     }
 }

@@ -4,7 +4,7 @@ using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Editor
 {
-    class ServicesInitializationCompletedEvent: IBaseEvent
+    class ServicesInitializationCompletedEvent : IBaseEvent
     {
         [Serializable]
 #if UNITY_2023_2_OR_NEWER
@@ -17,7 +17,7 @@ namespace Unity.AssetManager.Editor
             public long TimeToInitialize;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "ServicesInitializationCompleted";
+        const string k_EventName = AnalyticsSender.EventPrefix + "ServicesInitializationCompleted";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -27,7 +27,7 @@ namespace Unity.AssetManager.Editor
 
         internal ServicesInitializationCompletedEvent(Vector2 windowResolution, long timeToInitialize = 0)
         {
-            m_Data = new ServicesInitializationCompletedEventData()
+            m_Data = new ServicesInitializationCompletedEventData
             {
                 WindowResolution = windowResolution,
                 TimeToInitialize = timeToInitialize
@@ -35,7 +35,7 @@ namespace Unity.AssetManager.Editor
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class ServicesInitializationCompletedEventAnalytic : IAnalytic
         {
             ServicesInitializationCompletedEventData m_Data;

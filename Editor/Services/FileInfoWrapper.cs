@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IFileInfoWrapper : IService
+    interface IFileInfoWrapper : IService
     {
         long GetFileLength(string path);
         IEnumerable<FileInfo> GetOldestFilesFromDirectory(string directoryPath);
@@ -18,7 +18,7 @@ namespace Unity.AssetManager.Editor
         string GetFullPath(string path);
     }
 
-    internal class FileInfoWrapper : BaseService<IFileInfoWrapper>, IFileInfoWrapper
+    class FileInfoWrapper : BaseService<IFileInfoWrapper>, IFileInfoWrapper
     {
         public long GetFileLength(string path)
         {
@@ -30,7 +30,6 @@ namespace Unity.AssetManager.Editor
             var fileInfo = new FileInfo(path);
             return fileInfo.Length;
         }
-
 
         public void DeleteFile(FileInfo file)
         {
@@ -78,7 +77,22 @@ namespace Unity.AssetManager.Editor
             return ByteSizeConverter.ConvertBytesToMb(files.Sum(x => x.Length));
         }
 
-        private bool IsFileLocked(FileInfo file)
+        public double GetFileLengthMb(string filePath)
+        {
+            return ByteSizeConverter.ConvertBytesToMb(GetFileLength(filePath));
+        }
+
+        public double GetFileLengthMb(FileInfo file)
+        {
+            return ByteSizeConverter.ConvertBytesToMb(file.Length);
+        }
+
+        public string GetFullPath(string path)
+        {
+            return Path.GetFullPath(path);
+        }
+
+        bool IsFileLocked(FileInfo file)
         {
             try
             {
@@ -96,21 +110,6 @@ namespace Unity.AssetManager.Editor
 
             //file is not locked
             return false;
-        }
-
-        public double GetFileLengthMb(string filePath)
-        {
-            return ByteSizeConverter.ConvertBytesToMb(GetFileLength(filePath));
-        }
-
-        public double GetFileLengthMb(FileInfo file)
-        {
-            return ByteSizeConverter.ConvertBytesToMb(file.Length);
-        }
-
-        public string GetFullPath(string path)
-        {
-            return Path.GetFullPath(path);
         }
     }
 }

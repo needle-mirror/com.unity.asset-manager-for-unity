@@ -2,13 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using UnityEditor;
-using UnityEngine;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
+using UnityEditor;
+using UnityEngine;
 using UnityEngine.Networking;
+using Object = UnityEngine.Object;
 using Task = System.Threading.Tasks.Task;
 
 namespace Unity.AssetManager.Editor
@@ -17,48 +18,19 @@ namespace Unity.AssetManager.Editor
     {
         ImportOperation GetImportOperation(AssetIdentifier identifier);
         bool IsImporting(AssetIdentifier identifier);
-        Task<bool> StartImportAsync(IAssetData assetData);
+        Task<bool> StartImportAsync(List<IAssetData> assetData);
         bool RemoveImport(AssetIdentifier identifier, bool showConfirmationDialog = false);
+        bool RemoveBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false);
         void ShowInProject(AssetIdentifier identifier);
         void CancelImport(AssetIdentifier identifier, bool showConfirmationDialog = false);
+        void CancelBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false);
     }
 
-    internal class BulkImportOperation : BaseOperation
-    {
-        public override float Progress { get; }
-        public override string OperationName { get; }
-        public override string Description { get; }
-        public List<ImportOperation> ImportOperations;
-
-        public BulkImportOperation(List<ImportOperation> importOperations)
-        {
-            ImportOperations = importOperations;
-        }
-
-        public void OnImportCompleted()
-        {
-            if (ImportOperations.TrueForAll(x => x.Status == OperationStatus.Success))
-            {
-                Finish(OperationStatus.Success);
-            }
-
-            if (ImportOperations.Exists(x => x.Status == OperationStatus.Error))
-            {
-                Finish(OperationStatus.Error);
-            }
-
-            if (ImportOperations.Exists(x => x.Status == OperationStatus.Cancelled))
-            {
-                Finish(OperationStatus.Cancelled);
-            }
-        }
-    }
-
-    internal static class MetafilesHelper
+    static class MetafilesHelper
     {
         public static readonly string MetaFileExtension = ".meta";
 
-        public static bool IsOrphanMetafile(string fileName, ICollection<string> allFiles)
+        public static bool IsOrphanMetafile(string fileName, IEnumerable<string> allFiles)
         {
             return IsMetafile(fileName) && !allFiles.Contains(fileName[..^MetaFileExtension.Length]);
         }
@@ -71,7 +43,9 @@ namespace Unity.AssetManager.Editor
         public static string RemoveMetaExtension(string fileName)
         {
             if (string.IsNullOrEmpty(fileName))
+            {
                 return string.Empty;
+            }
 
             return IsMetafile(fileName) ? fileName[..^MetaFileExtension.Length] : fileName;
         }
@@ -83,40 +57,28 @@ namespace Unity.AssetManager.Editor
     }
 
     [Serializable]
-    internal class AssetImporter : BaseService<IAssetImporter>, IAssetImporter, ISerializationCallbackReceiver
+    class AssetImporter : BaseService<IAssetImporter>, IAssetImporter
     {
-        private readonly Dictionary<ulong, ImportOperation> m_DownloadIdToImportOperationsLookup = new();
-        private readonly Dictionary<AssetIdentifier, ImportOperation> m_ImportOperations = new();
-
+        const int k_MaxNumberOfFilesForGroupedDownloadUrlFetch = 100;
+        
         [Serializable]
-        private class PendingImport
+        class PendingImport
         {
             [SerializeReference]
-            public IAssetData assetData;
+            public IAssetData AssetData;
         }
-
-        [SerializeField]
-        private List<PendingImport> m_PendingImports = new();
-
-        [SerializeField]
-        private ImportOperation[] m_SerializedImportOperations;
-
-        public ImportOperation GetImportOperation(AssetIdentifier identifier) => m_ImportOperations.TryGetValue(identifier, out var result) ? result : null;
-
-        public bool IsImporting(AssetIdentifier identifier)
-        {
-            var importOperation = GetImportOperation(identifier);
-            return importOperation is { Status: OperationStatus.InProgress };
-        }
-
-        [SerializeReference]
-        IDownloadManager m_DownloadManager;
-
-        [SerializeReference]
-        IIOProxy m_IOProxy;
 
         [SerializeReference]
         IAssetDatabaseProxy m_AssetDatabaseProxy;
+
+        [SerializeReference]
+        IAssetDataManager m_AssetDataManager;
+
+        [SerializeReference]
+        IAssetOperationManager m_AssetOperationManager;
+
+        [SerializeReference]
+        IDownloadManager m_DownloadManager;
 
         [SerializeReference]
         IEditorUtilityProxy m_EditorUtilityProxy;
@@ -125,14 +87,15 @@ namespace Unity.AssetManager.Editor
         IImportedAssetsTracker m_ImportedAssetsTracker;
 
         [SerializeReference]
-        IAssetDataManager m_AssetDataManager;
+        IIOProxy m_IOProxy;
 
-        [SerializeReference]
-        IAssetOperationManager m_AssetOperationManager;
+        readonly Dictionary<AssetIdentifier, ImportOperation> m_ImportOperations = new();
+        readonly Dictionary<Uri, DownloadOperation> m_UriToDownloadOperationMap = new();
 
         [ServiceInjection]
         public void Inject(IDownloadManager downloadManager, IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy,
-            IEditorUtilityProxy editorUtilityProxy, IImportedAssetsTracker importedAssetsTracker, IAssetDataManager assetDataManager, IAssetOperationManager assetOperationManager)
+            IEditorUtilityProxy editorUtilityProxy, IImportedAssetsTracker importedAssetsTracker,
+            IAssetDataManager assetDataManager, IAssetOperationManager assetOperationManager)
         {
             m_DownloadManager = downloadManager;
             m_IOProxy = ioProxy;
@@ -143,115 +106,230 @@ namespace Unity.AssetManager.Editor
             m_AssetOperationManager = assetOperationManager;
         }
 
-        public override void OnEnable()
+        public override void OnEnable() { }
+
+        public override void OnDisable() { }
+
+        public ImportOperation GetImportOperation(AssetIdentifier identifier)
         {
-            var importsToResume = m_PendingImports.ToArray();
-            m_PendingImports.Clear();
-            foreach (var item in importsToResume)
+            return m_ImportOperations.TryGetValue(identifier, out var result) ? result : null;
+        }
+
+        public bool IsImporting(AssetIdentifier identifier)
+        {
+            var importOperation = GetImportOperation(identifier);
+            return importOperation is { Status: OperationStatus.InProgress };
+        }
+
+        public async Task<bool> StartImportAsync(List<IAssetData> assetData)
+        {
+            SendImportAnalytics(assetData);
+
+            // Hack Create a temporary import operation to track the (long) dependency loading
+            var tasks = new List<Task<List<IAssetData>>>();
+            foreach (var asset in assetData)
             {
-                _ = StartImportAsync(item.assetData);
+                if (m_ImportOperations.ContainsKey(asset.Identifier))
+                    continue;
+
+                if (m_AssetDataManager.IsInProject(asset.Identifier) && !m_EditorUtilityProxy.DisplayDialog(
+                        L10n.Tr("Overwrite Imported Files"),
+                        L10n.Tr(
+                            "All the files previously imported will be overwritten and changes to those files will be lost. Are you sure you want to continue?"),
+                        L10n.Tr("Yes"), L10n.Tr("No")))
+                {
+                    continue;
+                }
+
+                tasks.Add(GetDependencies(asset));
+            }
+
+            await Task.WhenAll(tasks);
+
+            var allAssetData = tasks.SelectMany(x => x.Result).ToHashSet();
+
+            var pendingImports = allAssetData.Select(x =>
+                new PendingImport
+                {
+                    AssetData = x
+                }).ToList();
+
+            Import(pendingImports, CancellationToken.None);
+
+            return true;
+        }
+
+        public void ShowInProject(AssetIdentifier identifier)
+        {
+            try
+            {
+                var importedInfo = m_AssetDataManager.GetImportedAssetInfo(identifier);
+
+                var fileInfo = importedInfo.FileInfos[0];
+
+                var assetPath = m_AssetDatabaseProxy.GuidToAssetPath(fileInfo.Guid);
+                var parentFolderPath = Path.GetDirectoryName(assetPath);
+
+                // Ping the parent folder in the Unity Editor
+                var parentFolder = AssetDatabase.LoadAssetAtPath<Object>(parentFolderPath);
+                EditorGUIUtility.PingObject(parentFolder);
+            }
+            catch (Exception)
+            {
+                Debug.LogError("Unable to find asset location");
             }
         }
 
-        private void OnDownloadProgress(DownloadOperation downloadOperation)
+        public void CancelImport(AssetIdentifier identifier, bool showConfirmationDialog = false)
         {
-            if (!m_DownloadIdToImportOperationsLookup.TryGetValue(downloadOperation.id, out var importOperation))
+            if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr(Constants.CancelImportActionText),
+                    L10n.Tr("Are you sure you want to cancel?"), L10n.Tr("Yes"), L10n.Tr("No")))
                 return;
 
-            importOperation.UpdateDownloadOperation(downloadOperation);
-
-            importOperation.Report();
-        }
-
-        private void OnDownloadFinished(DownloadOperation downloadOperation)
-        {
-            if (!m_DownloadIdToImportOperationsLookup.TryGetValue(downloadOperation.id, out var importOperation))
+            if (!m_ImportOperations.TryGetValue(identifier, out var importOperation))
                 return;
 
-            importOperation.UpdateDownloadOperation(downloadOperation);
+            FinalizeImport(importOperation, OperationStatus.Cancelled);
+        }
+        
+        public void CancelBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false)
+        {
+            if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr(Constants.CancelImportActionText),
+                    L10n.Tr("Are you sure you want to cancel?"), L10n.Tr("Yes"), L10n.Tr("No")))
+                return;
 
-            if (downloadOperation.Status is OperationStatus.Cancelled or OperationStatus.Error)
+            foreach (var identifier in identifiers)
             {
-                FinalizeImport(importOperation, downloadOperation.Status, downloadOperation.error);
-            }
-            else if (importOperation.downloads.All(i => i.Status == OperationStatus.Success))
-            {
-                FinalizeImport(importOperation, OperationStatus.Success);
+                if (!m_ImportOperations.TryGetValue(identifier, out var importOperation))
+                    continue;
+
+                FinalizeImport(importOperation, OperationStatus.Cancelled);
             }
         }
 
-        private void FinalizeImport(ImportOperation importOperation, OperationStatus finalStatus, string errorMessage = null)
+        public bool RemoveImport(AssetIdentifier identifier, bool showConfirmationDialog = false)
         {
-            ImportEndStatus status;
-            switch (finalStatus)
+            if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Remove Imported Asset"),
+                    L10n.Tr("Remove the selected asset?" + Environment.NewLine +
+                        "Any changes you made to this asset will be lost."), L10n.Tr("Remove"), L10n.Tr("Cancel")))
             {
-                case OperationStatus.Success:
-                    status = ImportEndStatus.Ok;
-                    break;
-                case OperationStatus.Cancelled:
-                    status = ImportEndStatus.Cancelled;
-                    break;
-                case OperationStatus.Error:
-                    status = ImportEndStatus.DownloadError;
-                    break;
-                default:
-                    status = ImportEndStatus.GenericError;
-                    break;
+                return false;
             }
 
-            AnalyticsSender.SendEvent(new ImportEndEvent(status, importOperation.AssetId.ToString(), importOperation.startTime, DateTime.Now, finalStatus == OperationStatus.Success ? importOperation.assetData?.sourceFiles.Count() ?? 0 : 0, errorMessage));
+            try
+            {
+                // Untrack asset even if there is no files locally
+                m_ImportedAssetsTracker.UntrackAsset(identifier);
 
+                var assetsAndFoldersToRemove = FindAssetsAndLeftoverFolders(identifier);
+                if (!assetsAndFoldersToRemove.Any())
+                {
+                    m_AssetDataManager.RemoveImportedAssetInfo(identifier);
+                    Debug.LogWarning(
+                        "Asset was removed, but no files were deleted because they weren't found in the project.");
+                    return false;
+                }
+
+                var pathsFailedToRemove = new List<string>();
+
+                m_AssetDatabaseProxy.DeleteAssets(assetsAndFoldersToRemove, pathsFailedToRemove);
+
+                if (pathsFailedToRemove.Any())
+                {
+                    var errorMessage = L10n.Tr("Failed to remove the following asset(s) and/or folder(s):");
+                    foreach (var path in pathsFailedToRemove)
+                    {
+                        errorMessage += "\n" + path;
+                    }
+
+                    Debug.LogError(errorMessage);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                throw;
+            }
+
+            return true;
+        }
+
+        public bool RemoveBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false)
+        {
+            if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Remove Imported Assets"),
+                    L10n.Tr("Remove the selected assets?" + Environment.NewLine +
+                            "Any changes you made to those assets will be lost."), L10n.Tr("Remove"), L10n.Tr("Cancel")))
+            {
+                return false;
+            }
+            
+            foreach (var identifier in identifiers)
+            {
+                RemoveImport(identifier, false);
+            }
+            
+            return true;
+        }
+
+        void FinalizeImport(ImportOperation importOperation, OperationStatus finalStatus)
+        {
             importOperation.Finish(finalStatus);
 
             m_ImportOperations.Remove(importOperation.AssetId);
-            foreach (var download in importOperation.downloads)
-            {
-                m_DownloadIdToImportOperationsLookup.Remove(download.id);
-            }
-
             if (finalStatus is OperationStatus.Cancelled or OperationStatus.Error)
             {
-                foreach (var download in importOperation.downloads)
+                foreach (var download in importOperation.Downloads)
                 {
-                    m_DownloadManager.Cancel(download.id);
+                    m_DownloadManager.Cancel(download.Id);
                 }
             }
         }
 
-        private void ProcessImports(OperationStatus status, IList<ImportOperation> imports)
+        void ProcessImports(IList<ImportOperation> imports)
         {
-            m_PendingImports.RemoveAll(pending =>
-                imports.Any(import => pending.assetData.identifier.Equals(import.assetData.identifier)));
+            foreach (var import in imports)
+            {
+                m_ImportOperations.Remove(import.AssetId);
+            }
 
-            if (status != OperationStatus.Success)
-                return;
+            m_UriToDownloadOperationMap.Clear();
 
             var filesToTrack = new Dictionary<ImportOperation, List<(string originalPath, string finalPath)>>();
             AssetDatabase.StartAssetEditing();
-            foreach (var import in imports)
+
+            try
             {
-                var files = MoveImportedFiles(import);
-                filesToTrack[import] = files;
+                foreach (var import in imports)
+                {
+                    if (import.Status != OperationStatus.Success)
+                        continue;
+
+                    var files = MoveImportedFiles(import);
+                    filesToTrack[import] = files;
+                }
+            }
+            finally
+            {
+                AssetDatabase.StopAssetEditing();
+                AssetDatabase.Refresh();
             }
 
-            AssetDatabase.StopAssetEditing();
-            AssetDatabase.Refresh();
             foreach (var kvp in filesToTrack)
             {
-                m_ImportedAssetsTracker.TrackAssets(kvp.Value, kvp.Key.assetData);
+                m_ImportedAssetsTracker.TrackAssets(kvp.Value, kvp.Key.AssetData);
             }
         }
 
-        private List<(string originalPath, string finalPath)> MoveImportedFiles(ImportOperation importOperation)
+        List<(string originalPath, string finalPath)> MoveImportedFiles(ImportOperation importOperation)
         {
             var filesToTrack = new List<(string originalPath, string finalPath)>();
 
             var importInformation = m_AssetDataManager.GetImportedAssetInfo(importOperation.AssetId);
             try
             {
-                foreach (var download in importOperation.downloads)
+                foreach (var download in importOperation.Downloads)
                 {
-                    var originalPath = Path.GetRelativePath(importOperation.tempDownloadPath, download.path);
+                    var originalPath = Path.GetRelativePath(importOperation.TempDownloadPath, download.Path);
                     var keyToUse = originalPath;
                     var isMetaFile = MetafilesHelper.IsMetafile(originalPath);
                     if (isMetaFile)
@@ -259,19 +337,23 @@ namespace Unity.AssetManager.Editor
                         keyToUse = MetafilesHelper.RemoveMetaExtension(originalPath);
                     }
 
-                    var existingData = importInformation?.fileInfos?.Find(f => f.originalPath == keyToUse);
-                    var existingPath = m_AssetDatabaseProxy.GuidToAssetPath(existingData?.guid);
-                    var finalPath = string.IsNullOrEmpty(existingPath)
-                        ? Path.Combine(importOperation.destinationPath, keyToUse)
-                        : existingPath;
+                    var existingData = importInformation?.FileInfos?.Find(f => f.OriginalPath == keyToUse);
+                    var existingPath = m_AssetDatabaseProxy.GuidToAssetPath(existingData?.Guid);
+                    var finalPath = string.IsNullOrEmpty(existingPath) ?
+                        Path.Combine(importOperation.DestinationPath, keyToUse) :
+                        existingPath;
 
                     if (isMetaFile)
                     {
                         finalPath += MetafilesHelper.MetaFileExtension;
                     }
 
-                    m_IOProxy.DeleteFileIfExists(finalPath);
-                    m_IOProxy.FileMove(download.path, finalPath);
+                    if (File.Exists(download.Path))
+                    {
+                        m_IOProxy.DeleteFileIfExists(finalPath);
+                        m_IOProxy.FileMove(download.Path, finalPath);
+                    }
+
                     filesToTrack.Add((originalPath, finalPath));
                 }
             }
@@ -283,21 +365,49 @@ namespace Unity.AssetManager.Editor
             }
             finally
             {
-                m_IOProxy.DirectoryDelete(importOperation.tempDownloadPath, true);
+                m_IOProxy.DirectoryDelete(importOperation.TempDownloadPath, true);
             }
 
             return filesToTrack;
         }
 
-        private string GetNonConflictingImportPath(string path)
+        void SendImportAnalytics(IEnumerable<IAssetData> allAssetData)
+        {
+            foreach (var assetData in allAssetData)
+            {
+                if (assetData != null)
+                {
+                    int fileCount = 0;
+                    string fileExtension = string.Empty;
+
+                    if(assetData.SourceFiles != null
+                       && assetData.SourceFiles.Any())
+                    {
+                        fileCount = assetData.SourceFiles.Count();
+
+                        var extensions = assetData.SourceFiles.Select(adf => Path.GetExtension(adf.Path));
+                        fileExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(extensions);
+                        fileExtension = fileExtension.Substring(1); // remove the dot
+                    }
+
+                    AnalyticsSender.SendEvent(new ImportEvent(assetData.Identifier.AssetId, fileCount, fileExtension));
+                }
+            }
+        }
+
+        string GetNonConflictingImportPath(string path)
         {
             if (!m_IOProxy.FileExists(path) && !m_IOProxy.DirectoryExists(path))
+            {
                 return path;
+            }
 
             var extension = Path.GetExtension(path);
             var pathWithoutExtension = path[..^extension.Length];
             if (!string.IsNullOrEmpty(extension))
+            {
                 path = pathWithoutExtension;
+            }
 
             var pattern = @"( \d+)$";
             var isPathEndsWithNumber = Regex.Match(path, pattern);
@@ -332,10 +442,11 @@ namespace Unity.AssetManager.Editor
 
         static string GetDestinationPath(IAssetData assetData)
         {
-            return Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName, $"{Regex.Replace(assetData.name, @"[\\\/:*?""<>|]", "").Trim()}");
+            return Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName,
+                $"{Regex.Replace(assetData.Name, @"[\\\/:*?""<>|]", "").Trim()}");
         }
 
-        private string GetDefaultDestinationPath(IAssetData assetData, out bool cancelImport)
+        string GetDefaultDestinationPath(IAssetData assetData, out bool cancelImport)
         {
             cancelImport = false;
             var assetsPath = Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName);
@@ -343,9 +454,11 @@ namespace Unity.AssetManager.Editor
             var tempFilesToTrack = new List<string>();
             var destinationPath = GetDestinationPath(assetData);
 
-            var existingImport = m_AssetDataManager.GetImportedAssetInfo(assetData.identifier);
+            var existingImport = m_AssetDataManager.GetImportedAssetInfo(assetData.Identifier);
             if (existingImport != null)
-                tempFilesToTrack = MoveImportToTempPath(assetData.identifier, tempPath, assetsPath);
+            {
+                tempFilesToTrack = MoveImportToTempPath(assetData.Identifier, tempPath, assetsPath);
+            }
 
             var nonConflictingImportPath = GetNonConflictingImportPath(destinationPath);
             if (destinationPath != nonConflictingImportPath)
@@ -357,9 +470,11 @@ namespace Unity.AssetManager.Editor
                 if (m_IOProxy.FileExists(destinationPath))
                 {
                     var message = string.Format(L10n.Tr("A file named '{0}' already exists." +
-                        "\nDo you want to create a new folder named '{1}' and import the selected assets into that folder?"), destinationFolderName, newPathFolderName);
+                            "\nDo you want to create a new folder named '{1}' and import the selected assets into that folder?"),
+                        destinationFolderName, newPathFolderName);
 
-                    if (m_EditorUtilityProxy.DisplayDialog(title, message, L10n.Tr("Create new folder"), L10n.Tr("Cancel")))
+                    if (m_EditorUtilityProxy.DisplayDialog(title, message, L10n.Tr("Create new folder"),
+                            L10n.Tr("Cancel")))
                     {
                         return nonConflictingImportPath;
                     }
@@ -369,10 +484,12 @@ namespace Unity.AssetManager.Editor
                 else
                 {
                     var message = string.Format(L10n.Tr("A folder named '{0}' already exists." +
-                        "\nDo you want to continue with the import and rename any conflicting files in '{0}'?" +
-                        "\nOr do you want to create a new folder named '{1}' and import the selected assets into that folder?"), destinationFolderName, newPathFolderName);
+                            "\nDo you want to continue with the import and rename any conflicting files in '{0}'?" +
+                            "\nOr do you want to create a new folder named '{1}' and import the selected assets into that folder?"),
+                        destinationFolderName, newPathFolderName);
 
-                    switch (m_EditorUtilityProxy.DisplayDialogComplex(title, message, L10n.Tr("Continue"), L10n.Tr("Create new folder"), L10n.Tr("Cancel")))
+                    switch (m_EditorUtilityProxy.DisplayDialogComplex(title, message, L10n.Tr("Continue"),
+                                L10n.Tr("Create new folder"), L10n.Tr("Cancel")))
                     {
                         case 1:
                             return nonConflictingImportPath;
@@ -392,18 +509,18 @@ namespace Unity.AssetManager.Editor
             return destinationPath;
         }
 
-        private ImportOperation CreateImportOperation(IAssetData assetData, string importPath)
+        ImportOperation CreateImportOperation(IAssetData assetData, string importPath)
         {
-            if (m_ImportOperations.TryGetValue(assetData.identifier, out var existingImportOperation))
+            if (m_ImportOperations.TryGetValue(assetData.Identifier, out var existingImportOperation))
             {
                 return existingImportOperation;
             }
 
             var importOperation = new ImportOperation(assetData)
             {
-                destinationPath = importPath,
-                startTime = DateTime.Now,
-                tempDownloadPath = m_IOProxy.GetUniqueTempPathInProject()
+                DestinationPath = importPath,
+                StartTime = DateTime.Now,
+                TempDownloadPath = m_IOProxy.GetUniqueTempPathInProject()
             };
 
             m_AssetOperationManager.RegisterOperation(importOperation);
@@ -412,94 +529,122 @@ namespace Unity.AssetManager.Editor
             return importOperation;
         }
 
-        private async Task StartImport(ImportOperation importOperation, CancellationToken token)
+        async Task StartImport(ImportOperation importOperation, CancellationToken token)
         {
-            importOperation.Start();
-            m_IOProxy.CreateDirectory(importOperation.tempDownloadPath);
+            m_IOProxy.CreateDirectory(importOperation.TempDownloadPath);
 
-            var tasks = new List<Task<DownloadOperation>>();
+            var assetData = (AssetData)importOperation.AssetData;
+            var asset = assetData.Asset;
 
-            // Update AssetData with the latest cloud data
-            await importOperation.assetData.SyncWithCloudAsync(null, token);
-
-            await foreach (var file in importOperation.assetData.GetSourceCloudFilesAsync(token))
+            var sourceDataset = await asset.GetSourceDatasetAsync(token);
+            var sourceDatasetId = sourceDataset.Descriptor.DatasetId.ToString();
+            
+            var files = new List<IFile>();
+            await foreach (var file in asset.ListFilesAsync(Range.All, token))
             {
-                if (AssetDataDependencyHelper.IsASystemFile(file.Descriptor.Path))
-                    continue;
-
-                tasks.Add(CreateDownloadOperation(file, importOperation.tempDownloadPath, token));
+                files.Add(file);
             }
 
-            if (tasks.Count == 0)
+            if (files.Count > k_MaxNumberOfFilesForGroupedDownloadUrlFetch)
             {
-                Debug.LogWarning($"Asset {importOperation.assetData.name} has no files to download.");
-                FinalizeImport(importOperation, OperationStatus.Error, "No files to download.");
-                return;
-            }
-
-            await Task.WhenAll(tasks);
-
-            // Import might have been cancelled by the user
-            if (importOperation.Status != OperationStatus.InProgress)
-                return;
-
-            var allFiles = tasks.Where(t => t.Result != null)
-                .Select(d => d.Result.path)
-                .ToList();
-
-            var hasUndeterminedTotalSize = false;
-
-            foreach (var task in tasks)
-            {
-                if (task.IsFaulted)
+                var fetchDownloadUrlsOperation = new FetchDownloadUrlsOperation();
+                fetchDownloadUrlsOperation.Start();
+                
+                for (int i = 0; i < files.Count; i++)
                 {
-                    Debug.LogException(task.Exception);
-                    continue;
+                    var file = files[i];
+                    var filepath = file.Descriptor.Path;
+                    
+                    fetchDownloadUrlsOperation.SetDescription(Path.GetFileName(filepath));
+                    
+                    if (MetafilesHelper.IsOrphanMetafile(filepath, files.Select(x => x.Descriptor.Path)))
+                        continue;
+
+                    if (AssetDataDependencyHelper.IsASystemFile(filepath))
+                        continue;
+                    
+                    var url = await file.GetDownloadUrlAsync(token);
+                                           
+                    if (!url.ToString().Contains(sourceDatasetId))
+                        continue;
+
+                    var downloadOperation = GetDownloadOperation(url, filepath, importOperation);
+
+                    importOperation.AddDownload(downloadOperation);
+                    fetchDownloadUrlsOperation.SetProgress((float)i/files.Count);
                 }
 
-                var downloadOperation = task.Result;
-                if (downloadOperation == null)
-                    continue;
-
-                if (downloadOperation.totalBytes <= 0)
+                fetchDownloadUrlsOperation.Finish(OperationStatus.Success);
+                importOperation.Start();
+                
+                foreach (var downloadOperation in importOperation.Downloads)
                 {
-                    hasUndeterminedTotalSize = true;
+                    if (downloadOperation.Status == OperationStatus.None)
+                    {
+                        m_DownloadManager.StartDownload(downloadOperation);
+                    }
+                    else if (downloadOperation.Status == OperationStatus.Error)
+                    {
+                        importOperation.Finish(OperationStatus.Error);
+                        return;
+                    }
                 }
+            }
+            else
+            {
+                importOperation.Start();
+                
+                var urls = await asset.GetAssetDownloadUrlsAsync(token);
+                
+                foreach (var url in urls)
+                {
+                    if (!url.ToString().Contains(sourceDatasetId))
+                        continue;
+                    
+                    if (MetafilesHelper.IsOrphanMetafile(url.Key, urls.Keys))
+                        continue;
 
-                if (MetafilesHelper.IsOrphanMetafile(downloadOperation.path, allFiles))
-                    continue;
+                    if (AssetDataDependencyHelper.IsASystemFile(url.Key))
+                        continue;
 
-                importOperation.AddDownload(downloadOperation);
-                m_DownloadIdToImportOperationsLookup[downloadOperation.id] = importOperation;
-                m_DownloadManager.StartDownload(downloadOperation);
+                    var downloadOperation = GetDownloadOperation(url.Value, url.Key, importOperation);
+
+                    importOperation.AddDownload(downloadOperation);
+                
+                    if (downloadOperation.Status == OperationStatus.None)
+                    {
+                        m_DownloadManager.StartDownload(downloadOperation);
+                    }
+                    else if (downloadOperation.Status == OperationStatus.Error)
+                    {
+                        importOperation.Finish(OperationStatus.Error);
+                        return;
+                    }
+                }
             }
 
-            if (hasUndeterminedTotalSize)
+            if (importOperation.Downloads.All(x => x.Status == OperationStatus.Success))
             {
-                Debug.LogWarning($"Some files in {importOperation.assetData.name} has undetermined size. Download progress might not be accurate.");
+                importOperation.Finish(OperationStatus.Success);
             }
         }
 
-        async Task<DownloadOperation> CreateDownloadOperation(IFile file, string dstFolder, CancellationToken token)
+        DownloadOperation GetDownloadOperation(Uri uri, string fileName, ImportOperation importOperation)
         {
-            var downloadUri = await file.GetDownloadUrlAsync(token);
-            var downloadUrl = downloadUri?.ToString();
+            if (m_UriToDownloadOperationMap.TryGetValue(uri, out var downloadOperation))
+            {
+                return downloadOperation;
+            }
 
-            if (string.IsNullOrEmpty(downloadUrl))
-                return null;
+            var path = Path.Combine(importOperation.TempDownloadPath, fileName);
+            downloadOperation = m_DownloadManager.CreateDownloadOperation(uri.ToString(), path);
 
-            var path = Path.Combine(dstFolder, file.Descriptor.Path);
-
-            var downloadOperation = m_DownloadManager.CreateDownloadOperation(downloadUrl, path);
-            downloadOperation.totalBytes = file.SizeBytes;
-
-            downloadOperation.Finished += _ => OnDownloadFinished(downloadOperation);
-            downloadOperation.ProgressChanged += _ => OnDownloadProgress(downloadOperation);
-
+            m_UriToDownloadOperationMap.TryAdd(uri, downloadOperation);
             return downloadOperation;
         }
 
-        public UnityWebRequestAsyncOperation SendWebRequest(string url, string path, bool append = false, string bytesRange = null)
+        public UnityWebRequestAsyncOperation SendWebRequest(string url, string path, bool append = false,
+            string bytesRange = null)
         {
             var request = new UnityWebRequest(url, UnityWebRequest.kHttpVerbGET)
             {
@@ -515,22 +660,15 @@ namespace Unity.AssetManager.Editor
             return request.SendWebRequest();
         }
 
-        public async Task<bool> StartImportAsync(IAssetData assetData)
+        async Task<List<IAssetData>> GetDependencies(IAssetData asset)
         {
-            if (assetData == null || m_ImportOperations.ContainsKey(assetData.identifier))
-                return false;
-
-            if (m_AssetDataManager.IsInProject(assetData.identifier) && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Overwrite Imported Files"),
-                    L10n.Tr("All the files previously imported will be overwritten and changes to those files will be lost. Are you sure you want to continue?"), L10n.Tr("Yes"), L10n.Tr("No")))
-                return false;
-
-            // Hack Create a temporary import operation to track the (long) dependency loading
-            var dependencyCollectionOperation = new ImportOperation(assetData);
+            var allAssetData = new List<IAssetData>();
+            var dependencyCollectionOperation = new ImportOperation(asset);
             m_AssetOperationManager.RegisterOperation(dependencyCollectionOperation);
             dependencyCollectionOperation.Start();
-
-            var allAssetData = new List<IAssetData> { assetData };
-            await foreach (var dependencyAssetData in AssetDataDependencyHelper.LoadDependenciesAsync(assetData, true, CancellationToken.None))
+            allAssetData.Add(asset);
+            await foreach (var dependencyAssetData in AssetDataDependencyHelper.LoadDependenciesAsync(asset,
+                               true, CancellationToken.None))
             {
                 if (dependencyAssetData.AssetData != null)
                 {
@@ -544,15 +682,7 @@ namespace Unity.AssetManager.Editor
 
             // Hack Remove the temporary import operation and let a new one starts below
             dependencyCollectionOperation.Finish(OperationStatus.None);
-
-            var pendingImports = allAssetData.Distinct().Select(x =>
-                new PendingImport() {
-                    assetData = x
-                }).ToList();
-            m_PendingImports.AddRange(pendingImports);
-            Import(pendingImports, CancellationToken.None);
-
-            return true;
+            return allAssetData;
         }
 
         void Import(List<PendingImport> pendingImports, CancellationToken token)
@@ -561,110 +691,40 @@ namespace Unity.AssetManager.Editor
 
             foreach (var pendingImport in pendingImports)
             {
-                var path = GetDefaultDestinationPath(pendingImport.assetData, out bool cancelImport);
-                var importOperation = CreateImportOperation(pendingImport.assetData, path);
+                if (m_ImportOperations.Any(x => x.Key.Equals(pendingImport.AssetData.Identifier)))
+                {
+                    Debug.Log("Dupes");
+                    continue; // Dupes, I'm not sure why distinct is not working properly
+                }
+
+                var path = GetDefaultDestinationPath(pendingImport.AssetData, out var cancelImport);
+                var importOperation = CreateImportOperation(pendingImport.AssetData, path);
                 importOperations.Add(importOperation);
             }
 
-            var bulkImports = new BulkImportOperation(importOperations);
-            bulkImports.Finished += status => ProcessImports(status, importOperations);
-            bulkImports.Start();
+            var bulkImportOperation = new BulkImportOperation(importOperations);
+            bulkImportOperation.Finished += _ => ProcessImports(importOperations);
+            bulkImportOperation.Start();
 
             foreach (var importOperation in importOperations)
             {
-                importOperation.Finished += _ => bulkImports.OnImportCompleted();
                 _ = StartImport(importOperation, token);
             }
         }
 
-        public void ShowInProject(AssetIdentifier identifier)
+        string[] FindAssetsAndLeftoverFolders(AssetIdentifier identifier)
         {
-            try
-            {
-                var importedInfo = m_AssetDataManager.GetImportedAssetInfo(identifier);
-
-                var fileInfo = importedInfo.fileInfos[0];
-
-                var assetPath = m_AssetDatabaseProxy.GuidToAssetPath(fileInfo.guid);
-                var parentFolderPath = Path.GetDirectoryName(assetPath);
-
-                // Ping the parent folder in the Unity Editor
-                var parentFolder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(parentFolderPath);
-                EditorGUIUtility.PingObject(parentFolder);
-            }
-            catch (Exception)
-            {
-                Debug.LogError("Unable to find asset location");
-            }
-        }
-
-        public void CancelImport(AssetIdentifier identifier, bool showConfirmationDialog = false)
-        {
-            if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr(Constants.CancelImportActionText),
-                    L10n.Tr("Are you sure you want to cancel?"), L10n.Tr("Yes"), L10n.Tr("No")))
-                return;
-
-            if (!m_ImportOperations.TryGetValue(identifier, out var importOperation))
-                return;
-
-            FinalizeImport(importOperation, OperationStatus.Cancelled);
-        }
-
-        public bool RemoveImport(AssetIdentifier identifier, bool showConfirmationDialog = false)
-        {
-            if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Remove Imported Asset"),
-                    L10n.Tr("Remove the selected asset?" + Environment.NewLine + "Any changes you made to this asset will be lost."), L10n.Tr("Remove"), L10n.Tr("Cancel")))
-            {
-                return false;
-            }
-
-            try
-            {
-                // Untrack asset even if there is no files locally
-                m_ImportedAssetsTracker.UntrackAsset(identifier);
-
-                var assetsAndFoldersToRemove = FindAssetsAndLeftoverFolders(identifier);
-                if (!assetsAndFoldersToRemove.Any())
-                {
-                    m_AssetDataManager.RemoveImportedAssetInfo(identifier);
-                    Debug.LogWarning("Asset was removed, but no files were deleted because they weren't found in the project.");
-                    return false;
-                }
-
-                var pathsFailedToRemove = new List<string>();
-
-                m_AssetDatabaseProxy.DeleteAssets(assetsAndFoldersToRemove, pathsFailedToRemove);
-
-                if (pathsFailedToRemove.Any())
-                {
-                    var errorMessage = L10n.Tr("Failed to remove the following asset(s) and/or folder(s):");
-                    foreach (var path in pathsFailedToRemove)
-                    {
-                        errorMessage += "\n" + path;
-                    }
-
-                    Debug.LogError(errorMessage);
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogException(e);
-                throw;
-            }
-
-            return true;
-        }
-
-        private string[] FindAssetsAndLeftoverFolders(AssetIdentifier identifier)
-        {
-            var fileInfos = m_AssetDataManager.GetImportedAssetInfo(identifier)?.fileInfos;
+            var fileInfos = m_AssetDataManager.GetImportedAssetInfo(identifier)?.FileInfos;
             if (fileInfos == null || fileInfos.Count == 0)
+            {
                 return Array.Empty<string>();
+            }
 
             try
             {
                 const string assetsPath = "Assets";
-                var filesToRemove = fileInfos.Select(fileInfo => m_AssetDatabaseProxy.GuidToAssetPath(fileInfo.guid)).Where(f => !string.IsNullOrEmpty(f)).OrderByDescending(p => p).ToList();
+                var filesToRemove = fileInfos.Select(fileInfo => m_AssetDatabaseProxy.GuidToAssetPath(fileInfo.Guid))
+                    .Where(f => !string.IsNullOrEmpty(f)).OrderByDescending(p => p).ToList();
                 var foldersToRemove = new HashSet<string>();
                 foreach (var file in filesToRemove)
                 {
@@ -672,16 +732,21 @@ namespace Unity.AssetManager.Editor
 
                     // We want to add an asset's parent folders all the way up to the `Assets` folder, because we don't want to leave behind
                     // empty folders after the assets are removed process.
-                    while (!string.IsNullOrEmpty(path) && !foldersToRemove.Contains(path) && path.StartsWith(assetsPath) && path.Length > assetsPath.Length)
+                    while (!string.IsNullOrEmpty(path) && !foldersToRemove.Contains(path) &&
+                           path.StartsWith(assetsPath) && path.Length > assetsPath.Length)
                     {
                         foldersToRemove.Add(path);
                         path = Path.GetDirectoryName(path);
                     }
                 }
 
-                var leftOverAssetsGuids = m_AssetDatabaseProxy.FindAssets(string.Empty, foldersToRemove.ToArray()).ToHashSet();
-                foreach (var guid in fileInfos.Select(i => i.guid).Concat(foldersToRemove.Select(i => m_AssetDatabaseProxy.AssetPathToGuid(i))))
+                var leftOverAssetsGuids =
+                    m_AssetDatabaseProxy.FindAssets(string.Empty, foldersToRemove.ToArray()).ToHashSet();
+                foreach (var guid in fileInfos.Select(i => i.Guid)
+                             .Concat(foldersToRemove.Select(i => m_AssetDatabaseProxy.AssetPathToGuid(i))))
+                {
                     leftOverAssetsGuids.Remove(guid);
+                }
 
                 foreach (var assetPath in leftOverAssetsGuids.Select(i => m_AssetDatabaseProxy.GuidToAssetPath(i)))
                 {
@@ -713,23 +778,33 @@ namespace Unity.AssetManager.Editor
             {
                 var assetsAndFolders = FindAssetsAndLeftoverFolders(identifier);
                 if (!assetsAndFolders.Any())
+                {
                     return new List<string>();
+                }
 
                 if (!m_IOProxy.DirectoryExists(tempPath))
+                {
                     m_IOProxy.CreateDirectory(tempPath);
+                }
 
                 var filesToMove = new List<string>();
                 var foldersToRemove = new List<string>();
                 foreach (var path in assetsAndFolders)
                 {
                     if (m_IOProxy.FileExists(path))
+                    {
                         filesToMove.Add(path);
+                    }
                     else if (m_IOProxy.DirectoryExists(path))
+                    {
                         foldersToRemove.Add(path);
+                    }
 
                     var metaFile = path + ".meta";
                     if (m_IOProxy.FileExists(metaFile))
+                    {
                         filesToMove.Add(metaFile);
+                    }
                 }
 
                 var filesToTrack = new List<string>();
@@ -737,12 +812,16 @@ namespace Unity.AssetManager.Editor
                 {
                     var originalPath = Path.GetRelativePath(assetPath, file);
                     var finalPath = Path.Combine(tempPath, originalPath);
-                    m_IOProxy.FileMove(file, finalPath);
-                    filesToTrack.Add(finalPath);
+                    if (File.Exists(file))
+                    {
+                        m_IOProxy.FileMove(file, finalPath);
+                    }
                 }
 
                 foreach (var path in foldersToRemove)
+                {
                     m_IOProxy.DirectoryDelete(path, true);
+                }
 
                 return filesToTrack;
             }
@@ -771,23 +850,6 @@ namespace Unity.AssetManager.Editor
             {
                 Debug.LogException(e);
                 throw;
-            }
-        }
-
-        public void OnBeforeSerialize()
-        {
-            foreach (var item in m_PendingImports)
-                m_ImportOperations.Remove(item.assetData.identifier);
-            m_SerializedImportOperations = m_ImportOperations.Values.ToArray();
-        }
-
-        public void OnAfterDeserialize()
-        {
-            foreach (var operation in m_SerializedImportOperations ?? Array.Empty<ImportOperation>())
-            {
-                m_ImportOperations[operation.AssetId] = operation;
-                foreach (var download in operation.downloads)
-                    m_DownloadIdToImportOperationsLookup[download.id] = operation;
             }
         }
     }

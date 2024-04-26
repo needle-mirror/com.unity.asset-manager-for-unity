@@ -5,68 +5,46 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IPageManager : IService
+    interface IPageManager : IService
     {
-        event Action<IPage> onActivePageChanged;
-        event Action<IPage, bool> onLoadingStatusChanged;
-        event Action<IPage, IEnumerable<string>> onSearchFiltersChanged;
-        event Action<IPage, AssetIdentifier> onSelectedAssetChanged;
-        event Action<IPage, ErrorOrMessageHandlingData> onErrorOrMessageThrown;
+        IPage ActivePage { get; }
 
-        IPage activePage { get; }
+        event Action<IPage> ActivePageChanged;
+        event Action<IPage, bool> LoadingStatusChanged;
+        event Action<IPage, IEnumerable<string>> SearchFiltersChanged;
+        event Action<IPage, List<AssetIdentifier>> SelectedAssetChanged;
+        event Action<IPage, ErrorOrMessageHandlingData> ErrorOrMessageThrown;
+
         void SetActivePage<T>() where T : IPage;
     }
 
     [Serializable]
-    internal class PageManager : BaseService<IPageManager>, IPageManager, ISerializationCallbackReceiver
+    class PageManager : BaseService<IPageManager>, IPageManager, ISerializationCallbackReceiver
     {
-        public event Action<IPage> onActivePageChanged = delegate { };
-        public event Action<IPage, bool> onLoadingStatusChanged = delegate { };
-        public event Action<IPage, IEnumerable<string>> onSearchFiltersChanged = delegate { };
-        public event Action<IPage, AssetIdentifier> onSelectedAssetChanged = delegate { };
-        public event Action<IPage, ErrorOrMessageHandlingData> onErrorOrMessageThrown = delegate { };
-
-        private Dictionary<Type, IPage> m_Pages = new();
-
         [SerializeReference]
-        private IPage[] m_SerializedPages = Array.Empty<IPage>();
-
-        public IPage activePage => m_Pages.Values.FirstOrDefault(p => p.isActivePage);
-
-        public void SetActivePage(IPage page)
-        {
-            var lastActivePage = activePage;
-            if (page == lastActivePage)
-                return;
-
-            page?.OnActivated();
-            lastActivePage?.OnDeactivated();
-            onActivePageChanged?.Invoke(activePage);
-        }
-
-        public void SetActivePage<T>() where T : IPage
-        {
-            var page = m_Pages.TryGetValue(typeof(T), out var existingPage) ? existingPage : CreatePage<T>();
-
-            SetActivePage(page);
-        }
-
-        [SerializeReference]
-        IUnityConnectProxy m_UnityConnect;
+        IAssetDataManager m_AssetDataManager;
 
         [SerializeReference]
         IAssetsProvider m_AssetsProvider;
 
         [SerializeReference]
-        IAssetDataManager m_AssetDataManager;
-
-        [SerializeReference]
         IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
+        [SerializeReference]
+        IPage m_ActivePage;
+
+        public event Action<IPage> ActivePageChanged = delegate { };
+        public event Action<IPage, bool> LoadingStatusChanged = delegate { };
+        public event Action<IPage, IEnumerable<string>> SearchFiltersChanged = delegate { };
+        public event Action<IPage, List<AssetIdentifier>> SelectedAssetChanged = delegate { };
+        public event Action<IPage, ErrorOrMessageHandlingData> ErrorOrMessageThrown = delegate { };
+
+        public IPage ActivePage => m_ActivePage;
+
         [ServiceInjection]
-        public void Inject(IUnityConnectProxy unityConnect, IAssetsProvider assetsProvider, IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider)
+        public void Inject(IAssetsProvider assetsProvider,
+            IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider)
         {
-            m_UnityConnect = unityConnect;
             m_AssetsProvider = assetsProvider;
             m_AssetDataManager = assetDataManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -74,36 +52,45 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
-            m_UnityConnect.onUserLoginStateChange += OnUserLoginStateChange;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
 
-            foreach (var page in m_Pages.Values)
-                page.OnEnable();
+            m_ActivePage?.OnEnable();
         }
 
         public override void OnDisable()
         {
-            m_UnityConnect.onUserLoginStateChange -= OnUserLoginStateChange;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
 
-            foreach (var page in m_Pages.Values)
-                page.OnDisable();
+            m_ActivePage?.OnDisable();
         }
 
-        private void OnUserLoginStateChange(bool isUserInfoReady, bool isUserLoggedIn)
+        public void SetActivePage(IPage page)
         {
-            foreach (var page in m_Pages.Values)
-                page.Clear(false);
+            if (page == m_ActivePage)
+                return;
+
+            m_ActivePage?.OnDeactivated();
+
+            m_ActivePage = page;
+            m_ActivePage?.OnActivated();
+
+            ActivePageChanged?.Invoke(m_ActivePage);
         }
 
-        private void ProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        public void SetActivePage<T>() where T : IPage
         {
-            foreach (var page in m_Pages.Values)
-            {
-                page.OnDestroy();
-            }
+            var page = m_ActivePage is T ? m_ActivePage : CreatePage<T>();
+            SetActivePage(page);
+        }
 
-            m_Pages.Clear();
+        void OnUserLoginStateChange(bool isUserInfoReady, bool isUserLoggedIn)
+        {
+            m_ActivePage?.Clear(false);
+        }
+
+        void ProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        {
+            m_ActivePage = null; // TODO Do we need to do this
 
             // TODO Move this code outside this class
             // Handling page selection should happen outside the PageManager
@@ -111,36 +98,33 @@ namespace Unity.AssetManager.Editor
             SetActivePage<CollectionPage>();
         }
 
-        private void RegisterPageEvents(IPage page)
+        void RegisterPageEvents(IPage page)
         {
-            page.onLoadingStatusChanged += loading => onLoadingStatusChanged?.Invoke(page, loading);
-            page.onSelectedAssetChanged += data => onSelectedAssetChanged?.Invoke(page, data);
-            page.onSearchFiltersChanged += data => onSearchFiltersChanged?.Invoke(page, data);
-            page.onErrorOrMessageThrown += errorHandling => onErrorOrMessageThrown?.Invoke(page, errorHandling);
-        }
-
-        public void OnBeforeSerialize()
-        {
-            m_SerializedPages = m_Pages.Values.ToArray();
-        }
-
-        public void OnAfterDeserialize()
-        {
-            foreach (var page in m_SerializedPages)
-            {
-                RegisterPageEvents(page);
-
-                m_Pages[page.GetType()] = page;
-            }
+            page.LoadingStatusChanged += loading => LoadingStatusChanged?.Invoke(page, loading);
+            page.SelectedAssetsChanged += data => SelectedAssetChanged?.Invoke(page, data);
+            page.SearchFiltersChanged += data => SearchFiltersChanged?.Invoke(page, data);
+            page.ErrorOrMessageThrown += errorHandling => ErrorOrMessageThrown?.Invoke(page, errorHandling);
         }
 
         IPage CreatePage<T>()
         {
             var page = (IPage)Activator.CreateInstance(typeof(T), m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
-            m_Pages[typeof(T)] = page;
             page?.OnEnable();
             RegisterPageEvents(page);
             return page;
+        }
+
+        public void OnBeforeSerialize()
+        {
+            // Nothing
+        }
+
+        public void OnAfterDeserialize()
+        {
+            if (m_ActivePage != null)
+            {
+                RegisterPageEvents(m_ActivePage);
+            }
         }
     }
 }

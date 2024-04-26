@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -7,13 +10,11 @@ namespace Unity.AssetManager.Editor
     class CloudAssetContextMenu : AssetContextMenu
     {
         public CloudAssetContextMenu(IAssetDataManager assetDataManager, IAssetImporter assetImporter,
-            ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy) : base(assetDataManager, assetImporter,
-            linksProxy, assetDatabaseProxy)
-        {
-        }
+            ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy, IPageManager pageManager) : base(assetDataManager, assetImporter,
+            linksProxy, assetDatabaseProxy, pageManager) { }
 
-        bool IsImporting => m_AssetImporter.IsImporting(TargetAssetData.identifier);
-        bool IsInProject => m_AssetDataManager.IsInProject(TargetAssetData.identifier);
+        bool IsImporting => m_AssetImporter.IsImporting(TargetAssetData.Identifier);
+        bool IsInProject => m_AssetDataManager.IsInProject(TargetAssetData.Identifier);
 
         public override void SetupContextMenuEntries(ContextualMenuPopulateEvent evt)
         {
@@ -27,7 +28,7 @@ namespace Unity.AssetManager.Editor
 
         static void ClearMenuEntries(ContextualMenuPopulateEvent evt)
         {
-            for (int i = 0; i < evt.menu.MenuItems().Count; i++)
+            for (var i = 0; i < evt.menu.MenuItems().Count; i++)
             {
                 evt.menu.MenuItems().RemoveAt(0);
             }
@@ -38,16 +39,29 @@ namespace Unity.AssetManager.Editor
             if (IsImporting)
                 return;
 
-            var text = !IsInProject ? Constants.ImportActionText : Constants.ReimportActionText;
-
-            AddMenuEntry(evt, text, true,
-                (_) =>
-                {
-                    m_AssetImporter.StartImportAsync(TargetAssetData);
-                    AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(!IsInProject
-                        ? GridContextMenuItemSelectedEvent.ContextMenuItemType.Import
-                        : GridContextMenuItemSelectedEvent.ContextMenuItemType.Reimport));
-                });
+            var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
+            if (selectedAssetData.Count > 1 && selectedAssetData.Any(ad => ad.Identifier.AssetId == TargetAssetData.Identifier.AssetId))
+            {
+                AddMenuEntry(evt, L10n.Tr(Constants.ImportAllSelectedActionText), true,
+                    _ =>
+                    {
+                        m_AssetImporter.StartImportAsync(selectedAssetData);
+                        AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
+                            .ContextMenuItemType.ImportAll));
+                    });
+            }
+            else if(!selectedAssetData.Any() || selectedAssetData.First().Identifier.AssetId == TargetAssetData.Identifier.AssetId)
+            {
+                var text = !IsInProject ? L10n.Tr(Constants.ImportActionText) : L10n.Tr(Constants.ReimportActionText);
+                AddMenuEntry(evt, text, true,
+                    _ =>
+                    {
+                        m_AssetImporter.StartImportAsync(new List<IAssetData>() {TargetAssetData});
+                        AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(!IsInProject
+                            ? GridContextMenuItemSelectedEvent.ContextMenuItemType.Import
+                            : GridContextMenuItemSelectedEvent.ContextMenuItemType.Reimport));
+                    });
+            }
         }
 
         void CancelImportEntry(ContextualMenuPopulateEvent evt)
@@ -56,9 +70,9 @@ namespace Unity.AssetManager.Editor
                 return;
 
             AddMenuEntry(evt, L10n.Tr(Constants.CancelImportActionText), true,
-                (_) =>
+                _ =>
                 {
-                    m_AssetImporter.CancelImport(TargetAssetData.identifier, true);
+                    m_AssetImporter.CancelImport(TargetAssetData.Identifier, true);
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
                         .ContextMenuItemType.CancelImport));
                 });
@@ -69,14 +83,29 @@ namespace Unity.AssetManager.Editor
             if (!IsInProject || IsImporting)
                 return;
 
-            AddMenuEntry(evt, Constants.RemoveFromProjectActionText, true,
-                (_) =>
-                {
-                    m_AssetImporter.RemoveImport(TargetAssetData.identifier, true);
-                    AnalyticsSender.SendEvent(
-                        new GridContextMenuItemSelectedEvent(
-                            GridContextMenuItemSelectedEvent.ContextMenuItemType.Remove));
-                });
+            var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
+            if (selectedAssetData.Count > 1 &&
+                selectedAssetData.All(x => m_AssetDataManager.IsInProject(x.Identifier)))
+            {
+                AddMenuEntry(evt, L10n.Tr(Constants.RemoveFromProjectAllSelectedActionText), true,
+                    _ =>
+                    {
+                        m_AssetImporter.RemoveBulkImport(selectedAssetData.Select(x => x.Identifier).ToList(), true);
+                        AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
+                            .ContextMenuItemType.RemoveAll));
+                    });
+            }
+            else if(!selectedAssetData.Any() || selectedAssetData.First().Identifier.AssetId == TargetAssetData.Identifier.AssetId)
+            {
+                AddMenuEntry(evt, L10n.Tr(Constants.RemoveFromProjectActionText), true,
+                    _ =>
+                    {
+                        m_AssetImporter.RemoveImport(TargetAssetData.Identifier, true);
+                        AnalyticsSender.SendEvent(
+                            new GridContextMenuItemSelectedEvent(
+                                GridContextMenuItemSelectedEvent.ContextMenuItemType.Remove));
+                    });
+            }
         }
 
         void ShowInProjectEntry(ContextualMenuPopulateEvent evt)
@@ -85,9 +114,9 @@ namespace Unity.AssetManager.Editor
                 return;
 
             AddMenuEntry(evt, Constants.ShowInProjectActionText, true,
-                (_) =>
+                _ =>
                 {
-                    m_AssetImporter.ShowInProject(TargetAssetData.identifier);
+                    m_AssetImporter.ShowInProject(TargetAssetData.Identifier);
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
                         .ContextMenuItemType.ShowInProject));
                 });
@@ -96,9 +125,9 @@ namespace Unity.AssetManager.Editor
         void ShowInDashboardEntry(ContextualMenuPopulateEvent evt)
         {
             AddMenuEntry(evt, Constants.ShowInDashboardActionText, true,
-                (_) =>
+                _ =>
                 {
-                    var identifier = TargetAssetData.identifier;
+                    var identifier = TargetAssetData.Identifier;
                     m_LinksProxy.OpenAssetManagerDashboard(identifier);
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
                         .ContextMenuItemType.ShowInDashboard));

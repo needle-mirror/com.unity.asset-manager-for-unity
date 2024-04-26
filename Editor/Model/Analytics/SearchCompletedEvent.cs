@@ -15,7 +15,7 @@ namespace Unity.AssetManager.Editor
             public int KeywordCount;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "SearchAttempt";
+        const string k_EventName = AnalyticsSender.EventPrefix + "SearchAttempt";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -25,15 +25,15 @@ namespace Unity.AssetManager.Editor
 
         internal SearchAttemptEvent(int count)
         {
-            m_Data = new SearchAttemptEventData()
+            m_Data = new SearchAttemptEventData
             {
                 KeywordCount = count
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
-        internal class SearchAttemptEventAnalytic : IAnalytic
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        class SearchAttemptEventAnalytic : IAnalytic
         {
             SearchAttemptEventData m_Data;
 

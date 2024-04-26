@@ -12,13 +12,13 @@ namespace Unity.AssetManager.Editor
         [InitializeOnLoadMethod]
         static void InitAssetManagerEditor()
         {
-            UnityEditorApplicationFocusUtils.OnApplicationFocusChange += (receivedFocus) =>
+            UnityEditorApplicationFocusUtils.ApplicationFocusChange += receivedFocus =>
             {
                 if (receivedFocus && EditorGUIUtility.systemCopyBuffer.Length > 0)
                 {
                     var clipboardContent = EditorGUIUtility.systemCopyBuffer;
                     if (clipboardContent.StartsWith(k_AssetManagerDeepLinkRoute) &&
-                        Uri.TryCreate(clipboardContent, UriKind.Absolute, out Uri assetManagerDeepLink))
+                        Uri.TryCreate(clipboardContent, UriKind.Absolute, out var assetManagerDeepLink))
                     {
                         var pathSegments = assetManagerDeepLink.Segments;
                         if (pathSegments.Length >= 7)
@@ -29,7 +29,7 @@ namespace Unity.AssetManager.Editor
                                 RemoveSegmentDelimiter(pathSegments[4]), id, version);
 
                             // If the Asset Manager window is closed, select the project too, otherwise just select the asset
-                            var selectProject = AssetManagerWindow.instance == null;
+                            var selectProject = AssetManagerWindow.Instance == null;
 
                             var openAssetHook = new OpenAssetHook(assetIdentifier, selectProject);
                             openAssetHook.OpenAssetManagerWindow();
@@ -71,8 +71,9 @@ namespace Unity.AssetManager.Editor
     [InitializeOnLoad]
     public class UnityEditorApplicationFocusUtils
     {
-        public static event Action<bool> OnApplicationFocusChange = _ => { };
-        static bool m_HasFocus;
+        static bool s_HasFocus;
+
+        public static event Action<bool> ApplicationFocusChange = _ => { };
 
         static UnityEditorApplicationFocusUtils()
         {
@@ -81,15 +82,15 @@ namespace Unity.AssetManager.Editor
 
         static void Update()
         {
-            if (!m_HasFocus && InternalEditorUtility.isApplicationActive)
+            if (!s_HasFocus && InternalEditorUtility.isApplicationActive)
             {
-                m_HasFocus = InternalEditorUtility.isApplicationActive;
-                OnApplicationFocusChange(true);
+                s_HasFocus = InternalEditorUtility.isApplicationActive;
+                ApplicationFocusChange(true);
             }
-            else if (m_HasFocus && !InternalEditorUtility.isApplicationActive)
+            else if (s_HasFocus && !InternalEditorUtility.isApplicationActive)
             {
-                m_HasFocus = InternalEditorUtility.isApplicationActive;
-                OnApplicationFocusChange(false);
+                s_HasFocus = InternalEditorUtility.isApplicationActive;
+                ApplicationFocusChange(false);
             }
         }
     }
@@ -98,9 +99,8 @@ namespace Unity.AssetManager.Editor
     {
         readonly AssetIdentifier m_AssetIdentifier;
         readonly bool m_SelectProject;
-
-        IProjectOrganizationProvider m_ProjectProvider;
         IPageManager m_PageManager;
+        IProjectOrganizationProvider m_ProjectProvider;
 
         public OpenAssetHook(AssetIdentifier assetIdentifier, bool selectProject)
         {
@@ -120,10 +120,10 @@ namespace Unity.AssetManager.Editor
             m_PageManager = ServicesContainer.instance.Resolve<IPageManager>();
             m_ProjectProvider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
 
-            if (string.IsNullOrEmpty(m_ProjectProvider.SelectedOrganization?.id))
+            if (string.IsNullOrEmpty(m_ProjectProvider.SelectedOrganization?.Id))
                 return;
 
-            if (m_ProjectProvider.SelectedOrganization.id != m_AssetIdentifier.organizationId)
+            if (m_ProjectProvider.SelectedOrganization.Id != m_AssetIdentifier.OrganizationId)
             {
                 Debug.LogWarning("Organization mismatch. Cannot open asset details.");
                 return;
@@ -131,22 +131,17 @@ namespace Unity.AssetManager.Editor
 
             var switchProject = false;
 
-            if (m_ProjectProvider.SelectedProject?.id != m_AssetIdentifier.projectId)
+            if (m_ProjectProvider.SelectedProject?.Id != m_AssetIdentifier.ProjectId)
             {
                 switchProject = m_SelectProject
-                                || string.IsNullOrEmpty(m_ProjectProvider.SelectedProject?.id)
-                                || m_PageManager.activePage is not CollectionPage;
-            }
-
-            if (m_PageManager.activePage is not CollectionPage)
-            {
-                m_PageManager.SetActivePage<CollectionPage>();
+                    || string.IsNullOrEmpty(m_ProjectProvider.SelectedProject?.Id)
+                    || m_PageManager.ActivePage is not CollectionPage;
             }
 
             if (switchProject)
             {
                 m_ProjectProvider.ProjectSelectionChanged += SelectAsset;
-                m_ProjectProvider.SelectProject(m_AssetIdentifier.projectId);
+                m_ProjectProvider.SelectProject(m_AssetIdentifier.ProjectId);
             }
             else
             {
@@ -157,9 +152,8 @@ namespace Unity.AssetManager.Editor
         void SelectAsset(ProjectInfo _, CollectionInfo __)
         {
             m_ProjectProvider.ProjectSelectionChanged -= SelectAsset;
-
-            var collectionPage = (CollectionPage)m_PageManager.activePage;
-            collectionPage.selectedAssetId = m_AssetIdentifier;
+            var collectionPage = (CollectionPage)m_PageManager.ActivePage;
+            collectionPage.SelectAsset(m_AssetIdentifier, false);
         }
     }
 }

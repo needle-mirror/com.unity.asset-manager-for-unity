@@ -4,5 +4,4 @@
         <ui:Label text="Sign In" name="lblTitle" class="progress-label" />
         <ui:Label text="You need to be signed in to use the Asset Manager" name="lblSubtitle" class="info-text" />
     </ui:VisualElement>
-    <ui:Button text="Sign In" name="btnSignIn" class="bottom-button bottom-button-blue" />
 </ui:UXML>

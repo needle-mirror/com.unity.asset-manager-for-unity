@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Unity.Cloud.Assets;
 using UnityEngine;
 
@@ -9,12 +10,8 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class PageFilters
     {
-        public event Action<IEnumerable<string>> SearchFiltersChanged;
-        public event Action<bool> EnableStatusChanged;
-
         [SerializeField]
         List<string> m_SearchFilters = new();
-        public List<string> searchFilters => m_SearchFilters;
 
         [SerializeReference]
         List<BaseFilter> m_SelectedFilters = new();
@@ -23,17 +20,22 @@ namespace Unity.AssetManager.Editor
         List<BaseFilter> m_Filters;
 
         [SerializeReference]
-        IPage m_Page;
-
-        [SerializeReference]
         bool m_IsEnabled;
 
-        public List<BaseFilter> selectedFilters => m_SelectedFilters;
-        public IEnumerable<LocalFilter> selectedLocalFilters => m_SelectedFilters.OfType<LocalFilter>();
+        [SerializeReference]
+        IPage m_Page;
+
+        public List<string> SearchFilters => m_SearchFilters;
+        public List<BaseFilter> SelectedFilters => m_SelectedFilters;
+        public IEnumerable<LocalFilter> SelectedLocalFilters => m_SelectedFilters.OfType<LocalFilter>();
+        public AssetSearchFilter AssetFilter => m_AssetSearchFilter ?? InitializeAssetSearchFilter();
+
+        public event Action<IEnumerable<string>> SearchFiltersChanged;
+        public event Action<bool> EnableStatusChanged;
+        public event Action<BaseFilter, bool> FilterAdded;
+        public event Action<BaseFilter> FilterApplied;
 
         AssetSearchFilter m_AssetSearchFilter;
-
-        public AssetSearchFilter assetFilter => m_AssetSearchFilter ?? InitializeAssetSearchFilter();
 
         public PageFilters(IPage page, List<BaseFilter> filters)
         {
@@ -56,7 +58,7 @@ namespace Unity.AssetManager.Editor
             if (!searchFilterAdded)
                 return;
 
-            foreach (var filterType in selectedFilters)
+            foreach (var filterType in SelectedFilters)
             {
                 filterType.IsDirty = true;
             }
@@ -71,7 +73,7 @@ namespace Unity.AssetManager.Editor
 
             m_SearchFilters.Remove(searchFilter);
 
-            foreach (var filterType in selectedFilters)
+            foreach (var filterType in SelectedFilters)
             {
                 filterType.IsDirty = true;
             }
@@ -86,7 +88,7 @@ namespace Unity.AssetManager.Editor
 
             m_SearchFilters.Clear();
 
-            foreach (var filterType in selectedFilters)
+            foreach (var filterType in SelectedFilters)
             {
                 filterType.IsDirty = true;
             }
@@ -94,15 +96,39 @@ namespace Unity.AssetManager.Editor
             SearchFiltersChanged?.Invoke(m_SearchFilters);
         }
 
-        public void AddFilter(BaseFilter filter)
+        public void AddFilter(BaseFilter filter, bool showSelection)
         {
             m_SelectedFilters.Add(filter);
             filter.IsDirty = true;
+            FilterAdded?.Invoke(filter, showSelection);
         }
 
         public void RemoveFilter(BaseFilter filter)
         {
             m_SelectedFilters.Remove(filter);
+        }
+
+        public async Task ApplyFilter(Type filterType, string selection)
+        {
+            var filter = m_Filters.FirstOrDefault(f => f.GetType() == filterType);
+            if (filter == null)
+                return;
+
+            if(!string.IsNullOrEmpty(selection))
+            {
+                if(!m_SelectedFilters.Contains(filter))
+                {
+                    AddFilter(filter, false);
+                    await filter.GetSelections();
+                }
+                else if(filter.SelectedFilter == selection)
+                {
+                    return;
+                }
+            }
+
+            ApplyFilter(filter, selection);
+            filter.IsDirty = true;
         }
 
         public void ApplyFilter(BaseFilter filter, string selection)
@@ -116,13 +142,15 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
+            FilterApplied?.Invoke(filter);
+
             m_Page?.Clear(reload);
         }
 
         public void EnableFilters(bool value = true)
         {
             m_IsEnabled = value;
-            EnableStatusChanged?.Invoke(value);
+            EnableStatusChanged?.Invoke(IsAvailableFilters());
         }
 
         public bool IsAvailableFilters()
@@ -137,7 +165,7 @@ namespace Unity.AssetManager.Editor
 
         public void ClearFilters()
         {
-            foreach (var filter in selectedFilters)
+            foreach (var filter in SelectedFilters)
             {
                 filter.ApplyFilter(null);
                 filter.Clear();

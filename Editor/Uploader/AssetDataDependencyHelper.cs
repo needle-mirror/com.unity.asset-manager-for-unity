@@ -93,30 +93,33 @@ namespace Unity.AssetManager.Editor
             return IsAGuidSystemFile(filename) || IsADependencySystemFile(filename);
         }
 
-        public static async IAsyncEnumerable<DependencyAssetResult> LoadDependenciesAsync(IAssetData assetData, bool recursive, [EnumeratorCancellation] CancellationToken token)
+        public static async IAsyncEnumerable<DependencyAssetResult> LoadDependenciesAsync(IAssetData assetData,
+            bool recursive, [EnumeratorCancellation] CancellationToken token)
         {
             // Update AssetData with the latest cloud data
-            var files = assetData.sourceFiles.ToList();
+            var files = assetData.SourceFiles.ToList();
             if (files.Count == 0)
             {
                 await ((AssetData)assetData).RefreshSourceFilesAndPrimaryExtensionAsync(token);
-                files = assetData.sourceFiles.ToList();
+                files = assetData.SourceFiles.ToList();
             }
 
-            var dependencies = files.Where(f => IsADependencySystemFile(f.path)).ToList();
+            var dependencies = files.Where(f => IsADependencySystemFile(f.Path)).ToList();
 
             if (!dependencies.Any())
+            {
                 yield break;
+            }
 
-            var parentAssetDescriptor = assetData.identifier.ToAssetDescriptor();
+            var parentAssetDescriptor = assetData.Identifier.ToAssetDescriptor();
 
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
 
             foreach (var dependency in dependencies)
             {
-                DecodeDependencySystemFilename(dependency.path, out var assetId, out var assetVersion);
+                DecodeDependencySystemFilename(dependency.Path, out var assetId, out var assetVersion);
                 if (string.IsNullOrEmpty(assetVersion))
-                    assetVersion = await Services.AssetVersionsSearch.GetFirstVersionAsync(new ProjectId(assetData.identifier.projectId), new AssetId(assetId), token);
+                    assetVersion = await Services.AssetVersionsSearch.GetFirstVersionAsync(new ProjectId(assetData.Identifier.ProjectId), new AssetId(assetId), token);
                 
                 var assetDescriptor = new AssetDescriptor(parentAssetDescriptor.ProjectDescriptor, 
                     new AssetId(assetId),
@@ -140,11 +143,14 @@ namespace Unity.AssetManager.Editor
                 }
             }
         }
-        
-        public static async Task<IAsset> SearchForAssetWithGuid(string organizationId, string projectId, string guid, CancellationToken token)
+
+        public static async Task<IAsset> SearchForAssetWithGuid(string organizationId, string projectId, string guid,
+            CancellationToken token)
         {
             if (string.IsNullOrEmpty(organizationId) || string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(guid))
+            {
                 return null;
+            }
 
             await s_SearchForAssetWithGuidSemaphore.WaitAsync(token);
 
@@ -153,7 +159,8 @@ namespace Unity.AssetManager.Editor
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
             var assets = new List<IAsset>();
-            await foreach (var asset in assetsProvider.SearchAsync(organizationId, new[] { projectId }, assetSearchFilter, 0, Constants.DefaultPageSize, token))
+            await foreach (var asset in assetsProvider.SearchAsync(organizationId, new[] { projectId },
+                               assetSearchFilter, 0, Constants.DefaultPageSize, token))
             {
                 assets.Add(asset);
             }

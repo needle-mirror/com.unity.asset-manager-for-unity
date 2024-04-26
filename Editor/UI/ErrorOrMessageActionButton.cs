@@ -1,19 +1,20 @@
-using System.Threading;
+using System;
 using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class ErrorOrMessageActionButton : Button
+    class ErrorOrMessageActionButton : Button
     {
-        private const string k_ButtonClassName = "errorOrMessageView-button";
-        private const string k_LinkClassName = "errorOrMessageView-action-button-link";
-        
-        private readonly IPageManager m_PageManager;
-        private readonly ILinksProxy m_LinksProxy;
-        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        
-        public ErrorOrMessageActionButton(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
+        const string k_ButtonClassName = "errorOrMessageView-button";
+        const string k_LinkClassName = "errorOrMessageView-action-button-link";
+        readonly ILinksProxy m_LinksProxy;
+
+        readonly IPageManager m_PageManager;
+        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+
+        public ErrorOrMessageActionButton(IPageManager pageManager,
+            IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy)
         {
             m_PageManager = pageManager;
@@ -25,7 +26,7 @@ namespace Unity.AssetManager.Editor
         {
             clickable = null;
             UIElementsUtils.Show(this);
-            
+
             switch (action)
             {
                 case ErrorOrMessageRecommendedAction.OpenServicesSettingButton:
@@ -37,7 +38,7 @@ namespace Unity.AssetManager.Editor
                     tooltip = L10n.Tr("Open Project Settings");
                     text = tooltip;
                 }
-                break;
+                    break;
                 case ErrorOrMessageRecommendedAction.EnableProject:
                 {
                     RemoveFromClassList(k_LinkClassName);
@@ -47,7 +48,7 @@ namespace Unity.AssetManager.Editor
                     tooltip = L10n.Tr("Enable Project");
                     text = tooltip;
                 }
-                break;
+                    break;
                 case ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink:
                 {
                     RemoveFromClassList(k_ButtonClassName);
@@ -57,7 +58,7 @@ namespace Unity.AssetManager.Editor
                     tooltip = L10n.Tr("Open the Asset Manager Dashboard");
                     text = tooltip;
                 }
-                break;
+                    break;
                 case ErrorOrMessageRecommendedAction.Retry when isPageError:
                 {
                     RemoveFromClassList(k_LinkClassName);
@@ -67,16 +68,16 @@ namespace Unity.AssetManager.Editor
                     tooltip = L10n.Tr("Retry");
                     text = tooltip;
                 }
-                break;
+                    break;
                 default:
                     UIElementsUtils.Hide(this);
-                break;
+                    break;
             }
         }
 
-        private void ClearActivePage()
+        void ClearActivePage()
         {
-            m_PageManager.activePage?.Clear(true);
+            m_PageManager.ActivePage?.Clear(true);
         }
     }
 }

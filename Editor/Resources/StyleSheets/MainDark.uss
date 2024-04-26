@@ -96,11 +96,11 @@ TopBar {
     background-image: resource('Images/Dark/Search');
 }
 
-.SearchFilterPill {
+.SearchFilterChip {
     background-color: #434343;
 }
 
-.SearchFilterPill>Label {
+.SearchFilterChip>Label {
     color: #C4C4C4;
 }
 
@@ -121,13 +121,15 @@ TopBar {
 }
 
 /************************************************
-* Bread Crumbs
+* Bread Crumbs and Role Container
 ************************************************/
-
-.unity-breadcrumbs {
+.unity-breadcrumbs-and-role-container{
     background-color: #2D2D2D;
 }
 
+/************************************************
+* Bread Crumbs
+************************************************/
 .unity-breadcrumbs-arrow {
     background-image: resource('Images/Dark/Arrow');
 }
@@ -138,6 +140,18 @@ TopBar {
 
 .unity_breadcrumbs-button:focus {
     color: rgb(255, 255, 255);
+}
+
+/************************************************
+* Role chip
+************************************************/
+.unity-role-chip{
+    border-color: #585858;
+}
+
+.unity-role-chip:hover {
+    border-color: #6E6E6E;
+    background-color: #383838;
 }
 
 /************************************************
@@ -213,27 +227,47 @@ ActionHelpBox {
 }
 
 /************************************************
-* ProjectPill
+* ProjectChip
 ************************************************/
 
-ProjectPill {
+ProjectChip {
     background-color: rgba(66, 66, 66, 1);
 }
 
-ProjectPill:hover {
+ProjectChip:hover {
     background-color: rgba(88, 88, 88, 1);
 }
 
 /************************************************
-* TagPill
+* UserChip
 ************************************************/
 
-TagPill {
+UserChip {
     background-color: rgba(66, 66, 66, 1);
 }
 
-TagPill:hover {
+UserChip:hover {
     background-color: rgba(88, 88, 88, 1);
+}
+
+/************************************************
+* TagChip
+************************************************/
+
+TagChip {
+    background-color: rgba(66, 66, 66, 1);
+}
+
+TagChip:hover {
+    background-color: rgba(88, 88, 88, 1);
+}
+
+/************************************************
+* Multi Selection Page Container
+************************************************/
+
+.multi-selection-foldout > Toggle{
+    background-color: rgba(32, 32, 32, 1);
 }
 
 /************************************************

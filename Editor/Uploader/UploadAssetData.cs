@@ -15,18 +15,84 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class UploadAssetData : IAssetData
     {
-        public string name => m_AssetEntry.Name;
-        public AssetIdentifier identifier => m_Identifier;
-        public AssetType assetType => m_AssetEntry.CloudType.ConvertCloudAssetTypeToAssetType();
-        public string status => "Local";
-        public DateTime? updated => null;
-        public DateTime? created => null;
-        public IEnumerable<string> tags => m_AssetEntry.Tags;
-        public string description => "";
-        public string authorName => "";
-        public string primaryExtension => Path.GetExtension(m_AssetPath);
+        [SerializeField]
+        List<DependencyAsset> m_Dependencies = new();
 
-        public IEnumerable<AssetPreview.IStatus> previewStatus
+        [SerializeField]
+        AssetIdentifier m_Identifier;
+
+        [SerializeField]
+        string m_AssetGuid;
+
+        [SerializeField]
+        string m_AssetPath;
+
+        [SerializeField]
+        bool m_IsADependency;
+
+        [SerializeField]
+        UploadSettings m_Settings;
+
+        [SerializeReference]
+        IUploadAssetEntry m_AssetEntry;
+
+        [SerializeReference]
+        List<IAssetDataFile> m_Files = new();
+
+        Task<Texture2D> m_GetThumbnailTask;
+        Task<IAsset> m_PreviewStatusTask;
+
+        AssetPreview.IStatus m_ExistingStatus;
+
+        static bool s_UseAdvancedPreviewer = false;
+        static readonly List<string> s_Tags = new();
+
+        public bool IsADependency => m_IsADependency;
+        public string Name => m_AssetEntry.Name;
+        public AssetIdentifier Identifier => m_Identifier;
+        public AssetType AssetType => m_AssetEntry.CloudType.ConvertCloudAssetTypeToAssetType();
+        public string Status => "Local";
+        public DateTime? Updated => null;
+        public DateTime? Created => null;
+        public IEnumerable<string> Tags => m_AssetEntry.Tags;
+        public string Description => "";
+        public string CreatedBy => "";
+        public string UpdatedBy => "";
+        public string PrimaryExtension => Path.GetExtension(m_AssetPath);
+        public string AssetPath => m_AssetPath;
+        public bool IsIgnored
+        {
+            get => m_AssetEntry.IsIgnored;
+            set => m_AssetEntry.IsIgnored = value;
+        }
+        public string Guid => m_AssetEntry.Guid;
+
+        public UploadAssetData(IUploadAssetEntry assetEntry, UploadSettings settings, bool isADependency)
+        {
+            m_AssetEntry = assetEntry;
+            m_IsADependency = isADependency;
+            m_AssetGuid = assetEntry.Guid;
+            m_AssetPath = assetEntry.Files.First();
+            m_Settings = settings;
+
+            m_Identifier = LocalAssetIdentifier(m_AssetGuid);
+
+            // Files
+            foreach (var file in assetEntry.Files)
+            {
+                var guid = AssetDatabase.GUIDFromAssetPath(file);
+                m_Files.Add(new AssetDataFile(file, guid.Empty() ? null : guid.ToString(), null, s_Tags, GetFileSize(file)));
+            }
+
+            // Dependencies
+            foreach (var dependency in m_AssetEntry.Dependencies)
+            {
+                var id = LocalAssetIdentifier(dependency);
+                m_Dependencies.Add(new DependencyAsset(id, null));
+            }
+        }
+
+        public IEnumerable<AssetPreview.IStatus> PreviewStatus
         {
             get
             {
@@ -42,86 +108,10 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        [SerializeField]
-        List<DependencyAsset> m_Dependencies = new();
+        public IEnumerable<DependencyAsset> Dependencies => m_Dependencies;
 
-        public IEnumerable<DependencyAsset> dependencies => m_Dependencies;
-
-        public bool IsADependency => m_IsADependency;
-
-        [SerializeField]
-        AssetIdentifier m_Identifier;
-
-        [SerializeField]
-        string m_AssetGuid;
-
-        [SerializeField]
-        string m_AssetPath;
-
-        [SerializeReference]
-        List<IAssetDataFile> m_Files = new();
-
-        [SerializeField]
-        bool m_IsADependency;
-
-        [SerializeReference]
-        IUploadAssetEntry m_AssetEntry;
-
-        AssetPreview.IStatus m_ExistingStatus;
-
-        static bool s_UseAdvancedPreviewer = false;
-
-        static readonly List<string> k_Tags = new();
-
-        [SerializeField]
-        UploadSettings m_Settings;
-
-        Task<IAsset> m_PreviewStatusTask;
-        Task<Texture2D> m_GetThumbnailTask;
-
-        public UploadAssetData(IUploadAssetEntry assetEntry, UploadSettings settings, bool isADependency)
-        {
-            m_AssetEntry = assetEntry;
-            m_IsADependency = isADependency;
-            m_AssetGuid = assetEntry.Guid;
-            m_AssetPath = assetEntry.Files.First();
-            m_Settings = settings;
-
-            m_Identifier = LocalAssetIdentifier(m_AssetGuid);
-            m_ExistingStatus = m_IsADependency ? AssetDataStatus.Linked : null;
-
-            // Files
-            foreach (var file in assetEntry.Files)
-            {
-                m_Files.Add(new AssetDataFile(file, null, k_Tags, GetFileSize(file)));
-            }
-
-            // Dependencies
-            foreach (var dependency in m_AssetEntry.Dependencies)
-            {
-                var id = LocalAssetIdentifier(dependency);
-                m_Dependencies.Add(new DependencyAsset(id, null));
-            }
-        }
-
-        static AssetIdentifier LocalAssetIdentifier(string guid)
-        {
-            return new LocalAssetIdentifier(null, null, null, "1", guid);
-        }
-
-        static long GetFileSize(string assetPath)
-        {
-            var fullPath = Application.dataPath + assetPath["Assets".Length..];
-            if (File.Exists(fullPath))
-            {
-                return new FileInfo(fullPath).Length;
-            }
-
-            Debug.LogError("Asset does not exist: " + fullPath);
-            return 0;
-        }
-
-        public async Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null, CancellationToken token = default)
+        public async Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null,
+            CancellationToken token = default)
         {
             if (m_GetThumbnailTask == null)
             {
@@ -138,14 +128,17 @@ namespace Unity.AssetManager.Editor
             var texture = m_GetThumbnailTask != null ? await m_GetThumbnailTask : null;
             m_GetThumbnailTask = null;
 
-            callback?.Invoke(identifier, texture);
+            callback?.Invoke(Identifier, texture);
         }
 
-        public async Task GetPreviewStatusAsync(Action<AssetIdentifier, IEnumerable<AssetPreview.IStatus>> callback = null, CancellationToken token = default)
+        public async Task GetPreviewStatusAsync(
+            Action<AssetIdentifier, IEnumerable<AssetPreview.IStatus>> callback = null,
+            CancellationToken token = default)
         {
             m_ExistingStatus = null;
 
-            m_PreviewStatusTask ??= AssetDataDependencyHelper.SearchForAssetWithGuid(m_Settings.OrganizationId, m_Settings.ProjectId, m_AssetGuid, token);
+            m_PreviewStatusTask ??= AssetDataDependencyHelper.SearchForAssetWithGuid(m_Settings.OrganizationId,
+                m_Settings.ProjectId, m_AssetGuid, token);
 
             IAsset result;
 
@@ -177,18 +170,20 @@ namespace Unity.AssetManager.Editor
 
             m_PreviewStatusTask = null;
 
-            callback?.Invoke(m_Identifier, previewStatus);
+            callback?.Invoke(m_Identifier, PreviewStatus);
         }
 
-        public Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback, CancellationToken token = default)
+        public Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback,
+            CancellationToken token = default)
         {
-            callback?.Invoke(identifier, primaryExtension);
+            callback?.Invoke(Identifier, PrimaryExtension);
             return Task.CompletedTask;
         }
 
-        public IEnumerable<IAssetDataFile> sourceFiles => m_Files;
+        public IEnumerable<IAssetDataFile> SourceFiles => m_Files;
 
-        public async IAsyncEnumerable<IFile> GetSourceCloudFilesAsync([EnumeratorCancellation] CancellationToken token = default)
+        public async IAsyncEnumerable<IFile> GetSourceCloudFilesAsync(
+            [EnumeratorCancellation] CancellationToken token = default)
         {
             yield return null;
             await Task.CompletedTask; // Remove warning about async
@@ -196,8 +191,25 @@ namespace Unity.AssetManager.Editor
 
         public Task SyncWithCloudAsync(Action<AssetIdentifier> callback, CancellationToken token = default)
         {
-            callback?.Invoke(identifier);
+            callback?.Invoke(Identifier);
             return Task.CompletedTask;
+        }
+
+        internal static AssetIdentifier LocalAssetIdentifier(string guid)
+        {
+            return new LocalAssetIdentifier(null, null, null, "1", guid);
+        }
+
+        static long GetFileSize(string assetPath)
+        {
+            var fullPath = Application.dataPath + assetPath["Assets".Length..];
+            if (File.Exists(fullPath))
+            {
+                return new FileInfo(fullPath).Length;
+            }
+
+            Debug.LogError("Asset does not exist: " + fullPath);
+            return 0;
         }
     }
 }

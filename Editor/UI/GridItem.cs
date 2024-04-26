@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using UnityEditor;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -12,27 +15,28 @@ namespace Unity.AssetManager.Editor
             public static readonly string ItemLabel = Constants.GridItemStyleClassName + "-label";
             public static readonly string ItemHighlight = Constants.GridItemStyleClassName + "-selected";
             public static readonly string ItemOverlay = Constants.GridItemStyleClassName + "-overlay";
+            public static readonly string ItemIgnore = Constants.GridItemStyleClassName + "-ignore";
         }
 
         readonly Label m_AssetNameLabel;
         readonly AssetPreview m_AssetPreview;
-        readonly OperationProgressBar m_OperationProgressBar;
         readonly LoadingIcon m_LoadingIcon;
-
-        public IAssetData AssetData { get; private set; }
-
-        public event Action Clicked;
-
-        readonly IPageManager m_PageManager;
         readonly IAssetOperationManager m_OperationManager;
-        
+        readonly OperationProgressBar m_OperationProgressBar;
+        readonly IPageManager m_PageManager;
+        readonly IAssetDataManager m_AssetDataManager;
+
         AssetContextMenu m_ContextMenu;
         ContextualMenuManipulator m_ContextualMenuManipulator;
+        IAssetData m_AssetData;
 
-        internal GridItem(IAssetOperationManager operationManager, IPageManager pageManager)
+        public IAssetData AssetData => m_AssetData;
+
+        internal GridItem(IAssetOperationManager operationManager, IPageManager pageManager, IAssetDataManager assetDataManager)
         {
             m_PageManager = pageManager;
             m_OperationManager = operationManager;
+            m_AssetDataManager = assetDataManager;
 
             AddToClassList(Constants.GridItemStyleClassName);
 
@@ -66,89 +70,63 @@ namespace Unity.AssetManager.Editor
             Add(overlay);
         }
 
-        void OnAttachToPanel(AttachToPanelEvent evt)
+        void OnAssetPreviewToggleValueChanged(bool value)
         {
-            m_PageManager.onSelectedAssetChanged += OnSelectedAssetChanged;
-
-            m_OperationManager.OperationProgressChanged += RefreshOperationProgress;
-            m_OperationManager.OperationFinished += OnOperationFinalized;
-        }
-
-        void OnDetachFromPanel(DetachFromPanelEvent evt)
-        {
-            m_PageManager.onSelectedAssetChanged -= OnSelectedAssetChanged;
-
-            m_OperationManager.OperationProgressChanged -= RefreshOperationProgress;
-            m_OperationManager.OperationFinished -= OnOperationFinalized;
-        }
-
-        void RefreshOperationProgress(AssetDataOperation operation)
-        {
-            if (!operation.AssetId.Equals(AssetData?.identifier))
+            if (m_AssetData == null)
                 return;
 
-            m_OperationProgressBar.Refresh(operation);
+            m_PageManager.ActivePage.ToggleAsset(m_AssetData, value);
         }
 
-        void OnOperationFinalized(AssetDataOperation operation)
-        {
-            if (!operation.AssetId.Equals(AssetData?.identifier))
-                return;
-
-            m_OperationProgressBar.Refresh(operation);
-
-            if (operation is ImportOperation importOperation)
-            {
-                AssetData = null;
-                BindWithItem(importOperation.assetData);
-            }
-        }
-
-        private void OnSelectedAssetChanged(IPage page, AssetIdentifier assetId)
-        {
-            RefreshHighlight();
-        }
-        
         public void BindWithItem(IAssetData assetData)
         {
-            if (AssetData != null && AssetData.identifier.Equals(assetData.identifier))
+            if (m_AssetData != null && m_AssetData.Identifier.Equals(assetData.Identifier))
                 return;
 
-            AssetData = assetData;
+            m_AssetData = assetData;
 
             if (m_ContextMenu == null)
             {
-                m_ContextMenu = (AssetContextMenu)ServicesContainer.instance.Resolve<IContextMenuBuilder>().BuildContextMenu(assetData.GetType());
-                m_ContextualMenuManipulator = new ContextualMenuManipulator(m_ContextMenu.SetupContextMenuEntries);
-                this.AddManipulator(m_ContextualMenuManipulator);
+               InitContextMenu(assetData);
             }
-            else if (!ServicesContainer.instance.Resolve<IContextMenuBuilder>().IsContextMenuMatchingAssetDataType(assetData.GetType(), m_ContextMenu.GetType()))
+            else if (!ServicesContainer.instance.Resolve<IContextMenuBuilder>()
+                         .IsContextMenuMatchingAssetDataType(assetData.GetType(), m_ContextMenu.GetType()))
             {
                 this.RemoveManipulator(m_ContextualMenuManipulator);
-                m_ContextMenu = (AssetContextMenu)ServicesContainer.instance.Resolve<IContextMenuBuilder>().BuildContextMenu(assetData.GetType());
-                m_ContextualMenuManipulator = new ContextualMenuManipulator(m_ContextMenu.SetupContextMenuEntries);
-                this.AddManipulator(m_ContextualMenuManipulator);
+                InitContextMenu(assetData);
             }
-            
-            if(m_ContextMenu != null)
+
+            if (m_ContextMenu != null)
+            {
                 m_ContextMenu.TargetAssetData = assetData;
-            
+            }
+
             RefreshHighlight();
 
-            m_AssetNameLabel.text = assetData.name;
-            m_AssetNameLabel.tooltip = assetData.name;
+            m_AssetNameLabel.text = assetData.Name;
+            m_AssetNameLabel.tooltip = assetData.Name;
 
             m_AssetPreview.ClearPreview();
 
-            m_OperationProgressBar.Refresh(m_OperationManager.GetAssetOperation(assetData.identifier));
+            m_OperationProgressBar.Refresh(m_OperationManager.GetAssetOperation(assetData.Identifier));
 
-            m_AssetPreview.SetStatuses(assetData.previewStatus);
+            m_AssetPreview.SetStatuses(assetData.PreviewStatus);
+
+            if(assetData is UploadAssetData uploadAssetData)
+            {
+                m_AssetPreview.EnableInClassList("asset-preview--upload", true);
+                m_AssetPreview.Toggle.value = !uploadAssetData.IsIgnored;
+                m_AssetPreview.Toggle.tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IncludeToggleTooltip): L10n.Tr(Constants.IgnoreToggleTooltip);
+
+                EnableInClassList(UssStyles.ItemIgnore, uploadAssetData.IsIgnored);
+                tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IgnoreAssetToolTip) : "";
+            }
 
             var tasks = new List<Task>();
 
             tasks.Add(assetData.GetThumbnailAsync((identifier, texture2D) =>
             {
-                if (!identifier.Equals(AssetData.identifier))
+                if (!identifier.Equals(m_AssetData.Identifier))
                     return;
 
                 m_AssetPreview.SetThumbnail(texture2D);
@@ -156,7 +134,7 @@ namespace Unity.AssetManager.Editor
 
             tasks.Add(assetData.GetPreviewStatusAsync((identifier, status) =>
             {
-                if (!identifier.Equals(AssetData.identifier))
+                if (!identifier.Equals(m_AssetData.Identifier))
                     return;
 
                 m_AssetPreview.SetStatuses(status);
@@ -164,13 +142,77 @@ namespace Unity.AssetManager.Editor
 
             tasks.Add(assetData.ResolvePrimaryExtensionAsync((identifier, extension) =>
             {
-                if (!identifier.Equals(AssetData.identifier))
+                if (!identifier.Equals(m_AssetData.Identifier))
                     return;
 
                 m_AssetPreview.SetAssetType(extension);
             }));
 
             _ = WaitForResultsAsync(tasks);
+        }
+
+        public event Action<ClickEvent> Clicked;
+
+        void OnAttachToPanel(AttachToPanelEvent evt)
+        {
+            m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
+            m_OperationManager.OperationProgressChanged += RefreshOperationProgress;
+            m_OperationManager.OperationFinished += OnOperationFinalized;
+            m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
+            m_AssetPreview.ToggleValueChanged += OnAssetPreviewToggleValueChanged;
+        }
+
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
+        {
+            m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
+            m_OperationManager.OperationProgressChanged -= RefreshOperationProgress;
+            m_OperationManager.OperationFinished -= OnOperationFinalized;
+            m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
+            m_AssetPreview.ToggleValueChanged -= OnAssetPreviewToggleValueChanged;
+        }
+
+        void InitContextMenu(IAssetData assetData)
+        {
+            m_ContextMenu = (AssetContextMenu)ServicesContainer.instance.Resolve<IContextMenuBuilder>()
+                .BuildContextMenu(assetData.GetType());
+            m_ContextualMenuManipulator = new ContextualMenuManipulator(m_ContextMenu.SetupContextMenuEntries);
+            this.AddManipulator(m_ContextualMenuManipulator);
+        }
+
+        void RefreshOperationProgress(AssetDataOperation operation)
+        {
+            if (!operation.AssetId.Equals(m_AssetData?.Identifier))
+                return;
+
+            m_OperationProgressBar.Refresh(operation);
+        }
+
+        void OnImportedAssetInfoChanged(AssetChangeArgs assetChangeArgs)
+        {
+            if (m_AssetData == null)
+                return;
+
+            if (assetChangeArgs.Added.Any(a => a.AssetId == m_AssetData.Identifier.AssetId)
+                || assetChangeArgs.Removed.Any(a => a.AssetId == m_AssetData.Identifier.AssetId)
+                || assetChangeArgs.Updated.Any(a => a.AssetId == m_AssetData.Identifier.AssetId))
+            {
+                var assetData = m_AssetDataManager.GetAssetData(m_AssetData.Identifier);
+                m_AssetData = null;
+                BindWithItem(assetData);
+            }
+        }
+
+        void OnOperationFinalized(AssetDataOperation operation)
+        {
+            if (!operation.AssetId.Equals(m_AssetData?.Identifier))
+                return;
+
+            m_OperationProgressBar.Refresh(operation);
+        }
+
+        void OnSelectedAssetChanged(IPage page, List<AssetIdentifier> assets)
+        {
+            RefreshHighlight();
         }
 
         async Task WaitForResultsAsync(IEnumerable<Task> tasks)
@@ -184,12 +226,12 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.Hide(m_LoadingIcon);
         }
 
-        private void RefreshHighlight()
+        void RefreshHighlight()
         {
-            if (AssetData == null)
+            if (m_AssetData == null)
                 return;
-            
-            var isSelected = AssetData.identifier.Equals(m_PageManager.activePage?.selectedAssetId);
+
+            var isSelected = m_PageManager.ActivePage.SelectedAssets.Contains(m_AssetData.Identifier);
             if (isSelected)
             {
                 AddToClassList(UssStyles.ItemHighlight);
@@ -200,9 +242,9 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        void OnClick(ClickEvent _)
+        void OnClick(ClickEvent e)
         {
-            Clicked?.Invoke();
+            Clicked?.Invoke(e);
         }
     }
 }

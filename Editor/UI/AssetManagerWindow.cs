@@ -1,6 +1,6 @@
 using System;
-using UnityEngine;
 using UnityEditor;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -8,13 +8,12 @@ namespace Unity.AssetManager.Editor
     class AssetManagerWindow : EditorWindow, IHasCustomMenu
     {
         static readonly Vector2 k_MinWindowSize = new(600, 250);
-
-        public static AssetManagerWindow instance { get; private set; }
-        AssetManagerWindowRoot m_Root;
+        static AssetManagerWindow s_Instance;
 
         bool m_IsDocked;
+        AssetManagerWindowRoot m_Root;
 
-        public static event Action Enabled;
+        public static AssetManagerWindow Instance => s_Instance;
 
         [MenuItem("Window/Asset Manager", priority = 1500)]
         static void MenuEntry()
@@ -23,24 +22,20 @@ namespace Unity.AssetManager.Editor
 
             // Hack - We don't want to show the UploadPage when the window is opened from the menu
             var pageManager = ServicesContainer.instance.Resolve<IPageManager>();
-            if (pageManager?.activePage is UploadPage)
+            if (pageManager?.ActivePage is UploadPage)
             {
                 pageManager.SetActivePage<CollectionPage>();
             }
         }
 
-        internal static void Open()
-        {
-            var window = GetWindow<AssetManagerWindow>();
-            window.minSize = k_MinWindowSize;
-            window.titleContent = new GUIContent("Asset Manager", UIElementsUtils.GetPackageIcon());
-            window.Show();
-        }
-
         async void OnEnable()
         {
-            if (instance == null) instance = this;
-            if (instance != this)
+            if (s_Instance == null)
+            {
+                s_Instance = this;
+            }
+
+            if (s_Instance != this)
                 return;
 
             await Services.Authenticator.InitializeAsync();
@@ -59,7 +54,8 @@ namespace Unity.AssetManager.Editor
                 container.Resolve<IProjectOrganizationProvider>(),
                 container.Resolve<ILinksProxy>(),
                 container.Resolve<IAssetDatabaseProxy>(),
-                container.Resolve<IProjectIconDownloader>());
+                container.Resolve<IProjectIconDownloader>(),
+                container.Resolve<IPermissionsManager>());
 
             m_Root.RegisterCallback<GeometryChangedEvent>(OnResized);
             m_Root.OnEnable();
@@ -71,18 +67,18 @@ namespace Unity.AssetManager.Editor
             {
                 AnalyticsSender.SendEvent(new WindowDockedEvent(true));
             }
-            Enabled?.Invoke();
-        }
 
-        void OnGUI()
-        {
-            m_Root?.OnGUI();
+            Enabled?.Invoke();
         }
 
         void OnDisable()
         {
-            if (instance == null) instance = this;
-            if (instance != this)
+            if (s_Instance == null)
+            {
+                s_Instance = this;
+            }
+
+            if (s_Instance != this)
                 return;
 
             m_Root?.UnregisterCallback<GeometryChangedEvent>(OnResized);
@@ -96,7 +92,12 @@ namespace Unity.AssetManager.Editor
                 rootVisualElement.Remove(m_Root);
             }
 
-            instance = null;
+            s_Instance = null;
+        }
+
+        void OnGUI()
+        {
+            m_Root?.OnGUI();
         }
 
         void OnFocus()
@@ -105,6 +106,24 @@ namespace Unity.AssetManager.Editor
             {
                 RefreshAll();
             }
+        }
+
+        public void AddItemsToMenu(GenericMenu menu)
+        {
+            var refreshItem = new GUIContent("Refresh");
+            menu.AddItem(refreshItem, false, Refresh);
+
+            m_Root?.AddItemsToMenu(menu);
+        }
+
+        public static event Action Enabled;
+
+        internal static void Open()
+        {
+            var window = GetWindow<AssetManagerWindow>();
+            window.minSize = k_MinWindowSize;
+            window.titleContent = new GUIContent("Asset Manager", UIElementsUtils.GetPackageIcon());
+            window.Show();
         }
 
         void RefreshAll()
@@ -123,14 +142,6 @@ namespace Unity.AssetManager.Editor
             RefreshAll();
 
             AnalyticsSender.SendEvent(new MenuItemSelectedEvent(MenuItemSelectedEvent.MenuItemType.Refresh));
-        }
-
-        public void AddItemsToMenu(GenericMenu menu)
-        {
-            var refreshItem = new GUIContent("Refresh");
-            menu.AddItem(refreshItem, false, Refresh);
-
-            m_Root?.AddItemsToMenu(menu);
         }
 
         void OnResized(GeometryChangedEvent evt)

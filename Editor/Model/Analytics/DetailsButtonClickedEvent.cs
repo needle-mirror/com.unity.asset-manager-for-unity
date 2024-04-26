@@ -23,7 +23,7 @@ namespace Unity.AssetManager.Editor
             public string ButtonType;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "DetailsButtonClicked";
+        const string k_EventName = AnalyticsSender.EventPrefix + "DetailsButtonClicked";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -33,14 +33,14 @@ namespace Unity.AssetManager.Editor
 
         internal DetailsButtonClickedEvent(ButtonType buttonType)
         {
-            m_Data = new DetailsButtonClickedEventData()
+            m_Data = new DetailsButtonClickedEventData
             {
                 ButtonType = buttonType.ToString()
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class DetailsButtonClickedEventAnalytic : IAnalytic
         {
             DetailsButtonClickedEventData m_Data;

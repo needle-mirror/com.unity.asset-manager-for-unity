@@ -1,19 +1,19 @@
 using System;
 using System.Linq;
-using Unity.AssetManager.Editor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class Breadcrumbs : VisualElement
+    class Breadcrumbs : VisualElement
     {
         const string k_UssClassName = "unity-breadcrumbs";
         const string k_ItemArrowClassName = k_UssClassName + "-arrow";
         const string k_ItemButtonClassName = k_UssClassName + "-button";
         internal const string k_ItemHighlightButtonClassName = "highlight";
 
-        private readonly IPageManager m_PageManager;
-        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly IPageManager m_PageManager;
+        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+
         /// <summary>
         /// Constructs a breadcrumb UI element for the toolbar to help users navigate a hierarchy.
         /// </summary>
@@ -29,57 +29,56 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        private void OnAttachToPanel(AttachToPanelEvent evt)
+        void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged += OnActivePageChanged;
+            m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
         }
 
-        private void OnDetachFromPanel(DetachFromPanelEvent evt)
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged -= OnActivePageChanged;
+            m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
         }
 
-        private void OrganizationChanged(OrganizationInfo _)
+        void OrganizationChanged(OrganizationInfo _)
         {
             Refresh();
         }
 
-        private void ProjectSelectionChanged(ProjectInfo _, CollectionInfo __)
+        void ProjectSelectionChanged(ProjectInfo _, CollectionInfo __)
         {
             Refresh();
         }
 
-        private void Refresh()
+        void Refresh()
         {
-            var page = m_PageManager.activePage;
+            var page = m_PageManager.ActivePage;
             if (!ShowOrHideBreadCrumbs(page, m_ProjectOrganizationProvider.SelectedOrganization))
                 return;
 
             Clear();
 
             // Project breadcrumb
-            AddBreadcrumbItem(m_ProjectOrganizationProvider.SelectedProject?.name, () =>
-            {
-                m_PageManager.activePage.selectedAssetId = null;
-                m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject);
-            });
+            AddBreadcrumbItem(m_ProjectOrganizationProvider.SelectedProject?.Name,
+                () => { m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject); });
 
             // Collection/subcollection breadcrumb
-            if (page is CollectionPage collectionPage && !string.IsNullOrEmpty(collectionPage.collectionPath))
+            if (page is CollectionPage collectionPage && !string.IsNullOrEmpty(collectionPage.CollectionPath))
             {
-                var collectionPaths = collectionPage.collectionPath.Split("/");
+                var collectionPaths = collectionPage.CollectionPath.Split("/");
                 foreach (var path in collectionPaths)
                 {
-                    var collectionPath = collectionPage.collectionPath[..(collectionPage.collectionPath.IndexOf(path, StringComparison.Ordinal) + path.Length)];
-                    AddBreadcrumbItem(path, () =>
-                    {
-                        m_PageManager.activePage.selectedAssetId = null;
-                        m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject, collectionPath);
-                    });
+                    var collectionPath = collectionPage.CollectionPath[
+                        ..(collectionPage.CollectionPath.IndexOf(path, StringComparison.Ordinal) + path.Length)];
+                    AddBreadcrumbItem(path,
+                        () =>
+                        {
+                            m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject,
+                                collectionPath);
+                        });
                 }
             }
 
@@ -87,7 +86,7 @@ namespace Unity.AssetManager.Editor
             Children().Last().AddToClassList(k_ItemHighlightButtonClassName);
         }
 
-        private void AddBreadcrumbItem(string label, Action clickEvent = null)
+        void AddBreadcrumbItem(string label, Action clickEvent = null)
         {
             if (Children().Any())
             {
@@ -99,15 +98,15 @@ namespace Unity.AssetManager.Editor
             Add(new BreadcrumbItem(clickEvent) { text = label });
         }
 
-        private void OnActivePageChanged(IPage page)
+        void OnActivePageChanged(IPage page)
         {
             Refresh();
         }
 
         // Returns true if the breadcrumbs is visible
-        private bool ShowOrHideBreadCrumbs(IPage page, OrganizationInfo currentOrganization)
+        bool ShowOrHideBreadCrumbs(IPage page, OrganizationInfo currentOrganization)
         {
-            if (page == null || !((BasePage)page).DisplayBreadcrumbs || currentOrganization?.projectInfos.Any() != true)
+            if (page == null || !((BasePage)page).DisplayBreadcrumbs || currentOrganization?.ProjectInfos.Any() != true)
             {
                 UIElementsUtils.Hide(this);
                 return false;
@@ -117,7 +116,7 @@ namespace Unity.AssetManager.Editor
             return true;
         }
 
-        private class BreadcrumbItem : Button
+        class BreadcrumbItem : Button
         {
             public BreadcrumbItem(Action clickEvent) : base(clickEvent)
             {

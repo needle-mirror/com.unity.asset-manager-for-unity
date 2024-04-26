@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -7,7 +8,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class LocalStatusFilter : LocalFilter
+    class LocalStatusFilter : LocalFilter
     {
         [SerializeReference]
         IProjectOrganizationProvider m_ProjectOrganizationProvider;
@@ -22,18 +23,16 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider = projectOrganizationProvider;
         }
 
-        void OnOrganizationChanged(OrganizationInfo _, bool __)
-        {
-            m_CachedSelections = null;
-        }
-
         public override async Task<List<string>> GetSelections()
         {
             if (m_CachedSelections == null)
             {
-                List<string> projects = m_ProjectOrganizationProvider.SelectedOrganization.projectInfos.Select(p => p.id).ToList();
+                var projects = m_ProjectOrganizationProvider.SelectedOrganization.ProjectInfos.Select(p => p.Id)
+                    .ToList();
 
-                m_CachedSelections = await m_Page.GetFilterSelectionsAsync(m_ProjectOrganizationProvider.SelectedOrganization.id, projects, GroupableField.Status, CancellationToken.None);
+                m_CachedSelections = await m_Page.GetFilterSelectionsAsync(
+                    m_ProjectOrganizationProvider.SelectedOrganization.Id, projects, GroupableField.Status,
+                    CancellationToken.None);
             }
 
             return m_CachedSelections;
@@ -41,7 +40,7 @@ namespace Unity.AssetManager.Editor
 
         public override Task<bool> Contains(IAssetData assetData)
         {
-            return SelectedFilter == null ? Task.FromResult(true) : Task.FromResult(SelectedFilter == assetData.status);
+            return SelectedFilter == null ? Task.FromResult(true) : Task.FromResult(SelectedFilter == assetData.Status);
         }
     }
 }

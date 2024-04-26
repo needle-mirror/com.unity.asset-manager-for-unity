@@ -4,11 +4,9 @@ using System.Threading.Tasks;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal abstract class LocalFilter : BaseFilter
+    abstract class LocalFilter : BaseFilter
     {
-        internal LocalFilter(IPage page) : base(page)
-        {
-        }
+        internal LocalFilter(IPage page) : base(page) { }
 
         public abstract Task<bool> Contains(IAssetData assetData);
     }

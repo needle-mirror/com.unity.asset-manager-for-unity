@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface ILinksProxy : IService
+    interface ILinksProxy : IService
     {
         void OpenAssetManagerDashboard();
         void OpenAssetManagerDashboard(AssetIdentifier assetIdentifier);
@@ -12,32 +12,37 @@ namespace Unity.AssetManager.Editor
         void OpenPreferences();
     }
 
-    internal class LinksProxy : BaseService<ILinksProxy>, ILinksProxy
+    class LinksProxy : BaseService<ILinksProxy>, ILinksProxy
     {
         [SerializeReference]
         IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
+        [SerializeReference]
+        IPageManager m_PageManager;
+
         [ServiceInjection]
-        public void Inject(IProjectOrganizationProvider projectOrganizationProvider)
+        public void Inject(IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
         {
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_PageManager = pageManager;
         }
 
         public void OpenAssetManagerDashboard()
         {
-            var organizationId = m_ProjectOrganizationProvider?.SelectedOrganization?.id;
-            var projectId = m_ProjectOrganizationProvider?.SelectedProject?.id;
+            var organizationId = m_ProjectOrganizationProvider?.SelectedOrganization?.Id;
+            var projectId = m_ProjectOrganizationProvider?.SelectedProject?.Id;
             var collectionPath = m_ProjectOrganizationProvider?.SelectedCollection?.GetFullPath();
+            var isProjectSelected = m_PageManager.ActivePage is CollectionPage;
 
-            if (organizationId != null && projectId != null && !string.IsNullOrEmpty(collectionPath))
+            if (isProjectSelected && organizationId != null && projectId != null && !string.IsNullOrEmpty(collectionPath))
             {
                 Application.OpenURL($"https://cloud.unity.com/home/organizations/{organizationId}/projects/{projectId}/assets/collectionPath/{Uri.EscapeDataString(collectionPath)}");
             }
-            else if (organizationId != null && projectId != null)
+            else if (isProjectSelected && organizationId != null && projectId != null)
             {
                 Application.OpenURL($"https://cloud.unity.com/home/organizations/{organizationId}/projects/{projectId}/assets");
             }
-            else if (organizationId != null)
+            else if (organizationId != null && m_PageManager.ActivePage is AllAssetsPage)
             {
                 Application.OpenURL($"https://cloud.unity.com/home/organizations/{organizationId}/assets/all");
             }
@@ -52,13 +57,13 @@ namespace Unity.AssetManager.Editor
 
         public void OpenAssetManagerDashboard(AssetIdentifier assetIdentifier)
         {
-            var projectId = assetIdentifier?.projectId;
-            var assetId = assetIdentifier?.assetId;
-            var assetVersion = assetIdentifier?.version;
+            var projectId = assetIdentifier?.ProjectId;
+            var assetId = assetIdentifier?.AssetId;
+            var assetVersion = assetIdentifier?.Version;
 
-            if(!string.IsNullOrEmpty(projectId) && !string.IsNullOrEmpty(assetId))
+            if (!string.IsNullOrEmpty(projectId) && !string.IsNullOrEmpty(assetId))
             {
-                Application.OpenURL($"https://cloud.unity.com/home/organizations/{m_ProjectOrganizationProvider.SelectedOrganization.id}/projects/{projectId}/assets?assetId={assetId}:{assetVersion}");
+                Application.OpenURL($"https://cloud.unity.com/home/organizations/{m_ProjectOrganizationProvider.SelectedOrganization.Id}/projects/{projectId}/assets?assetId={assetId}:{assetVersion}");
                 AnalyticsSender.SendEvent(new ExternalLinkClickedEvent(ExternalLinkClickedEvent.ExternalLinkType.OpenAsset));
             }
             else

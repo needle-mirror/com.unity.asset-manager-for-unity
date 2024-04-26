@@ -15,7 +15,7 @@ namespace Unity.AssetManager.Editor
             public string SelectedPage;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "PageSelected";
+        const string k_EventName = AnalyticsSender.EventPrefix + "PageSelected";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -25,15 +25,15 @@ namespace Unity.AssetManager.Editor
 
         internal PageSelectedEvent(string selectPage)
         {
-            m_Data = new PageSelectedEventData()
+            m_Data = new PageSelectedEventData
             {
                 SelectedPage = selectPage
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
-        internal class PageSelectedEventAnalytic : IAnalytic
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        class PageSelectedEventAnalytic : IAnalytic
         {
             PageSelectedEventData m_Data;
 

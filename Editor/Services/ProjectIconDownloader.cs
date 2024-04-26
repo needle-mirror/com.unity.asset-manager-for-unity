@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IProjectIconDownloader : IService
+    interface IProjectIconDownloader : IService
     {
         void DownloadIcon(string projectId, Action<string, Texture2D> doneCallbackAction = null);
     }
@@ -15,18 +15,19 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class AllProjectResponse
     {
-        public List<AllProjectResponseItem> results { get; set; } = new();
+        public List<AllProjectResponseItem> Results { get; set; } = new();
     }
 
     [Serializable]
     class AllProjectResponseItem
     {
-        public string id { get; set; } = string.Empty;
-        public string iconUrl { get; set; } = string.Empty;
+        public string Id { get; set; } = string.Empty;
+        public string IconUrl { get; set; } = string.Empty;
     }
 
     [Serializable]
-    internal class ProjectIconDownloader : BaseService<IProjectIconDownloader>, IProjectIconDownloader, ISerializationCallbackReceiver
+    class ProjectIconDownloader : BaseService<IProjectIconDownloader>, IProjectIconDownloader,
+        ISerializationCallbackReceiver
     {
         [SerializeField]
         string[] m_SerializedIconsKeys;
@@ -34,13 +35,11 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         Texture2D[] m_SerializedIcons;
 
-        static readonly string k_ProjectIconCacheLocation = "ProjectIconCache";
-        const string k_TempExt = ".tmp";
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
 
-        readonly Dictionary<ulong, string> m_DownloadIdToProjectIdMap = new();
-        readonly Dictionary<string, List<Action<string, Texture2D>>> m_IconDownloadCallbacks = new();
-        readonly Dictionary<string, Texture2D> m_Icons = new();
-        readonly Dictionary<string, string> m_IconsUrls = new();
+        [SerializeReference]
+        ICacheEvictionManager m_CacheEvictionManager;
 
         [SerializeReference]
         IDownloadManager m_DownloadManager;
@@ -49,19 +48,23 @@ namespace Unity.AssetManager.Editor
         IIOProxy m_IOProxy;
 
         [SerializeReference]
-        ISettingsManager m_SettingsManager;
-
-        [SerializeReference]
-        ICacheEvictionManager m_CacheEvictionManager;
-
-        [SerializeReference]
-        IAssetsProvider m_AssetsProvider;
-
-        [SerializeReference]
         IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
+        [SerializeReference]
+        ISettingsManager m_SettingsManager;
+
+        const string k_TempExt = ".tmp";
+        static readonly string k_ProjectIconCacheLocation = "ProjectIconCache";
+
+        readonly Dictionary<ulong, string> m_DownloadIdToProjectIdMap = new();
+        readonly Dictionary<string, List<Action<string, Texture2D>>> m_IconDownloadCallbacks = new();
+        readonly Dictionary<string, Texture2D> m_Icons = new();
+        readonly Dictionary<string, string> m_IconsUrls = new();
+
         [ServiceInjection]
-        public void Inject(IDownloadManager downloadManager, IIOProxy ioProxy, ISettingsManager settingsManager, ICacheEvictionManager cacheEvictionManager, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
+        public void Inject(IDownloadManager downloadManager, IIOProxy ioProxy, ISettingsManager settingsManager,
+            ICacheEvictionManager cacheEvictionManager, IProjectOrganizationProvider projectOrganizationProvider,
+            IAssetsProvider assetsProvider)
         {
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_DownloadManager = downloadManager;
@@ -73,36 +76,14 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
-            m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
-            m_DownloadManager.onDownloadFinalized += DownloadFinalized;
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
+            m_DownloadManager.DownloadFinalized += OnDownloadFinalized;
         }
 
         public override void OnDisable()
         {
-            m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
-            m_DownloadManager.onDownloadFinalized -= DownloadFinalized;
-        }
-
-        void DownloadFinalized(DownloadOperation operation)
-        {
-            if (!m_DownloadIdToProjectIdMap.TryGetValue(operation.id, out var projectId))
-                return;
-
-            m_DownloadIdToProjectIdMap.Remove(operation.id);
-            if (!m_IconDownloadCallbacks.TryGetValue(operation.url, out var callbacks) || callbacks.Count == 0)
-                return;
-
-            var finalPath = operation.path.Substring(0, operation.path.Length - k_TempExt.Length);
-            m_IOProxy.DeleteFileIfExists(finalPath);
-            m_IOProxy.FileMove(operation.path, finalPath);
-
-            var icon = LoadIcon(operation.url, finalPath);
-            m_CacheEvictionManager.CheckEvictConditions(finalPath);
-            m_IconDownloadCallbacks.Remove(operation.url);
-            foreach (var callback in callbacks)
-            {
-                callback?.Invoke(projectId, icon);
-            }
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+            m_DownloadManager.DownloadFinalized -= OnDownloadFinalized;
         }
 
         public void DownloadIcon(string projectId, Action<string, Texture2D> doneCallbackAction = null)
@@ -127,9 +108,10 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            var download = m_DownloadManager.CreateDownloadOperation(iconUrl, Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, iconFileName + k_TempExt));
+            var download = m_DownloadManager.CreateDownloadOperation(iconUrl,
+                Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, iconFileName + k_TempExt));
             m_DownloadManager.StartDownload(download);
-            m_DownloadIdToProjectIdMap[download.id] = projectId;
+            m_DownloadIdToProjectIdMap[download.Id] = projectId;
             var newCallbacks = new List<Action<string, Texture2D>>();
             if (doneCallbackAction != null)
             {
@@ -137,21 +119,6 @@ namespace Unity.AssetManager.Editor
             }
 
             m_IconDownloadCallbacks[iconUrl] = newCallbacks;
-        }
-
-        Texture2D LoadIcon(string url, string iconPath)
-        {
-            if (m_Icons.TryGetValue(url, out var result))
-                return result;
-
-            if (!m_IOProxy.FileExists(iconPath))
-                return null;
-
-            var texture2D = new Texture2D(1, 1);
-            texture2D.LoadImage(File.ReadAllBytes(iconPath));
-            texture2D.hideFlags = HideFlags.HideAndDontSave;
-            m_Icons[url] = texture2D;
-            return texture2D;
         }
 
         public void OnBeforeSerialize()
@@ -168,11 +135,53 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        async void OrganizationChanged(OrganizationInfo organizationInfo)
+        void OnDownloadFinalized(DownloadOperation operation)
+        {
+            if (!m_DownloadIdToProjectIdMap.TryGetValue(operation.Id, out var projectId))
+                return;
+
+            m_DownloadIdToProjectIdMap.Remove(operation.Id);
+            if (!m_IconDownloadCallbacks.TryGetValue(operation.Url, out var callbacks) || callbacks.Count == 0)
+                return;
+
+            var finalPath = operation.Path.Substring(0, operation.Path.Length - k_TempExt.Length);
+            m_IOProxy.DeleteFileIfExists(finalPath);
+            m_IOProxy.FileMove(operation.Path, finalPath);
+
+            var icon = LoadIcon(operation.Url, finalPath);
+            m_CacheEvictionManager.OnCheckEvictConditions(finalPath);
+            m_IconDownloadCallbacks.Remove(operation.Url);
+            foreach (var callback in callbacks)
+            {
+                callback?.Invoke(projectId, icon);
+            }
+        }
+
+        Texture2D LoadIcon(string url, string iconPath)
+        {
+            if (m_Icons.TryGetValue(url, out var result))
+            {
+                return result;
+            }
+
+            if (!m_IOProxy.FileExists(iconPath))
+            {
+                return null;
+            }
+
+            var texture2D = new Texture2D(1, 1);
+            texture2D.LoadImage(File.ReadAllBytes(iconPath));
+            texture2D.hideFlags = HideFlags.HideAndDontSave;
+            m_Icons[url] = texture2D;
+            return texture2D;
+        }
+
+        async void OnOrganizationChanged(OrganizationInfo organizationInfo)
         {
             if (organizationInfo != null)
             {
-                var iconsUrls = await m_AssetsProvider.GetProjectIconUrlsAsync(organizationInfo.id, CancellationToken.None);
+                var iconsUrls =
+                    await m_AssetsProvider.GetProjectIconUrlsAsync(organizationInfo.Id, CancellationToken.None);
                 foreach (var iconUrl in iconsUrls)
                 {
                     m_IconsUrls[iconUrl.Key] = iconUrl.Value;
@@ -190,7 +199,7 @@ namespace Unity.AssetManager.Editor
             new Color32(110, 86, 207, 255), // Violet
         };
 
-        public static readonly Color DefaultColor = new (40f/ 255f, 40f / 255f, 40f / 255f);
+        public static readonly Color DefaultColor = new(40f / 255f, 40f / 255f, 40f / 255f);
 
         public static Color GetProjectIconColor(string projectId)
         {

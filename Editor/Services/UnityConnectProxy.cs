@@ -1,95 +1,69 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IUnityConnectProxy : IService
+    interface IUnityConnectProxy : IService
     {
-        event Action<bool /*isUserInfoReady*/, bool /*isUserLoggedIn*/> onUserLoginStateChange;
-        event Action<string> onOrganizationIdChange;
-        bool isUserLoggedIn { get; }
-        string organizationId { get; }
-        string projectId { get; }
-        void ShowLogin();
+        event Action<string> OrganizationIdChanged;
+        string OrganizationId { get; }
+        string ProjectId { get; }
     }
 
     [Serializable]
     [ExcludeFromCodeCoverage]
-    internal class UnityConnectProxy : BaseService<IUnityConnectProxy>, IUnityConnectProxy
+    class UnityConnectProxy : BaseService<IUnityConnectProxy>, IUnityConnectProxy
     {
-        public event Action<bool, bool> onUserLoginStateChange;
-        public event Action<string> onOrganizationIdChange;
+        public event Action<string> OrganizationIdChanged;
+
+        public string OrganizationId => m_ConnectedOrganizationId;
+
+        public string ProjectId => m_ConnectedProjectId;
+
+        static readonly string k_NoValue = "none";
 
         [SerializeField]
-        private bool m_IsUserInfoReady;
-        public bool isUserInfoReady => m_IsUserInfoReady;
+        string m_ConnectedOrganizationId = k_NoValue;
 
         [SerializeField]
-        private bool m_HasAccessToken;
-        public bool isUserLoggedIn => m_IsUserInfoReady && m_HasAccessToken;
-
-        [SerializeField]
-        private string m_UserId = string.Empty;
-
-        [SerializeField]
-        private string m_OrganizationId;
-        public string organizationId => m_OrganizationId;
-        
-        [SerializeField]
-        private string m_ProjectId;
-        public string projectId => m_ProjectId;
-
-        private readonly UnityConnectSession m_UnityConnectSession = new();
+        string m_ConnectedProjectId = k_NoValue;
 
         public override void OnEnable()
         {
-            m_UnityConnectSession.OnEnable();
-
-            m_IsUserInfoReady = m_UnityConnectSession.isUserInfoReady;
-            m_HasAccessToken = !string.IsNullOrEmpty(m_UnityConnectSession.GetAccessToken());
-            m_OrganizationId = m_UnityConnectSession.GetOrganizationId();
-            m_ProjectId = m_UnityConnectSession.GetProjectId();
-
-            m_UnityConnectSession.onUserStateChanged += OnUserStateChanged;
-            m_UnityConnectSession.onProjectStateChanged += OnProjectStateChanged;
+            EditorApplication.update += Update;
         }
 
         public override void OnDisable()
         {
-            m_UnityConnectSession.OnDisable();
-            m_UnityConnectSession.onUserStateChanged -= OnUserStateChanged;
-            m_UnityConnectSession.onProjectStateChanged -= OnProjectStateChanged;
+            EditorApplication.update -= Update;
         }
 
-        public string GetAccessToken() => m_UnityConnectSession.GetAccessToken();
-        public void ShowLogin() => m_UnityConnectSession.ShowLogin();
-        public void OpenAuthorizedURLInWebBrowser(string url) => m_UnityConnectSession.OpenAuthorizedURLInWebBrowser(url);
-
-        private void OnUserStateChanged()
+        void OnProjectStateChanged()
         {
-            var prevIsUserInfoReady = isUserInfoReady;
-            var prevIsUserLoggedIn = isUserLoggedIn;
-            var prevUserId = m_UserId;
-
-            m_IsUserInfoReady = m_UnityConnectSession.isUserInfoReady;
-            m_HasAccessToken = !string.IsNullOrEmpty(m_UnityConnectSession.GetAccessToken());
-            m_UserId = m_UnityConnectSession.GetUserID();
-
-            if (isUserInfoReady != prevIsUserInfoReady || isUserLoggedIn != prevIsUserLoggedIn || prevUserId != m_UserId)
-                onUserLoginStateChange?.Invoke(isUserInfoReady, isUserLoggedIn);
+            OrganizationIdChanged?.Invoke(m_ConnectedOrganizationId);
         }
 
-        private void OnProjectStateChanged()
+        void Update()
         {
-            m_ProjectId = m_UnityConnectSession.GetProjectId()?? string.Empty;
-            
-            var oldOrganizationId = m_OrganizationId ?? string.Empty;
-            m_OrganizationId = m_UnityConnectSession.GetOrganizationId() ?? string.Empty;
-            if (oldOrganizationId == m_OrganizationId)
-                return;
-
-            onOrganizationIdChange?.Invoke(m_OrganizationId);
+#if UNITY_2021
+            if (CloudProjectSettings.organizationId != k_NoValue && !m_ConnectedOrganizationId.Equals(CloudProjectSettings.organizationId))
+            {
+                m_ConnectedOrganizationId = CloudProjectSettings.organizationId;
+#else
+            if (!m_ConnectedOrganizationId.Equals(CloudProjectSettings.organizationKey))
+            {
+                m_ConnectedOrganizationId = CloudProjectSettings.organizationKey;
+#endif
+                m_ConnectedProjectId = k_NoValue;
+                OnProjectStateChanged();
+            }
+            else if (!m_ConnectedProjectId.Equals(CloudProjectSettings.projectId))
+            {
+                m_ConnectedProjectId = CloudProjectSettings.projectId;
+                OnProjectStateChanged();
+            }
         }
     }
 }

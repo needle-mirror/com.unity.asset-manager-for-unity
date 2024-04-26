@@ -1,19 +1,11 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Editor
 {
-    internal enum ImportEndImportTarget
-    {
-        NotSet = -1,
-        PrefabOrObject = 0,
-        Scene = 1,
-        ProjectFolder = 2,
-        InspectorWindow = 3
-    }
-
-    internal enum ImportEndStatus
+    enum ImportEndStatus
     {
         Ok = 0,
         GenericError = 1,
@@ -35,7 +27,7 @@ namespace Unity.AssetManager.Editor
             /// <summary>
             /// The ID of the asset being imported
             /// </summary>
-            public string AssetId;
+            public List<string> AssetIds;
 
             /// <summary>
             /// The amount of milliseconds the import operation took
@@ -48,11 +40,6 @@ namespace Unity.AssetManager.Editor
             public string ErrorMessage;
 
             /// <summary>
-            /// A string identifying the target of the import operation (e.g. project browser, inspector). See Enums/ImportEndImportTarget.cs
-            /// </summary>
-            public string ImportTarget;
-
-            /// <summary>
             /// Timestamp when the operation started
             /// </summary>
             public long StartTime;
@@ -61,38 +48,31 @@ namespace Unity.AssetManager.Editor
             /// The ending status of the operation. See Enums/ImportEndStatus.cs
             /// </summary>
             public string Status;
-
-            /// <summary>
-            /// The number of file contained in the asset being imported
-            /// </summary>
-            public int FileCount;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "ImportEnd";
-        const int k_EventVersion = 3;
+        const string k_EventName = AnalyticsSender.EventPrefix + "ImportEnd";
+        const int k_EventVersion = 4;
 
         public string EventName => k_EventName;
         public int EventVersion => k_EventVersion;
 
         ImportEndEventData m_Data;
 
-        internal ImportEndEvent(ImportEndStatus status, string assetId, DateTime startTime, DateTime finishTime, int fileCount = 0, string error = "", ImportEndImportTarget importTarget = ImportEndImportTarget.NotSet)
+        internal ImportEndEvent(ImportEndStatus status, List<string> assetIds, DateTime startTime, DateTime finishTime, string error = "")
         {
             var elapsedTime = finishTime - startTime;
-            m_Data = new ImportEndEventData()
+            m_Data = new ImportEndEventData
             {
-                AssetId = assetId,
+                AssetIds = assetIds,
                 ElapsedTime = (long)elapsedTime.TotalMilliseconds, // we don't need fractional milliseconds... also, event is set to numerical, so it fails if we send fractional
                 ErrorMessage = error,
-                ImportTarget = importTarget.ToString(),
                 StartTime = Utilities.DatetimeToTimestamp(startTime),
-                Status = status.ToString(),
-                FileCount = fileCount
+                Status = status.ToString()
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class ImportEndEventAnalytic : IAnalytic
         {
             ImportEndEventData m_Data;

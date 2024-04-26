@@ -1,8 +1,9 @@
-﻿using Unity.Cloud.Assets;
+﻿using System;
+using Unity.Cloud.Assets;
 
 namespace Unity.AssetManager.Editor
 {
-    internal enum AssetType
+    enum AssetType
     {
         Other = 0,
         Asset2D = 1,
@@ -10,10 +11,10 @@ namespace Unity.AssetManager.Editor
         Audio = 3,
         Material = 4,
         Script = 5,
-        Video = 6,
+        Video = 6
     }
 
-    internal static class AssetTypeExtensions
+    static class AssetTypeExtensions
     {
         internal static string DisplayValue(this AssetType assetType)
         {
@@ -25,7 +26,7 @@ namespace Unity.AssetManager.Editor
                 AssetType.Material => Cloud.Assets.AssetType.Material.GetValueAsString(),
                 AssetType.Script => Cloud.Assets.AssetType.Script.GetValueAsString(),
                 AssetType.Video => Cloud.Assets.AssetType.Video.GetValueAsString(),
-                _ => Cloud.Assets.AssetType.Other.GetValueAsString(),
+                _ => Cloud.Assets.AssetType.Other.GetValueAsString()
             };
         }
 

@@ -5,10 +5,11 @@ namespace Unity.AssetManager.Editor
 {
     abstract class AssetContextMenu
     {
+        internal readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
         internal readonly IAssetDataManager m_AssetDataManager;
         internal readonly IAssetImporter m_AssetImporter;
         internal readonly ILinksProxy m_LinksProxy;
-        internal readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
+        internal readonly IPageManager m_PageManager;
 
         IAssetData m_TargetAssetData;
 
@@ -19,12 +20,13 @@ namespace Unity.AssetManager.Editor
         }
 
         protected AssetContextMenu(IAssetDataManager assetDataManager, IAssetImporter assetImporter,
-            ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy)
+            ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy, IPageManager pageManager)
         {
             m_AssetDataManager = assetDataManager;
             m_AssetImporter = assetImporter;
             m_LinksProxy = linksProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
+            m_PageManager = pageManager;
         }
 
         public abstract void SetupContextMenuEntries(ContextualMenuPopulateEvent evt);

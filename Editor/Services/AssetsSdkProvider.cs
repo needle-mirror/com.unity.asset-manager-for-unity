@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Reflection;
 using Unity.Cloud.Assets;
 using Unity.Cloud.Common;
 using Unity.Cloud.Common.Runtime;
@@ -26,15 +26,25 @@ namespace Unity.AssetManager.Editor
         Unknown
     }
 
-    internal interface IAssetsProvider : IService
+    interface IAssetsProvider : IService
     {
         Task<OrganizationInfo> GetOrganizationInfoAsync(string organizationId, CancellationToken token);
-        IAsyncEnumerable<IAsset> SearchAsync(string organizationId, IEnumerable<string> projectIds, IAssetSearchFilter assetSearchFilter, int startIndex, int pageSize, CancellationToken token);
+
+        IAsyncEnumerable<IAsset> SearchAsync(string organizationId, IEnumerable<string> projectIds,
+            IAssetSearchFilter assetSearchFilter, int startIndex, int pageSize, CancellationToken token);
+
         Task<Dictionary<string, string>> GetProjectIconUrlsAsync(string organizationId, CancellationToken token);
-        Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, IAssetSearchFilter searchFilter,
+
+        Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
+            IAssetSearchFilter searchFilter,
             GroupableField groupBy, CancellationToken token);
+
         Task<AssetComparisonResult> CompareAssetWithCloudAsync(IAssetData assetData, CancellationToken token);
+
         Task EnableProjectAsync(CancellationToken token = default);
+
+        IAsyncEnumerable<IMemberInfo> GetOrganizationMembersAsync(string organizationId, Range range,
+            CancellationToken token);
     }
 
     [Serializable]
@@ -60,9 +70,14 @@ namespace Unity.AssetManager.Editor
         {
             var t = new Stopwatch();
             t.Start();
+            
+#if UNITY_2021
+            var orgFromOrgName = await GetOrganizationFromOrganizationName(organizationId);
+            organizationId = orgFromOrgName?.Id.ToString();
+#endif
 
             var tasks = new List<Task>();
-            var organizationInfo = new OrganizationInfo { id = organizationId };
+            var organizationInfo = new OrganizationInfo { Id = organizationId };
 
             var count = 0;
             await foreach (var project in m_CloudAssetsProxy.GetCurrentUserProjectList(organizationId, Range.All, token))
@@ -72,11 +87,11 @@ namespace Unity.AssetManager.Editor
 
                 tasks.Add(GetCollectionsAsync(organizationId, project, token, infos =>
                 {
-                    organizationInfo.projectInfos.Add(new ProjectInfo()
+                    organizationInfo.ProjectInfos.Add(new ProjectInfo
                     {
-                        id = project.Descriptor.ProjectId.ToString(),
-                        name = project.Name,
-                        collectionInfos = infos.ToList()
+                        Id = project.Descriptor.ProjectId.ToString(),
+                        Name = project.Name,
+                        CollectionInfos = infos.ToList()
                     });
                 }));
 
@@ -92,26 +107,9 @@ namespace Unity.AssetManager.Editor
             return organizationInfo;
         }
 
-        public async Task GetCollectionsAsync(string organizationId, IAssetProject project, CancellationToken token, Action<IEnumerable<CollectionInfo>> onCompleted)
-        {
-            var assetCollections = project.ListCollectionsAsync(Range.All, token);
-            var collections = new List<CollectionInfo>();
-            await foreach (var assetCollection in assetCollections)
-            {
-                collections.Add(new CollectionInfo
-                {
-                    organizationId = organizationId,
-                    projectId = project.Descriptor.ProjectId.ToString(),
-                    name = assetCollection.Name,
-                    parentPath = assetCollection.ParentPath
-                });
-            }
-
-            onCompleted?.Invoke(collections);
-        }
-
         public async IAsyncEnumerable<IAsset> SearchAsync(string organizationId, IEnumerable<string> projectIds,
-            IAssetSearchFilter assetSearchFilter, int startIndex, int pageSize, [EnumeratorCancellation] CancellationToken token)
+            IAssetSearchFilter assetSearchFilter, int startIndex, int pageSize,
+            [EnumeratorCancellation] CancellationToken token)
         {
             var range = new Range(startIndex, startIndex + pageSize);
 
@@ -138,12 +136,33 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+#if UNITY_2021
+        async Task<IOrganization> GetOrganizationFromOrganizationName(string organizationName)
+        {
+            // First call to backend requires a valid authentication state
+            while (!Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
+            {
+                await Task.Delay(200);
+            }
+            var organizations = await m_CloudAssetsProxy.GetOrganizationsAsync();
+            return organizations?.FirstOrDefault(o => CreateTagFromOrganizationName(o.Name) == organizationName);
+        }
+
+        // organization names that are coming out of CloudProjectSettings.organizationId are formatted as tag
+        string CreateTagFromOrganizationName(string organizationName)
+        {
+            return organizationName.ToLowerInvariant().Replace(" ", "-");
+        }
+#endif
+
         public async Task<Dictionary<string, string>> GetProjectIconUrlsAsync(string organizationId, CancellationToken token)
         {
             var organizations = await m_CloudAssetsProxy.GetOrganizationsAsync();
             var selectedOrg = organizations?.FirstOrDefault(o => o.Id.ToString() == organizationId);
             if (selectedOrg == null)
+            {
                 return null;
+            }
 
             var projectIconUrls = new Dictionary<string, string>();
             await foreach (var project in selectedOrg.ListProjectsAsync(Range.All, token))
@@ -169,18 +188,18 @@ namespace Unity.AssetManager.Editor
 
         public async Task<AssetComparisonResult> CompareAssetWithCloudAsync(IAssetData assetData, CancellationToken token)
         {
-            if (assetData?.updated == null)
+            if (assetData?.Updated == null)
             {
                 return AssetComparisonResult.Unknown;
             }
 
             try
             {
-                var cloudAsset = await m_CloudAssetsProxy.GetAssetAsync(assetData.identifier.ToAssetDescriptor(), token);
+                var cloudAsset = await m_CloudAssetsProxy.GetAssetAsync(assetData.Identifier.ToAssetDescriptor(), token);
 
-                return assetData.updated == cloudAsset.AuthoringInfo.Updated
-                    ? AssetComparisonResult.UpToDate
-                    : AssetComparisonResult.OutDated;
+                return assetData.Updated == cloudAsset.AuthoringInfo.Updated ?
+                    AssetComparisonResult.UpToDate :
+                    AssetComparisonResult.OutDated;
             }
             catch (ForbiddenException)
             {
@@ -199,17 +218,48 @@ namespace Unity.AssetManager.Editor
             await m_CloudAssetsProxy.EnableProjectAsync(token);
         }
 
-        private class CloudAssetsProxy
+        public IAsyncEnumerable<IMemberInfo> GetOrganizationMembersAsync(string organizationId, Range range, CancellationToken token)
         {
-            private readonly IUnityConnectProxy m_UnityConnect;
+            return CloudAssetsProxy.GetOrganizationMembersAsync(organizationId, range, token);
+        }
 
-            public CloudAssetsProxy(IUnityConnectProxy unityConnect)
+        public async Task GetCollectionsAsync(string organizationId, IAssetProject project, CancellationToken token,
+            Action<IEnumerable<CollectionInfo>> completedCallback)
+        {
+            var assetCollections = project.ListCollectionsAsync(Range.All, token);
+            var collections = new List<CollectionInfo>();
+            await foreach (var assetCollection in assetCollections)
             {
-                m_UnityConnect = unityConnect;
+                collections.Add(new CollectionInfo
+                {
+                    OrganizationId = organizationId,
+                    ProjectId = project.Descriptor.ProjectId.ToString(),
+                    Name = assetCollection.Name,
+                    ParentPath = assetCollection.ParentPath
+                });
             }
 
-            public async IAsyncEnumerable<IAssetProject> GetCurrentUserProjectList(string organizationId, Range range, [EnumeratorCancellation] CancellationToken token)
+            completedCallback?.Invoke(collections);
+        }
+
+        class CloudAssetsProxy
+        {
+            readonly IUnityConnectProxy m_UnityConnectProxy;
+
+            public CloudAssetsProxy(IUnityConnectProxy unityConnectProxy)
             {
+                m_UnityConnectProxy = unityConnectProxy;
+            }
+
+            public async IAsyncEnumerable<IAssetProject> GetCurrentUserProjectList(string organizationId, Range range,
+                [EnumeratorCancellation] CancellationToken token)
+            {
+                // First call to backend requires a valid authentication state
+                while (!Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
+                {
+                    await Task.Delay(200, token);
+                }
+
                 await foreach (var project in Services.AssetRepository.ListAssetProjectsAsync(new OrganizationId(organizationId), range, token))
                 {
                     yield return project;
@@ -253,8 +303,9 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
-            public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
-                IAssetSearchFilter searchFilter, GroupableField groupBy, CancellationToken token)
+            public async Task<List<string>> GetFilterSelectionsAsync(string organizationId,
+                IEnumerable<string> projectIds, IAssetSearchFilter searchFilter, GroupableField groupBy,
+                CancellationToken token)
             {
                 var strongTypedOrgId = new OrganizationId(organizationId);
                 var strongTypedProjectIds = projectIds.Select(p => new ProjectId(p)).ToList();
@@ -277,7 +328,18 @@ namespace Unity.AssetManager.Editor
 
             public async Task EnableProjectAsync(CancellationToken token)
             {
-                await Services.ProjectEnabler.EnableProjectAsync(m_UnityConnect.projectId, token);
+                await Services.ProjectEnabler.EnableProjectAsync(m_UnityConnectProxy.ProjectId, token);
+            }
+
+            public static async IAsyncEnumerable<IMemberInfo> GetOrganizationMembersAsync(string organizationId,
+                Range range, [EnumeratorCancellation] CancellationToken token)
+            {
+                var datasetOrganization =
+                    await Services.OrganizationRepository.GetOrganizationAsync(new OrganizationId(organizationId));
+                await foreach (var memberInfo in datasetOrganization.ListMembersAsync(range, token))
+                {
+                    yield return memberInfo;
+                }
             }
         }
     }
@@ -356,6 +418,8 @@ namespace Unity.AssetManager.Editor
 
         public static AuthenticationState AuthenticationState { get; private set; }
 
+        public static Action AuthenticationStateChanged;
+
         static void CreateServices()
         {
             if (s_AssetRepository != null && s_Authenticator != null)
@@ -379,6 +443,7 @@ namespace Unity.AssetManager.Editor
         static void OnAuthenticationStateChanged(AuthenticationState state)
         {
             AuthenticationState = state;
+            AuthenticationStateChanged?.Invoke();
         }
 
         class AppIdProvider : IAppIdProvider

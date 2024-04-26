@@ -6,32 +6,38 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IAssetDataFile
+    interface IAssetDataFile
     {
-        string path { get; }
-        string description { get; }
-        IReadOnlyCollection<string> tags { get; }
-        long fileSize { get; }
+        string Path { get; }
+        string Description { get; }
+        IReadOnlyCollection<string> Tags { get; }
+        long FileSize { get; }
+        string Guid { get; }
     }
 
     [Serializable]
-    internal class AssetDataFile : IAssetDataFile // TODO Rename to SerializableFile
+    class AssetDataFile : IAssetDataFile // TODO Rename to SerializableFile
     {
         [SerializeField]
-        private string m_Path;
-        public string path => m_Path;
-        
+        string m_Path;
+
         [SerializeField]
-        private string m_Description;
-        public string description => m_Description;
-        
+        string m_Description;
+
         [SerializeField]
-        private List<string> m_Tags = new ();
-        public IReadOnlyCollection<string> tags => m_Tags;
-        
+        List<string> m_Tags = new();
+
         [SerializeField]
-        private long m_FileSize;
-        public long fileSize => m_FileSize;
+        long m_FileSize;
+
+        [SerializeField]
+        string m_Guid;
+
+        public string Path => m_Path;
+        public string Description => m_Description;
+        public IReadOnlyCollection<string> Tags => m_Tags;
+        public long FileSize => m_FileSize;
+        public string Guid => m_Guid;
 
         public AssetDataFile(IFile file)
         {
@@ -43,11 +49,13 @@ namespace Unity.AssetManager.Editor
 
             m_Description = file.Description;
             m_FileSize = file.SizeBytes;
+            m_Guid = null;
         }
-        
-        public AssetDataFile(string path, string description, IEnumerable<string> tags, long fileSize)
+
+        public AssetDataFile(string path, string guid, string description, IEnumerable<string> tags, long fileSize)
         {
             m_Path = path;
+            m_Guid = guid;
             m_Description = description;
             m_Tags.AddRange(tags.ToList());
             m_FileSize = fileSize;

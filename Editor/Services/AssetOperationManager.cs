@@ -15,17 +15,16 @@ namespace Unity.AssetManager.Editor
         void RegisterOperation(AssetDataOperation operation);
     }
 
-
     [Serializable]
     class AssetOperationManager : BaseService<IAssetOperationManager>, IAssetOperationManager
     {
-        public event Action<AssetDataOperation> OperationProgressChanged;
-        public event Action<AssetDataOperation> OperationFinished;
-
-        readonly Dictionary<AssetIdentifier, AssetDataOperation> m_Operations = new ();
+        readonly Dictionary<AssetIdentifier, AssetDataOperation> m_Operations = new();
 
         [SerializeReference]
         IPageManager m_PageManager;
+
+        public event Action<AssetDataOperation> OperationProgressChanged;
+        public event Action<AssetDataOperation> OperationFinished;
 
         [ServiceInjection]
         public void Inject(IPageManager pageManager)
@@ -35,17 +34,12 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
-            m_PageManager.onActivePageChanged += OnActivePageChanged;
+            m_PageManager.ActivePageChanged += OnActivePageChanged;
         }
 
         public override void OnDisable()
         {
-            m_PageManager.onActivePageChanged -= OnActivePageChanged;
-        }
-
-        void OnActivePageChanged(IPage _)
-        {
-            ClearFinishedOperations();
+            m_PageManager.ActivePageChanged -= OnActivePageChanged;
         }
 
         public AssetDataOperation GetAssetOperation(AssetIdentifier identifier)
@@ -53,22 +47,15 @@ namespace Unity.AssetManager.Editor
             return m_Operations.TryGetValue(identifier, out var result) ? result : null;
         }
 
-        public void ClearFinishedOperations()
-        {
-            foreach (var operation in m_Operations.Values.ToArray())
-            {
-                if (operation.Status != OperationStatus.InProgress)
-                {
-                    m_Operations.Remove(operation.AssetId);
-                }
-            }
-        }
-
         public void RegisterOperation(AssetDataOperation operation)
         {
-            if (m_Operations.TryGetValue(operation.AssetId, out var existingOperation) && operation == existingOperation)
+            if (m_Operations.TryGetValue(operation.AssetId, out var existingOperation) &&
+                operation == existingOperation)
+
                 // The operation is already registered
+            {
                 return;
+            }
 
             if (existingOperation is { IsSticky: false })
             {
@@ -87,6 +74,22 @@ namespace Unity.AssetManager.Editor
             };
 
             m_Operations[operation.AssetId] = operation;
+        }
+
+        void OnActivePageChanged(IPage _)
+        {
+            ClearFinishedOperations();
+        }
+
+        public void ClearFinishedOperations()
+        {
+            foreach (var operation in m_Operations.Values.ToArray())
+            {
+                if (operation.Status != OperationStatus.InProgress)
+                {
+                    m_Operations.Remove(operation.AssetId);
+                }
+            }
         }
     }
 }

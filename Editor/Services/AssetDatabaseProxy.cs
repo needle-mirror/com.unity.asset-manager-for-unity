@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using UnityEditor;
+using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IAssetDatabaseProxy : IService
+    interface IAssetDatabaseProxy : IService
     {
-        event Action<string[] /*importedAssets*/, string[] /*deletedAssets*/, string[] /*movedAssets*/, string[] /*movedFromAssetPaths*/> onPostprocessAllAssets;
+        event Action<string[] /*importedAssets*/, string[] /*deletedAssets*/, string[] /*movedAssets*/, string[] /*movedFromAssetPaths*/> PostprocessAllAssets;
 
         string[] FindAssets(string filter, string[] searchInFolders);
 
@@ -17,22 +16,22 @@ namespace Unity.AssetManager.Editor
         string AssetPathToGuid(string assetPath);
         string GuidToAssetPath(string guid);
         void Refresh();
-        UnityEngine.Object LoadAssetAtPath(string assetPath);
+        Object LoadAssetAtPath(string assetPath);
         void StartAssetEditing();
         void StopAssetEditing();
     }
 
-    internal class AssetDatabaseProxy : BaseService<IAssetDatabaseProxy>, IAssetDatabaseProxy
+    class AssetDatabaseProxy : BaseService<IAssetDatabaseProxy>, IAssetDatabaseProxy
     {
-        private class AssetPostprocessor : UnityEditor.AssetPostprocessor
+        class AssetPostprocessor : UnityEditor.AssetPostprocessor
         {
             static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
             {
-                ServicesContainer.instance.Resolve<AssetDatabaseProxy>().onPostprocessAllAssets?.Invoke(importedAssets, deletedAssets, movedAssets, movedFromAssetPaths);
+                ServicesContainer.instance.Resolve<AssetDatabaseProxy>().PostprocessAllAssets?.Invoke(importedAssets, deletedAssets, movedAssets, movedFromAssetPaths);
             }
         }
 
-        public event Action<string[] /*importedAssets*/, string[] /*deletedAssets*/, string[] /*movedAssets*/, string[] /*movedFromAssetPaths*/> onPostprocessAllAssets = delegate {};
+        public event Action<string[] /*importedAssets*/, string[] /*deletedAssets*/, string[] /*movedAssets*/, string[] /*movedFromAssetPaths*/> PostprocessAllAssets = delegate {};
 
         public string[] FindAssets(string filter, string[] searchInFolders) => AssetDatabase.FindAssets(filter, searchInFolders);
 
@@ -45,7 +44,7 @@ namespace Unity.AssetManager.Editor
         public string GuidToAssetPath(string guid) => AssetDatabase.GUIDToAssetPath(guid);
 
         public void Refresh() => AssetDatabase.Refresh();
-        public UnityEngine.Object LoadAssetAtPath(string assetPath) => AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+        public Object LoadAssetAtPath(string assetPath) => AssetDatabase.LoadAssetAtPath<Object>(assetPath);
 
         public void StartAssetEditing() => AssetDatabase.StartAssetEditing();
 

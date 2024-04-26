@@ -24,7 +24,8 @@ namespace Unity.AssetManager.Editor
 
             if (texture == null)
             {
-                texture = CreatePreview().Invoke(null, new object[] { asset, null, assetPath, size, size }) as Texture2D;
+                texture = CreatePreview()
+                    .Invoke(null, new object[] { asset, null, assetPath, size, size }) as Texture2D;
             }
 
             if (texture == null)
@@ -60,7 +61,9 @@ namespace Unity.AssetManager.Editor
             var renderBounds = new Bounds();
 
             if (go == null)
+            {
                 return renderBounds;
+            }
 
             var results = new List<Renderer>();
             go.GetComponentsInChildren(results);
@@ -89,19 +92,31 @@ namespace Unity.AssetManager.Editor
                 case MeshRenderer meshRenderer:
                     meshRenderer.gameObject.TryGetComponent(out MeshFilter component);
                     if (component == null || component.sharedMesh == null)
+                    {
                         return false;
+                    }
+
                     break;
                 case SkinnedMeshRenderer skinnedMeshRenderer:
                     if (skinnedMeshRenderer.sharedMesh == null)
+                    {
                         return false;
+                    }
+
                     break;
                 case SpriteRenderer spriteRenderer:
                     if (spriteRenderer.sprite == null)
+                    {
                         return false;
+                    }
+
                     break;
                 case BillboardRenderer billboardRenderer:
                     if (billboardRenderer.billboard == null || billboardRenderer.sharedMaterial == null)
+                    {
                         return false;
+                    }
+
                     break;
             }
 
@@ -180,7 +195,7 @@ namespace Unity.AssetManager.Editor
                     var rt = renderUtility.EndPreview() as RenderTexture;
 
                     RenderTexture.active = rt;
-                    texture = new Texture2D((int) r.width, (int) r.height, TextureFormat.RGB24, false, false);
+                    texture = new Texture2D((int)r.width, (int)r.height, TextureFormat.RGB24, false, false);
 
                     texture.ReadPixels(r, 0, 0);
                     texture.Apply();

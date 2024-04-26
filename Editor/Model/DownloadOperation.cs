@@ -3,19 +3,19 @@ using System;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class DownloadOperation : BaseOperation
+    class DownloadOperation : BaseOperation
     {
-        public ulong id;
-        public string url;
-        public string path;
-        public long totalBytes;
-        public string error;
+        public ulong Id;
+        public string Url;
+        public string Path;
+        public long TotalBytes;
+        public string Error;
 
         float m_Progress;
 
         public override float Progress => m_Progress;
         public override string OperationName => "Downloading";
-        public override string Description => $"{System.IO.Path.GetFileName(path)}";
+        public override string Description => $"{System.IO.Path.GetFileName(Path)}";
 
         public void SetProgress(float progress)
         {

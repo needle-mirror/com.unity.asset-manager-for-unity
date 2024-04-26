@@ -4,6 +4,34 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2024-04-26
+
+[Added]
+* It is now possible to bulk import or bulk remove by selecting in the grid view and right click on the selection
+* Added new "Default import location" setting in Preferences/Asset Manager
+* Added "Import to" option when clicking the Import button
+* When "Create by" and "Last edit by" chip are clicked, a corresponding filter is now created
+* Show user role
+
+[Changed]
+* Ignored upload item are not less dark
+* Encode in the .am4u_dep file the proper asset version
+* Improved progress reporting
+* Username selections in "Create by" and "Update By" are now order in alphabetic order.
+* Changed cursor style when hovering over Role chip and Details panel's dashboard link
+
+[Fixed]
+* Fixed reimport by cleaning-up moved files correctly
+* Asset details panel showed file sizes in base 1024. Now it is harmonized with the web version and it is base 1000.
+* Collection hierarchy not correctly reconstruct
+* Go To Dashboard when in All Assets page open now the right web page.
+* Fix double link icon while loading in Upload page
+* Fixed the retrieval of asset that was looking for asset version "1", which does not exists. Use the oldest asset version.
+* Fix Add Filter availability when all filter type are used
+* Update of the GridItem when finish importing
+* Refactored progress code to prevent hangs when importing a large number of files
+* When opening the window the first time, permissions wasn't initialized properly
+
 ## [0.5.2] - 2024-04-26
 
 ### Fixed 

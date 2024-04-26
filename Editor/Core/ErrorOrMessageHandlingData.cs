@@ -1,8 +1,9 @@
 using System;
+using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Editor
 {
-    internal enum ErrorOrMessageRecommendedAction
+    enum ErrorOrMessageRecommendedAction
     {
         OpenServicesSettingButton,
         OpenAssetManagerDashboardLink,
@@ -12,10 +13,9 @@ namespace Unity.AssetManager.Editor
     }
 
     [Serializable]
-    internal class ErrorOrMessageHandlingData
+    class ErrorOrMessageHandlingData
     {
-        public string message;
-
-        public ErrorOrMessageRecommendedAction errorOrMessageRecommendedAction;
+        public string Message;
+        public ErrorOrMessageRecommendedAction ErrorOrMessageRecommendedAction;
     }
 }

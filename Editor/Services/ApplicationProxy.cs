@@ -1,14 +1,15 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IApplicationProxy: IService
+    interface IApplicationProxy : IService
     {
-       RuntimePlatform platform { get; }
-    } 
-    
-    internal class ApplicationProxy: BaseService<IApplicationProxy>, IApplicationProxy
+        RuntimePlatform Platform { get; }
+    }
+
+    class ApplicationProxy : BaseService<IApplicationProxy>, IApplicationProxy
     {
-        public RuntimePlatform platform => Application.platform;
+        public RuntimePlatform Platform => Application.platform;
     }
 }

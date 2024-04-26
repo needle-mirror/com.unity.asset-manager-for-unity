@@ -1,7 +1,4 @@
 using System;
-using System.Collections;
-using Unity.EditorCoroutines.Editor;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -18,9 +15,9 @@ namespace Unity.AssetManager.Editor
         static Quaternion s_LastRotation;
         static Vector3 s_LastPosition;
         static float s_LastAngle;
-        float m_CurrentAngle;
 
         readonly IVisualElementScheduledItem m_Scheduler;
+        float m_CurrentAngle;
 
         internal LoadingIcon()
         {

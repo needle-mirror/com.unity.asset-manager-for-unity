@@ -1,16 +1,17 @@
+using System;
 using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class LoadingBar: VisualElement
+    class LoadingBar : VisualElement
     {
-        private const string k_LoadingBarUssClassName = "loading-bar";
-        private const string k_LoadingBarLabelUssClassName = "loading-bar-label";
-        private const string k_LoadingBarHighPositionUssClassName = "loading-bar--high-position";
+        const string k_LoadingBarUssClassName = "loading-bar";
+        const string k_LoadingBarLabelUssClassName = "loading-bar-label";
+        const string k_LoadingBarHighPositionUssClassName = "loading-bar--high-position";
 
-        readonly LoadingIcon m_LoadingIcon;
         readonly Label m_Label;
+        readonly LoadingIcon m_LoadingIcon;
 
         public LoadingBar()
         {

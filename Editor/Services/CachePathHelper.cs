@@ -6,26 +6,26 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface ICachePathHelper: IService
+    interface ICachePathHelper : IService
     {
         IDirectoryInfoProxy EnsureDirectoryExists(string path);
         CacheLocationValidationResult EnsureBaseCacheLocation(string cacheLocation);
         string CreateAssetManagerCacheLocation(string path);
         IDirectoryInfoProxy GetDefaultCacheLocation();
     }
-    
-    internal class CachePathHelper: BaseService<ICachePathHelper>, ICachePathHelper
+
+    class CachePathHelper : BaseService<ICachePathHelper>, ICachePathHelper
     {
-        internal const string k_UnsupportedPlatformError = "Unsupported platform";
+        const string k_UnsupportedPlatformError = "Unsupported platform";
+
+        [SerializeReference]
+        IApplicationProxy m_ApplicationProxy;
+
+        [SerializeReference]
+        IDirectoryInfoFactory m_DirectoryInfoFactory;
 
         [SerializeReference]
         IIOProxy m_IOProxy;
-        
-        [SerializeReference]
-        IApplicationProxy m_ApplicationProxy;
-        
-        [SerializeReference]
-        IDirectoryInfoFactory m_DirectoryInfoFactory;
 
         [ServiceInjection]
         public void Inject(IIOProxy ioProxy, IApplicationProxy applicationProxy, IDirectoryInfoFactory directoryInfoFactory)
@@ -37,7 +37,7 @@ namespace Unity.AssetManager.Editor
 
         public IDirectoryInfoProxy GetDefaultCacheLocation()
         {
-            switch (m_ApplicationProxy.platform)
+            switch (m_ApplicationProxy.Platform)
             {
                 case RuntimePlatform.WindowsEditor:
                     return GetWindowsLocation();
@@ -52,38 +52,38 @@ namespace Unity.AssetManager.Editor
 
         public CacheLocationValidationResult EnsureBaseCacheLocation(string cacheLocation)
         {
-            var validationResult = new CacheLocationValidationResult()
+            var validationResult = new CacheLocationValidationResult
             {
-                success = false
+                Success = false
             };
-            
+
             try
             {
                 var directoryInfo = EnsureDirectoryExists(cacheLocation);
                 var filePath = Path.Combine(directoryInfo.FullName, Path.GetRandomFileName());
                 using var fs = m_IOProxy.Create(filePath, 1, FileOptions.DeleteOnClose);
 
-                validationResult.success = true;
+                validationResult.Success = true;
             }
             catch (DirectoryNotFoundException)
             {
-                validationResult.errorType = CacheValidationResultError.DirectoryNotFound;
+                validationResult.ErrorType = CacheValidationResultError.DirectoryNotFound;
             }
             catch (PathTooLongException)
             {
-                validationResult.errorType = CacheValidationResultError.PathTooLong;
+                validationResult.ErrorType = CacheValidationResultError.PathTooLong;
             }
             catch (ArgumentException)
             {
-                validationResult.errorType = CacheValidationResultError.InvalidPath;
+                validationResult.ErrorType = CacheValidationResultError.InvalidPath;
             }
             catch (SecurityException)
             {
-                validationResult.errorType = CacheValidationResultError.CannotWriteToDirectory;
+                validationResult.ErrorType = CacheValidationResultError.CannotWriteToDirectory;
             }
             catch (Exception)
             {
-                validationResult.errorType = CacheValidationResultError.CannotWriteToDirectory;
+                validationResult.ErrorType = CacheValidationResultError.CannotWriteToDirectory;
             }
 
             return validationResult;
@@ -94,6 +94,7 @@ namespace Unity.AssetManager.Editor
             string cacheLocation;
 
             var directory = new DirectoryInfo(path).Name;
+
             // the base cache location already contains a folder for the asset manager
             if (string.Equals(directory, Constants.AssetManagerCacheLocationFolder))
             {
@@ -105,34 +106,13 @@ namespace Unity.AssetManager.Editor
             }
 
             if (!m_IOProxy.DirectoryExists(cacheLocation))
+            {
                 m_IOProxy.CreateDirectory(cacheLocation);
+            }
 
             return cacheLocation;
         }
 
-        IDirectoryInfoProxy GetWindowsLocation()
-        {
-            return ManageCacheLocation(new string[] { "Unity", "cache", Constants.AssetManagerCacheLocationFolder });
-        }
-
-        IDirectoryInfoProxy GetMacLocation()
-        {
-            return ManageCacheLocation(new string[] { "Library", "Unity", "cache", Constants.AssetManagerCacheLocationFolder });
-        }
-
-        IDirectoryInfoProxy GetLinuxLocation()
-        {
-            return ManageCacheLocation(new string[] { ".config", "unity3d", "cache", Constants.AssetManagerCacheLocationFolder });
-        }
-
-        IDirectoryInfoProxy ManageCacheLocation(string[] paths)
-        {
-            var location = Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.UserProfile), paths.Aggregate(Path.Combine));
-
-            return EnsureDirectoryExists(location);
-        }
-        
         public IDirectoryInfoProxy EnsureDirectoryExists(string path)
         {
             var directoryInfo = m_DirectoryInfoFactory.Create(path);
@@ -143,6 +123,31 @@ namespace Unity.AssetManager.Editor
             }
 
             return directoryInfo;
+        }
+
+        IDirectoryInfoProxy GetWindowsLocation()
+        {
+            return ManageCacheLocation(new[] { "Unity", "cache", Constants.AssetManagerCacheLocationFolder });
+        }
+
+        IDirectoryInfoProxy GetMacLocation()
+        {
+            return ManageCacheLocation(new[]
+                { "Library", "Unity", "cache", Constants.AssetManagerCacheLocationFolder });
+        }
+
+        IDirectoryInfoProxy GetLinuxLocation()
+        {
+            return ManageCacheLocation(new[]
+                { ".config", "unity3d", "cache", Constants.AssetManagerCacheLocationFolder });
+        }
+
+        IDirectoryInfoProxy ManageCacheLocation(string[] paths)
+        {
+            var location = Path.Combine(Environment.GetFolderPath(
+                Environment.SpecialFolder.UserProfile), paths.Aggregate(Path.Combine));
+
+            return EnsureDirectoryExists(location);
         }
     }
 }

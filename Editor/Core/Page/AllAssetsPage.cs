@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -6,15 +7,14 @@ using UnityEditor;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class AllAssetsPage : BasePage
+    class AllAssetsPage : BasePage
     {
+        public AllAssetsPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
+            IProjectOrganizationProvider projectOrganizationProvider)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider) { }
+
         public override string Title => Constants.AllAssetsFolderName;
         public override bool DisplayBreadcrumbs => false;
-
-        public AllAssetsPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, IProjectOrganizationProvider projectOrganizationProvider)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider)
-        {
-        }
 
         public override void LoadMore()
         {
@@ -24,7 +24,8 @@ namespace Unity.AssetManager.Editor
             base.LoadMore();
         }
 
-        protected override async IAsyncEnumerable<IAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
+        protected internal override async IAsyncEnumerable<IAssetData> LoadMoreAssets(
+            [EnumeratorCancellation] CancellationToken token)
         {
             await foreach (var assetData in LoadMoreAssets(m_ProjectOrganizationProvider.SelectedOrganization, token))
             {
@@ -34,17 +35,20 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnLoadMoreSuccessCallBack()
         {
-            if (!m_AssetList.Any() && !pageFilters.searchFilters.Any())
+            if (!m_AssetList.Any() && !PageFilters.SearchFilters.Any())
             {
-                SetErrorOrMessageData(L10n.Tr(Constants.EmptyAllAssetsText), ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
+                SetErrorOrMessageData(L10n.Tr(Constants.EmptyAllAssetsText),
+                    ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
             }
-            else if (pageFilters.searchFilters.Any() && !m_AssetList.Any())
+            else if (PageFilters.SearchFilters.Any() && !m_AssetList.Any())
             {
-                SetErrorOrMessageData(L10n.Tr("No results found for \"" + string.Join(", ", pageFilters.searchFilters) + "\""), ErrorOrMessageRecommendedAction.None);
+                SetErrorOrMessageData(
+                    L10n.Tr("No results found for \"" + string.Join(", ", PageFilters.SearchFilters) + "\""),
+                    ErrorOrMessageRecommendedAction.None);
             }
             else
             {
-                pageFilters.EnableFilters();
+                PageFilters.EnableFilters();
                 SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
             }
         }

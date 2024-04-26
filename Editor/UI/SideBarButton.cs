@@ -1,15 +1,17 @@
+using System;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class SideBarButton<T> : Button where T : IPage
+    class SideBarButton<T> : Button where T : IPage
     {
-        private const string k_UnityListViewItem = "unity-list-view__item";
-        private const string k_UnityListViewItemSelected = k_UnityListViewItem + "--selected";
+        const string k_UnityListViewItem = "unity-list-view__item";
+        const string k_UnityListViewItemSelected = k_UnityListViewItem + "--selected";
 
-        private readonly IPageManager m_PageManager;
+        readonly IPageManager m_PageManager;
+
         public SideBarButton(IPageManager pageManager, string label, Texture icon)
         {
             m_PageManager = pageManager;
@@ -28,17 +30,17 @@ namespace Unity.AssetManager.Editor
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
 
-            Refresh(m_PageManager.activePage);
+            Refresh(m_PageManager.ActivePage);
         }
 
-        private void OnAttachToPanel(AttachToPanelEvent evt)
+        void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged += Refresh;
+            m_PageManager.ActivePageChanged += Refresh;
         }
 
-        private void OnDetachFromPanel(DetachFromPanelEvent evt)
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged -= Refresh;
+            m_PageManager.ActivePageChanged -= Refresh;
         }
 
         void Refresh(IPage page)

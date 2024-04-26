@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -30,9 +31,15 @@ namespace Unity.AssetManager.Editor
 
     class PreviewStatus : AssetPreview.IStatus
     {
+        readonly string[] m_Styles;
+
         public string Description { get; }
 
-        readonly string[] m_Styles;
+        public PreviewStatus(string description, params string[] ussStyles)
+        {
+            Description = description;
+            m_Styles = ussStyles;
+        }
 
         public VisualElement CreateVisualTree()
         {
@@ -43,12 +50,6 @@ namespace Unity.AssetManager.Editor
             }
 
             return visualElement;
-        }
-
-        public PreviewStatus(string description, params string[] ussStyles)
-        {
-            Description = description;
-            m_Styles = ussStyles;
         }
     }
 }

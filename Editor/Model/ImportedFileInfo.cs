@@ -3,15 +3,15 @@
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class ImportedFileInfo
+    class ImportedFileInfo
     {
-        public string guid;
-        public string originalPath;
-        
+        public string Guid;
+        public string OriginalPath;
+
         public ImportedFileInfo(string guid, string originalPath)
         {
-            this.guid = guid;
-            this.originalPath = originalPath;
+            Guid = guid;
+            OriginalPath = originalPath;
         }
     }
 }

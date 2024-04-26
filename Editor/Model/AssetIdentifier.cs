@@ -4,15 +4,9 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    
     [Serializable]
-    internal class AssetIdentifier : IEquatable<AssetIdentifier>
+    class AssetIdentifier : IEquatable<AssetIdentifier>
     {
-        public string assetId => m_AssetId;
-        public string version => m_Version;
-        public string organizationId => m_OrganizationId;
-        public string projectId => m_ProjectId;
-
         [SerializeField]
         string m_AssetId;
 
@@ -25,9 +19,12 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         string m_ProjectId;
 
-        public AssetIdentifier()
-        {
-        }
+        public string AssetId => m_AssetId;
+        public string Version => m_Version;
+        public string OrganizationId => m_OrganizationId;
+        public string ProjectId => m_ProjectId;
+
+        public AssetIdentifier() { }
 
         public AssetIdentifier(AssetDescriptor descriptor)
         {
@@ -45,50 +42,67 @@ namespace Unity.AssetManager.Editor
             m_ProjectId = projectId;
         }
 
-        public virtual bool IsIdValid() => !string.IsNullOrEmpty(m_AssetId);
+        public virtual bool Equals(AssetIdentifier other)
+        {
+            if (ReferenceEquals(null, other))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(this, other))
+            {
+                return true;
+            }
+
+            return IsSameId(m_OrganizationId, other.m_OrganizationId)
+                && IsSameId(m_ProjectId, other.m_ProjectId)
+                && IsSameId(m_AssetId, other.m_AssetId)
+                && IsSameId(m_Version, other.m_Version);
+        }
+
+        public virtual bool IsIdValid()
+        {
+            return !string.IsNullOrEmpty(m_AssetId);
+        }
 
         static bool IsSameId(string str1, string str2)
         {
             return (str1 ?? string.Empty) == (str2 ?? string.Empty);
         }
 
-        public virtual bool Equals(AssetIdentifier other)
-        {
-            if (ReferenceEquals(null, other)) return false;
-            if (ReferenceEquals(this, other)) return true;
-            return IsSameId(m_OrganizationId, other.m_OrganizationId)
-                   && IsSameId(m_ProjectId, other.m_ProjectId)
-                   && IsSameId(m_AssetId, other.m_AssetId)
-                   && IsSameId(m_Version, other.m_Version);
-        }
-
         public override bool Equals(object obj)
         {
             if (ReferenceEquals(null, obj))
+            {
                 return false;
+            }
 
             if (ReferenceEquals(this, obj))
+            {
                 return true;
+            }
 
             if (obj.GetType() != GetType())
+            {
                 return false;
+            }
 
             return Equals((AssetIdentifier)obj);
         }
 
         public override int GetHashCode()
         {
-            var orgIdHash = (organizationId ?? string.Empty).GetHashCode();
-            var projIdHash = (projectId ?? string.Empty).GetHashCode();
-            var assetIdHash = (assetId ?? string.Empty).GetHashCode();
-            var versionHash = (version ?? string.Empty).GetHashCode();
+            var orgIdHash = (OrganizationId ?? string.Empty).GetHashCode();
+            var projIdHash = (ProjectId ?? string.Empty).GetHashCode();
+            var assetIdHash = (AssetId ?? string.Empty).GetHashCode();
+            var versionHash = (Version ?? string.Empty).GetHashCode();
 
             return HashCode.Combine(orgIdHash, projIdHash, assetIdHash, versionHash);
         }
 
         public override string ToString()
         {
-            return $"[Org:{organizationId}, Proj:{m_ProjectId}, Id:{m_AssetId}, Ver:{m_Version}]";
+            return $"[Org:{OrganizationId}, Proj:{m_ProjectId}, Id:{m_AssetId}, Ver:{m_Version}]";
         }
 
         public AssetDescriptor ToAssetDescriptor()

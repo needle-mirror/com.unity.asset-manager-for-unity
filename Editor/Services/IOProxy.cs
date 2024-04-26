@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IIOProxy : IService
+    interface IIOProxy : IService
     {
         bool FileExists(string filePath);
         void FileMove(string sourceFilePath, string destinationFilePath);
@@ -25,9 +25,17 @@ namespace Unity.AssetManager.Editor
         FileStream Create(string path, int bufferSize, FileOptions options) => File.Create(path, bufferSize, options);
     }
 
-    internal class IOProxy : BaseService<IIOProxy>, IIOProxy
+    class IOProxy : BaseService<IIOProxy>, IIOProxy
     {
-        public bool FileExists(string filePath) => File.Exists(filePath);
+        string m_FullAssetsFolderPath;
+
+        string FullAssetsFolderPath =>
+            m_FullAssetsFolderPath ??= Path.GetFullPath(Path.Combine(Application.dataPath, "../"));
+
+        public bool FileExists(string filePath)
+        {
+            return File.Exists(filePath);
+        }
 
         public void FileMove(string sourceFilePath, string destinationFilePath)
         {
@@ -35,12 +43,11 @@ namespace Unity.AssetManager.Editor
             File.Move(sourceFilePath, destinationFilePath);
         }
 
-        private static bool DirectoryEmpty(DirectoryInfo directoryInfo) => !directoryInfo.EnumerateFiles().Any() && !directoryInfo.EnumerateDirectories().Any();
-
         public void DeleteFileIfExists(string filePath, bool recursivelyRemoveEmptyParentFolders = false)
         {
             if (!File.Exists(filePath))
                 return;
+
             File.Delete(filePath);
 
             if (!recursivelyRemoveEmptyParentFolders)
@@ -74,18 +81,20 @@ namespace Unity.AssetManager.Editor
 
         public IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption) => Directory.EnumerateFiles(path, searchPattern, searchOption);
 
-        private string m_FullAssetsFolderPath;
-        private string fullAssetsFolderPath => m_FullAssetsFolderPath ??= Path.GetFullPath(Path.Combine(Application.dataPath, "../"));
         public string GetRelativePathToProjectFolder(string path)
         {
             // It was seen that when using this in conjunction with some Unity APIs (e.g. SceneManager.GetScenePath)
             // it was not working because of backslashes, so we normalize it to forward instead here
-            return path.StartsWith(fullAssetsFolderPath) ? path.Substring(fullAssetsFolderPath.Length).Replace(Path.DirectorySeparatorChar, '/') : path;
+            return path.StartsWith(FullAssetsFolderPath) ?
+                path.Substring(FullAssetsFolderPath.Length).Replace(Path.DirectorySeparatorChar, '/') :
+                path;
         }
 
         public string GetUniqueTempPathInProject() => FileUtil.GetUniqueTempPathInProject();
 
         public bool DeleteAllFilesAndFoldersFromDirectory(string path) => Utilities.DeleteAllFilesAndFoldersFromDirectory(path);
         public FileStream Create(string path, int bufferSize, FileOptions options) => File.Create(path, bufferSize, options);
+
+        static bool DirectoryEmpty(DirectoryInfo directoryInfo) => !directoryInfo.EnumerateFiles().Any() && !directoryInfo.EnumerateDirectories().Any();
     }
 }

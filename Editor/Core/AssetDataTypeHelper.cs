@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -38,39 +38,39 @@ namespace Unity.AssetManager.Editor
 
     class UnityTypeDescriptor
     {
-        public UnityAssetType type;
-        public HashSet<string> extensions;
-        public IconSource iconSource;
-        public string iconStr;
+        public HashSet<string> Extensions;
+        public IconSource IconSource;
+        public string IconStr;
+        public UnityAssetType Type;
 
         public UnityTypeDescriptor(UnityAssetType type, params string[] ext)
         {
-            this.type = type;
-            extensions = new HashSet<string>(ext);
-            iconSource = IconSource.Default;
-            iconStr = string.Empty;
+            Type = type;
+            Extensions = new HashSet<string>(ext);
+            IconSource = IconSource.Default;
+            IconStr = string.Empty;
         }
 
         public UnityTypeDescriptor(UnityAssetType type, IconSource iconSource, string iconStr, params string[] ext)
         {
-            this.type = type;
-            extensions = new HashSet<string>(ext);
-            this.iconSource = iconSource;
-            this.iconStr = iconStr;
+            Type = type;
+            Extensions = new HashSet<string>(ext);
+            IconSource = iconSource;
+            IconStr = iconStr;
         }
 
         public Texture2D GetIcon()
         {
-            switch (iconSource)
+            switch (IconSource)
             {
                 case IconSource.Typename:
-                    return AssetDataTypeHelper.GetIconFromType(iconStr);
+                    return AssetDataTypeHelper.GetIconFromType(IconStr);
                 case IconSource.Resource:
-                    return AssetDataTypeHelper.GetIconFromResource(iconStr);
+                    return AssetDataTypeHelper.GetIconFromResource(IconStr);
                 case IconSource.TextureName:
-                    return AssetDataTypeHelper.GetIconFromTextureName(iconStr);
+                    return AssetDataTypeHelper.GetIconFromTextureName(IconStr);
                 default:
-                    return InternalEditorUtility.GetIconForFile(extensions.FirstOrDefault());
+                    return InternalEditorUtility.GetIconForFile(Extensions.FirstOrDefault());
             }
         }
     }
@@ -85,29 +85,38 @@ namespace Unity.AssetManager.Editor
             new UnityTypeDescriptor(UnityAssetType.Mesh, ".3df", ".3dm", ".3dmf", ".3ds", ".3dv", ".3dx",
                 ".blend", ".c4d", ".fbx", ".lwo", ".lws", ".ma", ".max", ".mb", ".mesh", ".obj", ".vrl", ".wrl",
                 ".wrz"),
-            new UnityTypeDescriptor(UnityAssetType.Mesh, IconSource.Resource, "Packages/com.unity.cloud.gltfast/Editor/UI/gltf-icon-bug.png", ".glb", ".gltf"),
+            new UnityTypeDescriptor(UnityAssetType.Mesh, IconSource.Resource,
+                "Packages/com.unity.cloud.gltfast/Editor/UI/gltf-icon-bug.png", ".glb", ".gltf"),
             new UnityTypeDescriptor(UnityAssetType.Material, ".mat"),
-            new UnityTypeDescriptor(UnityAssetType.AnimationClip, IconSource.TextureName, "d_AnimationClip Icon", ".anim"),
+            new UnityTypeDescriptor(UnityAssetType.AnimationClip, IconSource.TextureName, "d_AnimationClip Icon",
+                ".anim"),
             new UnityTypeDescriptor(UnityAssetType.AudioClip, ".aac", ".aif", ".aiff", ".au", ".flac", ".mid",
                 ".midi", ".mp3", ".mpa", ".ogg", ".ra", ".ram", ".wav", ".wave", ".wma"),
             new UnityTypeDescriptor(UnityAssetType.AudioMixer, ".mixer"),
-            new UnityTypeDescriptor(UnityAssetType.Font, ".fnt", ".fon", ".otf", ".ttf",".ttc"),
+            new UnityTypeDescriptor(UnityAssetType.Font, ".fnt", ".fon", ".otf", ".ttf", ".ttc"),
             new UnityTypeDescriptor(UnityAssetType.PhysicMaterial, ".physicmaterial"),
             new UnityTypeDescriptor(UnityAssetType.Script, ".cs"),
             new UnityTypeDescriptor(UnityAssetType.Shader, ".shader"),
-            new UnityTypeDescriptor(UnityAssetType.Shader, IconSource.Resource, "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_graph_icon.png", ".shadergraph"),
-            new UnityTypeDescriptor(UnityAssetType.Shader, IconSource.Resource, "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_subgraph_icon.png", ".shadersubgraph"),
+            new UnityTypeDescriptor(UnityAssetType.Shader, IconSource.Resource,
+                "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_graph_icon.png", ".shadergraph"),
+            new UnityTypeDescriptor(UnityAssetType.Shader, IconSource.Resource,
+                "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_subgraph_icon.png", ".shadersubgraph"),
             new UnityTypeDescriptor(UnityAssetType.Texture, ".ai", ".apng", ".bmp", ".cdr", ".dib", ".eps",
                 ".exif", ".exr", ".gif", ".hdr", ".ico", ".icon", ".j", ".j2c", ".j2k", ".jas", ".jiff", ".jng", ".jp2",
                 ".jpc", ".jpe", ".jpeg", ".jpf", ".jpg", ".jpw", ".jpx", ".jtf", ".mac", ".omf", ".png", ".psd", ".qif",
                 ".qti", ".qtif", ".tex", ".tfw", ".tga", ".tif", ".tiff", ".wmf"),
-            new UnityTypeDescriptor(UnityAssetType.VisualEffect, IconSource.Typename, "UnityEngine.VFX.VisualEffectAsset", ".vfx"),
-            new UnityTypeDescriptor(UnityAssetType.Other, IconSource.Typename, "UnityEngine.Timeline.TimelineAsset", ".playable"),
-            new UnityTypeDescriptor(UnityAssetType.Other, IconSource.TextureName,"d_AnimatorController Icon", ".controller"),
+            new UnityTypeDescriptor(UnityAssetType.VisualEffect, IconSource.Typename,
+                "UnityEngine.VFX.VisualEffectAsset", ".vfx"),
+            new UnityTypeDescriptor(UnityAssetType.Other, IconSource.Typename, "UnityEngine.Timeline.TimelineAsset",
+                ".playable"),
+            new UnityTypeDescriptor(UnityAssetType.Other, IconSource.TextureName, "d_AnimatorController Icon",
+                ".controller"),
             new UnityTypeDescriptor(UnityAssetType.Other, IconSource.TextureName, "d_SceneAsset Icon", ".unitypackage")
         };
 
         static Dictionary<string, UnityTypeDescriptor> s_ExtensionToUnityTypeDescriptor;
+
+        static Texture2D DefaultIcon => InternalEditorUtility.GetIconForFile(string.Empty);
 
         public static string GetAssetPrimaryExtension(IEnumerable<string> extensions)
         {
@@ -130,13 +139,15 @@ namespace Unity.AssetManager.Editor
             }
 
             if (assetExtensions.Count == 0)
+            {
                 return null;
+            }
 
             foreach (var unityTypeDescriptor in k_UnityTypeDescriptors)
             {
                 foreach (var extension in assetExtensions)
                 {
-                    if (unityTypeDescriptor.type == GetUnityAssetType(extension))
+                    if (unityTypeDescriptor.Type == GetUnityAssetType(extension))
                     {
                         return extension;
                     }
@@ -170,14 +181,34 @@ namespace Unity.AssetManager.Editor
 
         public static UnityAssetType GetUnityAssetType(string extension)
         {
+            if (string.IsNullOrEmpty(extension))
+            {
+                return UnityAssetType.Other;
+            }
+
             InitializeExtensionToUnityTypeDescriptor();
 
             if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var descriptor))
             {
-                return descriptor.type;
+                return descriptor.Type;
             }
 
             return UnityAssetType.Other;
+        }
+
+        public static Regex GetRegexForExtensions(UnityAssetType type)
+        {
+            var pattern = string.Empty;
+            var extensions = k_UnityTypeDescriptors.FirstOrDefault(x => x.Type == type)?.Extensions;
+
+            foreach (var extension in extensions)
+            {
+                pattern += $"|{extension}";
+            }
+
+            pattern = pattern.Substring(1);
+
+            return new Regex($".*({pattern})", RegexOptions.IgnoreCase);
         }
 
         static void InitializeExtensionToUnityTypeDescriptor()
@@ -188,7 +219,7 @@ namespace Unity.AssetManager.Editor
             s_ExtensionToUnityTypeDescriptor = new Dictionary<string, UnityTypeDescriptor>();
             foreach (var unityTypeDescriptor in k_UnityTypeDescriptors)
             {
-                foreach (var ext in unityTypeDescriptor.extensions)
+                foreach (var ext in unityTypeDescriptor.Extensions)
                 {
                     s_ExtensionToUnityTypeDescriptor[ext] = unityTypeDescriptor;
                 }
@@ -227,7 +258,9 @@ namespace Unity.AssetManager.Editor
         static Texture2D GetIconFromType(Type type)
         {
             if (type == null)
+            {
                 return DefaultIcon;
+            }
 
             return FindTextureByType().Invoke(null, new object[] { type }) as Texture2D;
         }
@@ -248,7 +281,5 @@ namespace Unity.AssetManager.Editor
             var texture = EditorGUIUtility.IconContent(textureName).image as Texture2D;
             return texture != null ? texture : DefaultIcon;
         }
-
-        static Texture2D DefaultIcon => InternalEditorUtility.GetIconForFile(string.Empty);
     }
 }

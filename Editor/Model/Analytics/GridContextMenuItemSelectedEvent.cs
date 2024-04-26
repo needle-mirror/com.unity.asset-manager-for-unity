@@ -3,7 +3,7 @@ using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Editor
 {
-    class GridContextMenuItemSelectedEvent: IBaseEvent
+    class GridContextMenuItemSelectedEvent : IBaseEvent
     {
         public enum ContextMenuItemType
         {
@@ -12,7 +12,10 @@ namespace Unity.AssetManager.Editor
             CancelImport,
             Remove,
             ShowInProject,
-            ShowInDashboard
+            ShowInDashboard,
+            IgnoreUploadedAsset,
+            ImportAll,
+            RemoveAll
         }
 
         [Serializable]
@@ -25,7 +28,7 @@ namespace Unity.AssetManager.Editor
             public string ContextMenuItemSelected;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "GridContextMenuItemSelected";
+        const string k_EventName = AnalyticsSender.EventPrefix + "GridContextMenuItemSelected";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -35,14 +38,14 @@ namespace Unity.AssetManager.Editor
 
         internal GridContextMenuItemSelectedEvent(ContextMenuItemType itemType)
         {
-            m_Data = new GridContextMenuItemSelectedEventData()
+            m_Data = new GridContextMenuItemSelectedEventData
             {
                 ContextMenuItemSelected = itemType.ToString()
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class GridContextMenuItemSelectedEventAnalytic : IAnalytic
         {
             GridContextMenuItemSelectedEventData m_Data;
@@ -69,4 +72,3 @@ namespace Unity.AssetManager.Editor
 #endif
     }
 }
-

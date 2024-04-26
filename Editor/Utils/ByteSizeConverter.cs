@@ -1,6 +1,8 @@
-﻿namespace Unity.AssetManager.Editor
+﻿using System;
+
+namespace Unity.AssetManager.Editor
 {
-    internal static class ByteSizeConverter
+    static class ByteSizeConverter
     {
         const double m_BytesToMb = 1_048_576; // 1024 * 1024;
         const double m_BytesToGb = 1_073_741_824; // 1024 * 1024 * 1024;
@@ -12,9 +14,9 @@
         /// <returns>the converted megabytes</returns>
         public static double ConvertBytesToMb(double bytes)
         {
-            return  bytes <= 0 ? 0 : bytes / m_BytesToMb;
+            return bytes <= 0 ? 0 : bytes / m_BytesToMb;
         }
-        
+
         /// <summary>
         /// Converts bytes to Gbs
         /// </summary>
@@ -22,7 +24,7 @@
         /// <returns>the converted Gb</returns>
         public static double ConvertBytesToGb(double bytes)
         {
-            return  bytes <= 0 ? 0 : bytes / m_BytesToGb;
+            return bytes <= 0 ? 0 : bytes / m_BytesToGb;
         }
     }
 }

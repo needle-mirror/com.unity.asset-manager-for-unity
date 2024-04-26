@@ -1,23 +1,25 @@
-using System.Linq;
+using System;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class SideBarFoldout : Foldout
+    class SideBarFoldout : Foldout
     {
         protected const string k_UnityListViewItemSelected = "unity-list-view__item--selected";
         protected const string k_CheckMarkName = "unity-checkmark";
-        protected bool m_HasChild;
-        protected Toggle m_Toggle;
-        private VisualElement m_CheckMark;
+
+        VisualElement m_CheckMark;
 
         protected readonly IPageManager m_PageManager;
-        protected readonly IStateManager m_StateManager;
         protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        protected readonly IStateManager m_StateManager;
+        protected bool m_HasChild;
+        protected Toggle m_Toggle;
 
-        public SideBarFoldout(IPageManager pageManager, IStateManager stateManager, IProjectOrganizationProvider projectOrganizationProvider, string foldoutName)
+        protected SideBarFoldout(IPageManager pageManager, IStateManager stateManager,
+            IProjectOrganizationProvider projectOrganizationProvider, string foldoutName)
         {
             m_PageManager = pageManager;
             m_StateManager = stateManager;
@@ -32,8 +34,8 @@ namespace Unity.AssetManager.Editor
 
             var iconParent = this.Q(className: inputUssClassName);
             iconParent.pickingMode = PickingMode.Ignore;
-            iconParent.Insert(1, new ToolbarSpacer { pickingMode = PickingMode.Ignore, style = { flexShrink = 0}});
-            iconParent.Insert(1, new Image { pickingMode = PickingMode.Ignore, style = { flexShrink = 0}});
+            iconParent.Insert(1, new ToolbarSpacer { pickingMode = PickingMode.Ignore, style = { flexShrink = 0 } });
+            iconParent.Insert(1, new Image { pickingMode = PickingMode.Ignore, style = { flexShrink = 0 } });
 
             MakeFolderOnlyOpenOnCheckMarkClick();
             AddToClassList("removed-arrow");
@@ -44,13 +46,13 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            OnRefresh(m_PageManager.activePage);
-            m_PageManager.onActivePageChanged += OnRefresh;
+            OnRefresh(m_PageManager.ActivePage);
+            m_PageManager.ActivePageChanged += OnRefresh;
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged -= OnRefresh;
+            m_PageManager.ActivePageChanged -= OnRefresh;
         }
 
         protected virtual void OnRefresh(IPage page) { }
@@ -75,7 +77,7 @@ namespace Unity.AssetManager.Editor
             AddToClassList("removed-arrow");
         }
 
-        private void MakeFolderOnlyOpenOnCheckMarkClick()
+        void MakeFolderOnlyOpenOnCheckMarkClick()
         {
             var label = m_Toggle.Q<Label>();
             label.pickingMode = PickingMode.Ignore;

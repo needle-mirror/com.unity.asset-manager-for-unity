@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Editor
 {
@@ -13,6 +14,7 @@ namespace Unity.AssetManager.Editor
     {
         string Name { get; }
         string Guid { get; }
+        bool IsIgnored { get; set; }
         Cloud.Assets.AssetType CloudType { get; }
         IReadOnlyCollection<string> Tags { get; }
         IReadOnlyCollection<string> Files { get; }
@@ -22,18 +24,14 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class AssetUploadEntry : IUploadAssetEntry
     {
-        public string Name => m_Name;
-        public string Guid => m_Guid;
-        public Cloud.Assets.AssetType CloudType => Cloud.Assets.AssetType.Other; // TODO
-        public IReadOnlyCollection<string> Tags => m_Tags;
-        public IReadOnlyCollection<string> Files => m_Files;
-        public IReadOnlyCollection<string> Dependencies => m_Dependencies;
-
         [SerializeField]
         string m_Name;
 
         [SerializeField]
         string m_Guid;
+
+        [SerializeField]
+        bool m_Ignored;
 
         [SerializeField]
         List<string> m_Tags;
@@ -44,12 +42,23 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         List<string> m_Dependencies;
 
-        public AssetUploadEntry(string assetGuid, bool bundleDependencies)
+        public string Name => m_Name;
+        public string Guid => m_Guid;
+        public Cloud.Assets.AssetType CloudType => Cloud.Assets.AssetType.Other; // TODO
+        public IReadOnlyCollection<string> Tags => m_Tags;
+        public IReadOnlyCollection<string> Files => m_Files;
+        public IReadOnlyCollection<string> Dependencies => m_Dependencies;
+        public bool IsIgnored
+        {
+            get => m_Ignored;
+            set => m_Ignored = value;
+        }
+
+        public AssetUploadEntry(string assetGuid, bool bundleDependencies, List<string> ignoredGuilds)
         {
             var assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
             m_Name = Path.GetFileNameWithoutExtension(assetPath);
             m_Guid = assetGuid;
-
             m_Tags = ExtractTags(assetPath).ToList();
 
             m_Files = new List<string>();
@@ -59,6 +68,9 @@ namespace Unity.AssetManager.Editor
             {
                 foreach (var dependencyPath in AssetDatabase.GetDependencies(assetPath, true))
                 {
+                    if (ignoredGuilds.Contains(AssetDatabase.AssetPathToGUID(dependencyPath)))
+                        continue;
+
                     if (m_Files.Contains(dependencyPath))
                         continue;
 
@@ -92,7 +104,7 @@ namespace Unity.AssetManager.Editor
 
         static IEnumerable<string> ExtractTags(string assetPath)
         {
-            var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+            var asset = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
 
             yield return asset.GetType().Name;
 
@@ -149,7 +161,9 @@ namespace Unity.AssetManager.Editor
             var match = Regex.Match(input, @"packages/(.*?)/");
 
             if (!match.Success)
+            {
                 return false;
+            }
 
             packageName = match.Groups[1].Value.Replace("com.unity.", "");
             return true;

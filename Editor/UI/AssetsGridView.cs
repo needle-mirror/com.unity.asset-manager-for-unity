@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
+using System.Net;
+using Unity.Cloud.Identity;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -11,7 +14,7 @@ namespace Unity.AssetManager.Editor
         void BindWithItem(IAssetData assetData);
     }
 
-    internal class AssetsGridView : VisualElement
+    class AssetsGridView : VisualElement
     {
         readonly GridView m_Gridview;
         readonly GridErrorOrMessageView m_GridErrorOrMessageView;
@@ -37,7 +40,7 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
-            m_Gridview.onGridViewLastItemVisible += OnLastGridViewItemVisible;
+            m_Gridview.GridViewLastItemVisible += OnLastGridViewItemVisible;
             Add(m_Gridview);
 
             m_GridErrorOrMessageView = new GridErrorOrMessageView(pageManager, projectOrganizationProvider, linksProxy);
@@ -55,53 +58,69 @@ namespace Unity.AssetManager.Editor
 
         internal void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_UnityConnect.onUserLoginStateChange += OnUserLoginStateChange;
-            m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
+            Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
-            m_PageManager.onActivePageChanged += OnActivePageChanged;
-            m_PageManager.onLoadingStatusChanged += OnLoadingStatusChanged;
-
-            m_AssetDataManager.onImportedAssetInfoChanged += OnImportedAssetInfoChanged;
-            m_PageManager.onErrorOrMessageThrown += OnErrorOrMessageThrown;
+            m_PageManager.ActivePageChanged += OnActivePageChanged;
+            m_PageManager.LoadingStatusChanged += OnLoadingStatusChanged;
+            m_PageManager.ErrorOrMessageThrown += OnErrorOrMessageThrown;
 
             Refresh();
         }
 
         internal void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_UnityConnect.onUserLoginStateChange -= OnUserLoginStateChange;
-            m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
+            Services.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
-            m_PageManager.onActivePageChanged -= OnActivePageChanged;
-            m_PageManager.onLoadingStatusChanged -= OnLoadingStatusChanged;
-
-            m_AssetDataManager.onImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
-            m_PageManager.onErrorOrMessageThrown -= OnErrorOrMessageThrown;
+            m_PageManager.ActivePageChanged -= OnActivePageChanged;
+            m_PageManager.LoadingStatusChanged -= OnLoadingStatusChanged;
+            m_PageManager.ErrorOrMessageThrown -= OnErrorOrMessageThrown;
         }
 
-        private void OnUserLoginStateChange(bool isUserInfoReady, bool isUserLoggedIn)
+        void OnAuthenticationStateChanged()
         {
             Refresh();
         }
 
-        private void OnActivePageChanged(IPage page)
+        void OnActivePageChanged(IPage page)
         {
             Refresh();
         }
 
-        private VisualElement MakeGridViewItem()
+        VisualElement MakeGridViewItem()
         {
-            var item = new GridItem(m_AssetOperationManager, m_PageManager);
+            var item = new GridItem(m_AssetOperationManager, m_PageManager, m_AssetDataManager);
 
-            item.Clicked += () =>
+            item.Clicked += e =>
             {
-                m_PageManager.activePage.selectedAssetId = item.AssetData.identifier;
+                if(e.target is Toggle)
+                    return;
+
+                if ((e.modifiers & EventModifiers.Shift) != 0)
+                {
+                    var lastSelectedItemIndex = m_PageManager.ActivePage.AssetList.ToList()
+                        .FindIndex(x => x.Identifier.Equals(m_PageManager.ActivePage.LastSelectedAssetId));
+                    var newSelectedItemIndex = m_PageManager.ActivePage.AssetList.ToList().IndexOf(item.AssetData);
+
+                    var selectedAssets =
+                        m_PageManager.ActivePage.AssetList.ToList()
+                            .GetRange(Mathf.Min(lastSelectedItemIndex, newSelectedItemIndex),
+                                Mathf.Abs(newSelectedItemIndex - lastSelectedItemIndex) + 1);
+
+                    m_PageManager.ActivePage.SelectAssets(selectedAssets.Select(x => x.Identifier).ToList());
+                }
+                else
+                {
+                    m_PageManager.ActivePage.SelectAsset(item.AssetData.Identifier,
+                        (e.modifiers & (EventModifiers.Command | EventModifiers.Control)) != 0);
+                }
             };
 
             return item;
         }
 
-        private void BindGridViewItem(VisualElement element, int index)
+        void BindGridViewItem(VisualElement element, int index)
         {
             var assetList = m_Gridview.ItemsSource as IList<IAssetData> ?? Array.Empty<IAssetData>();
             if (index < 0 || index >= assetList.Count)
@@ -113,48 +132,35 @@ namespace Unity.AssetManager.Editor
             item.BindWithItem(assetId);
         }
 
-        private void Refresh()
+        void Refresh()
         {
             UIElementsUtils.Hide(m_Gridview);
 
-            var page = m_PageManager.activePage;
+            var page = m_PageManager.ActivePage;
 
             // The order matters since page is null if there is a Project Level error
-            if (!m_UnityConnect.isUserLoggedIn || m_GridErrorOrMessageView.Refresh() || page == null)
+            if (!Services.AuthenticationState.Equals(AuthenticationState.LoggedIn) || m_GridErrorOrMessageView.Refresh() || page == null)
                 return;
 
             UIElementsUtils.Show(m_Gridview);
 
-            var assetList = page.assetList.ToList();
-            if (assetList.Count == 0 && page.hasMoreItems)
-            {
-                ClearGrid();
-                return;
-            }
-
-            m_Gridview.ItemsSource = assetList;
-            m_Gridview.Refresh();
+            m_Gridview.ItemsSource = page.AssetList.ToList();
+            m_Gridview.Refresh(GridView.RefreshRowsType.ResizeGridWidth);
         }
 
         void ClearGrid()
         {
             m_Gridview.ItemsSource = Array.Empty<IAssetData>();
-            m_Gridview.Refresh();
+            m_Gridview.Refresh(GridView.RefreshRowsType.ClearGrid);
             m_Gridview.ResetScrollBarTop();
         }
 
-        private void OnImportedAssetInfoChanged(AssetChangeArgs args)
+        void OnLoadingStatusChanged(IPage page, bool isLoading)
         {
-            //TODO: PAX-2990 Replace with individual item refresh
-            Refresh();
-        }
-
-        private void OnLoadingStatusChanged(IPage page, bool isLoading)
-        {
-            if (!page.isActivePage)
+            if (!page.IsActivePage)
                 return;
 
-            bool hasAsset = page.assetList?.Any() ?? false;
+            var hasAsset = page.AssetList?.Any() ?? false;
 
             if (isLoading)
             {
@@ -166,30 +172,30 @@ namespace Unity.AssetManager.Editor
                 m_LoadingBar.Hide();
             }
 
-            if (!page.isLoading || !hasAsset)
+            if (!page.IsLoading || !hasAsset)
             {
                 Refresh();
             }
         }
 
-        private void OnLastGridViewItemVisible()
+        void OnLastGridViewItemVisible()
         {
-            var page = m_PageManager.activePage;
-            if (page is { hasMoreItems: true, isLoading: false })
+            var page = m_PageManager.ActivePage;
+            if (page is { CanLoadMoreItems: true, IsLoading: false })
             {
                 page.LoadMore();
             }
         }
 
-        private void OnErrorOrMessageThrown(IPage page, ErrorOrMessageHandlingData _)
+        void OnErrorOrMessageThrown(IPage page, ErrorOrMessageHandlingData _)
         {
-            if (!page.isActivePage)
+            if (!page.IsActivePage)
                 return;
 
             Refresh();
         }
 
-        private void OrganizationChanged(OrganizationInfo organization)
+        void OnOrganizationChanged(OrganizationInfo organization)
         {
             Refresh();
         }

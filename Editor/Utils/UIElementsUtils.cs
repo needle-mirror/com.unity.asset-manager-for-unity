@@ -10,26 +10,31 @@ namespace Unity.AssetManager.Editor
     /// <summary>
     /// An utility class for common UIElements setup method
     /// </summary>
-    internal static class UIElementsUtils
+    static class UIElementsUtils
     {
-        internal static readonly string uiResourcesLocation = $"Packages/{Constants.PackageName}/Editor/Resources/";
         const string k_Icon = "Package-Icon.png";
+        static readonly string s_UIResourcesLocation = $"Packages/{Constants.PackageName}/Editor/Resources/";
 
         internal static Texture GetPackageIcon()
         {
-            return AssetDatabase.LoadAssetAtPath(Path.Combine(uiResourcesLocation, "Images", EditorGUIUtility.isProSkin ? "Dark" : "Light", k_Icon), typeof(Texture)) as Texture;
+            return AssetDatabase.LoadAssetAtPath(
+                Path.Combine(s_UIResourcesLocation, "Images", EditorGUIUtility.isProSkin ? "Dark" : "Light", k_Icon),
+                typeof(Texture)) as Texture;
         }
 
         internal static Texture GetCategoryIcon(string filename)
         {
-            return AssetDatabase.LoadAssetAtPath(Path.Combine(uiResourcesLocation, "Images", EditorGUIUtility.isProSkin ? "Dark" : "Light", filename), typeof(Texture)) as Texture;
+            return AssetDatabase.LoadAssetAtPath(
+                Path.Combine(s_UIResourcesLocation, "Images", EditorGUIUtility.isProSkin ? "Dark" : "Light", filename),
+                typeof(Texture)) as Texture;
         }
 
-        internal static Button SetupButton(string buttonName, Action onClickAction, bool isEnabled, VisualElement parent, string text = "", string tooltip = "", bool showIfEnabled = true)
+        internal static Button SetupButton(string buttonName, Action clickAction, bool isEnabled,
+            VisualElement parent, string text = "", string tooltip = "", bool showIfEnabled = true)
         {
             Button button = parent.Query<Button>(buttonName);
             button.SetEnabled(isEnabled);
-            button.clickable = new Clickable(() => onClickAction?.Invoke());
+            button.clickable = new Clickable(() => clickAction?.Invoke());
             button.text = text;
             button.tooltip = string.IsNullOrEmpty(tooltip) ? button.text : tooltip;
 
@@ -41,7 +46,8 @@ namespace Unity.AssetManager.Editor
             return button;
         }
 
-        internal static Label SetupLabel(string labelName, string text, VisualElement parent, Manipulator manipulator = null)
+        internal static Label SetupLabel(string labelName, string text, VisualElement parent,
+            Manipulator manipulator = null)
         {
             Label label = parent.Query<Label>(labelName);
             label.text = text;
@@ -53,12 +59,13 @@ namespace Unity.AssetManager.Editor
             return label;
         }
 
-        internal static ToolbarSearchField SetupToolbarSearchField(string name, EventCallback<ChangeEvent<string>> onValueChanged, VisualElement parent)
+        internal static ToolbarSearchField SetupToolbarSearchField(string name,
+            EventCallback<ChangeEvent<string>> valueChangedCallback, VisualElement parent)
         {
             var uxmlField = parent.Q<ToolbarSearchField>(name);
             uxmlField.value = string.Empty;
             uxmlField.SetEnabled(true);
-            uxmlField.RegisterCallback(onValueChanged);
+            uxmlField.RegisterCallback(valueChangedCallback);
             return uxmlField;
         }
 
@@ -77,7 +84,7 @@ namespace Unity.AssetManager.Editor
 
             element.style.display = DisplayStyle.Flex;
         }
-        
+
         internal static void SetDisplay(VisualElement element, bool displayed)
         {
             if (displayed)
@@ -90,9 +97,14 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        internal static bool IsDisplayed(VisualElement element)
+        {
+            return element.style.display.value == DisplayStyle.Flex;
+        }
+
         internal static VisualTreeAsset LoadUXML(string tabName)
         {
-            var path = $"{uiResourcesLocation}/UXML/{tabName}.uxml";
+            var path = $"{s_UIResourcesLocation}/UXML/{tabName}.uxml";
             return AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(path);
         }
 
@@ -103,10 +115,12 @@ namespace Unity.AssetManager.Editor
 
         internal static void LoadCustomStyleSheet(VisualElement target, string Stylesheet)
         {
-            var styleSheetFilePath = $"{uiResourcesLocation}/StyleSheets/{Stylesheet}.uss";
+            var styleSheetFilePath = $"{s_UIResourcesLocation}/StyleSheets/{Stylesheet}.uss";
             var styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(styleSheetFilePath);
             if (styleSheet != null)
+            {
                 target.styleSheets.Add(styleSheet);
+            }
         }
 
         internal static void RemoveCustomStylesheets(VisualElement target)
@@ -119,11 +133,12 @@ namespace Unity.AssetManager.Editor
 
         internal static VisualElement GetRootVisualElement(VisualElement child)
         {
-            VisualElement currentElement = child;
-            while(currentElement.parent != null)
+            var currentElement = child;
+            while (currentElement.parent != null)
             {
                 currentElement = currentElement.parent;
             }
+
             return currentElement;
         }
     }

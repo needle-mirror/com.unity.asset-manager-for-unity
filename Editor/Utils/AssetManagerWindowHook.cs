@@ -6,10 +6,10 @@ namespace Unity.AssetManager.Editor
     {
         public event Action WindowEnabled;
         public event Action OrganizationLoaded;
-            
+
         public void OpenAssetManagerWindow()
         {
-            if (AssetManagerWindow.instance == null)
+            if (AssetManagerWindow.Instance == null)
             {
                 AssetManagerWindow.Enabled += OnWindowEnabled;
                 AssetManagerWindow.Open();
@@ -39,7 +39,7 @@ namespace Unity.AssetManager.Editor
 
         void OnOrganizationLoaded(OrganizationInfo organization)
         {
-            if (organization?.id == null)
+            if (organization?.Id == null)
                 return;
 
             var provider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();

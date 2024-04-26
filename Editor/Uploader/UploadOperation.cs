@@ -9,24 +9,21 @@ using Unity.Cloud.Assets;
 using Unity.Cloud.Common;
 using UnityEditor;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Editor
 {
     class UploadOperation : AssetDataOperation, IProgress<HttpProgress>
     {
-        readonly IUploadAssetEntry m_UploadEntry;
-
         const int k_MaxConcurrentFileTasks = 10;
         static readonly SemaphoreSlim s_UploadFileSemaphore = new(k_MaxConcurrentFileTasks);
 
+        readonly HashSet<HttpProgress> m_HttpProgresses = new();
+        readonly IUploadAssetEntry m_UploadEntry;
+
         string m_Description;
         float m_Progress;
-        public override AssetIdentifier AssetId => new(null, null, m_UploadEntry.Guid, "1");
-
-        public UploadOperation(IUploadAssetEntry uploadEntry)
-        {
-            m_UploadEntry = uploadEntry;
-        }
+        public override AssetIdentifier AssetId => UploadAssetData.LocalAssetIdentifier(m_UploadEntry.Guid);
 
         public override float Progress => m_Progress;
         public override string OperationName => $"Uploading {Path.GetFileName(m_UploadEntry.Files.First())}";
@@ -34,7 +31,28 @@ namespace Unity.AssetManager.Editor
         public override bool StartIndefinite => true;
         public override bool IsSticky => true;
 
-        public async Task PrepareUploadAsync(IAsset asset, IDictionary<string, IAsset> guidToAssetLookup, CancellationToken token = default)
+        public UploadOperation(IUploadAssetEntry uploadEntry)
+        {
+            m_UploadEntry = uploadEntry;
+        }
+
+        public void Report(HttpProgress value)
+        {
+            if (!m_HttpProgresses.Contains(value))
+            {
+                m_HttpProgresses.Add(value);
+            }
+
+            var totalProgress = m_HttpProgresses.Where(httpProgress => httpProgress.UploadProgress != null)
+                .Sum(httpProgress => httpProgress.UploadProgress.Value);
+
+            totalProgress /= m_HttpProgresses.Count;
+
+            ReportStep($"Uploading {m_UploadEntry.Files.Count} file(s)", totalProgress);
+        }
+
+        public async Task PrepareUploadAsync(IAsset asset, IDictionary<string, IAsset> guidToAssetLookup,
+            CancellationToken token = default)
         {
             var tasks = new List<Task>();
 
@@ -66,7 +84,7 @@ namespace Unity.AssetManager.Editor
             ReportStep("Preparing for upload");
 
             var assetPath = AssetDatabase.GUIDToAssetPath(m_UploadEntry.Guid);
-            var assetInstance = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+            var assetInstance = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
 
             var sourceDataset = await asset.GetSourceDatasetAsync(default);
 
@@ -120,9 +138,9 @@ namespace Unity.AssetManager.Editor
             if (publish && asset.Status != "Published")
             {
                 ReportStep("Publishing cloud asset");
-                await asset.UpdateStatusAsync(AssetStatusAction.SendForReview,default);
+                await asset.UpdateStatusAsync(AssetStatusAction.SendForReview, default);
                 await asset.UpdateStatusAsync(AssetStatusAction.Approve, default);
-                await asset.UpdateStatusAsync(AssetStatusAction.Publish,default);
+                await asset.UpdateStatusAsync(AssetStatusAction.Publish, default);
             }
 
             ReportStep("Done");
@@ -136,26 +154,9 @@ namespace Unity.AssetManager.Editor
             Report();
         }
 
-        static Task<Texture2D> GetThumbnailAsync(UnityEngine.Object asset, string assetPath)
+        static Task<Texture2D> GetThumbnailAsync(Object asset, string assetPath)
         {
             return AssetManagerPreviewer.GenerateAdvancedPreview(asset, assetPath, 512);
-        }
-
-        readonly HashSet<HttpProgress> m_HttpProgresses = new();
-
-        public void Report(HttpProgress value)
-        {
-            if (!m_HttpProgresses.Contains(value))
-            {
-                m_HttpProgresses.Add(value);
-            }
-
-            var totalProgress = m_HttpProgresses.Where(httpProgress => httpProgress.UploadProgress != null)
-                .Sum(httpProgress => httpProgress.UploadProgress.Value);
-
-            totalProgress /= m_HttpProgresses.Count;
-
-            ReportStep($"Uploading {m_UploadEntry.Files.Count} file(s)", totalProgress);
         }
 
         async Task UploadFile(string sourcePath, string destPath, IDataset targetDataset, CancellationToken token)

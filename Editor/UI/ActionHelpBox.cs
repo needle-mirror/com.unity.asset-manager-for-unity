@@ -1,14 +1,17 @@
+using System;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class ActionHelpBox : HelpBox
+    class ActionHelpBox : HelpBox
     {
-        private ErrorOrMessageActionButton m_ErrorOrMessageActionButton;
+        readonly IPageManager m_PageManager;
+        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
-        private readonly IPageManager m_PageManager;
-        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        public ActionHelpBox(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider, ILinksProxy linksProxy)
+        ErrorOrMessageActionButton m_ErrorOrMessageActionButton;
+
+        public ActionHelpBox(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            ILinksProxy linksProxy)
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -25,34 +28,38 @@ namespace Unity.AssetManager.Editor
         // Returns true if help box is visible, otherwise returns false
         public bool Refresh()
         {
-            var notInProject = m_PageManager.activePage is not InProjectPage;
-            var errorHandlingData = string.IsNullOrEmpty(m_ProjectOrganizationProvider.errorOrMessageHandlingData?.message) && notInProject
-                ? m_PageManager.activePage?.errorOrMessageHandlingData
-                : m_ProjectOrganizationProvider.errorOrMessageHandlingData;
+            var notInProject = m_PageManager.ActivePage is not InProjectPage;
+            var errorHandlingData =
+                string.IsNullOrEmpty(m_ProjectOrganizationProvider.ErrorOrMessageHandlingData?.Message) &&
+                notInProject ?
+                    m_PageManager.ActivePage?.ErrorOrMessageHandlingData :
+                    m_ProjectOrganizationProvider.ErrorOrMessageHandlingData;
 
-            if (string.IsNullOrWhiteSpace(errorHandlingData?.message) || notInProject)
+            if (string.IsNullOrWhiteSpace(errorHandlingData?.Message) || notInProject)
             {
                 UIElementsUtils.Hide(this);
                 return false;
             }
+
             UIElementsUtils.Show(this);
 
-            text = errorHandlingData.message;
-            m_ErrorOrMessageActionButton.SetErrorSuggestion(errorHandlingData.errorOrMessageRecommendedAction, string.IsNullOrEmpty(m_ProjectOrganizationProvider.errorOrMessageHandlingData?.message));
+            text = errorHandlingData.Message;
+            m_ErrorOrMessageActionButton.SetErrorSuggestion(errorHandlingData.ErrorOrMessageRecommendedAction,
+                string.IsNullOrEmpty(m_ProjectOrganizationProvider.ErrorOrMessageHandlingData?.Message));
 
             return true;
         }
 
-        private void OnAttachToPanel(AttachToPanelEvent evt)
+        void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged += OnActivePageChanged;
+            m_PageManager.ActivePageChanged += OnActivePageChanged;
         }
 
-        private void OnDetachFromPanel(DetachFromPanelEvent evt)
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged -= OnActivePageChanged;
+            m_PageManager.ActivePageChanged -= OnActivePageChanged;
         }
 
-        private void OnActivePageChanged(IPage page) => Refresh();
+        void OnActivePageChanged(IPage page) => Refresh();
     }
 }

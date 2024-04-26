@@ -1,9 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IDirectoryInfoProxy
+    interface IDirectoryInfoProxy
     {
         string FullName { get; }
         bool Exists { get; }
@@ -13,23 +14,23 @@ namespace Unity.AssetManager.Editor
         void Delete(bool recursive);
     }
 
-    internal interface IDirectoryInfoFactory: IService
+    interface IDirectoryInfoFactory : IService
     {
         IDirectoryInfoProxy Create(string path);
     }
 
-    internal class DirectoryInfoFactory : BaseService<IDirectoryInfoFactory>, IDirectoryInfoFactory
+    class DirectoryInfoFactory : BaseService<IDirectoryInfoFactory>, IDirectoryInfoFactory
     {
         public IDirectoryInfoProxy Create(string path) => new DirectoryInfoProxy(path);
     }
 
-    internal class DirectoryInfoProxy : IDirectoryInfoProxy
+    class DirectoryInfoProxy : IDirectoryInfoProxy
     {
         public string FullName => m_DirectoryInfo.FullName;
         public bool Exists => m_DirectoryInfo.Exists;
-        
+
         readonly DirectoryInfo m_DirectoryInfo;
-        
+
         public DirectoryInfoProxy(string path)
         {
             m_DirectoryInfo = new DirectoryInfo(path);

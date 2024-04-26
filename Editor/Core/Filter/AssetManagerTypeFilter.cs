@@ -1,4 +1,4 @@
-
+using System;
 using Unity.Cloud.Assets;
 
 namespace Unity.AssetManager.Editor
@@ -18,12 +18,12 @@ namespace Unity.AssetManager.Editor
 
         protected override void IncludeFilter(string selection)
         {
-            m_Page.pageFilters.assetFilter.Include().Type.WithValue(selection);
+            m_Page.PageFilters.AssetFilter.Include().Type.WithValue(selection);
         }
 
         protected override void ClearFilter()
         {
-            m_Page.pageFilters.assetFilter.Include().Type.Clear();
+            m_Page.PageFilters.AssetFilter.Include().Type.Clear();
         }
     }
 }

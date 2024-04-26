@@ -1,7 +1,6 @@
 using System;
 using UnityEngine;
 using UnityEngine.Analytics;
-using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Editor
 {
@@ -20,6 +19,11 @@ namespace Unity.AssetManager.Editor
             public int FileCount;
 
             /// <summary>
+            /// File extensions
+            /// </summary>
+            public string[] FileExtensions;
+
+            /// <summary>
             /// If embeded dependency option is used
             /// </summary>
             public bool EmbedDependencies;
@@ -35,7 +39,7 @@ namespace Unity.AssetManager.Editor
             public string UploadMode;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix+"Upload";
+        const string k_EventName = AnalyticsSender.EventPrefix + "Upload";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -43,11 +47,13 @@ namespace Unity.AssetManager.Editor
 
         UploadEventData m_Data;
 
-        internal UploadEvent(int fileCount, bool embedDependency, bool useCollection, AssetUploadMode uploadMode)
+        internal UploadEvent(int fileCount, string[] fileExtensions, bool embedDependency, bool useCollection,
+            AssetUploadMode uploadMode)
         {
-            m_Data = new UploadEventData()
+            m_Data = new UploadEventData
             {
                 FileCount = fileCount,
+                FileExtensions = fileExtensions,
                 EmbedDependencies = embedDependency,
                 UseCollection = useCollection,
                 UploadMode = uploadMode.ToString()
@@ -55,10 +61,10 @@ namespace Unity.AssetManager.Editor
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
-        internal class UploadEventAnalytic : IAnalytic
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        class UploadEventAnalytic : IAnalytic
         {
-          UploadEventData m_Data;
+            UploadEventData m_Data;
 
             public UploadEventAnalytic(UploadEventData data)
             {

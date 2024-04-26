@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal abstract class BaseFilter
+    abstract class BaseFilter
     {
         [SerializeField]
         protected string m_SelectedFilter;
@@ -30,11 +30,11 @@ namespace Unity.AssetManager.Editor
 
         public virtual bool ApplyFilter(string selection)
         {
-            bool reload = selection != SelectedFilter;
+            var reload = selection != SelectedFilter;
 
             if (reload && selection == null)
             {
-                m_Page.pageFilters.RemoveFilter(this);
+                m_Page.PageFilters.RemoveFilter(this);
             }
 
             m_SelectedFilter = selection;

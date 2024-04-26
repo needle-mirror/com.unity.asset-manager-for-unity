@@ -32,17 +32,17 @@ namespace Unity.AssetManager.Editor
             public string Status;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix+"UploadEnd";
+        const string k_EventName = AnalyticsSender.EventPrefix + "UploadEnd";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
         public int EventVersion => k_EventVersion;
 
-       UploadEndEventData m_Data;
+        UploadEndEventData m_Data;
 
         internal UploadEndEvent(UploadEndStatus status, string error = "")
         {
-            m_Data = new UploadEndEventData()
+            m_Data = new UploadEndEventData
             {
                 Status = status.ToString(),
                 ErrorMessage = error
@@ -50,10 +50,10 @@ namespace Unity.AssetManager.Editor
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class UploadEndEventAnalytic : IAnalytic
         {
-           UploadEndEventData m_Data;
+            UploadEndEventData m_Data;
 
             public UploadEndEventAnalytic(UploadEndEventData data)
             {

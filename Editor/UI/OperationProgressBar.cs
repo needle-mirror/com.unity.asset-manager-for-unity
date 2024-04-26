@@ -7,7 +7,7 @@ namespace Unity.AssetManager.Editor
 {
     class OperationProgressBar : VisualElement
     {
-        static class Styles
+        static class UssStyles
         {
             public static readonly string k_ProgressBarContainer = "download-progress-bar-container";
             public static readonly string k_ProgressBarBackground = "download-progress-bar-background";
@@ -19,11 +19,10 @@ namespace Unity.AssetManager.Editor
             public static readonly string k_ProgressBarDetailsPageCancelButton = "details-page-download-cancel-button";
         }
 
+        readonly IVisualElementScheduledItem m_AnimationUpdate;
         readonly VisualElement m_ProgressBar;
 
-        float m_AnimationLeftOffset = 0f;
-        readonly IVisualElementScheduledItem m_AnimationUpdate;
-
+        float m_AnimationLeftOffset;
         bool m_IsIndefinite;
 
         bool IsIndefinite
@@ -60,24 +59,24 @@ namespace Unity.AssetManager.Editor
             Add(progressBarContainer);
             progressBarContainer.Add(m_ProgressBar);
 
-            progressBarContainer.AddToClassList(Styles.k_ProgressBarBackground);
-            m_ProgressBar.AddToClassList(Styles.k_ProgressBarColor);
+            progressBarContainer.AddToClassList(UssStyles.k_ProgressBarBackground);
+            m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarColor);
 
             if (cancelCallback == null)
             {
-                progressBarContainer.AddToClassList(Styles.k_ProgressBarGridItem);
-                progressBarContainer.AddToClassList(Styles.k_ProgressBarContainer);
+                progressBarContainer.AddToClassList(UssStyles.k_ProgressBarGridItem);
+                progressBarContainer.AddToClassList(UssStyles.k_ProgressBarContainer);
             }
             else
             {
                 var cancelButton = new Button();
                 Add(cancelButton);
 
-                AddToClassList(Styles.k_ProgressBarDetailsPageContainer);
-                AddToClassList(Styles.k_ProgressBarContainer);
-                AddToClassList(Styles.k_ProgressBarDetailsPage);
+                AddToClassList(UssStyles.k_ProgressBarDetailsPageContainer);
+                AddToClassList(UssStyles.k_ProgressBarContainer);
+                AddToClassList(UssStyles.k_ProgressBarDetailsPage);
 
-                cancelButton.AddToClassList(Styles.k_ProgressBarDetailsPageCancelButton);
+                cancelButton.AddToClassList(UssStyles.k_ProgressBarDetailsPageCancelButton);
                 cancelButton.RemoveFromClassList("unity-button");
                 cancelButton.tooltip = L10n.Tr(Constants.CancelImportActionText);
                 cancelButton.clicked += cancelCallback.Invoke;
@@ -94,7 +93,8 @@ namespace Unity.AssetManager.Editor
 
             m_AnimationLeftOffset = (m_AnimationLeftOffset + 0.001f * timerState.deltaTime) % 1.0f;
 
-            m_ProgressBar.style.width = Length.Percent(Mathf.Min(m_AnimationLeftOffset + 0.3f, 1.0f - m_AnimationLeftOffset) * 100.0f);
+            m_ProgressBar.style.width =
+                Length.Percent(Mathf.Min(m_AnimationLeftOffset + 0.3f, 1.0f - m_AnimationLeftOffset) * 100.0f);
             m_ProgressBar.style.left = Length.Percent(m_AnimationLeftOffset * 100.0f);
         }
 
@@ -108,13 +108,13 @@ namespace Unity.AssetManager.Editor
 
             if (operation.Status != OperationStatus.Error)
             {
-                m_ProgressBar.AddToClassList(Styles.k_ProgressBarColor);
-                m_ProgressBar.RemoveFromClassList(Styles.k_ProgressBarError);
+                m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarColor);
+                m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarError);
             }
             else
             {
-                m_ProgressBar.RemoveFromClassList(Styles.k_ProgressBarColor);
-                m_ProgressBar.AddToClassList(Styles.k_ProgressBarError);
+                m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
+                m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarError);
             }
 
             if (operation.Status == OperationStatus.InProgress)

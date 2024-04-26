@@ -1,6 +1,8 @@
+using System;
+
 namespace Unity.AssetManager.Editor
 {
-    internal enum CacheValidationResultError
+    enum CacheValidationResultError
     {
         None,
         PathTooLong,
@@ -8,10 +10,10 @@ namespace Unity.AssetManager.Editor
         CannotWriteToDirectory,
         DirectoryNotFound
     }
-    
-    internal class CacheLocationValidationResult
+
+    class CacheLocationValidationResult
     {
-        public bool success { get; set; }
-        public CacheValidationResultError errorType { get; set; }
+        public bool Success { get; set; }
+        public CacheValidationResultError ErrorType { get; set; }
     }
 }

@@ -2,13 +2,13 @@
 
 namespace Unity.AssetManager.Editor
 {
-    internal static class CacheEvaluationEvent
+    static class CacheEvaluationEvent
     {
-        public static event Action<string> evaluateCache = delegate { };
-        
+        public static event Action<string> EvaluateCache = delegate { };
+
         public static void RaiseEvent()
         {
-            evaluateCache?.Invoke(string.Empty);
+            EvaluateCache?.Invoke(string.Empty);
         }
     }
 }

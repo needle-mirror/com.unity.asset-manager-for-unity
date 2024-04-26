@@ -8,93 +8,49 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class GridView : BindableElement, ISerializationCallbackReceiver
+    class GridView : BindableElement, ISerializationCallbackReceiver
     {
-        // Item height/widths are used to calculate the # of rows/columns
-        public const int DefaultItemHeight = 150;
-        public const int DefaultItemWidth = 125;
+        internal enum RefreshRowsType
+        {
+            ClearGrid,
+            RebindGrid,
+            ResizeGridWidth,
+            LoadMoreGridItems
+        }
 
+        public int VisibleRowCount { get; private set; }
+
+        // Item height/widths are used to calculate the # of rows/columns
+        const int k_DefaultItemHeight = 150;
+        const int k_DefaultItemWidth = 125;
         const int k_ExtraVisibleRows = 2;
         const float k_FooterHeight = 40;
-        const float k_MinSidePadding = DefaultItemWidth / 2f;
-        int m_MaxVisibleItems;
-        internal event Action onGridViewLastItemVisible;
+        const float k_MinSidePadding = k_DefaultItemWidth / 2f;
 
+        int m_MaxVisibleItems;
         readonly ScrollView m_ScrollView;
-        float m_ScrollOffset;
         float m_LastHeight;
-        
-        readonly Stopwatch m_Stopwatch = new ();
+        readonly Stopwatch m_Stopwatch = new();
 
         // we keep this list in order to minimize temporary gc allocs
-        List<RecycledRow> m_ScrollInsertionList = new ();
+        List<RecycledRow> m_ScrollInsertionList = new();
 
-        Action<VisualElement, int> bindItem;
-        Func<VisualElement> makeItem;
+        Action<VisualElement, int> m_BindItemCallback;
+        Func<VisualElement> m_MakeItemFunc;
 
         IList m_ItemsSource;
         int m_FirstVisibleIndex;
 
-        List<RecycledRow> m_RowPool = new List<RecycledRow>();
-        public int VisibleRowCount { get; private set; }
+        List<RecycledRow> m_RowPool = new ();
 
-        int m_ItemHeight = DefaultItemHeight;
-        readonly int m_ItemWidth = DefaultItemWidth;
+        int m_ItemHeight = k_DefaultItemHeight;
+        readonly int m_ItemWidth = k_DefaultItemWidth;
         int m_ColumnCount;
+        int m_VisibleRowCount;
+
+        internal event Action GridViewLastItemVisible;
 
         public new class UxmlFactory : UxmlFactory<GridView> { }
-        
-        public GridView()
-        {
-            m_ScrollView = new ScrollView();
-            m_ScrollView.AddToClassList("grid-view-scrollbar");
-            m_ScrollView.StretchToParentSize();
-            m_ScrollView.verticalScroller.valueChanged += OnScroll;
-
-            RegisterCallback<GeometryChangedEvent>(OnSizeChanged);
-            m_Stopwatch.Start();
-            hierarchy.Add(m_ScrollView);
-
-            m_ScrollView.contentContainer.focusable = true;
-            m_ScrollView.contentContainer.usageHints &=
-                ~UsageHints
-                    .GroupTransform; // Scroll views with virtualized content shouldn't have the "view transform" optimization
-
-            focusable = true;
-        }
-
-        /// <summary>
-        /// Constructs a <see cref="GridView"/>, with most required properties provided.
-        /// </summary>
-        /// <param name="makeItem">The factory method to call to create a display item. The method should return a
-        /// VisualElement that can be bound to a data item.</param>
-        /// <param name="bindItem">The method to call to bind a data item to a display item. The method
-        /// receives as parameters the display item to bind, and the index of the data item to bind it to.</param>
-        internal GridView(Func<VisualElement> makeItem, Action<VisualElement, int> bindItem) : this()
-        {
-            AddToClassList(Constants.GridViewStyleClassName);
-
-            MakeItem = makeItem;
-            BindItem = bindItem;
-        }
-
-        /// <summary>
-        /// Constructs a <see cref="GridView"/>, with all required properties provided.
-        /// </summary>
-        /// <param name="itemsSource">The list of items to use as a data source.</param>
-        /// <param name="makeItem">The factory method to call to create a display item. The method should return a
-        /// VisualElement that can be bound to a data item.</param>
-        /// <param name="bindItem">The method to call to bind a data item to a display item. The method
-        /// receives as parameters the display item to bind, and the index of the data item to bind it to.</param>
-        internal GridView(IList itemsSource, Func<VisualElement> makeItem, Action<VisualElement, int> bindItem) : this()
-        {
-            AddToClassList(Constants.GridViewStyleClassName);
-
-            m_ItemsSource = itemsSource;
-
-            MakeItem = makeItem;
-            BindItem = bindItem;
-        }
 
         /// <summary>
         /// Callback for binding a data item to the visual element.
@@ -105,33 +61,53 @@ namespace Unity.AssetManager.Editor
         /// </remarks>
         Action<VisualElement, int> BindItem
         {
-            get => bindItem;
+            get => m_BindItemCallback;
             set
             {
-                bindItem = value;
-                Refresh();
+                if (m_BindItemCallback == value)
+                    return;
+
+                m_BindItemCallback = value;
+                Refresh(RefreshRowsType.ResizeGridWidth);
             }
         }
-        
+
         Func<VisualElement> MakeItem
         {
-            get => makeItem;
+            get => m_MakeItemFunc;
             set
             {
-                if (makeItem == value)
+                if (m_MakeItemFunc == value)
                     return;
-                makeItem = value;
-                Refresh();
+
+                m_MakeItemFunc = value;
+                Refresh(RefreshRowsType.RebindGrid);
             }
         }
-        
+
         internal IList ItemsSource
         {
             get => m_ItemsSource;
             set
             {
+                if (m_ItemsSource == null && value == null)
+                    return;
+
+                if (m_ItemsSource != null && Utilities.CompareListsBeginings(ItemsSource, value))
+                {
+                    // Value is equals to ItemsSource
+                    if (m_ItemsSource.Count == value.Count)
+                        return;
+
+                    // Value is an extended List of ItemsSource
+                    m_ItemsSource = value;
+                    Refresh(RefreshRowsType.LoadMoreGridItems);
+                    return;
+                }
+
+                // Value is a whole new List
                 m_ItemsSource = value;
-                Refresh();
+                Refresh(RefreshRowsType.RebindGrid);
             }
         }
 
@@ -145,16 +121,15 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public int ColumnCount
+        int ColumnCount
         {
             get => m_ColumnCount;
             set
             {
                 if (m_ColumnCount != value && value > 0)
                 {
-                    m_ScrollOffset = 0;
                     m_ColumnCount = value;
-                    Refresh();
+                    Refresh(RefreshRowsType.ResizeGridWidth);
                 }
             }
         }
@@ -171,111 +146,175 @@ namespace Unity.AssetManager.Editor
                 {
                     m_ItemHeight = value;
                     m_ScrollView.verticalPageSize = m_ItemHeight;
-                    Refresh();
+                    Refresh(RefreshRowsType.ResizeGridWidth);
                 }
             }
         }
-        
+
+        public GridView()
+        {
+            m_ScrollView = new ScrollView();
+            m_ScrollView.AddToClassList("grid-view-scrollbar");
+            m_ScrollView.StretchToParentSize();
+            m_ScrollView.verticalScroller.valueChanged += OnScroll;
+
+            RegisterCallback<GeometryChangedEvent>(OnSizeChanged);
+            m_Stopwatch.Start();
+            hierarchy.Add(m_ScrollView);
+
+            m_ScrollView.contentContainer.focusable = true;
+            m_ScrollView.contentContainer.usageHints &= ~UsageHints.GroupTransform; // Scroll views with virtualized content shouldn't have the "view transform" optimization
+
+            focusable = true;
+        }
+
+        /// <summary>
+        /// Constructs a <see cref="GridView" />, with most required properties provided.
+        /// </summary>
+        /// <param name="makeItem">
+        /// The factory method to call to create a display item. The method should return a
+        /// VisualElement that can be bound to a data item.
+        /// </param>
+        /// <param name="bindItem">
+        /// The method to call to bind a data item to a display item. The method
+        /// receives as parameters the display item to bind, and the index of the data item to bind it to.
+        /// </param>
+        internal GridView(Func<VisualElement> makeItem, Action<VisualElement, int> bindItem) : this()
+        {
+            AddToClassList(Constants.GridViewStyleClassName);
+
+            MakeItem = makeItem;
+            BindItem = bindItem;
+        }
+
+        /// <summary>
+        /// Constructs a <see cref="GridView" />, with all required properties provided.
+        /// </summary>
+        /// <param name="itemsSource">The list of items to use as a data source.</param>
+        /// <param name="makeItem">
+        /// The factory method to call to create a display item. The method should return a
+        /// VisualElement that can be bound to a data item.
+        /// </param>
+        /// <param name="bindItem">
+        /// The method to call to bind a data item to a display item. The method
+        /// receives as parameters the display item to bind, and the index of the data item to bind it to.
+        /// </param>
+        internal GridView(IList itemsSource, Func<VisualElement> makeItem, Action<VisualElement, int> bindItem) : this()
+        {
+            AddToClassList(Constants.GridViewStyleClassName);
+
+            m_ItemsSource = itemsSource;
+
+            MakeItem = makeItem;
+            BindItem = bindItem;
+        }
+
+        public void OnBeforeSerialize()
+        {
+            /* Do Nothing */
+        }
+
+        public void OnAfterDeserialize()
+        {
+            Refresh(RefreshRowsType.RebindGrid);
+        }
+
         void OnScroll(float offset)
         {
             if (!HasValidDataAndBindings())
                 return;
 
-            m_ScrollOffset = offset;
             var pixelAlignedItemHeight = ResolvedItemHeight;
             var firstVisibleIndex = Mathf.FloorToInt(offset / pixelAlignedItemHeight) * ColumnCount;
 
-            m_ScrollView.contentContainer.style.paddingTop = Mathf.FloorToInt(firstVisibleIndex / (float)ColumnCount) * pixelAlignedItemHeight;
+            m_ScrollView.contentContainer.style.paddingTop =
+                Mathf.FloorToInt(firstVisibleIndex / (float)ColumnCount) * pixelAlignedItemHeight;
             if (m_ScrollView.verticalScroller.value == m_ScrollView.verticalScroller.highValue || !m_ScrollView.visible)
             {
-                onGridViewLastItemVisible?.Invoke();
+                GridViewLastItemVisible?.Invoke();
+            }
+
+            if (m_RowPool.Count <= 0 ||
+                m_RowPool[0].childCount !=
+                ColumnCount) // If childCount is different than ColumnCount it means we are resizing the grid
+            {
+                return;
             }
 
             if (firstVisibleIndex != m_FirstVisibleIndex)
             {
                 m_FirstVisibleIndex = firstVisibleIndex;
+                Scrolling();
+            }
+        }
 
-                if (!m_RowPool.Any()) return;
+        void Scrolling()
+        {
+            if (!m_RowPool.Any())
+                return;
 
-                // we try to avoid rebinding a few items
-                if (m_FirstVisibleIndex < m_RowPool[0].FirstIndex) //we're scrolling up
+            // we try to avoid rebinding a few items
+            if (m_FirstVisibleIndex < m_RowPool[0].FirstIndex) //we're scrolling up
+            {
+                //How many do we have to swap back
+                var initialFirstIndex = m_RowPool[0].FirstIndex;
+                var count = (initialFirstIndex - m_FirstVisibleIndex) / ColumnCount;
+                var inserting = m_ScrollInsertionList;
+
+                for (var i = 0; i < count && m_RowPool.Count > 0; ++i)
                 {
-                    //How many do we have to swap back
-                    var count = m_RowPool[0].FirstIndex - m_FirstVisibleIndex;
+                    var last = m_RowPool.Last();
 
-                    var inserting = m_ScrollInsertionList;
-
-                    for (var i = 0; i < count && m_RowPool.Count > 0; ++i)
+                    for (var j = 0; j < ColumnCount; j++)
                     {
-                        var last = m_RowPool.Last();
-                        inserting.Add(last);
-                        m_RowPool.RemoveAt(m_RowPool.Count - 1); //we remove from the end
+                        var newIndex = initialFirstIndex - (i + 1) * ColumnCount + j;
 
-                        last.SendToBack(); //We send the element to the top of the list (back in z-order)
+                        if (newIndex < 0)
+                            continue;
+
+                        UpdateItemAtIndexInRow(newIndex, j, last);
                     }
 
-                    inserting.Reverse();
+                    inserting.Add(last);
+                    m_RowPool.RemoveAt(m_RowPool.Count - 1); //we remove from the end
 
-                    m_ScrollInsertionList = m_RowPool;
-                    m_RowPool = inserting;
-                    m_RowPool.AddRange(m_ScrollInsertionList);
-                    m_ScrollInsertionList.Clear();
-                }
-                else if (m_FirstVisibleIndex > m_RowPool[0].FirstIndex) //down
-                {
-                    var inserting = m_ScrollInsertionList;
-
-                    var checkIndex = 0;
-                    while (checkIndex < m_RowPool.Count && m_FirstVisibleIndex > m_RowPool[checkIndex].FirstIndex)
-                    {
-                        var first = m_RowPool[checkIndex];
-                        inserting.Add(first);
-                        first.BringToFront(); //We send the element to the bottom of the list (front in z-order)
-                        checkIndex++;
-                    }
-
-                    m_RowPool.RemoveRange(0, checkIndex); //we remove them all at once
-                    m_RowPool.AddRange(inserting); // add them back to the end
-                    inserting.Clear();
+                    last.SendToBack(); //We send the element to the top of the list (back in z-order)
                 }
 
-                //Let's rebind everything
-                for (var rowIndex = 0; rowIndex < m_RowPool.Count; rowIndex++)
+                inserting.Reverse();
+
+                m_ScrollInsertionList = m_RowPool;
+                m_RowPool = inserting;
+                m_RowPool.AddRange(m_ScrollInsertionList);
+                m_ScrollInsertionList.Clear();
+            }
+            else if (m_FirstVisibleIndex > m_RowPool[0].FirstIndex) //down
+            {
+                var inserting = m_ScrollInsertionList;
+
+                var checkIndex = 0;
+                while (checkIndex < m_RowPool.Count && m_FirstVisibleIndex > m_RowPool[checkIndex].FirstIndex)
                 {
-                    for (var colIndex = 0; colIndex < ColumnCount; colIndex++)
+                    var first = m_RowPool[checkIndex];
+                    inserting.Add(first);
+                    first.BringToFront(); //We send the element to the bottom of the list (front in z-order)
+                    checkIndex++;
+                }
+
+                m_RowPool.RemoveRange(0, checkIndex); //we remove them all at once
+
+                for (var i = 0; i < checkIndex; i++)
+                {
+                    for (var j = 0; j < ColumnCount; j++)
                     {
-                        var index = rowIndex * ColumnCount + colIndex + m_FirstVisibleIndex;
-
-                        if (index < ItemsSource.Count)
-                        {
-                            var item = m_RowPool[rowIndex].ElementAt(colIndex);
-                            if (m_RowPool[rowIndex].indices[colIndex] == RecycledRow.undefinedIndex)
-                            {
-                                var newItem = MakeItem != null ? MakeItem.Invoke() : CreateDummyItemElement();
-                                m_RowPool[rowIndex].RemoveAt(colIndex);
-                                m_RowPool[rowIndex].Insert(colIndex, newItem);
-                                item = newItem;
-                            }
-
-                            Setup(item, index);
-                        }
-                        else
-                        {
-                            var remainingOldItems = ColumnCount - colIndex;
-
-                            while (remainingOldItems > 0)
-                            {
-                                m_RowPool[rowIndex].RemoveAt(colIndex);
-                                m_RowPool[rowIndex].Insert(colIndex, CreateDummyItemElement());
-                                m_RowPool[rowIndex].ids.RemoveAt(colIndex);
-                                m_RowPool[rowIndex].ids.Insert(colIndex, RecycledRow.undefinedIndex);
-                                m_RowPool[rowIndex].indices.RemoveAt(colIndex);
-                                m_RowPool[rowIndex].indices.Insert(colIndex, RecycledRow.undefinedIndex);
-                                remainingOldItems--;
-                            }
-                        }
+                        UpdateItemAtIndexInRow(
+                            m_RowPool.Count * ColumnCount + i * ColumnCount + j + m_FirstVisibleIndex, j,
+                            inserting[i]);
                     }
                 }
+
+                m_RowPool.AddRange(inserting); // add them back to the end
+                inserting.Clear();
             }
         }
 
@@ -285,7 +324,79 @@ namespace Unity.AssetManager.Editor
         /// <remarks>
         /// Call this method whenever the data source changes.
         /// </remarks>
-        internal void Refresh()
+        internal void Refresh(RefreshRowsType refreshRowsType)
+        {
+            if (!HasValidDataAndBindings())
+                return;
+
+            // Check if ScrollView is already created
+            m_LastHeight = m_ScrollView.layout.height;
+            if (float.IsNaN(m_LastHeight))
+                return;
+
+            RefreshRows(m_LastHeight, refreshRowsType);
+
+            var notEnoughItemToScroll = m_VisibleRowCount > 0 && m_LastHeight >= m_VisibleRowCount * ResolvedItemHeight;
+            if (!notEnoughItemToScroll)
+                return;
+
+            m_ScrollView.contentContainer.style.paddingTop = 0;
+        }
+
+        internal void ResetScrollBarTop()
+        {
+            m_ScrollView.scrollOffset = new Vector2(0, 0);
+            m_ScrollView.contentContainer.style.paddingTop = 0;
+        }
+
+        void RefreshRows(float height, RefreshRowsType refreshType)
+        {
+            if (height <= 0.0f) // Might happen during UI initialization
+                return;
+
+            if (!HasValidDataAndBindings())
+                return;
+
+            var rowCountForSource = Mathf.CeilToInt(ItemsSource.Count / (float)ColumnCount);
+            var contentHeight = rowCountForSource * ResolvedItemHeight + k_FooterHeight;
+            m_ScrollView.contentContainer.style.height = contentHeight;
+
+            var scrollableHeight = Mathf.Max(0, contentHeight - m_ScrollView.contentViewport.layout.height);
+            m_ScrollView.verticalScroller.highValue = scrollableHeight;
+
+            var rowCountForHeight = Mathf.FloorToInt(height / ResolvedItemHeight) + k_ExtraVisibleRows;
+            var rowCount = Math.Min(rowCountForHeight, rowCountForSource);
+            m_MaxVisibleItems = rowCountForHeight * ColumnCount;
+
+            if (ItemsSource.Count <= m_MaxVisibleItems)
+            {
+                GridViewLastItemVisible?.Invoke();
+            }
+
+            switch (refreshType)
+            {
+                case RefreshRowsType.ClearGrid:
+                    ClearGrid();
+                    break;
+                case RefreshRowsType.RebindGrid:
+                    RebindGrid(height, rowCount);
+                    break;
+                case RefreshRowsType.ResizeGridWidth:
+                    ResizeGridWidth(height, rowCount);
+                    break;
+                case RefreshRowsType.LoadMoreGridItems:
+                    LoadMoreGridItems(rowCount);
+                    break;
+                default:
+                    RebindGrid(height, rowCount);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Clear all rows in the ScrollView
+        /// </summary>
+        void ClearGrid()
         {
             foreach (var recycledRow in m_RowPool)
             {
@@ -294,130 +405,323 @@ namespace Unity.AssetManager.Editor
 
             m_RowPool.Clear();
             m_ScrollView.Clear();
-            VisibleRowCount = 0;
-
-            if (!HasValidDataAndBindings())
-                return;
-
-            m_LastHeight = m_ScrollView.layout.height;
-
-            if (float.IsNaN(m_LastHeight))
-                return;
-
-            m_FirstVisibleIndex = Math.Min((int)(m_ScrollOffset / ResolvedItemHeight) * ColumnCount,
-                m_ItemsSource.Count - 1);
-            ResizeHeight(m_LastHeight);
-
-            var notEnoughItemToScroll = VisibleRowCount > 0 && m_LastHeight >= VisibleRowCount * ResolvedItemHeight;
-            if (!notEnoughItemToScroll) return;
-            m_ScrollView.contentContainer.style.paddingTop = 0;
+            m_VisibleRowCount = 0;
         }
 
-        internal void ResetScrollBarTop()
+        /// <summary>
+        /// Shrinks the number of rows in the ScrollView if needed
+        /// </summary>
+        /// <param name="rowCount">Total rows count wanted</param>
+        void ShrinkRows(int rowCount)
         {
-            m_ScrollView.scrollOffset = new Vector2(0, 0);
-            m_ScrollOffset = 0;
-            m_ScrollView.contentContainer.style.paddingTop = 0;
-        }
-
-        void ResizeHeight(float height)
-        {
-            if (!HasValidDataAndBindings())
-                return;
-
-            var pixelAlignedItemHeight = ResolvedItemHeight;
-            var rowCountForSource = Mathf.CeilToInt(ItemsSource.Count / (float)ColumnCount);
-            var contentHeight = rowCountForSource * pixelAlignedItemHeight + k_FooterHeight;
-            m_ScrollView.contentContainer.style.height = contentHeight;
-
-            var scrollableHeight = Mathf.Max(0, contentHeight - m_ScrollView.contentViewport.layout.height);
-            m_ScrollView.verticalScroller.highValue = scrollableHeight;
-
-            var rowCountForHeight = Mathf.FloorToInt(height / pixelAlignedItemHeight) + k_ExtraVisibleRows;
-            var rowCount = Math.Min(rowCountForHeight, rowCountForSource);
-            m_MaxVisibleItems = rowCountForHeight * ColumnCount;
-            
-            if (ItemsSource.Count <= m_MaxVisibleItems)
-                onGridViewLastItemVisible?.Invoke(); 
-
-            if (VisibleRowCount != rowCount)
+            if (m_RowPool.Count > 0)
             {
-                if (VisibleRowCount > rowCount)
+                // Shrink
+                var removeCount = m_VisibleRowCount - rowCount;
+                for (var i = 0; i < removeCount; i++)
                 {
-                    if (m_RowPool.Count > 0)
+                    var lastIndex = m_RowPool.Count - 1;
+                    m_RowPool[lastIndex].Clear();
+                    m_ScrollView.Remove(m_RowPool[lastIndex]);
+                    m_RowPool.RemoveAt(lastIndex);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Add rows to the ScrollView if needed
+        /// </summary>
+        /// <param name="rowCount">Total rows count wanted</param>
+        void GrowRows(int rowCount)
+        {
+            var addCount = rowCount - m_VisibleRowCount;
+            for (var i = 0; i < addCount; i++)
+            {
+                var recycledRow = new RecycledRow(ResolvedItemHeight);
+
+                for (var indexInRow = 0; indexInRow < ColumnCount; indexInRow++)
+                {
+                    var index = m_RowPool.Count * ColumnCount + indexInRow + m_FirstVisibleIndex;
+                    var item = MakeItem != null && index < ItemsSource.Count
+                        ? MakeItem.Invoke()
+                        : CreateDummyItemElement();
+
+                    recycledRow.Add(item);
+
+                    if (index < ItemsSource.Count)
                     {
-                        // Shrink
-                        var removeCount = VisibleRowCount - rowCount;
-                        for (var i = 0; i < removeCount; i++)
-                        {
-                            var lastIndex = m_RowPool.Count - 1;
-                            m_RowPool[lastIndex].Clear();
-                            m_ScrollView.Remove(m_RowPool[lastIndex]);
-                            m_RowPool.RemoveAt(lastIndex);
-                        }
+                        Setup(item, index);
                     }
+                    else
+                    {
+                        recycledRow.Ids.Add(RecycledRow.UndefinedIndex);
+                        recycledRow.Indices.Add(RecycledRow.UndefinedIndex);
+                    }
+                }
+
+                m_RowPool.Add(recycledRow);
+                recycledRow.style.height = ResolvedItemHeight;
+                m_ScrollView.Add(recycledRow);
+                recycledRow.BringToFront();
+            }
+        }
+
+        void UpdateItemAtIndexInRow(int index, int indexInRow, RecycledRow recycledRow)
+        {
+            if (recycledRow.childCount <= indexInRow) // Create Item
+            {
+                if (index < ItemsSource.Count)
+                {
+                    var it = MakeItem != null ? MakeItem.Invoke() : CreateDummyItemElement();
+                    recycledRow.Add(it);
+                    Setup(it, index);
                 }
                 else
                 {
-                    // Grow
-                    var addCount = rowCount - VisibleRowCount;
-                    for (var i = 0; i < addCount; i++)
-                    {
-                        var recycledRow = new RecycledRow(ResolvedItemHeight);
-
-                        for (var indexInRow = 0; indexInRow < ColumnCount; indexInRow++)
-                        {
-                            var index = m_RowPool.Count * ColumnCount + indexInRow + m_FirstVisibleIndex;
-                            var item = MakeItem != null && index < ItemsSource.Count
-                                ? MakeItem.Invoke()
-                                : CreateDummyItemElement();
-
-                            recycledRow.Add(item);
-
-                            if (index < ItemsSource.Count)
-                            {
-                                Setup(item, index);
-                            }
-                            else
-                            {
-                                recycledRow.ids.Add(RecycledRow.undefinedIndex);
-                                recycledRow.indices.Add(RecycledRow.undefinedIndex);
-                            }
-                        }
-
-                        m_RowPool.Add(recycledRow);
-                        recycledRow.style.height = pixelAlignedItemHeight;
-
-                        m_ScrollView.Add(recycledRow);
-                    }
+                    recycledRow.Add(CreateDummyItemElement());
+                    recycledRow.Ids.Add(RecycledRow.UndefinedIndex);
+                    recycledRow.Indices.Add(RecycledRow.UndefinedIndex);
                 }
 
-                VisibleRowCount = rowCount;
+                return;
             }
 
+            var item = recycledRow.Children().ElementAt(indexInRow); // Update Item
+
+            if (index < ItemsSource.Count)
+            {
+                if (recycledRow.Indices[indexInRow] == RecycledRow.UndefinedIndex)
+                {
+                    recycledRow.Remove(item);
+                    item = MakeItem.Invoke();
+                    recycledRow.Insert(indexInRow, item);
+                }
+
+                Setup(item, index);
+            }
+            else
+            {
+                if (recycledRow.Indices[indexInRow] != RecycledRow.UndefinedIndex)
+                {
+                    recycledRow.Remove(item);
+                    item = CreateDummyItemElement();
+                    recycledRow.Insert(indexInRow, item);
+                }
+
+                recycledRow.Ids.RemoveAt(indexInRow);
+                recycledRow.Ids.Insert(indexInRow, RecycledRow.UndefinedIndex);
+                recycledRow.Indices.RemoveAt(indexInRow);
+                recycledRow.Indices.Insert(indexInRow, RecycledRow.UndefinedIndex);
+            }
+        }
+
+        /// <summary>
+        /// Force to Rebind all Existing Rows
+        /// </summary>
+        void RebindExistingRows()
+        {
+            foreach (var recycledRow in m_RowPool)
+            {
+                for (var indexInRow = 0; indexInRow < ColumnCount; indexInRow++)
+                {
+                    var index = m_RowPool.IndexOf(recycledRow) * ColumnCount + indexInRow + m_FirstVisibleIndex;
+
+                    // Check if enough children in row
+                    if (recycledRow.childCount <= indexInRow)
+                    {
+                        if (index < ItemsSource.Count)
+                        {
+                            var item = MakeItem.Invoke();
+                            recycledRow.Add(item);
+                            Setup(item, index);
+                        }
+                        else
+                        {
+                            recycledRow.Add(CreateDummyItemElement());
+                            recycledRow.Ids.Add(RecycledRow.UndefinedIndex);
+                            recycledRow.Indices.Add(RecycledRow.UndefinedIndex);
+                        }
+                    }
+                    else
+                    {
+                        UpdateItemAtIndexInRow(index, indexInRow, recycledRow);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rebind the Grid with new Rows
+        /// Mostly used when you change project or organization
+        /// Resets the Scrolling view
+        /// </summary>
+        /// <param name="height"></param>
+        /// <param name="rowCount"></param>
+        void RebindGrid(float height, int rowCount)
+        {
+            m_FirstVisibleIndex = 0;
+
+            // Checking numbers of Rows
+            if (m_VisibleRowCount != rowCount)
+            {
+                if (m_VisibleRowCount > rowCount)
+                {
+                    ShrinkRows(rowCount);
+                    RebindExistingRows();
+                }
+                else
+                {
+                    RebindExistingRows();
+                    GrowRows(rowCount);
+                }
+            }
+            else
+            {
+                RebindExistingRows();
+            }
+
+            m_VisibleRowCount = rowCount;
+            m_ScrollView.contentContainer.style.paddingTop = Mathf.FloorToInt(m_FirstVisibleIndex / (float)ColumnCount) * ResolvedItemHeight;
             m_LastHeight = height;
+        }
+
+        void LoadMoreGridItems(int rowCount)
+        {
+            if (m_RowPool.Count > 0)
+            {
+                var lastIndex = m_RowPool.FindLastIndex(row => row.FirstIndex != -1);
+                for (var rowIndex = lastIndex; rowIndex < m_RowPool.Count; rowIndex++)
+                {
+                    for (var indexInRow = 0; indexInRow < m_RowPool[rowIndex].childCount; indexInRow++)
+                    {
+                        if (m_RowPool[rowIndex].Indices[indexInRow] != RecycledRow.UndefinedIndex)
+                            continue;
+
+                        var index = (m_RowPool.Count - 1) * ColumnCount + indexInRow + m_FirstVisibleIndex;
+                        UpdateItemAtIndexInRow(index, indexInRow, m_RowPool[rowIndex]);
+                    }
+                }
+            }
+
+            if(m_VisibleRowCount > rowCount)
+                return;
+
+            if (m_VisibleRowCount != rowCount)
+            {
+                GrowRows(rowCount);
+                m_VisibleRowCount = rowCount;
+            }
+        }
+
+        void ResizeGridWidth(float height, int rowCount)
+        {
+            if (m_VisibleRowCount <= 0)
+            {
+                RebindGrid(height, rowCount);
+                return;
+            }
+
+            if(m_RowPool.Count == 0)
+                return;
+
+            var currentColumnCount = m_RowPool.Count > 0 ? m_RowPool[0].childCount : 0;
+
+            if (currentColumnCount != ColumnCount)
+            {
+                // Get All VisualElements
+                var queue = new Queue<VisualElement>(m_RowPool.SelectMany(row => row.Children()).ToList()
+                    .OfType<GridItem>());
+
+                foreach (var recycledRow in m_RowPool)
+                {
+                    recycledRow.Ids.Clear();
+                    recycledRow.Indices.Clear();
+                    recycledRow.Clear();
+                    m_ScrollView.Remove(recycledRow);
+                }
+
+                var firstQueueIndex = m_FirstVisibleIndex;
+                var delta = ColumnCount - currentColumnCount;
+                m_FirstVisibleIndex += delta * (m_FirstVisibleIndex / currentColumnCount);
+
+                var lastFirstIndexPossible = (Utilities.DivideRoundingUp(ItemsSource.Count, ColumnCount) - 1) * ColumnCount -
+                    (rowCount - 1) * ColumnCount;
+                m_FirstVisibleIndex = Math.Min(m_FirstVisibleIndex, lastFirstIndexPossible);
+
+                while (m_FirstVisibleIndex > firstQueueIndex && queue.Count > 0)
+                {
+                    queue.Dequeue();
+                    firstQueueIndex++;
+                }
+
+                m_RowPool.Clear();
+
+                for (var i = 0; i < rowCount; i++)
+                {
+                    var recycledRow = new RecycledRow(ResolvedItemHeight);
+                    var recycledRowColumnCount = Math.Min(ColumnCount, ItemsSource.Count);
+                    for (var j = 0; j < recycledRowColumnCount; j++)
+                    {
+                        var index = recycledRowColumnCount * i + j + m_FirstVisibleIndex;
+
+                        if (index < firstQueueIndex || queue.Count == 0)
+                        {
+                            UpdateItemAtIndexInRow(index, j, recycledRow);
+                            continue;
+                        }
+
+                        var item = queue.Dequeue();
+                        recycledRow.Ids.Add(index);
+                        recycledRow.Indices.Add(index);
+                        recycledRow.Add(item);
+                        item.BringToFront();
+                    }
+
+                    recycledRow.style.height = ResolvedItemHeight;
+                    m_RowPool.Add(recycledRow);
+                    m_ScrollView.Add(recycledRow);
+                }
+
+                m_VisibleRowCount = rowCount;
+
+                var pixelAlignedItemHeight = ResolvedItemHeight;
+                var value = Mathf.FloorToInt(m_FirstVisibleIndex / (float)ColumnCount) * pixelAlignedItemHeight;
+                m_ScrollView.verticalScroller.value = value;
+                m_ScrollView.contentContainer.style.paddingTop = value;
+                m_LastHeight = height;
+
+                Scrolling();
+
+                if (m_ScrollView.verticalScroller.value == m_ScrollView.verticalScroller.highValue ||
+                    !m_ScrollView.visible)
+                {
+                    GridViewLastItemVisible?.Invoke();
+                }
+            }
         }
 
         void Setup(VisualElement item, int newIndex)
         {
             if (item.parent is not RecycledRow recycledRow)
-                throw new Exception("The item to setup can't be orphan");
-
-            var indexInRow = recycledRow.IndexOf(item);
-
-            if (recycledRow.indices.Count <= indexInRow)
             {
-                recycledRow.indices.Add(RecycledRow.undefinedIndex);
-                recycledRow.ids.Add(RecycledRow.undefinedIndex);
+                throw new Exception("The item to setup can't be orphan");
             }
 
-            if (recycledRow.indices[indexInRow] == newIndex)
+            var index = recycledRow.IndexOf(item);
+
+            if (recycledRow.Indices.Count <= index)
+            {
+                recycledRow.Indices.Add(RecycledRow.UndefinedIndex);
+                recycledRow.Ids.Add(RecycledRow.UndefinedIndex);
+            }
+
+            if (recycledRow.Indices[index] == newIndex)
                 return;
 
-            recycledRow.indices[indexInRow] = newIndex;
-            recycledRow.ids[indexInRow] = newIndex;
+            recycledRow.Indices[index] = newIndex;
+            recycledRow.Ids[index] = newIndex;
 
-            BindItem.Invoke(item, recycledRow.indices[indexInRow]);
+            BindItem.Invoke(item, recycledRow.Indices[index]);
         }
 
         void OnSizeChanged(GeometryChangedEvent evt)
@@ -435,9 +739,11 @@ namespace Unity.AssetManager.Editor
 
             if (Mathf.Approximately(evt.newRect.height, evt.oldRect.height) &&
                 Mathf.Approximately(evt.newRect.width, evt.oldRect.width))
+            {
                 return;
-            
-            ResizeHeight(evt.newRect.height);
+            }
+
+            RefreshRows(evt.newRect.height, RefreshRowsType.ResizeGridWidth);
         }
 
         VisualElement CreateDummyItemElement()
@@ -447,29 +753,14 @@ namespace Unity.AssetManager.Editor
             return item;
         }
 
-        bool HasValidDataAndBindings() => ItemsSource != null && MakeItem != null && BindItem != null;
-        void SetupDummyItemElement(VisualElement item) => item.AddToClassList(Constants.GridViewDummyItemUssClassName);
-        public void OnBeforeSerialize() { /* Do Nothing */ }
-        public void OnAfterDeserialize() => Refresh();
-
-        public class RecycledRow : VisualElement
+        bool HasValidDataAndBindings()
         {
-            internal const int undefinedIndex = -1;
+            return ItemsSource != null && MakeItem != null && BindItem != null;
+        }
 
-            internal readonly List<int> ids;
-
-            internal readonly List<int> indices;
-
-            internal RecycledRow(float height)
-            {
-                AddToClassList(Constants.GridViewRowStyleClassName);
-                style.height = height;
-
-                indices = new List<int>();
-                ids = new List<int>();
-            }
-
-            internal int FirstIndex => indices.Count > 0 ? indices[0] : undefinedIndex;
+        void SetupDummyItemElement(VisualElement item)
+        {
+            item.AddToClassList(Constants.GridViewDummyItemUssClassName);
         }
     }
 }

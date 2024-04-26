@@ -1,32 +1,31 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    internal class TopBar : VisualElement
+    class TopBar : VisualElement
     {
-        private const string k_SearchTerms = "Search";
-        private const string k_TopBarAssetName = "TopBar";
-        private const string k_SearchCancelUssName = "search-clear";
-        private const string k_SearchFieldElementName = "inputSearch";
+        const string k_SearchTerms = "Search";
+        const string k_TopBarAssetName = "TopBar";
+        const string k_SearchCancelUssName = "search-clear";
+        const string k_SearchFieldElementName = "inputSearch";
+        const string m_PlaceholderClass = k_TopBarAssetName + "__placeholder";
 
-        private const string m_PlaceholderClass = k_TopBarAssetName + "__placeholder";
+        readonly IPageManager m_PageManager;
+        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly VisualElement m_TextInput;
 
-        private ToolbarSearchField m_ToolbarSearchField;
-        private TextField m_SearchTextField;
-        private VisualElement m_SearchPillsContainer;
-        private Button m_ClearAllButton;
-        private Button m_RefreshButton;
+        bool m_Focused;
 
-        private bool m_Focused;
-
-        private readonly IPageManager m_PageManager;
-        private readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        private readonly VisualElement m_TextInput;
+        Button m_ClearAllButton;
+        Button m_RefreshButton;
+        VisualElement m_SearchChipsContainer;
+        TextField m_SearchTextField;
+        ToolbarSearchField m_ToolbarSearchField;
 
         public TopBar(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
         {
@@ -36,7 +35,8 @@ namespace Unity.AssetManager.Editor
             var windowContent = UIElementsUtils.LoadUXML(k_TopBarAssetName);
             windowContent.CloneTree(this);
 
-            m_ToolbarSearchField = UIElementsUtils.SetupToolbarSearchField(k_SearchFieldElementName, OnSearchbarValueChanged, this);
+            m_ToolbarSearchField =
+                UIElementsUtils.SetupToolbarSearchField(k_SearchFieldElementName, OnSearchbarValueChanged, this);
             m_SearchTextField = m_ToolbarSearchField.Q<TextField>();
             m_SearchTextField.isDelayed = true;
 
@@ -51,9 +51,9 @@ namespace Unity.AssetManager.Editor
                 m_ClearAllButton.clicked += OnSearchCancelClick;
             }
 
-            m_SearchPillsContainer = new VisualElement();
-            m_SearchPillsContainer.AddToClassList("search-pill-container");
-            m_ToolbarSearchField.Insert(1, m_SearchPillsContainer);
+            m_SearchChipsContainer = new VisualElement();
+            m_SearchChipsContainer.AddToClassList("search-chip-container");
+            m_ToolbarSearchField.Insert(1, m_SearchChipsContainer);
 
             m_TextInput = m_ToolbarSearchField.Q<TextField>().Q("unity-text-input");
 
@@ -64,28 +64,30 @@ namespace Unity.AssetManager.Editor
             ShowSearchTermsTextIfNeeded();
         }
 
-        private void OnAttachToPanel(AttachToPanelEvent evt)
+        void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged += OnActivePageChanged;
-            m_PageManager.onSearchFiltersChanged += OnPageSearchFiltersChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
-            Refresh(m_PageManager.activePage);
+            m_PageManager.ActivePageChanged += OnActivePageChanged;
+            m_PageManager.SearchFiltersChanged += OnPageSearchFiltersChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
+            Refresh(m_PageManager.ActivePage);
         }
 
-        private void OnDetachFromPanel(DetachFromPanelEvent evt)
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_PageManager.onActivePageChanged -= OnActivePageChanged;
-            m_PageManager.onSearchFiltersChanged -= OnPageSearchFiltersChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
+            m_PageManager.ActivePageChanged -= OnActivePageChanged;
+            m_PageManager.SearchFiltersChanged -= OnPageSearchFiltersChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
         }
 
         void OnPageSearchFiltersChanged(IPage page, IEnumerable<string> searchFilters)
         {
-            if (page.isActivePage)
+            if (page.IsActivePage)
+            {
                 Refresh(page);
+            }
         }
 
-        private void OnActivePageChanged(IPage page)
+        void OnActivePageChanged(IPage page)
         {
             Refresh(page);
         }
@@ -103,19 +105,19 @@ namespace Unity.AssetManager.Editor
         void OnFocusOut(FocusOutEvent evt)
         {
             m_Focused = false;
-            if (m_SearchPillsContainer.childCount == 0 && string.IsNullOrWhiteSpace(m_SearchTextField.text))
+            if (m_SearchChipsContainer.childCount == 0 && string.IsNullOrWhiteSpace(m_SearchTextField.text))
             {
                 m_SearchTextField.AddToClassList(m_PlaceholderClass);
                 ShowSearchTermsTextIfNeeded();
             }
         }
 
-        private void Refresh(IPage page)
+        void Refresh(IPage page)
         {
             if (page == null)
                 return;
 
-            if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.errorOrMessageHandlingData.message))
+            if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.ErrorOrMessageHandlingData.Message))
             {
                 UIElementsUtils.Hide(m_RefreshButton);
                 UIElementsUtils.Hide(m_ToolbarSearchField);
@@ -124,89 +126,98 @@ namespace Unity.AssetManager.Editor
 
             UIElementsUtils.Show(m_RefreshButton);
             UIElementsUtils.Show(m_ToolbarSearchField);
-            m_SearchPillsContainer.Clear();
+            m_SearchChipsContainer.Clear();
             m_ToolbarSearchField.SetValueWithoutNotify(string.Empty);
-            foreach (var filter in page.pageFilters.searchFilters)
-                m_SearchPillsContainer.Add(new SearchFilterPill(filter, DismissSearchFilter));
+            foreach (var filter in page.PageFilters.SearchFilters)
+            {
+                m_SearchChipsContainer.Add(new SearchFilterChip(filter, DismissSearchFilter));
+            }
 
             ShowSearchTermsTextIfNeeded();
-            m_ClearAllButton.visible = page.pageFilters.searchFilters.Any();
+            m_ClearAllButton.visible = page.PageFilters.SearchFilters.Any();
         }
 
-        private void OnSearchCancelClick()
+        void OnSearchCancelClick()
         {
-            m_PageManager.activePage.pageFilters.ClearSearchFilters();
+            m_PageManager.ActivePage.PageFilters.ClearSearchFilters();
             ShowSearchTermsTextIfNeeded();
         }
 
-        private void OnSearchbarValueChanged(ChangeEvent<string> evt)
+        void OnSearchbarValueChanged(ChangeEvent<string> evt)
         {
             if (evt.newValue == k_SearchTerms)
                 return;
+
             var searchFilters = evt.newValue.Split(" ").Where(s => !string.IsNullOrEmpty(s));
             if (searchFilters.Any())
             {
                 AnalyticsSender.SendEvent(new SearchAttemptEvent(searchFilters.Count()));
-                m_PageManager.activePage.pageFilters.AddSearchFilter(searchFilters);
+                m_PageManager.ActivePage.PageFilters.AddSearchFilter(searchFilters);
             }
 
             if (m_Focused)
+            {
                 SetKeyboardFocusOnSearchField();
+            }
         }
 
-        private void OnKeyDown(KeyDownEvent evt)
+        void OnKeyDown(KeyDownEvent evt)
         {
             switch (evt.keyCode)
             {
                 case KeyCode.Escape:
                     m_ToolbarSearchField.value = "";
-                    m_PageManager.activePage.pageFilters.ClearSearchFilters();
+                    m_PageManager.ActivePage.PageFilters.ClearSearchFilters();
                     SetKeyboardFocusOnSearchField();
                     return;
                 case KeyCode.Backspace when string.IsNullOrWhiteSpace(m_SearchTextField.text):
-                    PopSearchPill();
+                    PopSearchChip();
                     SetKeyboardFocusOnSearchField();
                     break;
             }
         }
 
-        private void SetKeyboardFocusOnSearchField()
+        void SetKeyboardFocusOnSearchField()
         {
             m_TextInput.Focus();
         }
 
-        private void PopSearchPill()
+        void PopSearchChip()
         {
-            var pageFilters = m_PageManager.activePage.pageFilters;
+            var pageFilters = m_PageManager.ActivePage.PageFilters;
 
-            if (!m_PageManager.activePage.pageFilters.searchFilters.Any())
+            if (!m_PageManager.ActivePage.PageFilters.SearchFilters.Any())
                 return;
 
-            pageFilters.RemoveSearchFilter(pageFilters.searchFilters.Last());
-            if (!pageFilters.searchFilters.Any())
+            pageFilters.RemoveSearchFilter(pageFilters.SearchFilters.Last());
+            if (!pageFilters.SearchFilters.Any())
+            {
                 ShowSearchTermsTextIfNeeded();
+            }
         }
 
-        private void DismissSearchFilter(string searchFilter)
+        void DismissSearchFilter(string searchFilter)
         {
-            var pageFilters = m_PageManager.activePage.pageFilters;
+            var pageFilters = m_PageManager.ActivePage.PageFilters;
 
-            if (!pageFilters.searchFilters.Contains(searchFilter))
+            if (!pageFilters.SearchFilters.Contains(searchFilter))
                 return;
 
             pageFilters.RemoveSearchFilter(searchFilter);
             SetKeyboardFocusOnSearchField();
         }
 
-        private void ShowSearchTermsTextIfNeeded()
+        void ShowSearchTermsTextIfNeeded()
         {
-            if (m_SearchPillsContainer.childCount == 0 && !m_Focused)
+            if (m_SearchChipsContainer.childCount == 0 && !m_Focused)
+            {
                 m_SearchTextField.SetValueWithoutNotify(k_SearchTerms);
+            }
         }
 
-        private void OrganizationChanged(OrganizationInfo organizationInfo)
+        void OnOrganizationChanged(OrganizationInfo organizationInfo)
         {
-            Refresh(m_PageManager.activePage);
+            Refresh(m_PageManager.ActivePage);
         }
     }
 }

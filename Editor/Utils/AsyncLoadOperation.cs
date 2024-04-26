@@ -7,24 +7,26 @@ namespace Unity.AssetManager.Editor
 {
     // Nothing in this class actually needs to be serialized, but if we don't serialize it, we will encounter null exception errors when we update code
     [Serializable]
-    internal class AsyncLoadOperation
+    class AsyncLoadOperation
     {
-        private Action m_OnCancelledCallback;
+        Action m_CancelledCallback;
+
+        CancellationTokenSource m_TokenSource;
 
         public bool isLoading => m_TokenSource != null;
 
-        private CancellationTokenSource m_TokenSource;
-
-        public async Task Start<T>(Func<CancellationToken, IAsyncEnumerable<T>> createTaskFromToken, Action onLoadingStartCallback = null, Action<IEnumerable<T>> onSuccessCallback = null, Action onCancelledCallback = null, Action<Exception> onExceptionCallback = null)
+        public async Task Start<T>(Func<CancellationToken, IAsyncEnumerable<T>> createTaskFromToken,
+            Action loadingStartCallback = null, Action<IEnumerable<T>> successCallback = null,
+            Action cancelledCallback = null, Action<Exception> exceptionCallback = null)
         {
             if (isLoading || createTaskFromToken == null)
                 return;
 
-            m_OnCancelledCallback = onCancelledCallback;
+            m_CancelledCallback = cancelledCallback;
 
             m_TokenSource = new CancellationTokenSource();
 
-            onLoadingStartCallback?.Invoke();
+            loadingStartCallback?.Invoke();
 
             try
             {
@@ -38,7 +40,7 @@ namespace Unity.AssetManager.Editor
                 }
 
                 m_TokenSource = null;
-                onSuccessCallback?.Invoke(result);
+                successCallback?.Invoke(result);
             }
             catch (OperationCanceledException)
             {
@@ -47,7 +49,7 @@ namespace Unity.AssetManager.Editor
             }
             catch (Exception e)
             {
-                onExceptionCallback?.Invoke(e);
+                exceptionCallback?.Invoke(e);
             }
             finally
             {
@@ -56,23 +58,25 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public async Task Start<T>(Func<CancellationToken, Task<T>> createTaskFromToken, Action onLoadingStartCallback = null, Action<T> onSuccessCallback = null, Action onCancelledCallback = null, Action<Exception> onExceptionCallback = null)
+        public async Task Start<T>(Func<CancellationToken, Task<T>> createTaskFromToken,
+            Action loadingStartCallback = null, Action<T> successCallback = null, Action cancelledCallback = null,
+            Action<Exception> exceptionCallback = null)
         {
             if (isLoading || createTaskFromToken == null)
                 return;
 
-            m_OnCancelledCallback = onCancelledCallback;
+            m_CancelledCallback = cancelledCallback;
 
             m_TokenSource = new CancellationTokenSource();
 
-            onLoadingStartCallback?.Invoke();
+            loadingStartCallback?.Invoke();
 
             try
             {
                 var result = await createTaskFromToken(m_TokenSource.Token);
 
                 m_TokenSource = null;
-                onSuccessCallback?.Invoke(result);
+                successCallback?.Invoke(result);
             }
             catch (OperationCanceledException)
             {
@@ -81,7 +85,7 @@ namespace Unity.AssetManager.Editor
             }
             catch (Exception e)
             {
-                onExceptionCallback?.Invoke(e);
+                exceptionCallback?.Invoke(e);
             }
             finally
             {
@@ -98,8 +102,8 @@ namespace Unity.AssetManager.Editor
             m_TokenSource.Cancel();
             m_TokenSource = null;
 
-            m_OnCancelledCallback?.Invoke();
-            m_OnCancelledCallback = null;
+            m_CancelledCallback?.Invoke();
+            m_CancelledCallback = null;
         }
     }
 }

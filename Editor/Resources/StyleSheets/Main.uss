@@ -11,6 +11,10 @@
     flex-shrink: 0;
 }
 
+.flex-shrink-1 {
+    flex-shrink: 1;
+}
+
 .flex-grow-1 {
     flex-grow: 1;
 }
@@ -41,22 +45,40 @@
 * Two Pane SplitView / Categories
 ************************************************/
 
+.collapsed-sidebar {
+    min-width: 32px;
+    max-width: 32px;
+    border-right-width: 1px;
+    border-right-color: black;
+}
+
+.expanded-sidebar {
+    min-width: 160px;
+    max-width: none;
+}
+
+.collapse-sidebar-button {
+    height: 32px;
+    width: 32px;
+}
+
+.sidebar-top-section {
+    flex-direction: row;
+    justify-content: space-between;
+    min-height: 32px;
+    max-height: 32px;
+}
+
 #FooterContainer {
     justify-content: flex-end;
-    min-width: 160px;
-    margin-top: 5px;
+    margin-top: 8px;
     flex-grow: 1;
     flex-shrink: 0;
 }
 
 .SidebarTitle{
-    margin-left: 8px;
-    margin-top: 16px;
+    margin: 8px 0 0 8px;
     -unity-font-style: bold;
-}
-
-SidebarProjectSelector {
-    flex-shrink: 0;
 }
 
 SideBarFoldout .unity-base-field__input{
@@ -112,18 +134,19 @@ SideBarButton>Label {
 
 .SideBarContainer {
     justify-content: space-between;
-    min-width: 160px;
     flex-basis: auto;
 }
 
-.AssetDetailsContainer{
+.SelectionInspectorContainer{
     min-width: 200px;
     flex-basis: auto;
 }
 
 .ContentPanel{
-    min-width: 400px;
     flex-basis: auto;
+    flex-direction: row;
+    flex-grow: 1;
+    width: 100%;
 }
 
 TwoPaneSplitView {
@@ -228,13 +251,24 @@ is not intended properly and we need this to fix that issue*/
 }
 
 /************************************************
+* Bread Crumbs and Role Container
+************************************************/
+.unity-breadcrumbs-and-role-container {
+    flex-direction: row;
+    justify-content: flex-start;
+    flex-grow: 1;
+    flex-shrink: 0;
+    padding-top: 8px;
+    flex-wrap: wrap;
+}
+
+/************************************************
 * Bread Crumbs
 ************************************************/
 
 .unity-breadcrumbs {
     flex-direction: row;
-    padding-top: 10px;
-    padding-bottom: 6px;
+    align-self: center;
     padding-left: 6px;
     flex-wrap: wrap;
     flex-shrink: 0;
@@ -261,13 +295,26 @@ is not intended properly and we need this to fix that issue*/
 }
 
 /************************************************
+* Role chip
+************************************************/
+.unity-role-chip {
+    flex-shrink: 0;
+    flex-grow: 0;
+    align-self: center;
+    margin-left: 8px;
+    border-width: 1px;
+    border-radius: 10px;
+    padding: 1px 4px;
+    cursor: link;
+}
+
+/************************************************
 * Filters
 ************************************************/
 .unity-filters {
     flex-direction: row;
     flex-wrap: wrap;
     flex-shrink: 0;
-    height: 36px;
     padding-top: 6px;
     padding-left: 6px;
     padding-bottom: 6px;
@@ -317,25 +364,25 @@ is not intended properly and we need this to fix that issue*/
     height: 16px;
 }
 
-.unity-filters-pill-container{
+.unity-filters-chip-container {
     flex-direction: row;
     flex-wrap: nowrap;
     flex-shrink: 0;
 }
 
-.unity-filters-pill {
+.unity-filters-chip {
     flex-direction: row;
     border-radius: 12px;
     flex-shrink: 0;
     align-items: center;
 }
 
-.unity-filters-pill--set
+.unity-filters-chip--set
 {
     background-color: #2C5D87;
 }
 
-.unity-filters-pill-delete {
+.unity-filters-chip-delete {
     margin-left: 8px;
     margin-right: 4px;
     width: 12px;
@@ -486,8 +533,9 @@ TopBar {
     border-width: 1px;
 }
 
-.SearchContentSplitView{
-    min-width: 240px;
+.SearchContentSplitView {
+    min-width: 130px; /* Roughly the width of a grid item */
+    flex-grow: 1;
 }
 
 /* The search icon in the search bar*/
@@ -513,12 +561,12 @@ TextField {
     margin-left: 5px;
 }
 
-.search-pill-container {
+.search-chip-container {
     justify-content: space-between;
     flex-direction: row;
 }
 
-.SearchFilterPill {
+.SearchFilterChip {
     overflow: hidden;
     text-overflow: ellipsis;
     justify-content: space-around;
@@ -531,14 +579,14 @@ TextField {
     height: 18px;
 }
 
-.SearchFilterPill>Label {
+.SearchFilterChip>Label {
     overflow: hidden;
     text-overflow: ellipsis;
     width: auto;
     padding-right: 5px;
 }
 
-.SearchFilterPill>Button {
+.SearchFilterChip>Button {
     flex-shrink: 0;
 }
 
@@ -551,10 +599,10 @@ TextField {
 }
 
 /************************************************
-* TagPill
+* TagChip
 ************************************************/
 
-TagPill {
+TagChip {
     padding: 5px 10px;
     padding-right: 10px;
     border-radius: 12px;
@@ -563,17 +611,17 @@ TagPill {
     flex-shrink: 0;
 }
 
-TagPill #text {
+TagChip #text {
     text-overflow: ellipsis;
     overflow: hidden;
     -unity-text-overflow-position: end;
 }
 
 /************************************************
-* ProjectPill
+* ProjectChip
 ************************************************/
 
-ProjectPill {
+ProjectChip {
     padding: 5px 5px;
     padding-right: 10px;
     border-radius: 12px;
@@ -583,14 +631,14 @@ ProjectPill {
     flex-direction: row;
 }
 
-ProjectPill Label {
+ProjectChip Label {
     text-overflow: ellipsis;
     overflow: hidden;
     flex-shrink: 1;
     -unity-text-overflow-position: end;
 }
 
-ProjectPill > Image
+ProjectChip > Image
 {
     width: 16px;
     height: 16px;
@@ -599,6 +647,49 @@ ProjectPill > Image
     background-color: blueviolet;
     margin-right: 5px;
     flex-shrink: 0;
+}
+
+
+/************************************************
+* UserChip
+************************************************/
+
+UserChip {
+    padding: 5px 5px;
+    padding-right: 10px;
+    border-radius: 12px;
+    margin-right: 5px;
+    cursor: link;
+    flex-shrink: 1;
+    flex-direction: row;
+}
+
+UserChip #Name {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    flex-shrink: 1;
+    -unity-text-overflow-position: end;
+}
+
+UserChip #InitialsCircle
+{
+    width: 16px;
+    height: 16px;
+    padding: 2px;
+    border-radius: 8px;
+    margin-right: 5px;
+    flex-shrink: 0;
+}
+
+UserChip #Initials
+{
+    -unity-text-align: middle-center;
+    -unity-font-style: bold;
+    color: white;
+    font-size: 8px;
+    flex-shrink: 0;
+    padding: 0;
+    padding-top: 1px;
 }
 
 /************************************************
@@ -680,6 +771,38 @@ AssetsGridView {
     background-color: rgba(255, 255, 255, 0.15);
 }
 
+.grid-view--item-ignore .grid-view--item-overlay {
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+.grid-view--item-ignore:hover .grid-view--item-overlay {
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.grid-view--item:hover .asset-preview--upload .asset-preview-asset-type-icon{
+    -unity-background-image-tint-color: rgba(255, 255, 255, 0);
+}
+
+.grid-view--item:hover .asset-preview--upload .no-thumbnail .asset-preview-asset-type-icon {
+    -unity-background-image-tint-color: rgba(255, 255, 255, 255);
+}
+
+.grid-view--item:hover .asset-preview--upload .asset-preview-toggle {
+    display: flex;
+}
+
 .grid-view--item-dummy {
     border-color: rgba(255, 255, 255, 0.5);
     border-radius: 2px;
@@ -712,20 +835,17 @@ AssetsGridView {
     right: 3px;
     border-radius: 10px;
     background-size : 14px 14px;
-
     width: 20px;
     height: 20px;
 }
 
 .grid-view--item-linked {
     background-image: resource('Images/Common/Link');
-    background-color : rgba(0, 0, 0, 0.6);
-    width: 100%;
-    height: 100%;
-    bottom: 0px;
-    right: 0px;
-    border-radius: 0px;
-    background-size : 24px 24px;
+    width: 24px;
+    height: 24px;
+    border-radius: 0;
+    align-self: center;
+    top: 45%;
 }
 
 .grid-view--item-imported_status-imported {
@@ -879,6 +999,31 @@ GridErrorOrMessageView > .unity-label {
     height: 48px;
 }
 
+.asset-preview-toggle {
+    display: none;
+    position: absolute;
+    top: 5px;
+    left: 2px;
+    width: 24px;
+    height: 24px;
+    background-color: rgba(25,25,25,0.8);
+    padding: 3px;
+    padding-left: 5px;
+    border-radius: 4px;
+}
+
+.asset-preview-toggle .unity-toggle__checkmark{
+    border-color: dimgray;
+    border-width: 1px;
+    border-radius: 2px;
+}
+
+.asset-preview-toggle:hover .unity-toggle__checkmark{
+    border-color: darkgray;
+    border-width: 1px;
+    border-radius: 2px;
+}
+
 .no-thumbnail > .asset-preview-thumbnail {
     display: none;
 }
@@ -910,6 +1055,141 @@ ActionHelpBox > Label {
 }
 
 /************************************************
+* Inspector Page Container
+************************************************/
+
+#inspector-page-top {
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 10px;
+}
+
+.inspector-page-title-container {
+    flex-direction: row;
+    flex-shrink: 1;
+}
+
+#inspector-page-title {
+    padding: 5px;
+    align-self: center;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    -unity-text-overflow-position: end;
+}
+
+.inspector-page-close-button {
+    width: 24px;
+    height: 24px;
+    border-width: 0px;
+    background-size: 12px 12px;
+    background-color: rgba(0, 0, 0, 0);
+    align-self: center;
+    flex-shrink: 0;
+}
+
+#inspector-page-scrollview {
+    align-self: flex-start;
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+}
+
+.inspector-page-scrollview {
+    flex-shrink: 1;
+}
+
+#inspector-page-content-container {
+    flex-shrink: 1;
+    flex-grow: 1;
+    height: 100%;
+    min-height: 430px;
+    max-height: 100%;
+    padding: 10px;
+}
+
+.inspector-page-container {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    right: 0px;
+    bottom: 0px;
+}
+
+.inspector-page-top {
+    align-content: center;
+}
+
+.inspector-page-scrollview > #unity-content-and-vertical-scroll-container > #unity-content-viewport > #unity-content-container {
+    flex-shrink: 1;
+    flex-grow: 1;
+}
+
+.inspector-page-footer {
+    justify-content: flex-end;
+    padding: 8px;
+    flex-shrink: 0;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.inspector-page-footer-container {
+    flex-direction: column-reverse;
+    height: 100%;
+    width: 100%;
+    align-items: center;
+}
+
+/************************************************
+* Multi Selection Page Container
+************************************************/
+
+MultiAssetDetailsPage {
+    height: 100%;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    right: 0px;
+    bottom: 0px;
+    overflow: scroll;
+}
+
+.multi-selection-foldout {
+    -unity-font-style: bold;
+    margin-top: 20px;
+    height: 100%;
+    min-height: 50px;
+    width: 100%;
+}
+
+.multi-selection-foldout > Toggle{
+    padding: 8px 10px 8px 10px;
+    margin: 0 0 5px 0;
+}
+
+.multi-selection-foldout > Toggle > VisualElement{
+    flex-direction: row-reverse;
+}
+
+.multi-selection-foldout > Toggle > VisualElement > Label{
+    position: absolute;
+    left: 5px;
+}
+
+.multi-selection-loading-label {
+    align-self: center;
+    margin-top: 5px;
+    -unity-font-style: normal;
+}
+
+.multi-selection-foldout-expanded {
+    min-height: 120px;
+    max-height: 100%;
+}
+
+.multi-selection-foldout > .* > .unity-foldout__content {
+    margin-left: 0px;
+}
+
+/************************************************
 * Details Page Container
 ************************************************/
 
@@ -932,6 +1212,10 @@ AssetDetailsPage {
 .details-page-asset-name-container {
     flex-direction: row;
     flex-shrink: 1;
+}
+
+.details-page-dashboard-link{
+    cursor: link;
 }
 
 #asset-name {
@@ -983,7 +1267,6 @@ AssetDetailsPage {
     flex-shrink: 1;
 }
 
-
 .details-page-entries-container {
     flex-shrink: 0;
 }
@@ -1007,7 +1290,7 @@ AssetDetailsPage {
     width: auto;
 }
 
-#details-page-project-pill-container {
+.details-page-chip-container {
     flex-direction: row;
     align-items: center;
 }
@@ -1064,22 +1347,9 @@ AssetDetailsPage {
     margin-left: 4px;
 }
 
-.details-files-foldout-container {
-    flex-shrink: 1;
-    flex-direction: column;
-    margin-top: 20px;
-    width: 100%;
-}
-
-.details-dependencies-foldout-container {
-    flex-shrink: 1;
-    width: 100%;
-}
-
 .details-files-foldout {
     -unity-font-style: bold;
-    padding-bottom: 5px;
-    margin: 5px 0px 5px 0px;
+    margin-top: 20px;
     min-height: 50px;
     max-height: 400px;
     width: 100%;
@@ -1117,8 +1387,9 @@ AssetDetailsPage {
     overflow: hidden;
 }
 
-.no-dependencies-box {
+.no-dependencies-label {
     align-self: center;
+    -unity-font-style: bold;
 }
 
 .no-files-warning-box > Image {

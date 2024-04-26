@@ -1,65 +1,116 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class OrganizationInfo
+    class OrganizationInfo
     {
-        public string id;
-        public List<ProjectInfo> projectInfos = new();
+        public string Id;
+        public List<ProjectInfo> ProjectInfos = new();
+
+        bool m_IsUserInfosLoading;
+        List<UserInfo> m_UserInfos;
+        List<Action<List<UserInfo>>> m_UserInfosWaitingCallbacks = new();
+
+        public async Task GetUserInfosAsync(Action<List<UserInfo>> callback)
+        {
+            if (m_UserInfos != null)
+            {
+                callback?.Invoke(m_UserInfos);
+            }
+
+            m_UserInfosWaitingCallbacks.Add(callback);
+
+            if (m_IsUserInfosLoading)
+            {
+                return;
+            }
+
+            m_IsUserInfosLoading = true;
+
+            var userInfos = new List<UserInfo>();
+            await foreach (var member in ServicesContainer.instance.Resolve<IAssetsProvider>()
+                               .GetOrganizationMembersAsync(Id, Range.All, CancellationToken.None))
+            {
+                userInfos.Add(new UserInfo { UserId = member.UserId.ToString(), Name = member.Name });
+            }
+
+            foreach (var waitingCallback in m_UserInfosWaitingCallbacks)
+            {
+                waitingCallback?.Invoke(userInfos);
+            }
+
+            m_UserInfosWaitingCallbacks.Clear();
+            m_UserInfos = userInfos;
+        }
     }
 
     [Serializable]
-    internal class ProjectInfo
+    class ProjectInfo
     {
-        public string id;
-        public string name;
-        public List<CollectionInfo> collectionInfos = new();
+        public string Id;
+        public string Name;
+        public List<CollectionInfo> CollectionInfos = new();
+    }
+
+    [Serializable]
+    class UserInfo
+    {
+        public string UserId;
+        public string Name;
     }
 
     interface IProjectOrganizationProvider : IService
     {
-        event Action<OrganizationInfo> OrganizationChanged;
-        event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
         OrganizationInfo SelectedOrganization { get; }
         ProjectInfo SelectedProject { get; }
         CollectionInfo SelectedCollection { get; }
+        bool IsLoading { get; }
+        ErrorOrMessageHandlingData ErrorOrMessageHandlingData { get; } // TODO Error reporting should be an event
+
+        event Action<OrganizationInfo> OrganizationChanged;
+        event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
+
         void SelectProject(ProjectInfo projectInfo, string collectionPath = null);
         void SelectProject(string projectId, string collectionPath = null);
         void EnableProjectForAssetManager();
-        bool isLoading { get; }
-        ErrorOrMessageHandlingData errorOrMessageHandlingData { get; } // TODO Error reporting should be an event
     }
 
     [Serializable]
-    internal class ProjectOrganizationProvider : BaseService<IProjectOrganizationProvider>, IProjectOrganizationProvider
+    class ProjectOrganizationProvider : BaseService<IProjectOrganizationProvider>, IProjectOrganizationProvider
     {
-        private static readonly string k_NoOrganizationMessage = L10n.Tr("It seems your project is not linked to an organization. Please link your project to a Unity project ID to start using the Asset Manager service.");
-        private static readonly string k_CurrentProjectNotEnabledMessage = L10n.Tr("It seems your current project is not enabled for use in the Asset Manager.");
-
-        public event Action<OrganizationInfo> OrganizationChanged;
-        public event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
+        [SerializeField]
+        AsyncLoadOperation m_LoadOrganizationOperation = new();
 
         [SerializeField]
-        private AsyncLoadOperation m_LoadOrganizationOperation = new();
-
-        public bool isLoading => m_LoadOrganizationOperation.isLoading;
+        OrganizationInfo m_OrganizationInfo;
 
         [SerializeField]
-        private OrganizationInfo m_OrganizationInfo;
-
-        public OrganizationInfo SelectedOrganization => isLoading || string.IsNullOrEmpty(m_OrganizationInfo?.id) ? null : m_OrganizationInfo;
-
-        [SerializeField]
-        private string m_SelectedProjectId;
+        string m_SelectedProjectId;
 
         [SerializeField]
         string m_CollectionPath;
 
+        [SerializeField]
+        ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
+
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
+
+        [SerializeReference]
+        IUnityConnectProxy m_UnityConnectProxy;
+
+        static readonly string k_NoOrganizationMessage =
+            L10n.Tr(
+                "It seems your project is not linked to an organization. Please link your project to a Unity project ID to start using the Asset Manager service.");
+        static readonly string k_CurrentProjectNotEnabledMessage =
+            L10n.Tr("It seems your current project is not enabled for use in the Asset Manager.");
         static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
         static readonly string k_CollectionPathPrefKey = "com.unity.asset-manager-for-unity.selectedCollectionPath";
 
@@ -75,49 +126,71 @@ namespace Unity.AssetManager.Editor
             get => EditorPrefs.GetString(k_CollectionPathPrefKey, null);
         }
 
+        public event Action<OrganizationInfo> OrganizationChanged;
+        public event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
+
+        public bool IsLoading => m_LoadOrganizationOperation.isLoading;
+
+        public OrganizationInfo SelectedOrganization =>
+            IsLoading || string.IsNullOrEmpty(m_OrganizationInfo?.Id) ? null : m_OrganizationInfo;
+
         public ProjectInfo SelectedProject
         {
-            get
-            {
-                return m_OrganizationInfo?.projectInfos?.Find(p => p.id == m_SelectedProjectId);
-            }
+            get { return m_OrganizationInfo?.ProjectInfos?.Find(p => p.Id == m_SelectedProjectId); }
         }
 
         public CollectionInfo SelectedCollection
         {
             get
             {
-                var collection = SelectedProject?.collectionInfos.Find(c => c.GetFullPath() == m_CollectionPath);
+                var collection = SelectedProject?.CollectionInfos.Find(c => c.GetFullPath() == m_CollectionPath);
 
                 if (collection != null)
+                {
                     return collection;
+                }
 
                 return new CollectionInfo
                 {
-                    organizationId = SelectedOrganization?.id,
-                    projectId = SelectedProject?.id
+                    OrganizationId = SelectedOrganization?.Id,
+                    ProjectId = SelectedProject?.Id
                 };
             }
         }
 
+        [ServiceInjection]
+        public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider)
+        {
+            m_UnityConnectProxy = unityConnectProxy;
+            m_AssetsProvider = assetsProvider;
+        }
+
+        public override void OnEnable()
+        {
+            m_UnityConnectProxy.OrganizationIdChanged += OnProjectStateChanged;
+            FetchProjectOrganization(m_UnityConnectProxy.OrganizationId);
+        }
+
+        public override void OnDisable()
+        {
+            m_UnityConnectProxy.OrganizationIdChanged -= OnProjectStateChanged;
+        }
+
         public void SelectProject(ProjectInfo projectInfo, string collectionPath = null)
         {
-            SelectProject(projectInfo?.id, collectionPath);
+            SelectProject(projectInfo?.Id, collectionPath);
         }
 
         public void SelectProject(string projectId, string collectionPath = null)
         {
-            var currentProjectId = SelectedProject?.id;
+            var currentProjectId = SelectedProject?.Id;
 
             if (string.IsNullOrEmpty(projectId) && string.IsNullOrEmpty(currentProjectId))
                 return;
 
-            if (currentProjectId == projectId && (m_CollectionPath ?? string.Empty) == (collectionPath ?? string.Empty))
-                return;
-
-            if (!string.IsNullOrEmpty(currentProjectId) && !m_OrganizationInfo.projectInfos.Exists(p => p.id == currentProjectId))
+            if (!string.IsNullOrEmpty(currentProjectId) && !m_OrganizationInfo.ProjectInfos.Exists(p => p.Id == currentProjectId))
             {
-                Debug.LogError($"Project with id '{currentProjectId}' is not part of the organization '{m_OrganizationInfo.id}'");
+                Debug.LogError($"Project with id '{currentProjectId}' is not part of the organization '{m_OrganizationInfo.Id}'");
                 return;
             }
 
@@ -130,33 +203,13 @@ namespace Unity.AssetManager.Editor
             ProjectSelectionChanged?.Invoke(SelectedProject, SelectedCollection);
         }
 
-        [SerializeField]
-        private ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
+        public ErrorOrMessageHandlingData ErrorOrMessageHandlingData => m_ErrorOrMessageHandling;
 
-        public ErrorOrMessageHandlingData errorOrMessageHandlingData => m_ErrorOrMessageHandling;
-
-        [SerializeReference]
-        IUnityConnectProxy m_UnityConnectProxy;
-
-        [SerializeReference]
-        IAssetsProvider m_AssetsProvider;
-
-        [ServiceInjection]
-        public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider)
+        public async void EnableProjectForAssetManager()
         {
-            m_UnityConnectProxy = unityConnectProxy;
-            m_AssetsProvider = assetsProvider;
-        }
+            await m_AssetsProvider.EnableProjectAsync();
 
-        public override void OnEnable()
-        {
-            m_UnityConnectProxy.onOrganizationIdChange += OnProjectStateChanged;
-            FetchProjectOrganization(m_UnityConnectProxy.organizationId);
-        }
-
-        public override void OnDisable()
-        {
-            m_UnityConnectProxy.onOrganizationIdChange -= OnProjectStateChanged;
+            FetchProjectOrganization(m_UnityConnectProxy.OrganizationId, true);
         }
 
         void OnProjectStateChanged(string newOrgId)
@@ -164,24 +217,23 @@ namespace Unity.AssetManager.Editor
             FetchProjectOrganization(newOrgId);
         }
 
-        public async void EnableProjectForAssetManager()
-        {
-            await m_AssetsProvider.EnableProjectAsync();
-
-            FetchProjectOrganization(m_UnityConnectProxy.organizationId, true);
-        }
-
         void FetchProjectOrganization(string newOrgId, bool forceRefresh = false)
         {
-            if (!forceRefresh && !string.IsNullOrEmpty(m_OrganizationInfo?.id) && m_OrganizationInfo.id == newOrgId)
+
+#if UNITY_2021
+            if (!forceRefresh)
+                return;
+#else
+            if (!forceRefresh && !string.IsNullOrEmpty(m_OrganizationInfo?.Id) && m_OrganizationInfo.Id == newOrgId)
                 return;
 
-            if (m_OrganizationInfo?.id != newOrgId)
+            if (m_OrganizationInfo?.Id != newOrgId)
             {
-                m_OrganizationInfo = new OrganizationInfo { id = newOrgId };
+                m_OrganizationInfo = new OrganizationInfo { Id = newOrgId };
             }
+#endif
 
-            if (isLoading)
+            if (IsLoading)
             {
                 m_LoadOrganizationOperation.Cancel();
             }
@@ -190,35 +242,38 @@ namespace Unity.AssetManager.Editor
 
             if (string.IsNullOrEmpty(newOrgId))
             {
-                m_ErrorOrMessageHandling.message = k_NoOrganizationMessage;
-                m_ErrorOrMessageHandling.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
+                m_ErrorOrMessageHandling.Message = k_NoOrganizationMessage;
+                m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction =
+                    ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
                 InvokeOrganizationChanged();
                 return;
             }
 
             _ = m_LoadOrganizationOperation.Start(token => m_AssetsProvider.GetOrganizationInfoAsync(newOrgId, token),
-                onLoadingStartCallback: () =>
+                () =>
                 {
-                    errorOrMessageHandlingData.message = string.Empty;
-                    errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
+                    ErrorOrMessageHandlingData.Message = string.Empty;
+                    ErrorOrMessageHandlingData.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
                     InvokeOrganizationChanged(); // TODO Should use a different event
                 },
-                onCancelledCallback: InvokeOrganizationChanged,
-                onExceptionCallback: e =>
+                cancelledCallback: InvokeOrganizationChanged,
+                exceptionCallback: e =>
                 {
                     Debug.LogException(e);
-                    errorOrMessageHandlingData.message = L10n.Tr("It seems there was an error while trying to retrieve assets.");
-                    errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
+                    ErrorOrMessageHandlingData.Message =
+                        L10n.Tr("It seems there was an error while trying to retrieve assets.");
+                    ErrorOrMessageHandlingData.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
                     InvokeOrganizationChanged(); // TODO Send exception event
                 },
-                onSuccessCallback: result =>
+                successCallback: result =>
                 {
                     m_OrganizationInfo = result;
-                    if (m_OrganizationInfo?.projectInfos.Any() == false)
+                    if (m_OrganizationInfo?.ProjectInfos.Any() == false)
                     {
                         SelectProject(string.Empty);
-                        errorOrMessageHandlingData.message = k_CurrentProjectNotEnabledMessage;
-                        errorOrMessageHandlingData.errorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.EnableProject;
+                        ErrorOrMessageHandlingData.Message = k_CurrentProjectNotEnabledMessage;
+                        ErrorOrMessageHandlingData.ErrorOrMessageRecommendedAction =
+                            ErrorOrMessageRecommendedAction.EnableProject;
                     }
                     else
                     {
@@ -235,11 +290,11 @@ namespace Unity.AssetManager.Editor
 
             if (string.IsNullOrEmpty(savedProjectId))
             {
-                return SelectedProject ?? m_OrganizationInfo.projectInfos.FirstOrDefault();
+                return SelectedProject ?? m_OrganizationInfo.ProjectInfos.FirstOrDefault();
             }
 
-            var saveProjectInfo = m_OrganizationInfo.projectInfos.Find(p => p.id == savedProjectId);
-            return saveProjectInfo ?? m_OrganizationInfo.projectInfos.FirstOrDefault();
+            var saveProjectInfo = m_OrganizationInfo.ProjectInfos.Find(p => p.Id == savedProjectId);
+            return saveProjectInfo ?? m_OrganizationInfo.ProjectInfos.FirstOrDefault();
         }
 
         string RestoreSelectedCollection()
@@ -253,7 +308,7 @@ namespace Unity.AssetManager.Editor
 
             if (Utilities.IsDevMode)
             {
-                Debug.Log($"OrganizationChanged '{selected?.id}'");
+                Debug.Log($"OrganizationChanged '{selected?.Id}'");
             }
 
             OrganizationChanged?.Invoke(selected);

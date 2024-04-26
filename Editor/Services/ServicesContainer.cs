@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
@@ -10,17 +9,15 @@ namespace Unity.AssetManager.Editor
 {
     interface IService
     {
-        bool enabled { get; set; }
-        Type registrationType { get; }
+        bool Enabled { get; set; }
+        Type RegistrationType { get; }
     }
 
     abstract class BaseService : IService
     {
-        public abstract Type registrationType { get; }
+        public abstract Type RegistrationType { get; }
 
-        bool m_Enabled;
-
-        public bool enabled
+        public bool Enabled
         {
             get => m_Enabled;
             set
@@ -41,6 +38,8 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        bool m_Enabled;
+
         public virtual void OnEnable() { }
 
         public virtual void OnDisable() { }
@@ -48,7 +47,7 @@ namespace Unity.AssetManager.Editor
 
     abstract class BaseService<T> : BaseService where T : IService
     {
-        public override Type registrationType => typeof(T);
+        public override Type RegistrationType => typeof(T);
     }
 
     [AttributeUsage(AttributeTargets.Method)]
@@ -58,10 +57,10 @@ namespace Unity.AssetManager.Editor
     class SerializedService
     {
         [SerializeReference]
-        public IService Service;
+        public List<IService> Dependencies;
 
         [SerializeReference]
-        public List<IService> Dependencies;
+        public IService Service;
     }
 
     [Serializable]
@@ -72,9 +71,7 @@ namespace Unity.AssetManager.Editor
         List<SerializedService> m_SerializedServices = new();
 
         readonly Dictionary<IService, List<IService>> m_Dependencies = new();
-
         readonly Dictionary<Type, IService> m_RegisteredServices = new();
-
         readonly Dictionary<IService, HashSet<IService>> m_ReverseDependencies = new();
 
         public void OnEnable()
@@ -86,6 +83,53 @@ namespace Unity.AssetManager.Editor
             InitializeServices();
         }
 
+        public void OnDisable()
+        {
+            foreach (var service in m_RegisteredServices.Values)
+            {
+                service.Enabled = false;
+            }
+        }
+
+        public void OnBeforeSerialize()
+        {
+            m_SerializedServices = new List<SerializedService>();
+
+            var processedServices = new HashSet<IService>();
+
+            foreach (var service in m_RegisteredServices.Values)
+            {
+                if (processedServices.Contains(service))
+                {
+                    continue;
+                }
+
+                m_SerializedServices.Add(new SerializedService
+                {
+                    Service = service,
+                    Dependencies = m_Dependencies.TryGetValue(service, out var dependencies) ?
+                        dependencies :
+                        new List<IService>()
+                });
+
+                processedServices.Add(service);
+            }
+        }
+
+        public void OnAfterDeserialize()
+        {
+            if (m_SerializedServices == null || m_SerializedServices.Count == 0)
+                return;
+
+            foreach (var serviceInfo in m_SerializedServices)
+            {
+                Register(serviceInfo.Service);
+                m_Dependencies.TryAdd(serviceInfo.Service, serviceInfo.Dependencies);
+            }
+
+            BuildReverseDependencies();
+        }
+
         public void InitializeServices()
         {
             Utilities.DevLog("Initializing Asset Manager Services");
@@ -93,7 +137,6 @@ namespace Unity.AssetManager.Editor
             m_RegisteredServices.Clear();
 
             Register(new StateManager());
-            Register(new EditorGUIUtilityProxy());
             Register(new IOProxy());
             Register(new ApplicationProxy());
             Register(new DirectoryInfoFactory());
@@ -118,18 +161,11 @@ namespace Unity.AssetManager.Editor
             Register(new EditorUtilityProxy());
             Register(new AssetImporter());
             Register(new ContextMenuBuilder());
+            Register(new PermissionsManager());
 
             InjectServicesAndBuildDependencies();
 
             BuildReverseDependencies();
-        }
-
-        public void OnDisable()
-        {
-            foreach (var service in m_RegisteredServices.Values)
-            {
-                service.enabled = false;
-            }
         }
 
         void RegisterReverseDependencies(IService service)
@@ -150,14 +186,21 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public IService Register(IService service)
+        public IService Register(IService service, Type serviceType = null)
         {
             if (service == null)
+            {
                 return null;
+            }
 
-            m_RegisteredServices[service.GetType()] = service;
+            if (serviceType == null)
+            {
+                serviceType = service.GetType();
+            }
 
-            var registrationType = service.registrationType;
+            m_RegisteredServices[serviceType] = service;
+
+            var registrationType = service.RegistrationType;
             if (registrationType != null)
             {
                 m_RegisteredServices[registrationType] = service;
@@ -179,8 +222,10 @@ namespace Unity.AssetManager.Editor
         public T Resolve<T>() where T : class, IService
         {
             var service = m_RegisteredServices.TryGetValue(typeof(T), out var result) ? result as T : null;
-            if (service == null || service.enabled)
+            if (service == null || service.Enabled)
+            {
                 return service;
+            }
 
             var serviceEnablingQueue = new Queue<IService>();
             serviceEnablingQueue.Enqueue(service);
@@ -194,7 +239,7 @@ namespace Unity.AssetManager.Editor
 
         void EnableService(IService service, Queue<IService> serviceEnablingQueue)
         {
-            if (service == null || service.enabled)
+            if (service == null || service.Enabled)
                 return;
 
             if (m_Dependencies.TryGetValue(service, out var dependencies))
@@ -205,7 +250,7 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
-            service.enabled = true;
+            service.Enabled = true;
 
             // All the reverse dependencies go into the queue to avoid nested enabling
             if (m_ReverseDependencies.TryGetValue(service, out var reverseDependencies))
@@ -234,7 +279,8 @@ namespace Unity.AssetManager.Editor
 
             foreach (var method in methods)
             {
-                var injectAttribute = (ServiceInjectionAttribute)Attribute.GetCustomAttribute(method, typeof(ServiceInjectionAttribute));
+                var injectAttribute =
+                    (ServiceInjectionAttribute)Attribute.GetCustomAttribute(method, typeof(ServiceInjectionAttribute));
                 if (injectAttribute == null)
                     continue;
 
@@ -265,43 +311,6 @@ namespace Unity.AssetManager.Editor
 
                 method.Invoke(inst, parameterValues);
             }
-        }
-
-        public void OnBeforeSerialize()
-        {
-            m_SerializedServices = new List<SerializedService>();
-
-            var processedServices = new HashSet<IService>();
-
-            foreach (var service in m_RegisteredServices.Values)
-            {
-                if (processedServices.Contains(service))
-                    continue;
-
-                m_SerializedServices.Add(new SerializedService
-                {
-                    Service = service,
-                    Dependencies = m_Dependencies.TryGetValue(service, out var dependencies)
-                        ? dependencies
-                        : new List<IService>()
-                });
-
-                processedServices.Add(service);
-            }
-        }
-
-        public void OnAfterDeserialize()
-        {
-            if (m_SerializedServices == null || m_SerializedServices.Count == 0)
-                return;
-
-            foreach (var serviceInfo in m_SerializedServices)
-            {
-                Register(serviceInfo.Service);
-                m_Dependencies.Add(serviceInfo.Service, serviceInfo.Dependencies);
-            }
-
-            BuildReverseDependencies();
         }
     }
 }

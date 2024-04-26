@@ -5,21 +5,22 @@ using UnityEngine.UIElements;
 namespace Unity.AssetManager.Editor
 {
     /// <summary>
-    /// Manipulator that fires a Button Event if you release the pointer without moving it (up as button), or a Drag Event if you move the pointer after pressing it down.
+    /// Manipulator that fires a Button Event if you release the pointer without moving it (up as button), or a Drag Event if
+    /// you move the pointer after pressing it down.
     /// </summary>
-    internal class ClickOrDragStartManipulator : PointerManipulator
+    class ClickOrDragStartManipulator : PointerManipulator
     {
-        event Action m_OnButtonClicked;
-        event Action m_OnDragStart;
+        Action m_ButtonClicked;
+        Action m_DragStart;
 
-        bool m_CanStartDrag = false;
+        bool m_CanStartDrag;
 
         internal ClickOrDragStartManipulator(VisualElement root, Action onButtonClicked, Action onDragStart)
         {
             activators.Add(new ManipulatorActivationFilter { button = MouseButton.LeftMouse });
             target = root;
-            m_OnButtonClicked = onButtonClicked;
-            m_OnDragStart = onDragStart;
+            m_ButtonClicked = onButtonClicked;
+            m_DragStart = onDragStart;
         }
 
         protected override void RegisterCallbacksOnTarget()
@@ -36,7 +37,7 @@ namespace Unity.AssetManager.Editor
             target.UnregisterCallback<PointerMoveEvent>(OnPointerMove);
         }
 
-        internal void OnPointerDown(PointerDownEvent e)
+        void OnPointerDown(PointerDownEvent e)
         {
             if (m_CanStartDrag)
             {
@@ -51,27 +52,26 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        internal void OnPointerUp(PointerUpEvent e)
+        void OnPointerUp(PointerUpEvent e)
         {
             if (CannotCompleteInteraction(e))
                 return;
 
             CompleteInteraction(e);
-            m_OnButtonClicked?.Invoke();
+            m_ButtonClicked?.Invoke();
         }
-
-        internal void OnPointerMove(PointerMoveEvent e)
+        void OnPointerMove(PointerMoveEvent e)
         {
             if (CannotCompleteInteraction(e))
                 return;
 
             CompleteInteraction(e);
-            m_OnDragStart?.Invoke();
+            m_DragStart?.Invoke();
         }
 
         bool CannotCompleteInteraction(IPointerEvent e)
         {
-            bool canStopManipulation = CanStopManipulation(e);
+            var canStopManipulation = CanStopManipulation(e);
             return !m_CanStartDrag || !canStopManipulation;
         }
 
@@ -81,7 +81,14 @@ namespace Unity.AssetManager.Editor
             eb.StopPropagation();
         }
 
-        internal void SetOnDragStart(Action newOnDragStart) => m_OnDragStart = newOnDragStart;
-        internal void SetOnButtonClicked(Action newOnButtonClicked) => m_OnButtonClicked = newOnButtonClicked;
+        internal void SetOnDragStart(Action newOnDragStart)
+        {
+            m_DragStart = newOnDragStart;
+        }
+
+        internal void SetOnButtonClicked(Action newOnButtonClicked)
+        {
+            m_ButtonClicked = newOnButtonClicked;
+        }
     }
 }

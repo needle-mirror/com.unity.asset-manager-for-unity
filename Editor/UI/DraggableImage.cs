@@ -8,7 +8,7 @@ namespace Unity.AssetManager.Editor
     /// VisualElement Image that can support draggable behaviour
     /// Used in places like the gridview and Details Page
     /// </summary>
-    internal class DraggableImage : Image
+    class DraggableImage : Image
     {
         readonly ClickOrDragStartManipulator m_DragManipulator;
 

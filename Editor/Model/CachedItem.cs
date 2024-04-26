@@ -3,7 +3,7 @@
 namespace Unity.AssetManager.Editor.Model
 {
     [Serializable]
-    internal class CachedItem
+    class CachedItem
     {
         public string CacheKey { get; set; }
         public string Path { get; set; }

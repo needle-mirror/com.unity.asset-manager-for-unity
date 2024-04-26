@@ -3,7 +3,7 @@ using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Editor
 {
-    class MenuItemSelectedEvent: IBaseEvent
+    class MenuItemSelectedEvent : IBaseEvent
     {
         public enum MenuItemType
         {
@@ -23,7 +23,7 @@ namespace Unity.AssetManager.Editor
             public string MenuItemSelected;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "MenuItemSelected";
+        const string k_EventName = AnalyticsSender.EventPrefix + "MenuItemSelected";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -33,15 +33,15 @@ namespace Unity.AssetManager.Editor
 
         internal MenuItemSelectedEvent(MenuItemType menuItemType)
         {
-            m_Data = new MenuItemSelectedEventData()
+            m_Data = new MenuItemSelectedEventData
             {
                 MenuItemSelected = menuItemType.ToString()
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
-        internal class MenuItemSelectedEventAnalytic : IAnalytic
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        class MenuItemSelectedEventAnalytic : IAnalytic
         {
             MenuItemSelectedEventData m_Data;
 
@@ -67,4 +67,3 @@ namespace Unity.AssetManager.Editor
 #endif
     }
 }
-

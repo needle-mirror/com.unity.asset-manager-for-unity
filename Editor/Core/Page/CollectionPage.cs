@@ -9,25 +9,28 @@ using UnityEngine;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class CollectionPage : BasePage
+    class CollectionPage : BasePage
     {
-        public override bool DisplayBreadcrumbs => true;
-
         [SerializeField]
-        private CollectionInfo m_CollectionInfo;
+        CollectionInfo m_CollectionInfo;
 
-        public string collectionPath => m_CollectionInfo?.GetFullPath();
+        public override bool DisplayBreadcrumbs => true;
+        public string CollectionPath => m_CollectionInfo?.GetFullPath();
 
-        public CollectionPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, IProjectOrganizationProvider projectOrganizationProvider)
+        public CollectionPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
+            IProjectOrganizationProvider projectOrganizationProvider)
             : base(assetDataManager, assetsProvider, projectOrganizationProvider)
         {
             m_CollectionInfo = m_ProjectOrganizationProvider.SelectedCollection;
         }
 
-        protected override async IAsyncEnumerable<IAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
+        protected internal override async IAsyncEnumerable<IAssetData> LoadMoreAssets(
+            [EnumeratorCancellation] CancellationToken token)
         {
-            if (m_ProjectOrganizationProvider.SelectedProject?.id != m_CollectionInfo.projectId)
+            if (m_ProjectOrganizationProvider.SelectedProject?.Id != m_CollectionInfo.ProjectId)
+            {
                 yield return null;
+            }
 
             await foreach (var assetData in LoadMoreAssets(m_CollectionInfo, token))
             {
@@ -37,28 +40,32 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnLoadMoreSuccessCallBack()
         {
-            if (string.IsNullOrEmpty(collectionPath) && !m_AssetList.Any() && !pageFilters.searchFilters.Any())
+            if (string.IsNullOrEmpty(CollectionPath) && !m_AssetList.Any() && !PageFilters.SearchFilters.Any())
             {
-                SetErrorOrMessageData(L10n.Tr(Constants.EmptyProjectText), ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
+                SetErrorOrMessageData(L10n.Tr(Constants.EmptyProjectText),
+                    ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
             }
-            else if (pageFilters.searchFilters.Any() && !m_AssetList.Any())
+            else if (PageFilters.SearchFilters.Any() && !m_AssetList.Any())
             {
-                SetErrorOrMessageData(L10n.Tr("No results found for \"" + string.Join(", ", pageFilters.searchFilters) + "\""), ErrorOrMessageRecommendedAction.None);
+                SetErrorOrMessageData(
+                    L10n.Tr("No results found for \"" + string.Join(", ", PageFilters.SearchFilters) + "\""),
+                    ErrorOrMessageRecommendedAction.None);
             }
             else if (!m_AssetList.Any())
             {
-                SetErrorOrMessageData(L10n.Tr(Constants.EmptyCollectionsText), ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
+                SetErrorOrMessageData(L10n.Tr(Constants.EmptyCollectionsText),
+                    ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
             }
             else
             {
-                pageFilters.EnableFilters();
+                PageFilters.EnableFilters();
                 SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
             }
         }
 
         protected override string GetPageName()
         {
-            if(m_CollectionInfo == null || string.IsNullOrEmpty(m_CollectionInfo.name))
+            if (m_CollectionInfo == null || string.IsNullOrEmpty(m_CollectionInfo.Name))
             {
                 return "Project";
             }

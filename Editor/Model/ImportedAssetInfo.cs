@@ -6,18 +6,42 @@ using UnityEngine;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class ImportedAssetInfo
+    class ImportedAssetInfo
     {
         [SerializeReference]
-        public IAssetData assetData;
-        public AssetIdentifier id => assetData?.identifier;
-        
-        public List<ImportedFileInfo> fileInfos;
-        
+        public IAssetData AssetData;
+
+        public List<ImportedFileInfo> FileInfos;
+
         public ImportedAssetInfo(IAssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
         {
-            this.assetData = assetData;
-            this.fileInfos = fileInfos.ToList();
+            AssetData = assetData;
+            FileInfos = fileInfos.ToList();
+        }
+
+        public AssetIdentifier id => AssetData?.Identifier;
+
+        public static ImportedAssetInfo Parse(string jsonString)
+        {
+            if (string.IsNullOrEmpty(jsonString))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonUtility.FromJson<ImportedAssetInfo>(jsonString);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        public static string ToJson(IAssetData assetData, IEnumerable<ImportedFileInfo> importedAssetInfo)
+        {
+            var trackedData = new ImportedAssetInfo(assetData, importedAssetInfo);
+            return JsonUtility.ToJson(trackedData, true);
         }
     }
 }

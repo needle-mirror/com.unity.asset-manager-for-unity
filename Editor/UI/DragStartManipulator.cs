@@ -7,15 +7,15 @@ namespace Unity.AssetManager.Editor
     /// <summary>
     /// Manipulator that fires a Drag Event when you press the pointer down on its target.
     /// </summary>
-    internal class DragStartManipulator : PointerManipulator
+    class DragStartManipulator : PointerManipulator
     {
-        event Action m_OnDragStart;
+        Action m_DragStart;
 
-        internal DragStartManipulator(VisualElement root, Action onDragStart)
+        internal DragStartManipulator(VisualElement root, Action dragStartCallback)
         {
             activators.Add(new ManipulatorActivationFilter { button = MouseButton.LeftMouse });
             target = root;
-            m_OnDragStart = onDragStart;
+            m_DragStart = dragStartCallback;
         }
 
         protected override void RegisterCallbacksOnTarget()
@@ -28,12 +28,12 @@ namespace Unity.AssetManager.Editor
             target.UnregisterCallback<PointerDownEvent>(OnPointerDown);
         }
 
-        internal void OnPointerDown(PointerDownEvent e)
+        void OnPointerDown(PointerDownEvent e)
         {
             if (CanStartManipulation(e))
             {
                 e.StopPropagation();
-                m_OnDragStart?.Invoke();
+                m_DragStart?.Invoke();
             }
         }
     }

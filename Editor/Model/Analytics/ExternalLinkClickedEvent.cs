@@ -21,7 +21,7 @@ namespace Unity.AssetManager.Editor
             public string ExternalLinkTypeLinkType;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "ExternalLinkClicked";
+        const string k_EventName = AnalyticsSender.EventPrefix + "ExternalLinkClicked";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -31,14 +31,14 @@ namespace Unity.AssetManager.Editor
 
         internal ExternalLinkClickedEvent(ExternalLinkType externalLinkType)
         {
-            m_Data = new ExternalLinkClickedEventData()
+            m_Data = new ExternalLinkClickedEventData
             {
                 ExternalLinkTypeLinkType = externalLinkType.ToString()
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class ExternalLinkClickedEventAnalytic : IAnalytic
         {
             ExternalLinkClickedEventData m_Data;

@@ -25,7 +25,7 @@ namespace Unity.AssetManager.Editor
             public int ResultCount;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "SearchFilteredResult";
+        const string k_EventName = AnalyticsSender.EventPrefix + "SearchFilteredResult";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -35,7 +35,7 @@ namespace Unity.AssetManager.Editor
 
         internal FilterSearchResultEvent(List<FilterData> selectedFilter, int resultCount)
         {
-            m_Data = new FilterSearchResultEventData()
+            m_Data = new FilterSearchResultEventData
             {
                 SelectedFilters = selectedFilter,
                 ResultCount = resultCount
@@ -43,7 +43,7 @@ namespace Unity.AssetManager.Editor
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class FilterSearchResultEventAnalytic : IAnalytic
         {
             FilterSearchResultEventData m_Data;

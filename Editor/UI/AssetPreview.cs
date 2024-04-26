@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -12,22 +13,33 @@ namespace Unity.AssetManager.Editor
             public static readonly string Thumbnail = "asset-preview-thumbnail";
             public static readonly string AssetPreview = "asset-preview";
             public static readonly string AssetTypeIcon = "asset-preview-asset-type-icon";
+            public static readonly string Toggle = "asset-preview-toggle";
             public static readonly string DefaultAssetIcon = "default-asset-icon";
             public static readonly string ImportedStatus = Constants.GridItemStyleClassName + "-imported_status";
+            public static readonly string NoThumbnail = "no-thumbnail";
         }
 
         readonly VisualElement m_ThumbnailImage;
         readonly VisualElement m_AssetTypeIcon;
         readonly VisualElement m_ImportedStatusIcon;
+        readonly Toggle m_Toggle;
+
+        public Action<bool> ToggleValueChanged;
+
+        public Toggle Toggle => m_Toggle;
 
         public AssetPreview()
         {
             m_ThumbnailImage = new VisualElement();
             m_AssetTypeIcon = new VisualElement();
+            m_Toggle = new Toggle();
+            m_Toggle.RegisterValueChangedCallback(evt => ToggleValueChanged?.Invoke(evt.newValue));
 
             AddToClassList(UssStyles.AssetPreview);
             m_ThumbnailImage.AddToClassList(UssStyles.Thumbnail);
             m_AssetTypeIcon.AddToClassList(UssStyles.AssetTypeIcon);
+
+            m_Toggle.AddToClassList(UssStyles.Toggle);
 
             m_ImportedStatusIcon = new VisualElement();
             m_ImportedStatusIcon.AddToClassList(UssStyles.ImportedStatus);
@@ -35,6 +47,7 @@ namespace Unity.AssetManager.Editor
 
             Add(m_ThumbnailImage);
             Add(m_AssetTypeIcon);
+            Add(m_Toggle);
             Add(m_ImportedStatusIcon);
         }
 
@@ -89,7 +102,7 @@ namespace Unity.AssetManager.Editor
 
         public void SetThumbnail(Texture2D texture2D)
         {
-            EnableInClassList("no-thumbnail", texture2D == null);
+            EnableInClassList(UssStyles.NoThumbnail, texture2D == null);
             m_ThumbnailImage.style.backgroundImage = texture2D;
         }
     }

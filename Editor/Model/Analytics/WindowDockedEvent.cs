@@ -15,7 +15,7 @@ namespace Unity.AssetManager.Editor
             public bool IsDocked;
         }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "WindowDocked";
+        const string k_EventName = AnalyticsSender.EventPrefix + "WindowDocked";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -25,15 +25,15 @@ namespace Unity.AssetManager.Editor
 
         internal WindowDockedEvent(bool isDocked)
         {
-            m_Data = new WindowDockedEventData()
+            m_Data = new WindowDockedEventData
             {
                 IsDocked = isDocked
             };
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
-        internal class WindowDockedEventAnalytic : IAnalytic
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        class WindowDockedEventAnalytic : IAnalytic
         {
             WindowDockedEventData m_Data;
 

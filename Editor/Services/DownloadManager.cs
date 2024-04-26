@@ -8,10 +8,10 @@ using UnityEngine.Networking;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IDownloadManager : IService
+    interface IDownloadManager : IService
     {
-        event Action<DownloadOperation> onDownloadProgress;
-        event Action<DownloadOperation> onDownloadFinalized;
+        event Action<DownloadOperation> DownloadProgress;
+        event Action<DownloadOperation> DownloadFinalized;
 
         DownloadOperation CreateDownloadOperation(string url, string path);
 
@@ -21,58 +21,39 @@ namespace Unity.AssetManager.Editor
     }
 
     [Serializable]
-    internal class DownloadManager : BaseService<IDownloadManager>, IDownloadManager, ISerializationCallbackReceiver
+    class DownloadManager : BaseService<IDownloadManager>, IDownloadManager, ISerializationCallbackReceiver
     {
-        private const int k_MaxConcurrentDownloads = 30;
-        public event Action<DownloadOperation> onDownloadProgress = delegate {};
-        public event Action<DownloadOperation> onDownloadFinalized = delegate {};
-
-        private readonly Dictionary<ulong, IWebRequestItem> m_WebRequests = new();
+        [SerializeField]
+        ulong m_LastDownloadOperationId;
 
         [SerializeField]
-        private ulong m_LastDownloadOperationId = 0;
-        [SerializeField]
-        private List<DownloadOperation> m_PendingDownloads = new();
-        [SerializeField]
-        private List<ulong> m_PendingCancellations = new();
-        [SerializeField]
-        private DownloadOperation[] m_PendingResume = Array.Empty<DownloadOperation>();
+        List<DownloadOperation> m_PendingDownloads = new();
 
-        private readonly List<DownloadOperation> m_DownloadInProgress = new();
+        [SerializeField]
+        List<ulong> m_PendingCancellations = new();
+
+        [SerializeField]
+        DownloadOperation[] m_PendingResume = Array.Empty<DownloadOperation>();
+
+        [SerializeReference]
+        IIOProxy m_IOProxy;
 
         [SerializeReference]
         IWebRequestProxy m_WebRequestProxy;
 
-        [SerializeReference]
-        IIOProxy m_IOProxy;
+        readonly List<DownloadOperation> m_DownloadInProgress = new();
+        readonly Dictionary<ulong, IWebRequestItem> m_WebRequests = new();
+
+        const int k_MaxConcurrentDownloads = 30;
+
+        public event Action<DownloadOperation> DownloadProgress = delegate { };
+        public event Action<DownloadOperation> DownloadFinalized = delegate { };
 
         [ServiceInjection]
         public void Inject(IWebRequestProxy webRequestProxy, IIOProxy ioProxy)
         {
             m_WebRequestProxy = webRequestProxy;
             m_IOProxy = ioProxy;
-        }
-
-        public DownloadOperation CreateDownloadOperation(string url, string path)
-        {
-            return new DownloadOperation
-            {
-                id = ++m_LastDownloadOperationId,
-                url = url,
-                path = path,
-            };
-        }
-
-        public void StartDownload(DownloadOperation operation)
-        {
-            m_PendingDownloads.Add(operation);
-        }
-
-        // We put cancellation and new downloads in `pending` list to be processed in the next update because
-        // we don't want to accidentally modify the `m_DownloadInProgress` list when it's being iterated on
-        public void Cancel(ulong downloadId)
-        {
-            m_PendingCancellations.Add(downloadId);
         }
 
         public override void OnEnable()
@@ -85,12 +66,49 @@ namespace Unity.AssetManager.Editor
             EditorApplication.update -= Update;
         }
 
-        private void Update()
+        public DownloadOperation CreateDownloadOperation(string url, string path)
+        {
+            return new DownloadOperation
+            {
+                Id = ++m_LastDownloadOperationId,
+                Url = url,
+                Path = path
+            };
+        }
+
+        public void StartDownload(DownloadOperation operation)
+        {
+            if (m_PendingDownloads.Contains(operation)
+                || m_DownloadInProgress.Contains(operation)
+                || m_PendingCancellations.Exists(id => id == operation.Id))
+            {
+                return;
+            }
+
+            m_PendingDownloads.Add(operation);
+        }
+
+        // We put cancellation and new downloads in `pending` list to be processed in the next update because
+        // we don't want to accidentally modify the `m_DownloadInProgress` list when it's being iterated on
+        public void Cancel(ulong downloadId)
+        {
+            m_PendingCancellations.Add(downloadId);
+        }
+
+        public void OnBeforeSerialize()
+        {
+            m_PendingResume = m_DownloadInProgress.ToArray();
+        }
+
+        public void OnAfterDeserialize() { }
+
+        void Update()
         {
             HandleResume();
             HandleCancellation();
 
-            var numDownloadsToAdd = Math.Min(k_MaxConcurrentDownloads - m_DownloadInProgress.Count, m_PendingDownloads.Count);
+            var numDownloadsToAdd = Math.Min(k_MaxConcurrentDownloads - m_DownloadInProgress.Count,
+                m_PendingDownloads.Count);
             if (numDownloadsToAdd > 0)
             {
                 var initializedOperations = new List<DownloadOperation>();
@@ -106,6 +124,7 @@ namespace Unity.AssetManager.Editor
                 {
                     Debug.LogException(e);
                 }
+
                 m_PendingDownloads.RemoveAll(op => initializedOperations.Contains(op));
             }
 
@@ -113,24 +132,27 @@ namespace Unity.AssetManager.Editor
                 return;
 
             foreach (var operation in m_DownloadInProgress)
+            {
                 UpdateOperation(operation);
+            }
 
             m_DownloadInProgress.RemoveAll(o => o.Status != OperationStatus.InProgress);
         }
 
-        private void HandleResume()
+        void HandleResume()
         {
             if (m_PendingResume == null || m_PendingResume.Length == 0)
                 return;
 
             foreach (var operation in m_PendingResume)
             {
-                var fileSizeInBytes = m_IOProxy.GetFileSizeInBytes(operation.path);
-                if (fileSizeInBytes <= 0 || fileSizeInBytes > operation.totalBytes)
-                    InitializeOperation(operation);
-                else if (fileSizeInBytes == operation.totalBytes)
+                var fileSizeInBytes = m_IOProxy.GetFileSizeInBytes(operation.Path);
+                if (fileSizeInBytes <= 0 || fileSizeInBytes > operation.TotalBytes)
                 {
-                    operation.SetProgress(1.0f);
+                    InitializeOperation(operation);
+                }
+                else if (fileSizeInBytes == operation.TotalBytes)
+                {
                     FinalizeOperation(operation, null, OperationStatus.Success);
                 }
                 else
@@ -138,66 +160,84 @@ namespace Unity.AssetManager.Editor
                     InitializeOperation(operation, true, $"bytes={fileSizeInBytes}-");
                 }
             }
+
             m_PendingResume = null;
         }
 
-        private void HandleCancellation()
+        void HandleCancellation()
         {
             if (m_PendingCancellations == null || m_PendingCancellations.Count == 0)
                 return;
 
             foreach (var downloadId in m_PendingCancellations)
             {
-                var downloadOperation = m_PendingDownloads.Concat(m_DownloadInProgress).FirstOrDefault(i => i.id == downloadId);
+                var downloadOperation = m_PendingDownloads.Concat(m_DownloadInProgress)
+                    .FirstOrDefault(i => i.Id == downloadId);
                 if (downloadOperation == null)
                     continue;
-                m_PendingDownloads.RemoveAll(i => i.id == downloadId);
-                m_DownloadInProgress.RemoveAll(i => i.id == downloadId);
-                if (m_WebRequests.TryGetValue(downloadId, out var request) && !request.isDone)
+
+                m_PendingDownloads.RemoveAll(i => i.Id == downloadId);
+                m_DownloadInProgress.RemoveAll(i => i.Id == downloadId);
+                if (m_WebRequests.TryGetValue(downloadId, out var request) && !request.IsDone)
+                {
                     request.Abort();
+                }
+
                 FinalizeOperation(downloadOperation, request, OperationStatus.Cancelled);
             }
+
             m_PendingCancellations.Clear();
         }
 
-        private void InitializeOperation(DownloadOperation operation, bool append = false, string bytesRange = null)
+        void InitializeOperation(DownloadOperation operation, bool append = false, string bytesRange = null)
         {
-            var newRequest = m_WebRequestProxy.SendWebRequest(operation.url, operation.path, append, bytesRange);
-            m_WebRequests[operation.id] = newRequest;
+            var newRequest = m_WebRequestProxy.SendWebRequest(operation.Url, operation.Path, append, bytesRange);
+            m_WebRequests[operation.Id] = newRequest;
             m_DownloadInProgress.Add(operation);
             operation.Start();
         }
 
-        private void FinalizeOperation(DownloadOperation operation, IWebRequestItem request, OperationStatus finalStatus, string errorMessage = null)
+        void FinalizeOperation(DownloadOperation operation, IWebRequestItem request, OperationStatus finalStatus,
+            string errorMessage = null)
         {
             if (!string.IsNullOrEmpty(errorMessage))
-                Debug.LogError($"Encountered error while downloading {Path.GetFileName(operation.path)}: {errorMessage}");
+            {
+                Debug.LogError(
+                    $"Encountered error while downloading {Path.GetFileName(operation.Path)}: {errorMessage}");
+            }
 
+            if (finalStatus == OperationStatus.Success)
+            {
+                operation.SetProgress(1f);
+            }
+            
             operation.Finish(finalStatus);
-            operation.error = errorMessage ?? string.Empty;
-            m_WebRequests.Remove(operation.id);
+            operation.Error = errorMessage ?? string.Empty;
+            m_WebRequests.Remove(operation.Id);
             request?.Dispose();
-            onDownloadFinalized.Invoke(operation);
+            DownloadFinalized.Invoke(operation);
         }
 
-        private void UpdateOperation(DownloadOperation operation)
+        void UpdateOperation(DownloadOperation operation)
         {
-            if (!m_WebRequests.TryGetValue(operation.id, out var request))
+            if (!m_WebRequests.TryGetValue(operation.Id, out var request))
                 return;
 
-            if (!string.IsNullOrEmpty(request.error))
+            if (!string.IsNullOrEmpty(request.Error))
             {
-                FinalizeOperation(operation, request, OperationStatus.Error, request.error);
+                FinalizeOperation(operation, request, OperationStatus.Error, request.Error);
                 return;
             }
 
-            switch (request.result)
+            switch (request.Result)
             {
                 case UnityWebRequest.Result.ConnectionError:
-                    FinalizeOperation(operation, request, OperationStatus.Error, "Failed to communicate with the server.");
+                    FinalizeOperation(operation, request, OperationStatus.Error,
+                        "Failed to communicate with the server.");
                     return;
                 case UnityWebRequest.Result.ProtocolError:
-                    FinalizeOperation(operation, request, OperationStatus.Error, "The server returned an error response.");
+                    FinalizeOperation(operation, request, OperationStatus.Error,
+                        "The server returned an error response.");
                     return;
                 case UnityWebRequest.Result.DataProcessingError:
                     FinalizeOperation(operation, request, OperationStatus.Error, "Error processing data.");
@@ -208,28 +248,20 @@ namespace Unity.AssetManager.Editor
                     break;
             }
 
-            if (request.isDone)
+            if (request.IsDone)
             {
                 FinalizeOperation(operation, request, OperationStatus.Success);
                 return;
             }
 
-            var progressUpdate = request.downloadProgress - operation.Progress;
+            var progressUpdate = request.DownloadProgress - operation.Progress;
+
             // We are reducing how often we are reporting download progress to avoid expensive frequent UI refreshes.
-            if (progressUpdate >= 0.05 || progressUpdate * operation.totalBytes > 1024 * 1024)
+            if (progressUpdate >= 0.05 || progressUpdate * operation.TotalBytes > 1024 * 1024)
             {
-                operation.SetProgress(request.downloadProgress);
-                onDownloadProgress?.Invoke(operation);
+                operation.SetProgress(request.DownloadProgress);
+                DownloadProgress?.Invoke(operation);
             }
-        }
-
-        public void OnBeforeSerialize()
-        {
-            m_PendingResume = m_DownloadInProgress.ToArray();
-        }
-
-        public void OnAfterDeserialize()
-        {
         }
     }
 }

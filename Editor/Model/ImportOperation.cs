@@ -1,70 +1,69 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    internal class ImportOperation : AssetDataOperation
+    class ImportOperation : AssetDataOperation
     {
-        public DateTime startTime;
-        public string tempDownloadPath;
-        public string destinationPath;
+        [SerializeField]
+        List<DownloadOperation> m_Downloads = new();
 
         [SerializeReference]
         IAssetData m_AssetData;
 
-        public IAssetData assetData => m_AssetData;
+        public DateTime StartTime;
+        public string TempDownloadPath;
+        public string DestinationPath;
 
-        public override AssetIdentifier AssetId => m_AssetData?.identifier;
+        public IAssetData AssetData => m_AssetData;
+        public IReadOnlyCollection<DownloadOperation> Downloads => m_Downloads;
 
-        [SerializeField]
-        List<DownloadOperation> m_Downloads = new();
-
-        public IReadOnlyCollection<DownloadOperation> downloads => m_Downloads;
-
-        public override string OperationName => $"Importing {m_AssetData?.name}";
-        public override string Description => downloads.Count > 0 ? "Downloading files..." : "Preparing download...";
+        public override AssetIdentifier AssetId => m_AssetData?.Identifier;
+        public override string OperationName => $"Importing {m_AssetData?.Name}";
+        public override string Description => Downloads.Count > 0 ? "Downloading files..." : "Preparing download...";
         public override bool StartIndefinite => true;
         public override bool IsSticky => false;
+        public override float Progress
+        {
+            get
+            {
+                var totalProgress = 0f;
+                foreach (var download in Downloads)
+                {
+                    totalProgress += download.Progress;
+                }
+
+                return Downloads.Count > 0 ? totalProgress / Downloads.Count : 0f;
+            }
+        }
 
         public ImportOperation(IAssetData assetData)
         {
             m_AssetData = assetData;
         }
 
-        public override float Progress
+        public void OnDownloadProgress(float progress)
         {
-            get
-            {
-                var totalBytes = 0L;
-                var downloadedBytes = 0.0f;
-                foreach (var download in downloads)
-                {
-                    totalBytes += download.totalBytes;
-                    downloadedBytes += download.Progress * download.totalBytes;
-                }
-
-                return totalBytes > 0 ? downloadedBytes / totalBytes : 0;
-            }
+            Report();
         }
 
-        public void UpdateDownloadOperation(DownloadOperation downloadOperation)
+        public void OnDownloadCompleted(OperationStatus status, DownloadOperation downloadOperation)
         {
-            for (var i = 0; i < m_Downloads.Count; i++)
+            if (Downloads.All(x => x.Status == OperationStatus.Success) || status == OperationStatus.Cancelled ||
+                status == OperationStatus.Error)
             {
-                if (m_Downloads[i].id != downloadOperation.id)
-                    continue;
-
-                m_Downloads[i] = downloadOperation;
-                return;
+                Finish(status);
             }
         }
 
         public void AddDownload(DownloadOperation downloadOperation)
         {
             m_Downloads.Add(downloadOperation);
+            downloadOperation.ProgressChanged += OnDownloadProgress;
+            downloadOperation.Finished += status => OnDownloadCompleted(status, downloadOperation);
         }
     }
 }

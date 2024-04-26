@@ -1,26 +1,26 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface ICacheEvictionManager : IService
+    interface ICacheEvictionManager : IService
     {
-        void CheckEvictConditions(string filePathToAddToCache);
+        void OnCheckEvictConditions(string filePathToAddToCache);
     }
 
-    internal class CacheEvictionManager : BaseService<ICacheEvictionManager>, ICacheEvictionManager
+    class CacheEvictionManager : BaseService<ICacheEvictionManager>, ICacheEvictionManager
     {
         double m_CurrentSizeMb;
-        
+
         [SerializeReference]
         IFileInfoWrapper m_FileInfoWrapper;
-        
+
         [SerializeReference]
         ISettingsManager m_SettingsManager;
-        
+
         [ServiceInjection]
         public void Inject(IFileInfoWrapper fileInfoWrapper, ISettingsManager settingsManager)
         {
@@ -33,12 +33,12 @@ namespace Unity.AssetManager.Editor
             SubscribeToEvents();
         }
 
-        private void SubscribeToEvents()
+        void SubscribeToEvents()
         {
-            CacheEvaluationEvent.evaluateCache += CheckEvictConditions;
+            CacheEvaluationEvent.EvaluateCache += OnCheckEvictConditions;
         }
 
-        public void CheckEvictConditions(string filePathToAddToCache)
+        public void OnCheckEvictConditions(string filePathToAddToCache)
         {
             var files = m_FileInfoWrapper.GetOldestFilesFromDirectory(m_SettingsManager
                 .ThumbnailsCacheLocation);
@@ -59,7 +59,8 @@ namespace Unity.AssetManager.Editor
             else
             {
                 m_CurrentSizeMb += m_FileInfoWrapper.GetFileLengthMb(filePathToAddToCache);
-                if (m_CurrentSizeMb < m_SettingsManager.MaxCacheSizeMb) return;
+                if (m_CurrentSizeMb < m_SettingsManager.MaxCacheSizeMb)
+                    return;
             }
 
             Evict(files, m_CurrentSizeMb);
@@ -75,7 +76,7 @@ namespace Unity.AssetManager.Editor
             return Constants.ShrinkSizeInMb;
         }
 
-        private void Evict(IEnumerable<FileInfo> files, double currentCacheSize)
+        void Evict(IEnumerable<FileInfo> files, double currentCacheSize)
         {
             var shrinkSize = CalculateSizeToBeRemovedMb(currentCacheSize);
 

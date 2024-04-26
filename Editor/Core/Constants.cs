@@ -3,21 +3,8 @@ using System.Collections.Generic;
 
 namespace Unity.AssetManager.Editor
 {
-    internal static class Constants
+    static class Constants
     {
-        // Categories View
-        public static readonly Dictionary<string, string> CategoriesAndIcons = new()
-        {
-            { AllAssetsFolderName, "All-Assets.png" },
-            { LocalFilesCategoryName, "Local-Files.png" },
-            { BrowseCategoryName, "Browse-Assets.png" },
-            { MyAssetsCategoryName, "Downloads.png" },
-            { ClosedFoldoutName, "Folder-Closed.png" },
-            { OpenFoldoutName, "Folder-Open.png" },
-            { ProjectIconName, "Project-Icon.png" },
-            { ExternalLinkName, "External-Link.png" }
-        };
-
         public const string AllAssetsFolderName = "All Assets";
         public const string AssetsFolderName = "Assets";
         public const string ApplicationFolderName = "Asset Manager";
@@ -36,21 +23,33 @@ namespace Unity.AssetManager.Editor
 
         public const string ThumbnailFilename = "unity_thumbnail.png";
 
-        // This exists here for compatibility with 2020.x versions
-        public static DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0);
+        // Upload
+        public const string IgnoreAsset = "Ignore Asset";
+        public const string IncludeAsset = "Include Asset";
+        public const string IgnoreAssetToolTip = "This asset is ignored and will not\nbe uploaded to the Asset Manager.";
+        public const string IgnoreToggleTooltip = "Uncheck to ignore asset";
+        public const string IncludeToggleTooltip = "Check to include asset";
+        public const string IgnoreDependenciesDialogTitle = "Warning";
+        public const string IgnoreDependenciesDialogMessage = "You are trying to upload assets without their dependencies. This might break other assets that depend on them.\nAre you sure you want to proceed?";
 
         // AssetDetailsView Import action text
         public const string ImportActionText = "Import";
+        public const string ImportAllActionText = "Import All";
         public const string ReimportActionText = "Reimport";
         public const string RemoveFromProjectActionText = "Remove From Project";
+        public const string RemoveAllFromProjectActionText = "Remove All From Project";
         public const string CancelImportActionText = "Cancel Import";
         public const string ShowInProjectActionText = "Show In Project";
         public const string ShowInDashboardActionText = "Show In Dashboard";
+        public const string AssetsSelectedTitle = "Assets Selected";
 
         public const string ImportingText = "Importing";
+        public const string ImportAllSelectedActionText = "Import All Selected";
+        public const string RemoveFromProjectAllSelectedActionText = "Remove All Selected From Project";
 
         public const string RemoveFromProjectButtonDisabledToolTip = "There is nothing to remove from the project.";
         public const string ImportButtonDisabledToolTip = "There is nothing to import.";
+        public const string ImportNoPermissionMessage = "You don’t have permissions to import this asset. \nSee your role from the project settings page on \nthe Asset Manager dashboard.";
 
         public const string CacheThumbnailsFolderName = "Thumbnails";
         public const string CacheTexturesFolderName = "Textures";
@@ -69,5 +68,25 @@ namespace Unity.AssetManager.Editor
         public const int ShrinkSizeInMb = 200;
         public const int DefaultCacheSizeGb = 2;
         public const int DefaultCacheSizeMb = DefaultCacheSizeGb * 1024;
+
+        // Permissions
+        public const string ImportPermission = "amc.assets.download";
+        public const string UploadPermission = "amc.assets.create";
+
+        // Categories View
+        public static readonly Dictionary<string, string> CategoriesAndIcons = new()
+        {
+            { AllAssetsFolderName, "All-Assets.png" },
+            { LocalFilesCategoryName, "Local-Files.png" },
+            { BrowseCategoryName, "Browse-Assets.png" },
+            { MyAssetsCategoryName, "Downloads.png" },
+            { ClosedFoldoutName, "Folder-Closed.png" },
+            { OpenFoldoutName, "Folder-Open.png" },
+            { ProjectIconName, "Project-Icon.png" },
+            { ExternalLinkName, "External-Link.png" }
+        };
+
+        // This exists here for compatibility with 2020.x versions
+        public static DateTime UnixEpoch = new(1970, 1, 1, 0, 0, 0);
     }
 }

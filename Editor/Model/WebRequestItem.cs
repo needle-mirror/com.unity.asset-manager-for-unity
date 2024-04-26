@@ -1,31 +1,41 @@
+using System;
 using UnityEngine.Networking;
 
 namespace Unity.AssetManager.Editor
 {
-    internal interface IWebRequestItem
+    interface IWebRequestItem
     {
-        bool isDone { get; }
-        float downloadProgress { get; }
-        string error { get; }
-        UnityWebRequest.Result result { get; }
+        bool IsDone { get; }
+        float DownloadProgress { get; }
+        string Error { get; }
+        UnityWebRequest.Result Result { get; }
 
         void Abort();
         void Dispose();
     }
 
-    internal class WebRequestItem : IWebRequestItem
+    class WebRequestItem : IWebRequestItem
     {
-        private readonly UnityWebRequest m_UnityWebRequest;
+        readonly UnityWebRequest m_UnityWebRequest;
+
+        public bool IsDone => m_UnityWebRequest.isDone;
+        public float DownloadProgress => m_UnityWebRequest.downloadProgress;
+        public string Error => m_UnityWebRequest.error;
+        public UnityWebRequest.Result Result => m_UnityWebRequest.result;
+
         public WebRequestItem(UnityWebRequest unityWebRequest)
         {
             m_UnityWebRequest = unityWebRequest;
         }
 
-        public bool isDone => m_UnityWebRequest.isDone;
-        public float downloadProgress => m_UnityWebRequest.downloadProgress;
-        public string error => m_UnityWebRequest.error;
-        public UnityWebRequest.Result result => m_UnityWebRequest.result;
-        public void Abort() => m_UnityWebRequest.Abort();
-        public void Dispose() => m_UnityWebRequest.Dispose();
+        public void Abort()
+        {
+            m_UnityWebRequest.Abort();
+        }
+
+        public void Dispose()
+        {
+            m_UnityWebRequest.Dispose();
+        }
     }
 }

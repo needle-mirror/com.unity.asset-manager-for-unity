@@ -12,10 +12,9 @@ namespace Unity.AssetManager.Editor
 #else
         internal class FilterDropdownEventData : BaseEventData
 #endif
-        {
-        }
+        { }
 
-        const string k_EventName = AnalyticsSender.k_EventPrefix + "FilterDropdown";
+        const string k_EventName = AnalyticsSender.EventPrefix + "FilterDropdown";
         const int k_EventVersion = 1;
 
         public string EventName => k_EventName;
@@ -29,7 +28,7 @@ namespace Unity.AssetManager.Editor
         }
 
 #if UNITY_2023_2_OR_NEWER
-        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.k_VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
+        [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         internal class FilterDropdownEventAnalytic : IAnalytic
         {
             FilterDropdownEventData m_Data;

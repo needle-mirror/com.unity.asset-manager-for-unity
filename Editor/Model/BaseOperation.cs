@@ -23,6 +23,10 @@ namespace Unity.AssetManager.Editor
     {
         int m_ProgressId;
 
+        public event Action<OperationStatus> Finished;
+
+        public event Action<float> ProgressChanged; // TODO Leverage those events for DownloadOperation and ImportOperation
+
         public abstract float Progress { get; }
 
         public abstract string OperationName { get; }
@@ -32,9 +36,6 @@ namespace Unity.AssetManager.Editor
         public virtual bool StartIndefinite { get; } = false;
 
         public virtual bool IsSticky { get; } = false;
-
-        public Action<float> ProgressChanged; // TODO Leverage those events for DownloadOperation and ImportOperation
-        public Action<OperationStatus> Finished;
 
         public OperationStatus Status { get; private set; } = OperationStatus.None;
 
@@ -61,10 +62,12 @@ namespace Unity.AssetManager.Editor
 
             var progress = Progress;
 
-            if (StartIndefinite && progress > 0.0f && (UnityEditor.Progress.GetOptions(m_ProgressId) & UnityEditor.Progress.Options.Indefinite) != 0)
+            if (StartIndefinite && progress > 0.0f &&
+                (UnityEditor.Progress.GetOptions(m_ProgressId) & UnityEditor.Progress.Options.Indefinite) != 0)
             {
                 UnityEditor.Progress.Remove(m_ProgressId);
-                m_ProgressId = UnityEditor.Progress.Start(OperationName, Description, IsSticky ? UnityEditor.Progress.Options.Sticky : UnityEditor.Progress.Options.None);
+                m_ProgressId = UnityEditor.Progress.Start(OperationName, Description,
+                    IsSticky ? UnityEditor.Progress.Options.Sticky : UnityEditor.Progress.Options.None);
             }
 
             UnityEditor.Progress.Report(m_ProgressId, progress, Description);
