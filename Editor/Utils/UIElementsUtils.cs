@@ -12,20 +12,13 @@ namespace Unity.AssetManager.Editor
     /// </summary>
     static class UIElementsUtils
     {
-        const string k_Icon = "Package-Icon.png";
         static readonly string s_UIResourcesLocation = $"Packages/{Constants.PackageName}/Editor/Resources/";
 
         internal static Texture GetPackageIcon()
         {
+            var filename = $"Package-Icon-{(EditorGUIUtility.isProSkin ? "Dark" : "Light")}.png";
             return AssetDatabase.LoadAssetAtPath(
-                Path.Combine(s_UIResourcesLocation, "Images", EditorGUIUtility.isProSkin ? "Dark" : "Light", k_Icon),
-                typeof(Texture)) as Texture;
-        }
-
-        internal static Texture GetCategoryIcon(string filename)
-        {
-            return AssetDatabase.LoadAssetAtPath(
-                Path.Combine(s_UIResourcesLocation, "Images", EditorGUIUtility.isProSkin ? "Dark" : "Light", filename),
+                Path.Combine(s_UIResourcesLocation, "Images/Common/", filename),
                 typeof(Texture)) as Texture;
         }
 

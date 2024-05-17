@@ -201,9 +201,12 @@ namespace Unity.AssetManager.Editor
             var pattern = string.Empty;
             var extensions = k_UnityTypeDescriptors.FirstOrDefault(x => x.Type == type)?.Extensions;
 
-            foreach (var extension in extensions)
+            if (extensions != null)
             {
-                pattern += $"|{extension}";
+                foreach (var extension in extensions)
+                {
+                    pattern += $"|{extension}";
+                }
             }
 
             pattern = pattern.Substring(1);

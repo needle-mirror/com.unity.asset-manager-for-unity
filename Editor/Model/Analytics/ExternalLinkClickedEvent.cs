@@ -8,7 +8,8 @@ namespace Unity.AssetManager.Editor
         public enum ExternalLinkType
         {
             OpenDashboard,
-            OpenAsset
+            OpenAsset,
+            UpgradeCloudStoragePlan,
         }
 
         [Serializable]

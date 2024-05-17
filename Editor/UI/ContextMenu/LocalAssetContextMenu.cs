@@ -6,7 +6,7 @@ namespace Unity.AssetManager.Editor
 {
     class LocalAssetContextMenu : AssetContextMenu
     {
-        public LocalAssetContextMenu(IAssetDataManager assetDataManager, IAssetImporter assetImporter, ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy, IPageManager pageManager) : base(assetDataManager, assetImporter, linksProxy, assetDatabaseProxy, pageManager)
+        public LocalAssetContextMenu(IUnityConnectProxy unityConnectProxy, IAssetDataManager assetDataManager, IAssetImporter assetImporter, ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy, IPageManager pageManager) : base(unityConnectProxy, assetDataManager, assetImporter, linksProxy, assetDatabaseProxy, pageManager)
         {
         }
 

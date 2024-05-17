@@ -17,22 +17,33 @@ namespace Unity.AssetManager.Editor
 
     interface IPermissionsManager : IService
     {
+        Role Role { get; }
         bool CheckPermission(string permission);
-        Task<Role> GetRoleAsync(string projectId);
+        Task<Role> FetchRoleAsync(string projectId);
     }
 
-    class PermissionsManager : BaseService<IPermissionsManager>, IPermissionsManager
+    [Serializable]
+    class PermissionsManager : BaseService<IPermissionsManager>, IPermissionsManager, ISerializationCallbackReceiver
     {
-        [SerializeReference]
+        [SerializeField]
+        Role m_Role;
+
+        [SerializeField]
+        string[] m_SerializableOrganizationPermissions;
+
+        [SerializeField]
+        string[] m_SerializablePermissions;
+
         Permission[] m_OrganizationPermissions;
 
-        [SerializeReference]
         Permission[] m_Permissions;
 
         [SerializeReference]
         IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
         IOrganization m_Organization;
+
+        public Role Role => m_Role;
 
         [ServiceInjection]
         public void Inject(IProjectOrganizationProvider projectOrganizationProvider)
@@ -68,7 +79,13 @@ namespace Unity.AssetManager.Editor
             return m_Permissions?.Any(p => p.ToString() == permission) ?? false;
         }
 
-        public async Task<Role> GetRoleAsync(string projectId)
+        public async Task<Role> FetchRoleAsync(string projectId)
+        {
+           m_Role = await FetchRoleAsyncInternal(projectId);
+           return m_Role;
+        }
+
+        async Task<Role> FetchRoleAsyncInternal(string projectId)
         {
             if (m_Organization == null)
             {
@@ -196,6 +213,18 @@ namespace Unity.AssetManager.Editor
             m_Permissions = null;
             m_OrganizationPermissions = null;
             m_Organization = null;
+        }
+
+        public void OnBeforeSerialize()
+        {
+            m_SerializableOrganizationPermissions = m_OrganizationPermissions?.Select(p => p.ToString()).ToArray();
+            m_SerializablePermissions = m_Permissions?.Select(p => p.ToString()).ToArray();
+        }
+
+        public void OnAfterDeserialize()
+        {
+            m_OrganizationPermissions = m_SerializableOrganizationPermissions?.Select(p => new Permission(p)).ToArray();
+            m_Permissions = m_SerializablePermissions?.Select(p => new Permission(p)).ToArray();
         }
     }
 }

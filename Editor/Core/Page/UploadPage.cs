@@ -429,15 +429,18 @@ namespace Unity.AssetManager.Editor
         {
             if (m_UploadAssetsButton != null)
             {
+                var areCloudServicesReachable =
+                    ServicesContainer.instance.Resolve<IUnityConnectProxy>().AreCloudServicesReachable;
                 var permissionsManager = ServicesContainer.instance.Resolve<IPermissionsManager>();
                 var hasUploadPermission = permissionsManager.CheckPermission(Constants.UploadPermission);
                 m_UploadAssetsButton.SetEnabled(!string.IsNullOrEmpty(m_UploadContext.ProjectId) &&
                     hasUploadPermission &&
+                    areCloudServicesReachable &&
                     m_UploadContext.UploadAssetEntries.Count > 0 &&
                     m_UploadContext.UploadAssetEntries.Where(uae => !uae.IsIgnored).ToList().Count > 0);
 
                 var allAssetsIgnored = m_UploadContext.UploadAssetEntries.Count > 0 && m_UploadContext.UploadAssetEntries.All(uae => uae.IsIgnored);
-                m_UploadAssetsButton.tooltip = !hasUploadPermission ? L10n.Tr("You don’t have permissions to upload assets. \nSee your role from the project settings page on \nthe Asset Manager dashboard.") :
+                m_UploadAssetsButton.tooltip = !areCloudServicesReachable ? string.Empty : !hasUploadPermission ? L10n.Tr("You don’t have permissions to upload assets. \nSee your role from the project settings page on \nthe Asset Manager dashboard.") :
                     allAssetsIgnored ? L10n.Tr("All assets are ignored.") : string.Empty;
             }
         }
@@ -491,10 +494,10 @@ namespace Unity.AssetManager.Editor
             [SerializeReference]
             List<IUploadAssetEntry> m_UploadAssetEntries = new();
 
-            [SerializeReference]
+            [SerializeField]
             List<string> m_IgnoredAssetGuids = new();
 
-            [SerializeReference]
+            [SerializeField]
             List<string> m_DependencyAssetGuids = new();
 
             public IReadOnlyCollection<IUploadAssetEntry> UploadAssetEntries => m_UploadAssetEntries;

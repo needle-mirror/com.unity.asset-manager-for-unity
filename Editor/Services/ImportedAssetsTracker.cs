@@ -58,7 +58,7 @@ namespace Unity.AssetManager.Editor
             var fileInfos = new List<ImportedFileInfo>();
             foreach (var item in assetPaths)
             {
-                var assetPath = m_IOProxy.GetRelativePathToProjectFolder(item.finalPath);
+                var assetPath = Utilities.GetPathRelativeToAssetsFolderIncludeAssets(item.finalPath);
                 var guid = m_AssetDatabaseProxy.AssetPathToGuid(assetPath);
 
                 // Sometimes the download asset file is not tracked by the AssetDatabase and for those cases there won't be a guid related to it
@@ -75,11 +75,16 @@ namespace Unity.AssetManager.Editor
             if (fileInfos.Count > 0)
             {
                 WriteToDisk(assetData, fileInfos);
-                m_AssetDataManager.AddGuidsToImportedAssetInfo(assetData, fileInfos);
+                m_AssetDataManager.AddOrUpdateGuidsToImportedAssetInfo(assetData, fileInfos);
             }
         }
 
         public void UntrackAsset(AssetIdentifier identifier)
+        {
+            UntrackAsset(new TrackedAssetIdentifier(identifier));
+        }
+
+        void UntrackAsset(TrackedAssetIdentifier identifier)
         {
             if (identifier == null)
             {
@@ -93,15 +98,16 @@ namespace Unity.AssetManager.Editor
 
         void OnImportedAssetInfoChanged(AssetChangeArgs assetChangeArgs)
         {
-            foreach (var asset in assetChangeArgs.Removed)
+            foreach (var id in assetChangeArgs.Removed)
             {
-                UntrackAsset(asset);
+                UntrackAsset(id);
             }
         }
 
         public override void OnDisable()
         {
             m_AssetDatabaseProxy.PostprocessAllAssets -= OnPostprocessAllAssets;
+            m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
         }
 
         IReadOnlyCollection<ImportedAssetInfo> ReadAllImportedAssetInfosFromDisk()

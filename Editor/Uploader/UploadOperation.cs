@@ -23,13 +23,13 @@ namespace Unity.AssetManager.Editor
 
         string m_Description;
         float m_Progress;
-        public override AssetIdentifier AssetId => UploadAssetData.LocalAssetIdentifier(m_UploadEntry.Guid);
 
+        public override AssetIdentifier Identifier => UploadAssetData.LocalAssetIdentifier(m_UploadEntry.Guid);
         public override float Progress => m_Progress;
-        public override string OperationName => $"Uploading {Path.GetFileName(m_UploadEntry.Files.First())}";
+        public override string OperationName => $"Uploading {Path.GetFileName(m_UploadEntry.Name)}";
         public override string Description => m_Description;
         public override bool StartIndefinite => true;
-        public override bool IsSticky => true;
+        public override bool IsSticky => false;
 
         public UploadOperation(IUploadAssetEntry uploadEntry)
         {
@@ -92,10 +92,9 @@ namespace Unity.AssetManager.Editor
             var tasks = new List<Task>();
 
             // Files inside the asset entry
-
             foreach (var file in m_UploadEntry.Files)
             {
-                var relativePath = Path.GetRelativePath(Application.dataPath, file).Replace('\\', '/');
+                var relativePath = Utilities.GetPathRelativeToAssetsFolder(file);
 
                 ReportStep($"Preparing file {Path.GetFileName(file)}");
                 tasks.Add(UploadFile(file, relativePath, sourceDataset, token));
@@ -133,15 +132,8 @@ namespace Unity.AssetManager.Editor
                 await asset.UpdateAsync(assetUpdate, token);
             }
 
-            var publish = false; // TODO Expose
-
-            if (publish && asset.Status != "Published")
-            {
-                ReportStep("Publishing cloud asset");
-                await asset.UpdateStatusAsync(AssetStatusAction.SendForReview, default);
-                await asset.UpdateStatusAsync(AssetStatusAction.Approve, default);
-                await asset.UpdateStatusAsync(AssetStatusAction.Publish, default);
-            }
+            await asset.FreezeAsync(Constants.UploadChangelog, token);
+            await asset.RefreshAsync(token);
 
             ReportStep("Done");
         }
@@ -171,7 +163,7 @@ namespace Unity.AssetManager.Editor
 
         async Task UploadFile(Stream stream, string destPath, IDataset targetDataset, CancellationToken token)
         {
-            var fileCreation = new FileCreation { Path = destPath };
+            var fileCreation = new FileCreation(destPath);
 
             await s_UploadFileSemaphore.WaitAsync(token);
 

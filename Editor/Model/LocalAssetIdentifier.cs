@@ -10,10 +10,11 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         string m_Guid;
 
-        public string Guid => m_Guid;
+        public string Guid => m_Guid ?? string.Empty;
         public override bool IsIdValid() => !string.IsNullOrEmpty(m_Guid);
 
-        public LocalAssetIdentifier(string organizationId, string projectId, string assetId, string version, string guid) : base(organizationId, projectId, assetId, version)
+        public LocalAssetIdentifier(string organizationId, string projectId, string assetId, string version, string guid)
+            : base(organizationId, projectId, assetId, version)
         {
             m_Guid = guid;
         }
@@ -35,7 +36,7 @@ namespace Unity.AssetManager.Editor
                 return false;
             }
 
-            return Equals((LocalAssetIdentifier)obj);
+            return Equals((LocalAssetIdentifier) obj);
         }
 
         public bool Equals(LocalAssetIdentifier other)

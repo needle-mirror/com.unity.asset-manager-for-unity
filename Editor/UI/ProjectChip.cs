@@ -25,6 +25,8 @@ namespace Unity.AssetManager.Editor
             textLabel.pickingMode = PickingMode.Ignore;
             hierarchy.Add(textLabel);
 
+            tooltip = projectInfo.Name;
+
             RegisterCallback<ClickEvent>(OnClick);
         }
 
@@ -36,7 +38,7 @@ namespace Unity.AssetManager.Editor
             }
             else
             {
-                m_Icon.image = UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ProjectIconName]);
+                m_Icon.AddToClassList("icon-default-project");
                 m_Icon.style.backgroundColor = ProjectIconDownloader.GetProjectIconColor(m_ProjectInfo.Id);
             }
         }

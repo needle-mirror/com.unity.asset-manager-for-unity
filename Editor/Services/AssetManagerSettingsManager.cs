@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using NUnit.Framework.Constraints;
 using UnityEditor;
 using UnityEditor.SettingsManagement;
 using UnityEngine;
@@ -8,14 +9,19 @@ namespace Unity.AssetManager.Editor
 {
     interface ISettingsManager : IService
     {
+        string DefaultImportLocation { get; }
+        bool IsSubfolderCreationEnabled { get; }
         string BaseCacheLocation { get; }
         string ThumbnailsCacheLocation { get; }
         int MaxCacheSizeGb { get; }
         int MaxCacheSizeMb { get; }
 
+        event Action DefaultImportLocationChanged;
         event Action CacheLocationChanged;
         event Action CacheSizeChanged;
 
+        void SetDefaultImportLocation(string importLocation);
+        void SetIsSubfolderCreationEnabled(bool value);
         void SetCacheLocation(string cacheLocation);
         void SetMaxCacheSize(int cacheSize);
     }
@@ -25,6 +31,8 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         ICachePathHelper m_CachePathHelper;
 
+        const string k_DefaultImportLocationKey = "defaultImportLocation";
+        const string k_IsSubfolderCreationEnabledKey = "isSubfolderCreationEnabled";
         const string k_CacheLocationKey = "cacheLocation";
         const string k_MaxCacheSizeKey = "cacheSize";
         const string k_TexturesCacheLocation = "texturesCaheLocation";
@@ -46,8 +54,29 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        public event Action DefaultImportLocationChanged = delegate { };
         public event Action CacheLocationChanged = delegate { };
         public event Action CacheSizeChanged = delegate { };
+
+        public string DefaultImportLocation
+        {
+            get
+            {
+                var defaultImportLocation = Instance.Get<string>(k_DefaultImportLocationKey, SettingsScope.User);
+                if (Directory.Exists(defaultImportLocation))
+                {
+                    return defaultImportLocation;
+                }
+
+                // if the directory doesn't exist
+                var defaultPath = Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName);
+                SetDefaultImportLocation(defaultPath);
+
+                return defaultPath;
+            }
+        }
+
+        public bool IsSubfolderCreationEnabled => Instance.Get<bool>(k_IsSubfolderCreationEnabledKey, SettingsScope.User, true);
 
         public string BaseCacheLocation
         {
@@ -89,6 +118,22 @@ namespace Unity.AssetManager.Editor
         public void Inject(ICachePathHelper cachePathHelper)
         {
             m_CachePathHelper = cachePathHelper;
+        }
+
+        public void SetDefaultImportLocation(string importLocation)
+        {
+            if (string.IsNullOrEmpty(importLocation))
+            {
+                importLocation = Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName);
+            }
+
+            Instance.Set(k_DefaultImportLocationKey, importLocation, SettingsScope.User);
+            DefaultImportLocationChanged?.Invoke();
+        }
+
+        public void SetIsSubfolderCreationEnabled(bool value)
+        {
+            Instance.Set(k_IsSubfolderCreationEnabledKey, value, SettingsScope.User);
         }
 
         public void SetCacheLocation(string cacheLocation)

@@ -10,6 +10,7 @@ namespace Unity.AssetManager.Editor
         void OpenAssetManagerDashboard(AssetIdentifier assetIdentifier);
         void OpenProjectSettingsServices();
         void OpenPreferences();
+        void OpenCloudStorageUpgradePlan();
     }
 
     class LinksProxy : BaseService<ILinksProxy>, ILinksProxy
@@ -19,6 +20,9 @@ namespace Unity.AssetManager.Editor
 
         [SerializeReference]
         IPageManager m_PageManager;
+
+        static readonly string k_CloudStorageUpgradePlanDomain = "https://unity.com";
+        static readonly string k_CloudStorageUpgradePlanRoute = "/products/compare-plans/unity-cloud";
 
         [ServiceInjection]
         public void Inject(IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
@@ -70,6 +74,12 @@ namespace Unity.AssetManager.Editor
             {
                 OpenAssetManagerDashboard();
             }
+        }
+        
+        public void OpenCloudStorageUpgradePlan()
+        {
+            Application.OpenURL($"{k_CloudStorageUpgradePlanDomain}{k_CloudStorageUpgradePlanRoute}");
+            AnalyticsSender.SendEvent(new ExternalLinkClickedEvent(ExternalLinkClickedEvent.ExternalLinkType.UpgradeCloudStoragePlan));
         }
 
         public void OpenProjectSettingsServices()

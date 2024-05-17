@@ -9,8 +9,8 @@ namespace Unity.AssetManager.Editor
 {
     class CloudAssetContextMenu : AssetContextMenu
     {
-        public CloudAssetContextMenu(IAssetDataManager assetDataManager, IAssetImporter assetImporter,
-            ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy, IPageManager pageManager) : base(assetDataManager, assetImporter,
+        public CloudAssetContextMenu(IUnityConnectProxy unityConnectProxy, IAssetDataManager assetDataManager, IAssetImporter assetImporter,
+            ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy, IPageManager pageManager) : base(unityConnectProxy, assetDataManager, assetImporter,
             linksProxy, assetDatabaseProxy, pageManager) { }
 
         bool IsImporting => m_AssetImporter.IsImporting(TargetAssetData.Identifier);
@@ -36,7 +36,7 @@ namespace Unity.AssetManager.Editor
 
         void ImportEntry(ContextualMenuPopulateEvent evt)
         {
-            if (IsImporting)
+            if (IsImporting || !m_UnityConnectProxy.AreCloudServicesReachable)
                 return;
 
             var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
@@ -45,18 +45,19 @@ namespace Unity.AssetManager.Editor
                 AddMenuEntry(evt, L10n.Tr(Constants.ImportAllSelectedActionText), true,
                     _ =>
                     {
-                        m_AssetImporter.StartImportAsync(selectedAssetData);
+                        m_AssetImporter.StartImportAsync(selectedAssetData, null);
                         AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
                             .ContextMenuItemType.ImportAll));
                     });
             }
-            else if(!selectedAssetData.Any() || selectedAssetData.First().Identifier.AssetId == TargetAssetData.Identifier.AssetId)
+            else if (!selectedAssetData.Any() || selectedAssetData.First().Identifier.AssetId == TargetAssetData.Identifier.AssetId)
             {
-                var text = !IsInProject ? L10n.Tr(Constants.ImportActionText) : L10n.Tr(Constants.ReimportActionText);
+                var status = TargetAssetData.PreviewStatus.FirstOrDefault();
+                var text = status != null ? L10n.Tr(status.ActionText) : L10n.Tr(Constants.ImportActionText);
                 AddMenuEntry(evt, text, true,
                     _ =>
                     {
-                        m_AssetImporter.StartImportAsync(new List<IAssetData>() {TargetAssetData});
+                        m_AssetImporter.StartImportAsync(new List<IAssetData>() {TargetAssetData}, null);
                         AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(!IsInProject
                             ? GridContextMenuItemSelectedEvent.ContextMenuItemType.Import
                             : GridContextMenuItemSelectedEvent.ContextMenuItemType.Reimport));
@@ -124,6 +125,9 @@ namespace Unity.AssetManager.Editor
 
         void ShowInDashboardEntry(ContextualMenuPopulateEvent evt)
         {
+            if (!m_UnityConnectProxy.AreCloudServicesReachable)
+                return;
+
             AddMenuEntry(evt, Constants.ShowInDashboardActionText, true,
                 _ =>
                 {

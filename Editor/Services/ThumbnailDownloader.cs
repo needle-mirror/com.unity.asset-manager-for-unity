@@ -65,8 +65,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void DownloadThumbnail(AssetIdentifier identifier, string thumbnailUrl,
-            Action<AssetIdentifier, Texture2D> doneCallbackAction = null)
+        public void DownloadThumbnail(AssetIdentifier identifier, string thumbnailUrl, Action<AssetIdentifier, Texture2D> doneCallbackAction = null)
         {
             if (string.IsNullOrEmpty(thumbnailUrl))
             {

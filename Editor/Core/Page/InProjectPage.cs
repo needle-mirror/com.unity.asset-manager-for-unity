@@ -20,7 +20,7 @@ namespace Unity.AssetManager.Editor
         {
             return new List<BaseFilter>
             {
-                new LocalStatusFilter(this, m_ProjectOrganizationProvider),
+                new LocalStatusFilter(this, m_AssetDataManager),
                 new LocalUnityTypeFilter(this)
             };
         }

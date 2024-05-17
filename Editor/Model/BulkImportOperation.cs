@@ -8,7 +8,19 @@ namespace Unity.AssetManager.Editor
     {
         public override string OperationName => "Importing all selected assets";
         public override string Description { get; }
-        public override float Progress { get; }
+        public override float Progress
+        {
+            get
+            {
+                var totalProgress = 0f;
+                foreach (var importOperation in m_ImportOperations)
+                {
+                    totalProgress += importOperation.Progress;
+                }
+
+                return m_ImportOperations.Count > 0 ? totalProgress / m_ImportOperations.Count : 0f;
+            }
+        }
         public override bool StartIndefinite => true;
 
         List<ImportOperation> m_ImportOperations;
@@ -19,6 +31,7 @@ namespace Unity.AssetManager.Editor
             foreach (var importOperation in m_ImportOperations)
             {
                 importOperation.Finished += OnImportCompleted;
+                importOperation.ProgressChanged += OnImportProgressChanged;
             }
         }
 
@@ -30,6 +43,11 @@ namespace Unity.AssetManager.Editor
                 SendImportEndAnalytic(status);
                 Finish(status);
             }
+        }
+
+        void OnImportProgressChanged(float progress)
+        {
+            Report();
         }
 
         void SendImportEndAnalytic(OperationStatus finalStatus)
@@ -49,11 +67,11 @@ namespace Unity.AssetManager.Editor
                     foreach (var importOperation in m_ImportOperations)
                     {
                         if(importOperation.Status == OperationStatus.Error){
-                            foreach (var downloadOperation in importOperation.Downloads)
+                            foreach (var downloadRequest in importOperation.DownloadRequests)
                             {
-                                if (downloadOperation.Status == OperationStatus.Error)
+                                if (!string.IsNullOrEmpty(downloadRequest.Value.error))
                                 {
-                                    errorMessage = downloadOperation.Error;
+                                    errorMessage = downloadRequest.Value.error;
                                     break;
                                 }
                             }
@@ -68,7 +86,7 @@ namespace Unity.AssetManager.Editor
             }
 
             AnalyticsSender.SendEvent(new ImportEndEvent(status,
-                m_ImportOperations.Select(io => io.AssetId.AssetId).ToList(),
+                m_ImportOperations.Select(io => io.Identifier.AssetId).ToList(),
                 m_ImportOperations.Min(io => io.StartTime),
                 DateTime.Now,
                 errorMessage));

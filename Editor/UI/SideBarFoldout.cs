@@ -13,14 +13,16 @@ namespace Unity.AssetManager.Editor
         VisualElement m_CheckMark;
 
         protected readonly IPageManager m_PageManager;
+        protected readonly IUnityConnectProxy m_UnityConnectProxy;
         protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         protected readonly IStateManager m_StateManager;
         protected bool m_HasChild;
         protected Toggle m_Toggle;
 
-        protected SideBarFoldout(IPageManager pageManager, IStateManager stateManager,
+        protected SideBarFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IStateManager stateManager,
             IProjectOrganizationProvider projectOrganizationProvider, string foldoutName)
         {
+            m_UnityConnectProxy = unityConnectProxy;
             m_PageManager = pageManager;
             m_StateManager = stateManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -46,12 +48,19 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             OnRefresh(m_PageManager.ActivePage);
             m_PageManager.ActivePageChanged += OnRefresh;
         }
 
+        private void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            OnRefresh(m_PageManager.ActivePage);
+        }
+
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_PageManager.ActivePageChanged -= OnRefresh;
         }
 

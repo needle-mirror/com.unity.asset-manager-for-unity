@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
@@ -12,6 +13,7 @@ namespace Unity.AssetManager.Editor
         Action m_CancelledCallback;
 
         CancellationTokenSource m_TokenSource;
+        SemaphoreSlim m_Semaphore = new SemaphoreSlim(1, 1);
 
         public bool isLoading => m_TokenSource != null;
 
@@ -19,8 +21,10 @@ namespace Unity.AssetManager.Editor
             Action loadingStartCallback = null, Action<IEnumerable<T>> successCallback = null,
             Action cancelledCallback = null, Action<Exception> exceptionCallback = null)
         {
-            if (isLoading || createTaskFromToken == null)
+            if (createTaskFromToken == null)
                 return;
+
+            await m_Semaphore.WaitAsync();
 
             m_CancelledCallback = cancelledCallback;
 
@@ -39,6 +43,7 @@ namespace Unity.AssetManager.Editor
                     }
                 }
 
+                m_TokenSource?.Dispose();
                 m_TokenSource = null;
                 successCallback?.Invoke(result);
             }
@@ -55,6 +60,8 @@ namespace Unity.AssetManager.Editor
             {
                 m_TokenSource?.Dispose();
                 m_TokenSource = null;
+
+                m_Semaphore.Release(1);
             }
         }
 
@@ -100,6 +107,7 @@ namespace Unity.AssetManager.Editor
                 return;
 
             m_TokenSource.Cancel();
+            m_TokenSource.Dispose();
             m_TokenSource = null;
 
             m_CancelledCallback?.Invoke();

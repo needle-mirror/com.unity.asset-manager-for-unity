@@ -22,6 +22,9 @@ namespace Unity.AssetManager.Editor
     class PageManager : BaseService<IPageManager>, IPageManager, ISerializationCallbackReceiver
     {
         [SerializeReference]
+        IUnityConnectProxy m_UnityConnectProxy;
+
+        [SerializeReference]
         IAssetDataManager m_AssetDataManager;
 
         [SerializeReference]
@@ -42,9 +45,10 @@ namespace Unity.AssetManager.Editor
         public IPage ActivePage => m_ActivePage;
 
         [ServiceInjection]
-        public void Inject(IAssetsProvider assetsProvider,
+        public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider,
             IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider)
         {
+            m_UnityConnectProxy = unityConnectProxy;
             m_AssetsProvider = assetsProvider;
             m_AssetDataManager = assetDataManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -52,13 +56,23 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
 
             m_ActivePage?.OnEnable();
         }
 
+        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            if (!cloudServicesReachable && m_ActivePage is not InProjectPage)
+            {
+                SetActivePage<InProjectPage>();
+            }
+        }
+
         public override void OnDisable()
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
 
             m_ActivePage?.OnDisable();
@@ -81,11 +95,6 @@ namespace Unity.AssetManager.Editor
         {
             var page = m_ActivePage is T ? m_ActivePage : CreatePage<T>();
             SetActivePage(page);
-        }
-
-        void OnUserLoginStateChange(bool isUserInfoReady, bool isUserLoggedIn)
-        {
-            m_ActivePage?.Clear(false);
         }
 
         void ProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)

@@ -19,7 +19,6 @@ namespace Unity.AssetManager.Editor
         string FileReadAllText(string filePath);
         void FileWriteAllText(string filePath, string text);
         IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption);
-        string GetRelativePathToProjectFolder(string path);
         string GetUniqueTempPathInProject();
         bool DeleteAllFilesAndFoldersFromDirectory(string path);
         FileStream Create(string path, int bufferSize, FileOptions options) => File.Create(path, bufferSize, options);
@@ -27,11 +26,6 @@ namespace Unity.AssetManager.Editor
 
     class IOProxy : BaseService<IIOProxy>, IIOProxy
     {
-        string m_FullAssetsFolderPath;
-
-        string FullAssetsFolderPath =>
-            m_FullAssetsFolderPath ??= Path.GetFullPath(Path.Combine(Application.dataPath, "../"));
-
         public bool FileExists(string filePath)
         {
             return File.Exists(filePath);
@@ -39,6 +33,9 @@ namespace Unity.AssetManager.Editor
 
         public void FileMove(string sourceFilePath, string destinationFilePath)
         {
+            if (!FileExists(sourceFilePath))
+                return;
+
             new FileInfo(destinationFilePath).Directory?.Create();
             File.Move(sourceFilePath, destinationFilePath);
         }
@@ -80,15 +77,6 @@ namespace Unity.AssetManager.Editor
         public void FileWriteAllText(string filePath, string text) => File.WriteAllText(filePath, text);
 
         public IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption) => Directory.EnumerateFiles(path, searchPattern, searchOption);
-
-        public string GetRelativePathToProjectFolder(string path)
-        {
-            // It was seen that when using this in conjunction with some Unity APIs (e.g. SceneManager.GetScenePath)
-            // it was not working because of backslashes, so we normalize it to forward instead here
-            return path.StartsWith(FullAssetsFolderPath) ?
-                path.Substring(FullAssetsFolderPath.Length).Replace(Path.DirectorySeparatorChar, '/') :
-                path;
-        }
 
         public string GetUniqueTempPathInProject() => FileUtil.GetUniqueTempPathInProject();
 

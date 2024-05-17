@@ -16,7 +16,7 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     abstract class AssetDataOperation : BaseOperation
     {
-        public abstract AssetIdentifier AssetId { get; }
+        public abstract AssetIdentifier Identifier { get; }
     }
 
     abstract class BaseOperation // TODO Add a interface

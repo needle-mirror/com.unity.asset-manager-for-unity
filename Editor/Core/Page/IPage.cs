@@ -24,23 +24,18 @@ namespace Unity.AssetManager.Editor
 
         Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
             GroupableField groupBy, CancellationToken token);
-
+        
         void SelectAsset(AssetIdentifier asset, bool additive);
         void SelectAssets(List<AssetIdentifier> assets);
         public void ToggleAsset(IAssetData assetData, bool checkState);
-
         void LoadMore();
-
         void Clear(bool reloadImmediately, bool keepSelection = false);
-
+        void ClearSelection();
         void OnEnable();
         void OnDisable();
-
         void OnDestroy();
-
         // Called when a page got activated (when it became the current visible page)
         void OnActivated();
-
         // Called when a page got deactivated (when it went from the current page to the previous page)
         void OnDeactivated();
     }

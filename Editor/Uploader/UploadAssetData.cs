@@ -50,6 +50,7 @@ namespace Unity.AssetManager.Editor
         public bool IsADependency => m_IsADependency;
         public string Name => m_AssetEntry.Name;
         public AssetIdentifier Identifier => m_Identifier;
+        public int VersionNumber => -1;
         public AssetType AssetType => m_AssetEntry.CloudType.ConvertCloudAssetTypeToAssetType();
         public string Status => "Local";
         public DateTime? Updated => null;
@@ -60,11 +61,13 @@ namespace Unity.AssetManager.Editor
         public string UpdatedBy => "";
         public string PrimaryExtension => Path.GetExtension(m_AssetPath);
         public string AssetPath => m_AssetPath;
+
         public bool IsIgnored
         {
             get => m_AssetEntry.IsIgnored;
             set => m_AssetEntry.IsIgnored = value;
         }
+
         public string Guid => m_AssetEntry.Guid;
 
         public UploadAssetData(IUploadAssetEntry assetEntry, UploadSettings settings, bool isADependency)
@@ -81,7 +84,8 @@ namespace Unity.AssetManager.Editor
             foreach (var file in assetEntry.Files)
             {
                 var guid = AssetDatabase.GUIDFromAssetPath(file);
-                m_Files.Add(new AssetDataFile(file, guid.Empty() ? null : guid.ToString(), null, s_Tags, GetFileSize(file)));
+                var relativePath = Utilities.GetPathRelativeToAssetsFolder(file);
+                m_Files.Add(new AssetDataFile(relativePath, guid.Empty() ? null : guid.ToString(), null, s_Tags, GetFileSize(relativePath)));
             }
 
             // Dependencies
@@ -137,19 +141,24 @@ namespace Unity.AssetManager.Editor
         {
             m_ExistingStatus = null;
 
-            m_PreviewStatusTask ??= AssetDataDependencyHelper.SearchForAssetWithGuid(m_Settings.OrganizationId,
-                m_Settings.ProjectId, m_AssetGuid, token);
+            IAsset result = null;
 
-            IAsset result;
+            result = AssetDataDependencyHelper.GetImportedAssetAssociatedWithGuid(m_AssetGuid);
 
-            try
+            if (result == null)
             {
-                result = await m_PreviewStatusTask;
-            }
-            catch (Exception)
-            {
-                m_PreviewStatusTask = null;
-                throw;
+                m_PreviewStatusTask ??= AssetDataDependencyHelper.SearchForAssetWithGuid(m_Settings.OrganizationId,
+                    m_Settings.ProjectId, m_AssetGuid, token);
+
+                try
+                {
+                    result = await m_PreviewStatusTask;
+                }
+                catch (Exception)
+                {
+                    m_PreviewStatusTask = null;
+                    throw;
+                }
             }
 
             if (result != null)
@@ -181,6 +190,7 @@ namespace Unity.AssetManager.Editor
         }
 
         public IEnumerable<IAssetDataFile> SourceFiles => m_Files;
+        public IEnumerable<IAssetDataFile> UVCSFiles => Array.Empty<IAssetDataFile>();
 
         public async IAsyncEnumerable<IFile> GetSourceCloudFilesAsync(
             [EnumeratorCancellation] CancellationToken token = default)
@@ -195,6 +205,11 @@ namespace Unity.AssetManager.Editor
             return Task.CompletedTask;
         }
 
+        public Task SyncWithCloudLatestAsync(Action<AssetIdentifier> callback, CancellationToken token = default)
+        {
+            return SyncWithCloudAsync(callback, token);
+        }
+
         internal static AssetIdentifier LocalAssetIdentifier(string guid)
         {
             return new LocalAssetIdentifier(null, null, null, "1", guid);
@@ -202,7 +217,8 @@ namespace Unity.AssetManager.Editor
 
         static long GetFileSize(string assetPath)
         {
-            var fullPath = Application.dataPath + assetPath["Assets".Length..];
+            var fullPath = Path.Combine(Application.dataPath, assetPath);
+
             if (File.Exists(fullPath))
             {
                 return new FileInfo(fullPath).Length;

@@ -58,7 +58,7 @@ namespace Unity.AssetManager.Editor
                     tooltip = L10n.Tr("Open the Asset Manager Dashboard");
                     text = tooltip;
                 }
-                    break;
+                break;
                 case ErrorOrMessageRecommendedAction.Retry when isPageError:
                 {
                     RemoveFromClassList(k_LinkClassName);

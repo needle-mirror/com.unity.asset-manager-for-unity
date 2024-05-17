@@ -1,18 +1,23 @@
 using System;
+using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
     class ActionHelpBox : HelpBox
     {
+        readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
         ErrorOrMessageActionButton m_ErrorOrMessageActionButton;
 
-        public ActionHelpBox(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
+        static readonly string k_NoConnectionMessage = L10n.Tr("No network connection. Please check your internet connection.");
+        
+        public ActionHelpBox(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy)
         {
+            m_UnityConnectProxy = unityConnectProxy;
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_ErrorOrMessageActionButton = new ErrorOrMessageActionButton(pageManager, projectOrganizationProvider,
@@ -34,6 +39,15 @@ namespace Unity.AssetManager.Editor
                 notInProject ?
                     m_PageManager.ActivePage?.ErrorOrMessageHandlingData :
                     m_ProjectOrganizationProvider.ErrorOrMessageHandlingData;
+
+            if (!m_UnityConnectProxy.AreCloudServicesReachable)
+            {
+                UIElementsUtils.Show(this);
+
+                text = k_NoConnectionMessage;
+                m_ErrorOrMessageActionButton.SetErrorSuggestion(ErrorOrMessageRecommendedAction.None, false);
+                return true;
+            }
 
             if (string.IsNullOrWhiteSpace(errorHandlingData?.Message) || notInProject)
             {

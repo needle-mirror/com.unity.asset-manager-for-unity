@@ -27,6 +27,7 @@ namespace Unity.AssetManager.Editor
 
             m_Label = new Label();
             m_Label.pickingMode = PickingMode.Ignore;
+            m_Label.text = m_PermissionsManager.Role.ToString();
             Add(m_Label);
 
             RegisterCallback<ClickEvent>(OnClicked);
@@ -42,8 +43,7 @@ namespace Unity.AssetManager.Editor
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_IsVisible = m_PageManager.ActivePage is CollectionPage;
-            _ = SetProjectRole(m_ProjectOrganizationProvider.SelectedProject?.Id);
-
+            UIElementsUtils.SetDisplay(this, m_IsVisible && m_PermissionsManager.Role != Role.None);
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
         }
@@ -71,7 +71,7 @@ namespace Unity.AssetManager.Editor
             if (string.IsNullOrEmpty(projectId))
                 return;
 
-            var role = await m_PermissionsManager.GetRoleAsync(projectId);
+            var role = await m_PermissionsManager.FetchRoleAsync(projectId);
             m_Label.text = role.ToString();
             UIElementsUtils.SetDisplay(this, m_IsVisible && role != Role.None);
         }

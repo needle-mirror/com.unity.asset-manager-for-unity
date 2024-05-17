@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -54,6 +55,7 @@ namespace Unity.AssetManager.Editor
         public interface IStatus
         {
             string Description { get; }
+            string ActionText { get; }
             VisualElement CreateVisualTree();
         }
 
@@ -77,7 +79,7 @@ namespace Unity.AssetManager.Editor
         void SetStatus(IStatus status)
         {
             var statusElement = status.CreateVisualTree();
-            statusElement.tooltip = status.Description;
+            statusElement.tooltip = L10n.Tr(status.Description);
             m_ImportedStatusIcon.Add(statusElement);
         }
 

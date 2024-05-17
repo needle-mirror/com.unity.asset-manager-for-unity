@@ -12,15 +12,17 @@ namespace Unity.AssetManager.Editor
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IStateManager m_StateManager;
+        readonly IUnityConnectProxy m_UnityConnectProxy;
 
         SideBarAllAssetsFoldout m_AllAssetsFolder;
         List<SideBarFoldout> m_Foldouts;
         VisualElement m_NoProjectSelectedContainer;
         ScrollView m_ScrollContainer;
 
-        public SidebarContent(IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager,
+        public SidebarContent(IUnityConnectProxy unityConnectProxy, IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager,
             IStateManager stateManager)
         {
+            m_UnityConnectProxy = unityConnectProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_PageManager = pageManager;
             m_StateManager = stateManager;
@@ -39,7 +41,7 @@ namespace Unity.AssetManager.Editor
                 mode = ScrollViewMode.Vertical
             };
 
-            m_AllAssetsFolder = new SideBarAllAssetsFoldout(m_PageManager, m_StateManager,
+            m_AllAssetsFolder = new SideBarAllAssetsFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
                 m_ProjectOrganizationProvider, Constants.AllAssetsFolderName);
             m_AllAssetsFolder.AddToClassList("allAssetsFolder");
             m_ScrollContainer.Add(m_AllAssetsFolder);
@@ -55,14 +57,21 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
 
             Refresh();
             ScrollToHeight(m_StateManager.SideBarScrollValue);
         }
 
+        private void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            Refresh();
+        }
+
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
 
             m_StateManager.SideBarScrollValue = m_ScrollContainer.verticalScroller.value;
@@ -76,8 +85,15 @@ namespace Unity.AssetManager.Editor
 
         internal void Refresh()
         {
+            if (!m_UnityConnectProxy.AreCloudServicesReachable)
+            {
+                UIElementsUtils.Hide(m_ScrollContainer);
+                UIElementsUtils.Show(m_NoProjectSelectedContainer);
+                return;
+            }
+
             var projectInfos = m_ProjectOrganizationProvider.SelectedOrganization?.ProjectInfos as IList<ProjectInfo> ??
-                Array.Empty<ProjectInfo>();
+                               Array.Empty<ProjectInfo>();
             if (projectInfos.Count == 0)
             {
                 UIElementsUtils.Hide(m_ScrollContainer);
@@ -118,7 +134,7 @@ namespace Unity.AssetManager.Editor
 
             foreach (var projectInfo in projectInfos)
             {
-                var projectFoldout = new SideBarCollectionFoldout(m_PageManager, m_StateManager,
+                var projectFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
                     m_ProjectOrganizationProvider, projectInfo.Name, projectInfo, null);
                 m_ScrollContainer.Add(projectFoldout);
                 m_Foldouts.Add(projectFoldout);
@@ -156,7 +172,7 @@ namespace Unity.AssetManager.Editor
         SideBarFoldout CreateSideBarCollectionFoldout(string foldoutName, ProjectInfo projectInfo,
             string collectionPath)
         {
-            return new SideBarCollectionFoldout(m_PageManager, m_StateManager, m_ProjectOrganizationProvider,
+            return new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager, m_ProjectOrganizationProvider,
                 foldoutName, projectInfo, collectionPath);
         }
 

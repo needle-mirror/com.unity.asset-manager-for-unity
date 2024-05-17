@@ -15,6 +15,7 @@ namespace Unity.AssetManager.Editor
         protected readonly IPermissionsManager m_PermissionsManager;
         protected readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
         protected readonly ILinksProxy m_LinksProxy;
+        protected readonly IUnityConnectProxy m_UnityConnectProxy;
         protected readonly IStateManager m_StateManager;
 
         static string k_InspectorPageContainerUxml = "InspectorPageContainer";
@@ -34,6 +35,7 @@ namespace Unity.AssetManager.Editor
             IAssetDatabaseProxy assetDatabaseProxy,
             IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy,
+            IUnityConnectProxy unityConnectProxy,
             IProjectIconDownloader projectIconDownloader,
             IPermissionsManager permissionsManager)
         {
@@ -46,6 +48,7 @@ namespace Unity.AssetManager.Editor
             m_PermissionsManager = permissionsManager;
             m_AssetDatabaseProxy = assetDatabaseProxy;
             m_LinksProxy = linksProxy;
+            m_UnityConnectProxy = unityConnectProxy;
             m_StateManager = stateManager;
         }
 
@@ -58,7 +61,7 @@ namespace Unity.AssetManager.Editor
             m_ScrollView.viewDataKey = k_InspectorPageScrollviewClassName;
 
             m_CloseButton = this.Q<Button>(k_InspectorPageCloseButtonClassName);
-            m_CloseButton.clicked += () => m_PageManager.ActivePage.Clear(false);
+            m_CloseButton.clicked += () => m_PageManager.ActivePage.ClearSelection();
 
             m_TitleLabel = this.Q<Label>(k_InspectorPageTitleClassName);
 
@@ -90,6 +93,7 @@ namespace Unity.AssetManager.Editor
 
         protected virtual void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_AssetOperationManager.OperationProgressChanged += OnOperationProgress;
             m_AssetOperationManager.OperationFinished += OnOperationFinished;
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
@@ -98,6 +102,7 @@ namespace Unity.AssetManager.Editor
 
         protected virtual void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_AssetOperationManager.OperationProgressChanged -= OnOperationProgress;
             m_AssetOperationManager.OperationFinished -= OnOperationFinished;
             m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
@@ -108,5 +113,6 @@ namespace Unity.AssetManager.Editor
         protected abstract void OnOperationFinished(AssetDataOperation operation);
         protected abstract void OnImportedAssetInfoChanged(AssetChangeArgs args);
         protected abstract void OnAssetDataChanged(AssetChangeArgs args);
+        protected abstract void OnCloudServicesReachabilityChanged(bool cloudServiceReachable);
     }
 }

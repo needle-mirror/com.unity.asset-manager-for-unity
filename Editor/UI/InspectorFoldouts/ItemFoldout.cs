@@ -9,11 +9,11 @@ namespace Unity.AssetManager.Editor
 {
     abstract class ItemFoldout<TData, TBinding> where TBinding : VisualElement // TODO Convert to a VisualElement
     {
-        readonly Label m_LoadingLabel;
         readonly ListView m_ListView;
         readonly Foldout m_Foldout;
-        
+
         readonly string m_FoldoutExpandedClassName = "details-foldout-expanded";
+        readonly string m_FoldoutTitle;
 
         public bool Expanded
         {
@@ -27,12 +27,12 @@ namespace Unity.AssetManager.Editor
         protected abstract TBinding MakeItem();
         protected abstract void BindItem(TBinding element, int index);
 
-        protected ItemFoldout(VisualElement parent, string foldoutName, string listViewName, string loadingLabelName, string foldoutTitle = null, string foldoutExpandedClassName = null)
+        protected ItemFoldout(VisualElement parent, string foldoutName, string listViewName, string foldoutTitle = null,
+            string foldoutExpandedClassName = null)
         {
             m_Foldout = parent.Q<Foldout>(foldoutName);
-            m_LoadingLabel = parent.Q<Label>(loadingLabelName);
             m_ListView = parent.Q<ListView>(listViewName);
-            
+
             // In case the uxml file was not pre build, we can manually create them
             if (m_Foldout == null)
             {
@@ -41,28 +41,34 @@ namespace Unity.AssetManager.Editor
                 m_Foldout.name = foldoutName;
                 if (!string.IsNullOrEmpty(foldoutTitle))
                 {
-                    m_Foldout.text = foldoutTitle;
+                    m_FoldoutTitle = foldoutTitle;
+                    m_Foldout.text = m_FoldoutTitle;
                 }
+
                 parent.contentContainer.hierarchy.Add(m_Foldout);
-                
-                m_LoadingLabel = new Label();
-                m_LoadingLabel.AddToClassList(loadingLabelName);
-                m_LoadingLabel.name = loadingLabelName;
-                m_Foldout.contentContainer.hierarchy.Add(m_LoadingLabel);
-                
+
                 m_ListView = new ListView();
                 m_ListView.AddToClassList(listViewName);
                 m_ListView.name = listViewName;
                 m_Foldout.contentContainer.hierarchy.Add(m_ListView);
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(foldoutTitle))
+                {
+                    m_FoldoutTitle = foldoutTitle;
+                    m_Foldout.text = m_FoldoutTitle;
+                }
+                else
+                {
+                    m_FoldoutTitle = m_Foldout.text;
+                }
             }
 
             if (foldoutExpandedClassName != null)
             {
                 m_FoldoutExpandedClassName = foldoutExpandedClassName;
             }
-
-            m_LoadingLabel.text = L10n.Tr("Loading...");
-            UIElementsUtils.Hide(m_LoadingLabel);
 
             m_Foldout.viewDataKey = foldoutName;
             m_ListView.viewDataKey = listViewName;
@@ -92,14 +98,11 @@ namespace Unity.AssetManager.Editor
         public void StartPopulating()
         {
             Clear();
-            UIElementsUtils.Show(m_LoadingLabel);
-            UIElementsUtils.Show(m_Foldout);
+            UIElementsUtils.Hide(m_Foldout);
         }
 
         public void StopPopulating()
         {
-            UIElementsUtils.Hide(m_LoadingLabel);
-
             var hasItems = !IsEmpty;
             UIElementsUtils.SetDisplay(m_Foldout, hasItems);
             UIElementsUtils.SetDisplay(m_ListView, hasItems);
@@ -112,6 +115,7 @@ namespace Unity.AssetManager.Editor
 
         public virtual void Clear()
         {
+            m_Foldout.text = m_FoldoutTitle;
             m_ListView.itemsSource = null;
         }
 
@@ -121,6 +125,8 @@ namespace Unity.AssetManager.Editor
             m_ListView.makeItem = MakeItem;
             m_ListView.bindItem = (element, i) => { BindItem((TBinding)element, i); };
             m_ListView.fixedItemHeight = 30;
+
+            m_Foldout.text = $"{m_FoldoutTitle} ({m_ListView.itemsSource.Count})";
         }
     }
 }

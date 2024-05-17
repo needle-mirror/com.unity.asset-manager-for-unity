@@ -1,7 +1,9 @@
 using System;
-using UnityEditor;
+using System.Threading.Tasks;
 using UnityEngine;
+using UnityEditor;
 using UnityEngine.UIElements;
+using Unity.Cloud.Common.Runtime;
 
 namespace Unity.AssetManager.Editor
 {
@@ -28,7 +30,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        async void OnEnable()
+        void OnEnable()
         {
             if (s_Instance == null)
             {
@@ -37,8 +39,6 @@ namespace Unity.AssetManager.Editor
 
             if (s_Instance != this)
                 return;
-
-            await Services.Authenticator.InitializeAsync();
 
             m_IsDocked = docked;
 
@@ -110,8 +110,11 @@ namespace Unity.AssetManager.Editor
 
         public void AddItemsToMenu(GenericMenu menu)
         {
-            var refreshItem = new GUIContent("Refresh");
-            menu.AddItem(refreshItem, false, Refresh);
+            if (ServicesContainer.instance.Resolve<IUnityConnectProxy>().AreCloudServicesReachable)
+            {
+                var refreshItem = new GUIContent("Refresh");
+                menu.AddItem(refreshItem, false, Refresh);
+            }
 
             m_Root?.AddItemsToMenu(menu);
         }

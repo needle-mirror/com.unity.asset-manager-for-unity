@@ -47,6 +47,11 @@ namespace Unity.AssetManager.Editor
             m_CancellationTokenSource = new CancellationTokenSource();
         }
 
+        ~DetailsPageDependencyItem()
+        {
+            m_CancellationTokenSource?.Dispose();
+        }
+
         public async Task Refresh(DependencyAsset dependencyAsset)
         {
             m_FileName.text = "Loading...";

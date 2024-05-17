@@ -10,6 +10,7 @@ namespace Unity.AssetManager.Editor
         internal readonly IAssetImporter m_AssetImporter;
         internal readonly ILinksProxy m_LinksProxy;
         internal readonly IPageManager m_PageManager;
+        internal readonly IUnityConnectProxy m_UnityConnectProxy;
 
         IAssetData m_TargetAssetData;
 
@@ -19,9 +20,10 @@ namespace Unity.AssetManager.Editor
             set => m_TargetAssetData = value;
         }
 
-        protected AssetContextMenu(IAssetDataManager assetDataManager, IAssetImporter assetImporter,
+        protected AssetContextMenu(IUnityConnectProxy unityConnectProxy, IAssetDataManager assetDataManager, IAssetImporter assetImporter,
             ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy, IPageManager pageManager)
         {
+            m_UnityConnectProxy = unityConnectProxy;
             m_AssetDataManager = assetDataManager;
             m_AssetImporter = assetImporter;
             m_LinksProxy = linksProxy;

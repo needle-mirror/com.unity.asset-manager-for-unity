@@ -9,14 +9,6 @@ namespace Unity.AssetManager.Editor
         public const string AssetsFolderName = "Assets";
         public const string ApplicationFolderName = "Asset Manager";
 
-        public const string BrowseCategoryName = "Browse";
-        public const string MyAssetsCategoryName = "My Assets";
-        public const string LocalFilesCategoryName = "Local Files";
-        public const string ClosedFoldoutName = "Filters";
-        public const string OpenFoldoutName = "Open Folder";
-        public const string ProjectIconName = "Project Icon";
-        public const string ExternalLinkName = "External Link";
-
         public const string CategoriesScrollViewUssName = "categories-scrollView";
 
         public const int DefaultPageSize = 25;
@@ -31,13 +23,33 @@ namespace Unity.AssetManager.Editor
         public const string IncludeToggleTooltip = "Check to include asset";
         public const string IgnoreDependenciesDialogTitle = "Warning";
         public const string IgnoreDependenciesDialogMessage = "You are trying to upload assets without their dependencies. This might break other assets that depend on them.\nAre you sure you want to proceed?";
+        public const string UploadChangelog = "Asset Manager Upload";
+
+        // Preview Status
+        public const string ImportedText = "Asset is imported";
+        public const string UpToDateText = "Asset is up to date";
+        public const string OutOfDateText = "Asset is outdated";
+        public const string StatusErrorText = "Asset was deleted or is not accessible";
+
+        // Upload Status
+        public const string LinkedText = "This asset is a dependency of another asset";
+        public const string UploadSkipText = "This asset already exists on the cloud and will not be uploaded";
+        public const string UploadOverrideText = "This asset will override its cloud version";
+        public const string UploadDuplicateText = "This asset already exists on the cloud but a new cloud asset will be uploaded";
+
+        // AssetDetailsView Asset info
+        public const string VersionText = "Ver. ";
+        public const string PendingText = "Pending";
+
+        // AssetDetailsView Asset status
+        public const string AssetDraftStatus = "Draft";
 
         // AssetDetailsView Import action text
         public const string ImportActionText = "Import";
-        public const string ImportAllActionText = "Import All";
-        public const string ReimportActionText = "Reimport";
+        public const string UpdateToLatestActionText = "Update To Latest";
+        public const string ReimportActionText = "Re-import";
         public const string RemoveFromProjectActionText = "Remove From Project";
-        public const string RemoveAllFromProjectActionText = "Remove All From Project";
+        public const string RemoveAllFromProjectActionText = "Remove All From Local Project";
         public const string CancelImportActionText = "Cancel Import";
         public const string ShowInProjectActionText = "Show In Project";
         public const string ShowInDashboardActionText = "Show In Dashboard";
@@ -73,18 +85,9 @@ namespace Unity.AssetManager.Editor
         public const string ImportPermission = "amc.assets.download";
         public const string UploadPermission = "amc.assets.create";
 
-        // Categories View
-        public static readonly Dictionary<string, string> CategoriesAndIcons = new()
-        {
-            { AllAssetsFolderName, "All-Assets.png" },
-            { LocalFilesCategoryName, "Local-Files.png" },
-            { BrowseCategoryName, "Browse-Assets.png" },
-            { MyAssetsCategoryName, "Downloads.png" },
-            { ClosedFoldoutName, "Folder-Closed.png" },
-            { OpenFoldoutName, "Folder-Open.png" },
-            { ProjectIconName, "Project-Icon.png" },
-            { ExternalLinkName, "External-Link.png" }
-        };
+        // Icons
+        public const string PackageIcon = "Package-Icon.png";
+        public const string ProjectIcon = "Project-Icon.png";
 
         // This exists here for compatibility with 2020.x versions
         public static DateTime UnixEpoch = new(1970, 1, 1, 0, 0, 0);

@@ -40,7 +40,6 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
-            m_Gridview.GridViewLastItemVisible += OnLastGridViewItemVisible;
             Add(m_Gridview);
 
             m_GridErrorOrMessageView = new GridErrorOrMessageView(pageManager, projectOrganizationProvider, linksProxy);
@@ -56,11 +55,12 @@ namespace Unity.AssetManager.Editor
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
 
-        internal void OnAttachToPanel(AttachToPanelEvent evt)
+        void OnAttachToPanel(AttachToPanelEvent evt)
         {
             Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
+            m_Gridview.GridViewLastItemVisible += OnLastGridViewItemVisible;
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.LoadingStatusChanged += OnLoadingStatusChanged;
             m_PageManager.ErrorOrMessageThrown += OnErrorOrMessageThrown;
@@ -68,10 +68,12 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        internal void OnDetachFromPanel(DetachFromPanelEvent evt)
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             Services.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+
+            m_Gridview.GridViewLastItemVisible -= OnLastGridViewItemVisible;
 
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_PageManager.LoadingStatusChanged -= OnLoadingStatusChanged;
@@ -90,7 +92,7 @@ namespace Unity.AssetManager.Editor
 
         VisualElement MakeGridViewItem()
         {
-            var item = new GridItem(m_AssetOperationManager, m_PageManager, m_AssetDataManager);
+            var item = new GridItem(m_UnityConnect, m_AssetOperationManager, m_PageManager, m_AssetDataManager);
 
             item.Clicked += e =>
             {
@@ -139,7 +141,7 @@ namespace Unity.AssetManager.Editor
             var page = m_PageManager.ActivePage;
 
             // The order matters since page is null if there is a Project Level error
-            if (!Services.AuthenticationState.Equals(AuthenticationState.LoggedIn) || m_GridErrorOrMessageView.Refresh() || page == null)
+            if ( m_GridErrorOrMessageView.Refresh() || page == null)
                 return;
 
             UIElementsUtils.Show(m_Gridview);

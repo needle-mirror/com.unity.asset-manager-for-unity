@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Editor
 {
@@ -12,9 +13,11 @@ namespace Unity.AssetManager.Editor
         bool CollectionsTopFolderFoldoutValue { get; set; }
         HashSet<string> CollapsedCollections { get; }
         float SideBarWidth { get; set; }
-        bool DetailsFileFoldoutValue { get; set; }
+        bool DetailsSourceFilesFoldoutValue { get; set; }
+        bool DetailsUVCSFilesFoldoutValue { get; set; }
         bool DependenciesFoldoutValue { get; set; }
-        bool MultiSelectionFoldoutValue { get; set; }
+        bool MultiSelectionUnimportedFoldoutValue { get; set; }
+        bool MultiSelectionImportedFoldoutValue { get; set; }
     }
 
     [Serializable]
@@ -34,15 +37,21 @@ namespace Unity.AssetManager.Editor
 
         [SerializeField]
         float m_SideBarWidth = 160;
-        
+
         [SerializeField]
-        bool m_DetailsFileFoldoutValue;
-        
+        bool m_DetailsSourceFilesFoldoutValue;
+
+        [SerializeField]
+        bool m_DetailsUVCSFilesFoldoutValue;
+
         [SerializeField]
         bool m_DependenciesFoldoutValue;
+
+        [SerializeField]
+        bool m_MultiSelectionUnimportedFoldoutValue;
         
         [SerializeField]
-        bool m_MultiSelectionFoldoutValue;
+        bool m_MultiSelectionImportedFoldoutValue;
 
         HashSet<string> m_CollapsedCollections = new();
 
@@ -87,11 +96,17 @@ namespace Unity.AssetManager.Editor
                 m_SideBarWidth = value;
             }
         }
-        
-        public bool DetailsFileFoldoutValue
+
+        public bool DetailsSourceFilesFoldoutValue
         {
-            get => m_DetailsFileFoldoutValue;
-            set => m_DetailsFileFoldoutValue = value;
+            get => m_DetailsSourceFilesFoldoutValue;
+            set => m_DetailsSourceFilesFoldoutValue = value;
+        }
+
+        public bool DetailsUVCSFilesFoldoutValue
+        {
+            get => m_DetailsUVCSFilesFoldoutValue;
+            set => m_DetailsUVCSFilesFoldoutValue = value;
         }
 
         public bool DependenciesFoldoutValue
@@ -99,11 +114,17 @@ namespace Unity.AssetManager.Editor
             get => m_DependenciesFoldoutValue;
             set => m_DependenciesFoldoutValue = value;
         }
-        
-        public bool MultiSelectionFoldoutValue
+
+        public bool MultiSelectionUnimportedFoldoutValue
         {
-            get => m_MultiSelectionFoldoutValue;
-            set => m_MultiSelectionFoldoutValue = value;
+            get => m_MultiSelectionUnimportedFoldoutValue;
+            set => m_MultiSelectionUnimportedFoldoutValue = value;
+        }
+        
+        public bool MultiSelectionImportedFoldoutValue
+        {
+            get => m_MultiSelectionImportedFoldoutValue;
+            set => m_MultiSelectionImportedFoldoutValue = value;
         }
 
         public void OnBeforeSerialize()

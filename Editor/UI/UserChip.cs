@@ -25,6 +25,8 @@ namespace Unity.AssetManager.Editor
             textLabel.name = "Username";
             textLabel.pickingMode = PickingMode.Ignore;
             hierarchy.Add(textLabel);
+
+            tooltip = userInfo.Name;
         }
 
         // Base on same color palette used by AM Dashboard

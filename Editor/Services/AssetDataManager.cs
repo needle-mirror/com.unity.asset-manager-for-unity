@@ -12,9 +12,9 @@ namespace Unity.AssetManager.Editor
 {
     class AssetChangeArgs
     {
-        public IReadOnlyCollection<AssetIdentifier> Added = Array.Empty<AssetIdentifier>();
-        public IReadOnlyCollection<AssetIdentifier> Removed = Array.Empty<AssetIdentifier>();
-        public IReadOnlyCollection<AssetIdentifier> Updated = Array.Empty<AssetIdentifier>();
+        public IReadOnlyCollection<TrackedAssetIdentifier> Added = Array.Empty<TrackedAssetIdentifier>();
+        public IReadOnlyCollection<TrackedAssetIdentifier> Removed = Array.Empty<TrackedAssetIdentifier>();
+        public IReadOnlyCollection<TrackedAssetIdentifier> Updated = Array.Empty<TrackedAssetIdentifier>();
     }
 
     interface IAssetDataManager : IService
@@ -25,13 +25,13 @@ namespace Unity.AssetManager.Editor
         IReadOnlyCollection<ImportedAssetInfo> ImportedAssetInfos { get; }
 
         void SetImportedAssetInfos(IReadOnlyCollection<ImportedAssetInfo> allImportedInfos);
-        void AddGuidsToImportedAssetInfo(IAssetData assetData, IReadOnlyCollection<ImportedFileInfo> fileInfos);
-        void RemoveFilesFromImportedAssetInfos(IReadOnlyCollection<string> filesToRemove);
+        void AddOrUpdateGuidsToImportedAssetInfo(IAssetData assetData, IReadOnlyCollection<ImportedFileInfo> fileInfos);
+        void RemoveFilesFromImportedAssetInfos(IReadOnlyCollection<string> guidsToRemove);
         void AddOrUpdateAssetDataFromCloudAsset(IEnumerable<IAssetData> assetDatas);
-        ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier id);
-        void RemoveImportedAssetInfo(AssetIdentifier id);
+        ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier assetIdentifier);
+        void RemoveImportedAssetInfo(AssetIdentifier assetIdentifier);
         List<ImportedAssetInfo> GetImportedAssetInfosFromFileGuid(string guid);
-        IAssetData GetAssetData(AssetIdentifier id);
+        IAssetData GetAssetData(AssetIdentifier assetIdentifier);
         List<IAssetData> GetAssetsData(IEnumerable<AssetIdentifier> ids);
         Task<IAssetData> GetOrSearchAssetData(AssetIdentifier assetIdentifier, CancellationToken token);
         bool IsInProject(AssetIdentifier id);
@@ -40,29 +40,20 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class AssetDataManager : BaseService<IAssetDataManager>, IAssetDataManager, ISerializationCallbackReceiver
     {
-        [SerializeField] 
+        [SerializeField]
         ImportedAssetInfo[] m_SerializedImportedAssetInfos = Array.Empty<ImportedAssetInfo>();
 
-        [SerializeReference] 
+        [SerializeReference]
         IAssetData[] m_SerializedAssetData = Array.Empty<IAssetData>();
 
-        [SerializeReference] 
-        IUnityConnectProxy m_UnityConnect;
-
-        readonly Dictionary<AssetIdentifier, IAssetData> m_AssetData = new();
-        readonly Dictionary<AssetIdentifier, ImportedAssetInfo> m_AssetIdToImportedAssetInfoLookup = new();
+        readonly Dictionary<TrackedAssetIdentifier, IAssetData> m_AssetData = new();
+        readonly Dictionary<TrackedAssetIdentifier, ImportedAssetInfo> m_TrackedIdentifierToImportedAssetInfoLookup = new();
         readonly Dictionary<string, List<ImportedAssetInfo>> m_FileGuidToImportedAssetInfosMap = new();
 
         public event Action<AssetChangeArgs> ImportedAssetInfoChanged = delegate { };
         public event Action<AssetChangeArgs> AssetDataChanged = delegate { };
 
-        public IReadOnlyCollection<ImportedAssetInfo> ImportedAssetInfos => m_AssetIdToImportedAssetInfoLookup.Values;
-
-        [ServiceInjection]
-        public void Inject(IUnityConnectProxy unityConnect)
-        {
-            m_UnityConnect = unityConnect;
-        }
+        public IReadOnlyCollection<ImportedAssetInfo> ImportedAssetInfos => m_TrackedIdentifierToImportedAssetInfoLookup.Values;
 
         public override void OnEnable()
         {
@@ -85,90 +76,73 @@ namespace Unity.AssetManager.Editor
         public void SetImportedAssetInfos(IReadOnlyCollection<ImportedAssetInfo> allImportedInfos)
         {
             allImportedInfos ??= Array.Empty<ImportedAssetInfo>();
-            var oldAssetIds = m_AssetIdToImportedAssetInfoLookup.Keys.ToHashSet();
+            var oldAssetIds = m_TrackedIdentifierToImportedAssetInfoLookup.Keys.ToHashSet();
             m_FileGuidToImportedAssetInfosMap.Clear();
-            m_AssetIdToImportedAssetInfoLookup.Clear();
+            m_TrackedIdentifierToImportedAssetInfoLookup.Clear();
 
-            var added = new HashSet<AssetIdentifier>();
-            var updated = new HashSet<AssetIdentifier>();
+            var added = new HashSet<TrackedAssetIdentifier>();
+            var updated = new HashSet<TrackedAssetIdentifier>();
             foreach (var info in allImportedInfos)
             {
-                AddImportedAssetInfo(info);
-                if (oldAssetIds.Contains(info.id))
+                var id = new TrackedAssetIdentifier(info.Identifier);
+
+                AddOrUpdateImportedAssetInfo(info);
+                if (oldAssetIds.Contains(id))
                 {
-                    updated.Add(info.id);
+                    updated.Add(id);
                 }
                 else
                 {
-                    added.Add(info.id);
+                    added.Add(id);
                 }
             }
 
-            foreach (var newInfo in m_AssetIdToImportedAssetInfoLookup.Values)
+            foreach (var newInfo in m_TrackedIdentifierToImportedAssetInfoLookup.Values)
             {
-                oldAssetIds.Remove(newInfo.id);
+                oldAssetIds.Remove(new TrackedAssetIdentifier(newInfo.Identifier));
             }
 
             if (added.Count + updated.Count + oldAssetIds.Count > 0)
             {
                 ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs
-                    { Added = added, Removed = oldAssetIds, Updated = updated });
+                    {Added = added, Removed = oldAssetIds, Updated = updated});
             }
         }
 
-        public void AddGuidsToImportedAssetInfo(IAssetData assetData, IReadOnlyCollection<ImportedFileInfo> fileInfos)
+        public void AddOrUpdateGuidsToImportedAssetInfo(IAssetData assetData, IReadOnlyCollection<ImportedFileInfo> fileInfos)
         {
-            fileInfos ??= Array.Empty<ImportedFileInfo>();
-            if (fileInfos.Count <= 0)
+            if (assetData == null)
                 return;
 
-            var added = new HashSet<AssetIdentifier>();
-            var updated = new HashSet<AssetIdentifier>();
-            var info = GetImportedAssetInfo(assetData
-                .Identifier); // this could be a file in an asset and not an asset but/ w/e
-            if (info == null)
+            var added = new HashSet<TrackedAssetIdentifier>();
+            var updated = new HashSet<TrackedAssetIdentifier>();
+
+            var id = new TrackedAssetIdentifier(assetData.Identifier);
+            var info = new ImportedAssetInfo(assetData, fileInfos ?? Array.Empty<ImportedFileInfo>());
+
+            if (GetImportedAssetInfo(assetData.Identifier) == null)
             {
-                info = new ImportedAssetInfo(assetData, fileInfos);
-                AddImportedAssetInfo(info);
-                added.Add(assetData.Identifier);
+                added.Add(id);
             }
             else
             {
-                foreach (var fileInfo in fileInfos)
-                {
-                    if (info.FileInfos.Exists(i => i.Guid == fileInfo.Guid)) // won't this always continue
-                        continue;
-
-                    info.FileInfos.Add(fileInfo);
-                    if (m_FileGuidToImportedAssetInfosMap.TryGetValue(fileInfo.Guid, out var value))
-                    {
-                        value.Add(info);
-                    }
-                    else
-                    {
-                        m_FileGuidToImportedAssetInfosMap.Add(fileInfo.Guid, new List<ImportedAssetInfo> { info });
-                    }
-
-                    updated.Add(assetData.Identifier);
-                }
+                updated.Add(id);
             }
 
-            if (added.Count + updated.Count > 0)
-            {
-                ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs
-                    { Added = added, Removed = Array.Empty<AssetIdentifier>(), Updated = updated });
-            }
+            AddOrUpdateImportedAssetInfo(info);
+
+            ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { Added = added, Updated = updated });
         }
 
-        public void RemoveFilesFromImportedAssetInfos(IReadOnlyCollection<string> filesToRemove)
+        public void RemoveFilesFromImportedAssetInfos(IReadOnlyCollection<string> guidsToRemove)
         {
-            filesToRemove ??= Array.Empty<string>();
-            if (filesToRemove.Count <= 0)
+            guidsToRemove ??= Array.Empty<string>();
+            if (guidsToRemove.Count <= 0)
                 return;
 
-            var updated = new List<AssetIdentifier>();
-            var removed = new List<AssetIdentifier>();
-            foreach (var fileGuid in filesToRemove)
+            var updated = new List<TrackedAssetIdentifier>();
+            var removed = new List<TrackedAssetIdentifier>();
+            foreach (var fileGuid in guidsToRemove)
             {
                 var assetInfos = GetImportedAssetInfosFromFileGuid(fileGuid);
                 if (assetInfos == null)
@@ -177,48 +151,51 @@ namespace Unity.AssetManager.Editor
                 m_FileGuidToImportedAssetInfosMap.Remove(fileGuid);
                 foreach (var asset in assetInfos)
                 {
+                    var id = new TrackedAssetIdentifier(asset.Identifier);
+
                     asset.FileInfos.RemoveAll(i => i.Guid == fileGuid);
                     if (asset.FileInfos.Count > 0)
                     {
-                        updated.Add(asset.id);
+                        updated.Add(id);
                     }
                     else
                     {
-                        updated.Remove(asset.id);
-                        removed.Add(asset.id);
-                        m_AssetIdToImportedAssetInfoLookup.Remove(asset.id);
+                        updated.Remove(id);
+                        removed.Add(id);
+                        m_TrackedIdentifierToImportedAssetInfoLookup.Remove(id);
                     }
                 }
             }
 
             if (updated.Count + removed.Count > 0)
             {
-                ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs
-                    { Added = Array.Empty<AssetIdentifier>(), Removed = removed, Updated = updated });
+                ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { Removed = removed, Updated = updated });
             }
         }
 
         public void AddOrUpdateAssetDataFromCloudAsset(IEnumerable<IAssetData> assetDatas)
         {
             var assetChangeArgs = new AssetChangeArgs();
-            var updated = new HashSet<AssetIdentifier>();
-            var added = new HashSet<AssetIdentifier>();
+            var updated = new HashSet<TrackedAssetIdentifier>();
+            var added = new HashSet<TrackedAssetIdentifier>();
 
             foreach (var assetData in assetDatas)
             {
-                if (m_AssetData.TryGetValue(assetData.Identifier, out var existingAssetData))
+                var id = new TrackedAssetIdentifier(assetData.Identifier);
+
+                if (m_AssetData.TryGetValue(id, out var existingAssetData))
                 {
                     if (existingAssetData.IsTheSame(assetData))
                         continue;
 
-                    updated.Add(assetData.Identifier);
+                    updated.Add(id);
                 }
                 else
                 {
-                    added.Add(assetData.Identifier);
+                    added.Add(id);
                 }
 
-                m_AssetData[assetData.Identifier] = assetData;
+                m_AssetData[id] = assetData;
             }
 
             assetChangeArgs.Added = added;
@@ -226,17 +203,19 @@ namespace Unity.AssetManager.Editor
             AssetDataChanged?.Invoke(assetChangeArgs);
         }
 
-        public ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier id)
+        public ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier assetIdentifier)
         {
-            return id?.IsIdValid() == true && m_AssetIdToImportedAssetInfoLookup.TryGetValue(id, out var result)
+            return assetIdentifier?.IsIdValid() == true && m_TrackedIdentifierToImportedAssetInfoLookup.TryGetValue(new TrackedAssetIdentifier(assetIdentifier), out var result)
                 ? result
                 : null;
         }
 
-        public void RemoveImportedAssetInfo(AssetIdentifier id)
+        public void RemoveImportedAssetInfo(AssetIdentifier assetIdentifier)
         {
-            m_AssetIdToImportedAssetInfoLookup.Remove(id);
-            ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { Removed = new[] { id } });
+            var id = new TrackedAssetIdentifier(assetIdentifier);
+
+            m_TrackedIdentifierToImportedAssetInfoLookup.Remove(id);
+            ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs {Removed = new[] {id}});
         }
 
         public List<ImportedAssetInfo> GetImportedAssetInfosFromFileGuid(string fileGuid)
@@ -244,24 +223,26 @@ namespace Unity.AssetManager.Editor
             return m_FileGuidToImportedAssetInfosMap.GetValueOrDefault(fileGuid);
         }
 
-        public IAssetData GetAssetData(AssetIdentifier id)
+        public IAssetData GetAssetData(AssetIdentifier assetIdentifier)
         {
-            if (id?.IsIdValid() != true)
+            if (assetIdentifier?.IsIdValid() != true)
             {
                 return null;
             }
 
-            if (m_AssetIdToImportedAssetInfoLookup.TryGetValue(id, out var info))
+            var id = new TrackedAssetIdentifier(assetIdentifier);
+
+            if (m_TrackedIdentifierToImportedAssetInfoLookup.TryGetValue(id, out var info))
             {
                 return info?.AssetData;
             }
 
-            return m_AssetData.TryGetValue(id, out var result) ? result : null;
+            return m_AssetData.GetValueOrDefault(id);
         }
 
         public List<IAssetData> GetAssetsData(IEnumerable<AssetIdentifier> ids)
         {
-            List<IAssetData> result = new List<IAssetData>();
+            var result = new List<IAssetData>();
 
             foreach (var id in ids)
             {
@@ -284,13 +265,12 @@ namespace Unity.AssetManager.Editor
                 return assetData;
             }
 
-            var assetRepository = Services.AssetRepository; // TODO investigate how to clean this dependency
-
             IAsset asset = null;
 
             try
             {
-                asset = await assetRepository.GetAssetAsync(assetIdentifier.ToAssetDescriptor(), token);
+                var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+                asset = await assetProvider.GetAssetAsync(assetIdentifier.ToAssetDescriptor(), token);
             }
             catch (ForbiddenException)
             {
@@ -304,7 +284,7 @@ namespace Unity.AssetManager.Editor
             if (asset != null)
             {
                 assetData = new AssetData(asset);
-                AddOrUpdateAssetDataFromCloudAsset(new[] { assetData });
+                AddOrUpdateAssetDataFromCloudAsset(new[] {assetData});
 
                 return assetData;
             }
@@ -327,38 +307,46 @@ namespace Unity.AssetManager.Editor
         {
             foreach (var info in m_SerializedImportedAssetInfos)
             {
-                AddImportedAssetInfo(info);
+                AddOrUpdateImportedAssetInfo(info);
             }
 
             foreach (var data in m_SerializedAssetData)
             {
-                m_AssetData[data.Identifier] = data;
+                m_AssetData[new TrackedAssetIdentifier(data.Identifier)] = data;
             }
         }
 
-        void OnUserLoginStateChange(bool isUserInfoReady, bool isUserLoggedIn)
+        void AddOrUpdateImportedAssetInfo(ImportedAssetInfo info)
         {
-            if (!isUserLoggedIn)
-            {
-                m_AssetData.Clear();
-            }
-        }
+            // This method updates both m_TrackedIdentifierToImportedAssetInfoLookup and m_FileGuidToImportedAssetInfosMap
 
-        void AddImportedAssetInfo(ImportedAssetInfo info)
-        {
+            var trackId = new TrackedAssetIdentifier(info.Identifier);
+
+            // Iterate through every imported file related to that imported asset
             foreach (var fileInfo in info.FileInfos)
             {
-                if (m_FileGuidToImportedAssetInfosMap.ContainsKey(fileInfo.Guid))
+                if (!m_FileGuidToImportedAssetInfosMap.TryGetValue(fileInfo.Guid, out var importedAssetInfos))
                 {
-                    m_FileGuidToImportedAssetInfosMap[fileInfo.Guid].Add(info);
+                    // If that file Guid is not related to any existing imported asset, we can simply create a new entry to track it
+                    m_FileGuidToImportedAssetInfosMap[fileInfo.Guid] = new List<ImportedAssetInfo> { info };
                 }
                 else
                 {
-                    m_FileGuidToImportedAssetInfosMap[fileInfo.Guid] = new List<ImportedAssetInfo> { info };
+                    // Otherwise, we need to verify to which asset info this file is related to
+                    // If the file was related to a different (or same) version, we need to untrack it first, before tracking it again using updated imported info
+                    // Maybe a dictionary would have improved the readability of this code
+                    var duplicate = importedAssetInfos.Find(i => new TrackedAssetIdentifier(i.Identifier).Equals(trackId));
+                    if (duplicate != null)
+                    {
+                        importedAssetInfos.Remove(duplicate);
+                    }
+
+                    importedAssetInfos.Add(info);
                 }
             }
 
-            m_AssetIdToImportedAssetInfoLookup[info.id] = info;
+            // m_TrackedIdentifierToImportedAssetInfoLookup must contain the updated imported info, ignoring it's version, because only one version can be imported at a time.
+            m_TrackedIdentifierToImportedAssetInfoLookup[trackId] = info;
         }
     }
 }

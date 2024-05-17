@@ -11,19 +11,23 @@ namespace Unity.AssetManager.Editor
     class MultiAssetDetailsPage : SelectionInspectorPage
     {
         static readonly string k_InspectorScrollviewContainerClassName = "inspector-page-content-container";
-        static readonly string k_MultiSelectionFoldoutClassName = "multi-selection-foldout";
-        static readonly string k_MultiSelectionListViewClassName = "multi-selection-listview";
-        static readonly string k_MultiSelectionLoadingLabelClassName = "multi-selection-loading-label";
-        static readonly string k_MultiSelectionFoldoutTitle = "Selected Assets Files";
+
+        static readonly string k_MultiSelectionUnimportedFoldoutClassName = "multi-selection-unimported-foldout";
+        static readonly string k_MultiSelectionUnimportedListViewClassName = "multi-selection-unimported-listview";
+        static readonly string k_UnimportedFoldoutTitle = "Unimported";
+
+        static readonly string k_MultiSelectionImportedFoldoutClassName = "multi-selection-imported-foldout";
+        static readonly string k_MultiSelectionImportedListViewClassName = "multi-selection-imported-listview";
+        static readonly string k_ImportedFoldoutTitle = "Imported";
+
         static readonly string k_MultiSelectionFoldoutExpandedClassName = "multi-selection-foldout-expanded";
         static readonly string k_BigButtonClassName = "big-button";
-        static readonly string k_MultiSelectionImportName = "multi-selection-import-button";
         static readonly string k_MultiSelectionRemoveName = "multi-selection-remove-button";
         static readonly string k_InspectorFooterContainerName = "footer-container";
-        
+
         List<IAssetData> m_SelectedAssetsData = new();
-        MultiSelectionFoldout m_MultiSelectionFoldout;
-        Button m_ImportButton;
+        MultiSelectionFoldout m_UnimportedFoldout;
+        MultiSelectionFoldout m_ImportedFoldout;
         Button m_RemoveImportButton;
         VisualElement m_FooterContainer;
         OperationProgressBar m_OperationProgressBar;
@@ -31,10 +35,10 @@ namespace Unity.AssetManager.Editor
         public MultiAssetDetailsPage(IAssetImporter assetImporter, IAssetOperationManager assetOperationManager,
             IStateManager stateManager, IPageManager pageManager, IAssetDataManager assetDataManager,
             IAssetDatabaseProxy assetDatabaseProxy, IProjectOrganizationProvider projectOrganizationProvider,
-            ILinksProxy linksProxy, IProjectIconDownloader projectIconDownloader,
+            ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, IProjectIconDownloader projectIconDownloader,
             IPermissionsManager permissionsManager)
             : base(assetImporter, assetOperationManager, stateManager, pageManager, assetDataManager,
-                assetDatabaseProxy, projectOrganizationProvider, linksProxy, projectIconDownloader, permissionsManager)
+                assetDatabaseProxy, projectOrganizationProvider, linksProxy, unityConnectProxy, projectIconDownloader, permissionsManager)
         {
             BuildUxmlDocument();
         }
@@ -44,15 +48,28 @@ namespace Unity.AssetManager.Editor
             base.BuildUxmlDocument();
 
             var container = m_ScrollView.Q<VisualElement>(k_InspectorScrollviewContainerClassName);
-            m_MultiSelectionFoldout = new MultiSelectionFoldout(container, k_MultiSelectionFoldoutClassName, 
-                k_MultiSelectionListViewClassName, k_MultiSelectionLoadingLabelClassName,k_MultiSelectionFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
-            
-            m_MultiSelectionFoldout.RegisterValueChangedCallback(_ =>
+            m_UnimportedFoldout = new MultiSelectionFoldout(container, k_MultiSelectionUnimportedFoldoutClassName,
+                k_MultiSelectionUnimportedListViewClassName, Constants.ImportActionText,
+                ImportUnimportedAssetsAsync, k_UnimportedFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
+            m_ImportedFoldout = new MultiSelectionFoldout(container, k_MultiSelectionImportedFoldoutClassName,
+                k_MultiSelectionImportedListViewClassName, Constants.ReimportActionText,
+                ReImportAssetsAsync,k_ImportedFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
+
+            // Foldout for non imported assets
+            m_UnimportedFoldout.RegisterValueChangedCallback(_ =>
             {
-                m_StateManager.MultiSelectionFoldoutValue = m_MultiSelectionFoldout.Expanded;
+                m_StateManager.MultiSelectionUnimportedFoldoutValue = m_UnimportedFoldout.Expanded;
                 RefreshScrollView();
             });
-            m_MultiSelectionFoldout.Expanded = m_StateManager.MultiSelectionFoldoutValue;
+            m_UnimportedFoldout.Expanded = m_StateManager.MultiSelectionUnimportedFoldoutValue;
+
+            // Foldout for imported assets
+            m_ImportedFoldout.RegisterValueChangedCallback(_ =>
+            {
+                m_StateManager.MultiSelectionImportedFoldoutValue = m_ImportedFoldout.Expanded;
+                RefreshScrollView();
+            });
+            m_ImportedFoldout.Expanded = m_StateManager.MultiSelectionImportedFoldoutValue;
 
             m_FooterContainer = this.Q<VisualElement>(k_InspectorFooterContainerName);
             m_OperationProgressBar = new OperationProgressBar(() =>
@@ -60,14 +77,6 @@ namespace Unity.AssetManager.Editor
                 m_AssetImporter.CancelBulkImport(m_SelectedAssetsData.Select(x => x.Identifier).ToList(), true);
             });
             m_FooterContainer.contentContainer.hierarchy.Add(m_OperationProgressBar);
-            
-            m_ImportButton = new Button
-            {
-                text = L10n.Tr(Constants.ImportAllActionText),
-                name = k_MultiSelectionImportName
-            };
-            m_ImportButton.AddToClassList(k_BigButtonClassName);
-            m_FooterContainer.contentContainer.hierarchy.Add(m_ImportButton);
 
             m_RemoveImportButton = new Button
             {
@@ -76,42 +85,40 @@ namespace Unity.AssetManager.Editor
             };
             m_RemoveImportButton.AddToClassList(k_BigButtonClassName);
             m_FooterContainer.contentContainer.hierarchy.Add(m_RemoveImportButton);
-            
-            m_ImportButton.clicked += ImportAllAsync;
-            m_RemoveImportButton.clicked += RemoveAllFromProject;
+
+            m_RemoveImportButton.clicked += RemoveAllFromLocalProject;
 
             // We need to manually refresh once to make sure the UI is updated when the window is opened.
             if(m_PageManager.ActivePage == null)
                 return;
-            
+
             m_SelectedAssetsData = m_AssetDataManager.GetAssetsData(m_PageManager.ActivePage.SelectedAssets);
             RefreshUI();
         }
 
-        protected override async Task SelectAssetDataAsync(List<IAssetData> assetData)
+        protected override Task SelectAssetDataAsync(List<IAssetData> assetData)
         {
             m_SelectedAssetsData = assetData;
             RefreshUI();
-            
-            await Task.CompletedTask; // Remove warning about async
+
+            return Task.CompletedTask;
         }
 
         protected override void OnOperationProgress(AssetDataOperation operation)
         {
-            
-            if(!UIElementsUtils.IsDisplayed(this) || m_SelectedAssetsData == null || !m_SelectedAssetsData.Any() || !m_SelectedAssetsData.Any(x => x.Identifier.Equals(operation.AssetId)))
+            if(!UIElementsUtils.IsDisplayed(this) || m_SelectedAssetsData == null || !m_SelectedAssetsData.Any() || !m_SelectedAssetsData.Any(x => x.Identifier.Equals(operation.Identifier)))
                 return;
-            
+
             m_OperationProgressBar.Refresh(operation);
-            
+
             RefreshUI();
         }
 
         protected override void OnOperationFinished(AssetDataOperation operation)
         {
-            if(!UIElementsUtils.IsDisplayed(this) || m_SelectedAssetsData == null || !m_SelectedAssetsData.Any() || !m_SelectedAssetsData.Any(x => x.Identifier.Equals(operation.AssetId)))
+            if(!UIElementsUtils.IsDisplayed(this) || m_SelectedAssetsData == null || !m_SelectedAssetsData.Any() || !m_SelectedAssetsData.Any(x => x.Identifier.Equals(operation.Identifier)))
                 return;
-            
+
             RefreshUI();
         }
 
@@ -119,7 +126,7 @@ namespace Unity.AssetManager.Editor
         {
             if (!UIElementsUtils.IsDisplayed(this))
                 return;
-            
+
             var last = m_SelectedAssetsData.Last();
             foreach (var assetData in m_SelectedAssetsData)
             {
@@ -128,11 +135,11 @@ namespace Unity.AssetManager.Editor
                 {
                     break;
                 }
-            
+
                 if (assetData.Equals(last))
                     return;
             }
-            
+
             // In case of an import, force a full refresh of the displayed information
             _ = SelectAssetDataAsync(m_SelectedAssetsData);
         }
@@ -142,9 +149,14 @@ namespace Unity.AssetManager.Editor
             RefreshUI();
         }
 
+        protected override void OnCloudServicesReachabilityChanged(bool cloudServiceReachable)
+        {
+            RefreshUI();
+        }
+
         bool UpdateVisibility()
         {
-            if (m_SelectedAssetsData.Count <= 1)
+            if (m_SelectedAssetsData == null || m_SelectedAssetsData.Count <= 1)
             {
                 UIElementsUtils.Hide(this);
                 return false;
@@ -156,58 +168,105 @@ namespace Unity.AssetManager.Editor
 
         void RefreshUI()
         {
-            if ( m_SelectedAssetsData == null || !UpdateVisibility())
+            if ( !UpdateVisibility())
                 return;
 
             m_TitleLabel.text = L10n.Tr(m_SelectedAssetsData.Count + " " + Constants.AssetsSelectedTitle);
             RefreshFoldoutUI();
-            
+
             foreach (var assetData in m_SelectedAssetsData)
             {
                 var operation = m_AssetOperationManager.GetAssetOperation(assetData.Identifier);
-                //RefreshButtons(assetData, operation); // TODO: Refresh Buttons UIs
                 m_OperationProgressBar.Refresh(operation);
             }
+
+            var removable = m_SelectedAssetsData.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
+            m_RemoveImportButton.SetEnabled(removable.Count > 0);
+            m_RemoveImportButton.text = $"{L10n.Tr(Constants.RemoveAllFromProjectActionText)} ({removable.Count})";
         }
-        
+
         void RefreshFoldoutUI()
         {
-            m_MultiSelectionFoldout.StartPopulating();
-            if (m_SelectedAssetsData.Any())
+            m_UnimportedFoldout.StartPopulating();
+            var unimportedAssets = m_SelectedAssetsData.Where(x => !m_AssetDataManager.IsInProject(x.Identifier)).ToList();
+
+            if (unimportedAssets.Any())
             {
-                m_MultiSelectionFoldout.Populate(null, m_SelectedAssetsData);
+                m_UnimportedFoldout.Populate(null, unimportedAssets);
             }
             else
             {
-                m_MultiSelectionFoldout.Clear();
+                m_UnimportedFoldout.Clear();
             }
-            m_MultiSelectionFoldout.StopPopulating();
-            m_MultiSelectionFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
+            m_UnimportedFoldout.StopPopulating();
+            m_UnimportedFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
+
+            m_ImportedFoldout.StartPopulating();
+            var importedAssets = m_SelectedAssetsData.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
+
+            if (importedAssets.Any())
+            {
+                m_ImportedFoldout.Populate(null, importedAssets);
+            }
+            else
+            {
+                m_ImportedFoldout.Clear();
+            }
+            m_ImportedFoldout.StopPopulating();
+            m_ImportedFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
         }
-        
-        void ImportAllAsync()
+
+        void ImportListAsync(List<IAssetData> assetsData)
         {
-            // TODO: Re Implement analytics
             try
             {
-                m_AssetImporter.StartImportAsync(
-                    m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList());
+                m_AssetImporter.StartImportAsync(assetsData, null);
             }
             catch (Exception e)
             {
                Debug.LogException(e);
             }
         }
-        
-        void RemoveAllFromProject()
+
+        void ImportUnimportedAssetsAsync()
         {
-            // TODO: Re Implement analytics
+            var unimportedAssets = m_PageManager.ActivePage.SelectedAssets.Where(x => !m_AssetDataManager.IsInProject(x))
+                .Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
+
+            AnalyticsSender.SendEvent(unimportedAssets.Count > 1
+                ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.ImportAll)
+                : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Import));
+
+            ImportListAsync(unimportedAssets);
+        }
+
+        void ReImportAssetsAsync()
+        {
+            var importedAssets = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x))
+                .Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
+
+            AnalyticsSender.SendEvent(importedAssets.Count > 1
+                ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.ReImportAll)
+                : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Reimport));
+
+            ImportListAsync(importedAssets);
+        }
+
+        void RemoveAllFromLocalProject()
+        {
+            var importedAssets = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x)).ToList();
+
+            AnalyticsSender.SendEvent(importedAssets.Count > 1
+                ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.RemoveAll)
+                : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Remove));
+
             try
             {
-                m_AssetImporter.RemoveBulkImport(m_SelectedAssetsData.Select(x => x.Identifier).ToList(), true);
+                m_AssetImporter.RemoveBulkImport(importedAssets, true);
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                Debug.LogException(e);
                 throw;
             }
         }

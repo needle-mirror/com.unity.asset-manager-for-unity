@@ -10,32 +10,26 @@ namespace Unity.AssetManager.Editor
 {
     class LocalStatusFilter : LocalFilter
     {
-        [SerializeReference]
-        IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        IAssetDataManager m_AssetDataManager;
 
         public override string DisplayName => "Status";
 
         List<string> m_CachedSelections;
 
-        public LocalStatusFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
+        public LocalStatusFilter(IPage page, IAssetDataManager assetDataManager)
             : base(page)
         {
-            m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_AssetDataManager = assetDataManager;
         }
 
-        public override async Task<List<string>> GetSelections()
+        public override Task<List<string>> GetSelections()
         {
             if (m_CachedSelections == null)
             {
-                var projects = m_ProjectOrganizationProvider.SelectedOrganization.ProjectInfos.Select(p => p.Id)
-                    .ToList();
-
-                m_CachedSelections = await m_Page.GetFilterSelectionsAsync(
-                    m_ProjectOrganizationProvider.SelectedOrganization.Id, projects, GroupableField.Status,
-                    CancellationToken.None);
+                m_CachedSelections = m_AssetDataManager.ImportedAssetInfos.Select(i => i.AssetData.Status).Distinct().ToList();
             }
 
-            return m_CachedSelections;
+            return Task.FromResult(m_CachedSelections);
         }
 
         public override Task<bool> Contains(IAssetData assetData)

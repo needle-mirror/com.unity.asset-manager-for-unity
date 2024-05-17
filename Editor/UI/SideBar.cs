@@ -14,6 +14,7 @@ namespace Unity.AssetManager.Editor
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly VisualElement m_DraglineAnchor;
         readonly IStateManager m_StateManager;
+        readonly IUnityConnectProxy m_UnityConnectProxy;
 
         VisualElement m_Sidebar;
         VisualElement m_CollapsedSidebar;
@@ -26,10 +27,11 @@ namespace Unity.AssetManager.Editor
             set => EditorPrefs.SetBool(k_IsSidebarCollapsedPrefKey, value);
         }
 
-        public SideBar(IStateManager stateManager, IPageManager pageManager,
+        public SideBar(IUnityConnectProxy unityConnectProxy, IStateManager stateManager, IPageManager pageManager,
             IProjectOrganizationProvider projectOrganizationProvider,
             TwoPaneSplitView categoriesSplitView)
         {
+            m_UnityConnectProxy = unityConnectProxy;
             m_StateManager = stateManager;
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -63,7 +65,6 @@ namespace Unity.AssetManager.Editor
             button.AddToClassList("unity-list-view__item");
             button.AddToClassList("collapse-sidebar-button");
             button.RemoveFromClassList("unity-button");
-            button.Add(new Image { image = UIElementsUtils.GetCategoryIcon("Left-Arrow.png") });
             button.clickable.clicked += SwitchToCollapsedSidebar;
 
             topSection.Add(title);
@@ -71,12 +72,11 @@ namespace Unity.AssetManager.Editor
 
             var footerContainer = new VisualElement { name = "FooterContainer" };
             footerContainer.Add(new HorizontalSeparator());
-            footerContainer.Add(new SideBarButton<InProjectPage>(m_PageManager, "In Project",
-                UIElementsUtils.GetCategoryIcon("In-Project.png")));
+            footerContainer.Add(new SideBarButton<InProjectPage>(m_PageManager, "In Project", "icon-in-project"));
 
             sidebar.Add(topSection);
             sidebar.Add(new HorizontalSeparator());
-            sidebar.Add(new SidebarContent(m_ProjectOrganizationProvider, m_PageManager, m_StateManager));
+            sidebar.Add(new SidebarContent(m_UnityConnectProxy, m_ProjectOrganizationProvider, m_PageManager, m_StateManager));
             sidebar.Add(footerContainer);
 
             return sidebar;
@@ -89,21 +89,21 @@ namespace Unity.AssetManager.Editor
 
             var button = new Button();
             button.AddToClassList("unity-list-view__item");
-            button.AddToClassList("collapse-sidebar-button");
+            button.AddToClassList("expend-sidebar-button");
             button.RemoveFromClassList("unity-button");
-            button.Add(new Image { image = UIElementsUtils.GetCategoryIcon("Right-Arrow.png") });
             button.clickable.clicked += SwitchToExpandedSidebar;
 
             var footerContainer = new VisualElement {name = "FooterContainer"};
             footerContainer.Add(new HorizontalSeparator());
-            footerContainer.Add(new SideBarButton<InProjectPage>(m_PageManager, null,
-                UIElementsUtils.GetCategoryIcon("In-Project.png")));
+            footerContainer.Add(new SideBarButton<InProjectPage>(m_PageManager, null, "icon-in-project"));
 
             collapsedSidebar.Add(button);
-            collapsedSidebar.Add(new HorizontalSeparator());
-            collapsedSidebar.Add(new SideBarButton<AllAssetsPage>(m_PageManager, null,
-                     UIElementsUtils.GetCategoryIcon("All-Assets.png")));
-            collapsedSidebar.Add(footerContainer);
+            if (m_UnityConnectProxy.AreCloudServicesReachable)
+            {
+                collapsedSidebar.Add(new HorizontalSeparator());
+                collapsedSidebar.Add(new SideBarButton<AllAssetsPage>(m_PageManager, null, "icon-all-assets"));
+            }
+            collapsedSidebar.Add(footerContainer);    
 
             return collapsedSidebar;
         }

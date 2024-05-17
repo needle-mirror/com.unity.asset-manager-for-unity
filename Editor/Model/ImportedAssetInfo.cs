@@ -19,7 +19,7 @@ namespace Unity.AssetManager.Editor
             FileInfos = fileInfos.ToList();
         }
 
-        public AssetIdentifier id => AssetData?.Identifier;
+        public AssetIdentifier Identifier => AssetData?.Identifier;
 
         public static ImportedAssetInfo Parse(string jsonString)
         {

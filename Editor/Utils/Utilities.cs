@@ -13,7 +13,6 @@ namespace Unity.AssetManager.Editor
     static class Utilities
     {
         static readonly string[] k_SizeSuffixes = {"B", "Kb", "Mb", "Gb", "Tb"};
-        public static bool IsDevMode => EditorPrefs.GetBool("DeveloperMode", false);
 
         internal static string BytesToReadableString(double bytes)
         {
@@ -22,17 +21,11 @@ namespace Unity.AssetManager.Editor
                 return $"0 {k_SizeSuffixes[0]}";
             }
 
-            var place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1000)));
-            var num = Math.Round(bytes / Math.Pow(1000, place), 1);
+            var place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
+            var num = Math.Round(bytes / Math.Pow(1024, place), 1);
             var value = Math.Sign(bytes) * num;
 
             return place >= k_SizeSuffixes.Length ? $"{bytes} {k_SizeSuffixes[0]}" : $"{value} {k_SizeSuffixes[place]}";
-        }
-
-        public static string NormalizePath(string path)
-        {
-            return EscapeBackslashes(Path.GetFullPath(path)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         }
 
         public static string EscapeBackslashes(string str)
@@ -82,11 +75,22 @@ namespace Unity.AssetManager.Editor
             return Regex.Replace(input, "(\\B[A-Z])", " $1");
         }
 
+        [System.Diagnostics.Conditional("AM4U_DEV")]
         public static void DevLog(string message)
         {
-            if (IsDevMode)
+            Debug.Log(message);
+        }
+
+        [System.Diagnostics.Conditional("AM4U_DEV")]
+        public static void DevAssert(bool condition, string message = null)
+        {
+            if (string.IsNullOrEmpty(message))
             {
-                Debug.Log(message);
+                Debug.Assert(condition);
+            }
+            else
+            {
+                Debug.Assert(condition, message);
             }
         }
 
@@ -125,12 +129,12 @@ namespace Unity.AssetManager.Editor
 
             if (words.Length == 1)
             {
-                return words[0].Substring(0, 1).ToUpperInvariant();
+                return words[0][..1].ToUpperInvariant();
             }
 
             var initials = new StringBuilder();
-            initials.Append(words[0].Substring(0, 1));
-            initials.Append(words[words.Length - 1].Substring(0, 1));
+            initials.Append(words[0][..1]);
+            initials.Append(words[^1][..1]);
 
             return initials.ToString().ToUpperInvariant();
         }
@@ -142,7 +146,7 @@ namespace Unity.AssetManager.Editor
             return remainder == 0 ? quotient : quotient + 1;
         }
 
-        public static bool CompareListsBeginings(IList baseList, IList extendedList)
+        public static bool CompareListsBeginnings(IList baseList, IList extendedList)
         {
             if (baseList == null && extendedList == null)
             {
@@ -161,7 +165,7 @@ namespace Unity.AssetManager.Editor
                 if (
                     (baseListObject == null && extendedListObject != null) ||
                     (baseListObject != null && extendedListObject == null) ||
-                    !baseListObject.Equals(extendedListObject))
+                    baseListObject != null && !baseListObject.Equals(extendedListObject))
                 {
                     return false;
                 }
@@ -170,9 +174,58 @@ namespace Unity.AssetManager.Editor
             return true;
         }
 
-        public static bool CompareAssetFileName(string f1, string f2)
+        public static string GetPathRelativeToAssetsFolder(string assetPath)
         {
-            return f1.Replace("/", "\\").Equals(f2.Replace("/", "\\"), StringComparison.OrdinalIgnoreCase);
+            if (string.IsNullOrEmpty(assetPath))
+                return null;
+
+            var relativePath = Path.GetRelativePath(Application.dataPath, assetPath);
+            return NormalizePathSeparators(relativePath);
+        }
+
+        public static string GetPathRelativeToAssetsFolderIncludeAssets(string assetPath)
+        {
+            var str = GetPathRelativeToAssetsFolder(assetPath);
+
+            if (string.IsNullOrEmpty(str))
+                return null;
+
+            return Path.Combine("Assets", str);
+        }
+
+        public static string NormalizePathSeparators(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path;
+
+            // Path normalization depends on the current OS
+            var str = Application.platform == RuntimePlatform.WindowsEditor
+                ? path.Replace('/', Path.DirectorySeparatorChar)
+                : path.Replace('\\', Path.DirectorySeparatorChar);
+
+            var pattern = Path.DirectorySeparatorChar == '\\' ? "\\\\+" : "/+";
+            return Regex.Replace(str, pattern, Path.DirectorySeparatorChar.ToString());
+        }
+
+        public static string OpenFolderPanelInProject(string title, string defaultLocation)
+        {
+            var validPath = false;
+            string importLocation = null;
+
+            do
+            {
+                importLocation = EditorUtility.OpenFolderPanel(title, defaultLocation, string.Empty);
+
+                validPath = importLocation.Contains(Application.dataPath) || string.IsNullOrEmpty(importLocation);
+
+                if (!validPath)
+                {
+                    EditorUtility.DisplayDialog("Select a valid folder",
+                        "The default import location must be located inside the Assets folder of your project.", "Ok");
+                }
+            } while (!validPath);
+
+            return importLocation;
         }
     }
 }

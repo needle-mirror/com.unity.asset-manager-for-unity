@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Cloud.Identity;
 using UnityEditor;
 using UnityEngine;
 
@@ -113,6 +114,9 @@ namespace Unity.AssetManager.Editor
             L10n.Tr("It seems your current project is not enabled for use in the Asset Manager.");
         static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
         static readonly string k_CollectionPathPrefKey = "com.unity.asset-manager-for-unity.selectedCollectionPath";
+        static readonly string k_NoConnectionMessage = L10n.Tr("No network connection. Please check your internet connection.");
+        static readonly string k_ErrorRetrievingAssets =
+            L10n.Tr("It seems there was an error while trying to retrieve assets.");
 
         string SavedProjectId
         {
@@ -167,13 +171,32 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
+            Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_UnityConnectProxy.OrganizationIdChanged += OnProjectStateChanged;
-            FetchProjectOrganization(m_UnityConnectProxy.OrganizationId);
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
         }
 
         public override void OnDisable()
         {
+            Services.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_UnityConnectProxy.OrganizationIdChanged -= OnProjectStateChanged;
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+        }
+
+        void OnAuthenticationStateChanged()
+        {
+            if (Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
+            {
+                FetchProjectOrganization(m_UnityConnectProxy.OrganizationId);
+            }
+        }
+
+        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            if (cloudServicesReachable)
+            {
+                FetchProjectOrganization(m_UnityConnectProxy.OrganizationId);
+            }
         }
 
         public void SelectProject(ProjectInfo projectInfo, string collectionPath = null)
@@ -219,11 +242,9 @@ namespace Unity.AssetManager.Editor
 
         void FetchProjectOrganization(string newOrgId, bool forceRefresh = false)
         {
-
-#if UNITY_2021
-            if (!forceRefresh)
+            if (!m_UnityConnectProxy.AreCloudServicesReachable || !Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
                 return;
-#else
+
             if (!forceRefresh && !string.IsNullOrEmpty(m_OrganizationInfo?.Id) && m_OrganizationInfo.Id == newOrgId)
                 return;
 
@@ -231,7 +252,6 @@ namespace Unity.AssetManager.Editor
             {
                 m_OrganizationInfo = new OrganizationInfo { Id = newOrgId };
             }
-#endif
 
             if (IsLoading)
             {
@@ -242,9 +262,17 @@ namespace Unity.AssetManager.Editor
 
             if (string.IsNullOrEmpty(newOrgId))
             {
-                m_ErrorOrMessageHandling.Message = k_NoOrganizationMessage;
-                m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction =
-                    ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
+                if (!m_UnityConnectProxy.AreCloudServicesReachable)
+                {
+                    m_ErrorOrMessageHandling.Message = k_NoConnectionMessage;
+                    m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.None;
+                }
+                else
+                {
+                    m_ErrorOrMessageHandling.Message = k_NoOrganizationMessage;
+                    m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
+                }
+
                 InvokeOrganizationChanged();
                 return;
             }
@@ -260,9 +288,18 @@ namespace Unity.AssetManager.Editor
                 exceptionCallback: e =>
                 {
                     Debug.LogException(e);
-                    ErrorOrMessageHandlingData.Message =
-                        L10n.Tr("It seems there was an error while trying to retrieve assets.");
-                    ErrorOrMessageHandlingData.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
+
+                    if (!m_UnityConnectProxy.AreCloudServicesReachable)
+                    {
+                        m_ErrorOrMessageHandling.Message = k_NoConnectionMessage;
+                        m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.None;
+                    }
+                    else
+                    {
+                        m_ErrorOrMessageHandling.Message = L10n.Tr(k_ErrorRetrievingAssets);
+                        m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
+                    }
+
                     InvokeOrganizationChanged(); // TODO Send exception event
                 },
                 successCallback: result =>
@@ -306,10 +343,7 @@ namespace Unity.AssetManager.Editor
         {
             var selected = SelectedOrganization;
 
-            if (Utilities.IsDevMode)
-            {
-                Debug.Log($"OrganizationChanged '{selected?.Id}'");
-            }
+            Utilities.DevLog($"OrganizationChanged '{selected?.Id}'");
 
             OrganizationChanged?.Invoke(selected);
         }

@@ -12,6 +12,7 @@ namespace Unity.AssetManager.Editor
 {
     class AssetManagerWindowRoot : VisualElement
     {
+        const int k_CloudStorageUsageRefreshMs = 30000;
         const int k_SidebarMinWidth = 160;
         const int k_InspectorPanelMaxWidth = 300;
         const int k_InspectorPanelMinWidth = 200;
@@ -36,6 +37,8 @@ namespace Unity.AssetManager.Editor
         AssetsGridView m_AssetsGridView;
         List<SelectionInspectorPage> m_SelectionInspectorPages = new();
         ActionHelpBox m_ActionHelpBox;
+
+        IVisualElementScheduledItem m_StorageInfoRefreshScheduledItem;
 
         VisualElement m_CustomizableSection;
 
@@ -83,6 +86,8 @@ namespace Unity.AssetManager.Editor
             InitializeLayout();
             RegisterCallbacks();
 
+            Services.InitAuthenticatedServices();
+
             // We need to do an initial refresh here to make sure the window is correctly updated after it's opened
             // All following Refresh called will triggered through callbacks
             Refresh();
@@ -116,23 +121,31 @@ namespace Unity.AssetManager.Editor
                 new TwoPaneSplitView(1, k_InspectorPanelMaxWidth, TwoPaneSplitViewOrientation.Horizontal);
             m_CategoriesSplit = new TwoPaneSplitView(0, k_SidebarMinWidth, TwoPaneSplitViewOrientation.Horizontal);
 
-            m_SideBar = new SideBar(m_StateManager, m_PageManager, m_ProjectOrganizationProvider, m_CategoriesSplit);
+            m_SideBar = new SideBar(m_UnityConnect, m_StateManager, m_PageManager, m_ProjectOrganizationProvider, m_CategoriesSplit);
             m_SideBar.AddToClassList("SideBarContainer");
             m_CategoriesSplit.Add(m_SideBar);
 
             m_SearchContentSplitViewContainer = new VisualElement();
             m_SearchContentSplitViewContainer.AddToClassList("SearchContentSplitView");
-            var horizontalContainer = new VisualElement();
-            horizontalContainer.style.flexDirection = FlexDirection.Row;
-            horizontalContainer.Add(m_SearchContentSplitViewContainer);
-            m_CategoriesSplit.Add(horizontalContainer);
+            m_CategoriesSplit.Add(m_SearchContentSplitViewContainer);
             m_CategoriesSplit.fixedPaneInitialDimension = m_StateManager.SideBarWidth;
 
             var actionHelpBoxContainer = new VisualElement();
             actionHelpBoxContainer.AddToClassList("ActionHelpBoxContainer");
-            m_ActionHelpBox = new ActionHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy);
+            m_ActionHelpBox = new ActionHelpBox(m_UnityConnect, m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy);
             actionHelpBoxContainer.Add(m_ActionHelpBox);
             m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
+
+            var storageInfoHelpBoxContainer = new VisualElement();
+            storageInfoHelpBoxContainer.AddToClassList("StorageInfoHelpBoxContainer");
+            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
+            var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            var storageInfoHelpBox = new StorageInfoHelpBox(m_ProjectOrganizationProvider, m_LinksProxy, assetProvider, unityConnectProxy);
+            storageInfoHelpBoxContainer.Add(storageInfoHelpBox);
+            m_SearchContentSplitViewContainer.Add(storageInfoHelpBoxContainer);
+
+            // Schedule storage info to be refreshed each 30 seconds
+            m_StorageInfoRefreshScheduledItem = storageInfoHelpBox.schedule.Execute(storageInfoHelpBox.RefreshCloudStorageAsync).Every(k_CloudStorageUsageRefreshMs);
 
             m_Title = new Label();
             m_Title.AddToClassList("page-title-label");
@@ -147,8 +160,8 @@ namespace Unity.AssetManager.Editor
             m_Breadcrumbs = new Breadcrumbs(m_PageManager, m_ProjectOrganizationProvider);
             breadcrumbsAndRoleContainer.Add(m_Breadcrumbs);
 
-            var rolePile = new RoleChip(m_PageManager, m_ProjectOrganizationProvider, m_PermissionsManager);
-            breadcrumbsAndRoleContainer.Add(rolePile);
+            var roleChip = new RoleChip(m_PageManager, m_ProjectOrganizationProvider, m_PermissionsManager);
+            breadcrumbsAndRoleContainer.Add(roleChip);
 
             m_SearchContentSplitViewContainer.Add(breadcrumbsAndRoleContainer);
 
@@ -176,12 +189,11 @@ namespace Unity.AssetManager.Editor
                 m_AssetDataManager, m_AssetOperationManager, m_LinksProxy);
 
             m_SelectionInspectorPages.Add(new AssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
-                m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy,
+                m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect,
                 m_ProjectIconDownloader, m_PermissionsManager));
 
-            m_SelectionInspectorPages.Add(new MultiAssetDetailsPage(m_AssetImporter, m_AssetOperationManager,
-                m_StateManager,
-                m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy,
+            m_SelectionInspectorPages.Add(new MultiAssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
+                m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect,
                 m_ProjectIconDownloader, m_PermissionsManager));
 
             m_SelectionInspectorContainer = new VisualElement();
@@ -221,6 +233,7 @@ namespace Unity.AssetManager.Editor
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
+            m_UnityConnect.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
         }
 
         void UnregisterCallbacks()
@@ -231,6 +244,7 @@ namespace Unity.AssetManager.Editor
             m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
+            m_UnityConnect.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
         }
 
         void OnInspectorResized(GeometryChangedEvent evt)
@@ -238,6 +252,11 @@ namespace Unity.AssetManager.Editor
             m_InspectorPanelLastWidth = evt.newRect.width < k_InspectorPanelMinWidth ?
                 m_InspectorPanelLastWidth :
                 evt.newRect.width;
+        }
+
+        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            Refresh();
         }
 
         void OnAuthenticationStateChanged() => Refresh();
@@ -316,6 +335,18 @@ namespace Unity.AssetManager.Editor
 
         void Refresh()
         {
+            if (!m_UnityConnect.AreCloudServicesReachable)
+            {
+                UIElementsUtils.Hide(m_LoginPage);
+                UIElementsUtils.Show(m_AssetManagerContainer);
+
+                m_LoadingScreen.SetVisible(false);
+                m_ActionHelpBox.Refresh();
+                return;
+            }
+
+            m_StorageInfoRefreshScheduledItem.Resume();
+
             if (Services.AuthenticationState == AuthenticationState.AwaitingLogin)
             {
                 UIElementsUtils.Hide(m_LoginPage);
@@ -377,8 +408,11 @@ namespace Unity.AssetManager.Editor
 
         public void AddItemsToMenu(GenericMenu menu)
         {
-            var goToDashboard = new GUIContent(L10n.Tr("Go to Dashboard"));
-            menu.AddItem(goToDashboard, false, m_LinksProxy.OpenAssetManagerDashboard);
+            if (m_UnityConnect.AreCloudServicesReachable)
+            {
+                var goToDashboard = new GUIContent(L10n.Tr("Go to Dashboard"));
+                menu.AddItem(goToDashboard, false, m_LinksProxy.OpenAssetManagerDashboard);
+            }
 
             var projectSettings = new GUIContent(L10n.Tr("Project Settings"));
             menu.AddItem(projectSettings, false, m_LinksProxy.OpenProjectSettingsServices);

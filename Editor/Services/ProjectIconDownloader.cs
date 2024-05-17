@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using Unity.Cloud.Identity;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -45,6 +46,9 @@ namespace Unity.AssetManager.Editor
         IDownloadManager m_DownloadManager;
 
         [SerializeReference]
+        IUnityConnectProxy m_UnityConnectProxy;
+
+        [SerializeReference]
         IIOProxy m_IOProxy;
 
         [SerializeReference]
@@ -61,11 +65,14 @@ namespace Unity.AssetManager.Editor
         readonly Dictionary<string, Texture2D> m_Icons = new();
         readonly Dictionary<string, string> m_IconsUrls = new();
 
+        OrganizationInfo m_OrganizationInfo;
+
         [ServiceInjection]
-        public void Inject(IDownloadManager downloadManager, IIOProxy ioProxy, ISettingsManager settingsManager,
+        public void Inject(IUnityConnectProxy unityConnectProxy, IDownloadManager downloadManager, IIOProxy ioProxy, ISettingsManager settingsManager,
             ICacheEvictionManager cacheEvictionManager, IProjectOrganizationProvider projectOrganizationProvider,
             IAssetsProvider assetsProvider)
         {
+            m_UnityConnectProxy = unityConnectProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_DownloadManager = downloadManager;
             m_IOProxy = ioProxy;
@@ -76,14 +83,36 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_DownloadManager.DownloadFinalized += OnDownloadFinalized;
+            Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
         }
 
         public override void OnDisable()
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_DownloadManager.DownloadFinalized -= OnDownloadFinalized;
+            Services.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        }
+
+        void OnAuthenticationStateChanged()
+        {
+            if (Services.AuthenticationState.Equals(AuthenticationState.LoggedIn)
+                && m_UnityConnectProxy.AreCloudServicesReachable
+                && m_OrganizationInfo != null)
+            {
+                OnOrganizationChanged(m_OrganizationInfo);
+            }
+        }
+
+        private void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            if (cloudServicesReachable && m_OrganizationInfo != null && Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
+            {
+                OnOrganizationChanged(m_OrganizationInfo);
+            }
         }
 
         public void DownloadIcon(string projectId, Action<string, Texture2D> doneCallbackAction = null)
@@ -178,10 +207,16 @@ namespace Unity.AssetManager.Editor
 
         async void OnOrganizationChanged(OrganizationInfo organizationInfo)
         {
-            if (organizationInfo != null)
+            m_OrganizationInfo = organizationInfo;
+            if (organizationInfo != null
+                && m_UnityConnectProxy.AreCloudServicesReachable
+                && Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
             {
-                var iconsUrls =
-                    await m_AssetsProvider.GetProjectIconUrlsAsync(organizationInfo.Id, CancellationToken.None);
+                var iconsUrls = await m_AssetsProvider.GetProjectIconUrlsAsync(organizationInfo.Id, CancellationToken.None);
+
+                if (iconsUrls == null)
+                    return;
+
                 foreach (var iconUrl in iconsUrls)
                 {
                     m_IconsUrls[iconUrl.Key] = iconUrl.Value;

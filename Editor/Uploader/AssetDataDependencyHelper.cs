@@ -67,7 +67,7 @@ namespace Unity.AssetManager.Editor
 
             var filenameParts = Path.GetFileNameWithoutExtension(filename)
                 .Split(k_AssetIdAssetVersionSeparator, StringSplitOptions.RemoveEmptyEntries);
-            
+
             assetId = filenameParts[0];
             assetVersion = filenameParts.Length >= 2 ? filenameParts[1] : string.Empty;
             return true;
@@ -118,10 +118,20 @@ namespace Unity.AssetManager.Editor
             foreach (var dependency in dependencies)
             {
                 DecodeDependencySystemFilename(dependency.Path, out var assetId, out var assetVersion);
-                if (string.IsNullOrEmpty(assetVersion))
-                    assetVersion = await Services.AssetVersionsSearch.GetFirstVersionAsync(new ProjectId(assetData.Identifier.ProjectId), new AssetId(assetId), token);
                 
-                var assetDescriptor = new AssetDescriptor(parentAssetDescriptor.ProjectDescriptor, 
+                // This should never happen, but if the version fails to parse, try to fetch the latest version from the cloud
+                if (string.IsNullOrEmpty(assetVersion))
+                {
+                    assetVersion = await GetLatestVersionAsync(parentAssetDescriptor.ProjectDescriptor, new AssetId(assetId), token);
+                }
+                // IN CASE no version is found, skip the dependency
+                if (string.IsNullOrEmpty(assetVersion))
+                {
+                    Debug.LogError("No version found for dependency with asset id: " + assetId);
+                    continue;
+                }
+
+                var assetDescriptor = new AssetDescriptor(parentAssetDescriptor.ProjectDescriptor,
                     new AssetId(assetId),
                     new AssetVersion(assetVersion));
                 var assetIdentifier = new AssetIdentifier(assetDescriptor);
@@ -144,6 +154,29 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        public static IAsset GetImportedAssetAssociatedWithGuid(string guid)
+        {
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+            var assetData = assetDataManager.GetImportedAssetInfosFromFileGuid(guid)?.FirstOrDefault()?.AssetData as AssetData;
+            return assetData?.Asset;
+        }
+
+        static async Task<string> GetLatestVersionAsync(ProjectDescriptor projectDescriptor, AssetId assetId, CancellationToken token)
+        {
+            try
+            {
+                var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+                var asset = await assetProvider.GetLatestAssetVersionAsync(projectDescriptor, assetId, token);
+                return asset?.Descriptor.AssetVersion.ToString();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+
+            return null;
+        }
+
         public static async Task<IAsset> SearchForAssetWithGuid(string organizationId, string projectId, string guid,
             CancellationToken token)
         {
@@ -158,16 +191,15 @@ namespace Unity.AssetManager.Editor
             assetSearchFilter.Include().Files.Path.WithValue($"{guid}*");
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-            var assets = new List<IAsset>();
-            await foreach (var asset in assetsProvider.SearchAsync(organizationId, new[] { projectId },
-                               assetSearchFilter, 0, Constants.DefaultPageSize, token))
-            {
-                assets.Add(asset);
-            }
+
+            var enumerator = assetsProvider.SearchAsync(organizationId, new[] { projectId }, assetSearchFilter, 0,
+                Constants.DefaultPageSize, token).GetAsyncEnumerator(token);
+
+            await enumerator.MoveNextAsync();
 
             s_SearchForAssetWithGuidSemaphore.Release();
 
-            return assets.FirstOrDefault();
+            return enumerator.Current;
         }
     }
 }

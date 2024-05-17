@@ -19,10 +19,10 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         string m_ProjectId;
 
-        public string AssetId => m_AssetId;
-        public string Version => m_Version;
-        public string OrganizationId => m_OrganizationId;
-        public string ProjectId => m_ProjectId;
+        public string AssetId => m_AssetId ?? string.Empty;
+        public string Version => m_Version ?? string.Empty;
+        public string OrganizationId => m_OrganizationId ?? string.Empty;
+        public string ProjectId => m_ProjectId ?? string.Empty;
 
         public AssetIdentifier() { }
 
@@ -55,9 +55,9 @@ namespace Unity.AssetManager.Editor
             }
 
             return IsSameId(m_OrganizationId, other.m_OrganizationId)
-                && IsSameId(m_ProjectId, other.m_ProjectId)
-                && IsSameId(m_AssetId, other.m_AssetId)
-                && IsSameId(m_Version, other.m_Version);
+                   && IsSameId(m_ProjectId, other.m_ProjectId)
+                   && IsSameId(m_AssetId, other.m_AssetId)
+                   && IsSameId(m_Version, other.m_Version);
         }
 
         public virtual bool IsIdValid()

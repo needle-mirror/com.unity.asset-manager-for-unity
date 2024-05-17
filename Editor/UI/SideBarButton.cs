@@ -12,7 +12,7 @@ namespace Unity.AssetManager.Editor
 
         readonly IPageManager m_PageManager;
 
-        public SideBarButton(IPageManager pageManager, string label, Texture icon)
+        public SideBarButton(IPageManager pageManager, string label, string icon)
         {
             m_PageManager = pageManager;
 
@@ -23,9 +23,16 @@ namespace Unity.AssetManager.Editor
             RemoveFromClassList("unity-button");
 
             Add(new ToolbarSpacer());
-            Add(new Image { image = icon });
+
+            var image = new Image();
+            image.AddToClassList(icon);
+            Add(image);
             Add(new ToolbarSpacer());
-            Add(new Label(label));
+
+            if (!string.IsNullOrEmpty(label))
+            {
+                Add(new Label(label));
+            }
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);

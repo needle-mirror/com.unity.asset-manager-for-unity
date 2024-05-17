@@ -22,6 +22,7 @@ namespace Unity.AssetManager.Editor
         readonly AssetPreview m_AssetPreview;
         readonly LoadingIcon m_LoadingIcon;
         readonly IAssetOperationManager m_OperationManager;
+        readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly OperationProgressBar m_OperationProgressBar;
         readonly IPageManager m_PageManager;
         readonly IAssetDataManager m_AssetDataManager;
@@ -32,8 +33,9 @@ namespace Unity.AssetManager.Editor
 
         public IAssetData AssetData => m_AssetData;
 
-        internal GridItem(IAssetOperationManager operationManager, IPageManager pageManager, IAssetDataManager assetDataManager)
+        internal GridItem(IUnityConnectProxy unityConnectProxy, IAssetOperationManager operationManager, IPageManager pageManager, IAssetDataManager assetDataManager)
         {
+            m_UnityConnectProxy = unityConnectProxy;
             m_PageManager = pageManager;
             m_OperationManager = operationManager;
             m_AssetDataManager = assetDataManager;
@@ -85,38 +87,43 @@ namespace Unity.AssetManager.Editor
 
             m_AssetData = assetData;
 
+            Refresh();
+        }
+
+        void Refresh()
+        {
             if (m_ContextMenu == null)
             {
-               InitContextMenu(assetData);
+                InitContextMenu(m_AssetData);
             }
             else if (!ServicesContainer.instance.Resolve<IContextMenuBuilder>()
-                         .IsContextMenuMatchingAssetDataType(assetData.GetType(), m_ContextMenu.GetType()))
+                         .IsContextMenuMatchingAssetDataType(m_AssetData.GetType(), m_ContextMenu.GetType()))
             {
                 this.RemoveManipulator(m_ContextualMenuManipulator);
-                InitContextMenu(assetData);
+                InitContextMenu(m_AssetData);
             }
 
             if (m_ContextMenu != null)
             {
-                m_ContextMenu.TargetAssetData = assetData;
+                m_ContextMenu.TargetAssetData = m_AssetData;
             }
 
             RefreshHighlight();
 
-            m_AssetNameLabel.text = assetData.Name;
-            m_AssetNameLabel.tooltip = assetData.Name;
+            m_AssetNameLabel.text = m_AssetData.Name;
+            m_AssetNameLabel.tooltip = m_AssetData.Name;
 
             m_AssetPreview.ClearPreview();
 
-            m_OperationProgressBar.Refresh(m_OperationManager.GetAssetOperation(assetData.Identifier));
+            m_OperationProgressBar.Refresh(m_OperationManager.GetAssetOperation(m_AssetData.Identifier));
 
-            m_AssetPreview.SetStatuses(assetData.PreviewStatus);
+            m_AssetPreview.SetStatuses(m_AssetData.PreviewStatus);
 
-            if(assetData is UploadAssetData uploadAssetData)
+            if (m_AssetData is UploadAssetData uploadAssetData)
             {
                 m_AssetPreview.EnableInClassList("asset-preview--upload", true);
                 m_AssetPreview.Toggle.value = !uploadAssetData.IsIgnored;
-                m_AssetPreview.Toggle.tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IncludeToggleTooltip): L10n.Tr(Constants.IgnoreToggleTooltip);
+                m_AssetPreview.Toggle.tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IncludeToggleTooltip) : L10n.Tr(Constants.IgnoreToggleTooltip);
 
                 EnableInClassList(UssStyles.ItemIgnore, uploadAssetData.IsIgnored);
                 tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IgnoreAssetToolTip) : "";
@@ -124,7 +131,7 @@ namespace Unity.AssetManager.Editor
 
             var tasks = new List<Task>();
 
-            tasks.Add(assetData.GetThumbnailAsync((identifier, texture2D) =>
+            tasks.Add(m_AssetData.GetThumbnailAsync((identifier, texture2D) =>
             {
                 if (!identifier.Equals(m_AssetData.Identifier))
                     return;
@@ -132,7 +139,7 @@ namespace Unity.AssetManager.Editor
                 m_AssetPreview.SetThumbnail(texture2D);
             }));
 
-            tasks.Add(assetData.GetPreviewStatusAsync((identifier, status) =>
+            tasks.Add(m_AssetData.GetPreviewStatusAsync((identifier, status) =>
             {
                 if (!identifier.Equals(m_AssetData.Identifier))
                     return;
@@ -140,7 +147,7 @@ namespace Unity.AssetManager.Editor
                 m_AssetPreview.SetStatuses(status);
             }));
 
-            tasks.Add(assetData.ResolvePrimaryExtensionAsync((identifier, extension) =>
+            tasks.Add(m_AssetData.ResolvePrimaryExtensionAsync((identifier, extension) =>
             {
                 if (!identifier.Equals(m_AssetData.Identifier))
                     return;
@@ -148,32 +155,42 @@ namespace Unity.AssetManager.Editor
                 m_AssetPreview.SetAssetType(extension);
             }));
 
-            _ = WaitForResultsAsync(tasks);
+            if (m_UnityConnectProxy.AreCloudServicesReachable)
+            {
+                _ = WaitForResultsAsync(tasks);
+            }
         }
 
         public event Action<ClickEvent> Clicked;
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
             m_OperationManager.OperationProgressChanged += RefreshOperationProgress;
-            m_OperationManager.OperationFinished += OnOperationFinalized;
+            m_OperationManager.OperationFinished += RefreshOperationProgress;
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
             m_AssetPreview.ToggleValueChanged += OnAssetPreviewToggleValueChanged;
         }
 
+        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            Refresh();
+        }
+
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
             m_OperationManager.OperationProgressChanged -= RefreshOperationProgress;
-            m_OperationManager.OperationFinished -= OnOperationFinalized;
+            m_OperationManager.OperationFinished -= RefreshOperationProgress;
             m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
             m_AssetPreview.ToggleValueChanged -= OnAssetPreviewToggleValueChanged;
         }
 
         void InitContextMenu(IAssetData assetData)
         {
-            m_ContextMenu = (AssetContextMenu)ServicesContainer.instance.Resolve<IContextMenuBuilder>()
+            m_ContextMenu = (AssetContextMenu) ServicesContainer.instance.Resolve<IContextMenuBuilder>()
                 .BuildContextMenu(assetData.GetType());
             m_ContextualMenuManipulator = new ContextualMenuManipulator(m_ContextMenu.SetupContextMenuEntries);
             this.AddManipulator(m_ContextualMenuManipulator);
@@ -181,7 +198,7 @@ namespace Unity.AssetManager.Editor
 
         void RefreshOperationProgress(AssetDataOperation operation)
         {
-            if (!operation.AssetId.Equals(m_AssetData?.Identifier))
+            if (!operation.Identifier.Equals(m_AssetData?.Identifier))
                 return;
 
             m_OperationProgressBar.Refresh(operation);
@@ -200,14 +217,6 @@ namespace Unity.AssetManager.Editor
                 m_AssetData = null;
                 BindWithItem(assetData);
             }
-        }
-
-        void OnOperationFinalized(AssetDataOperation operation)
-        {
-            if (!operation.AssetId.Equals(m_AssetData?.Identifier))
-                return;
-
-            m_OperationProgressBar.Refresh(operation);
         }
 
         void OnSelectedAssetChanged(IPage page, List<AssetIdentifier> assets)

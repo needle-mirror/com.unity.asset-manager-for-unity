@@ -25,9 +25,9 @@ namespace Unity.AssetManager.Editor
 
         List<FileItem> m_FilesList = new();
 
-        public FilesFoldout(VisualElement parent, string foldoutName, string listViewName, string loadingLabelName,
+        public FilesFoldout(VisualElement parent, string foldoutName, string listViewName,
             IAssetDataManager assetDataManager, IAssetDatabaseProxy assetDatabaseProxy, string foldoutTitle = null)
-            : base(parent, foldoutName, listViewName, loadingLabelName, foldoutTitle)
+            : base(parent, foldoutName, listViewName, foldoutTitle)
         {
             m_AssetDataManager = assetDataManager;
             m_AssetDatabaseProxy = assetDatabaseProxy;
@@ -80,7 +80,8 @@ namespace Unity.AssetManager.Editor
                 return null;
 
             var importedInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.Identifier);
-            var importedFileInfo = importedInfo?.FileInfos?.Find(f => Utilities.CompareAssetFileName(f.OriginalPath, MetafilesHelper.RemoveMetaExtension(filename)));
+            var normalizedFilename = Utilities.NormalizePathSeparators(filename);
+            var importedFileInfo = importedInfo?.FileInfos?.Find(f => Utilities.NormalizePathSeparators(f.OriginalPath).Equals(normalizedFilename));
 
             return importedFileInfo?.Guid;
         }

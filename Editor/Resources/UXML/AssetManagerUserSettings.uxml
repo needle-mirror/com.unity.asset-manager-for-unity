@@ -3,33 +3,51 @@
         <ui:VisualElement name="titleContainer">
             <ui:Label text="Asset Manager" name="titleLabel"/>
         </ui:VisualElement>
-    </ui:VisualElement>
-    <ui:Foldout text="Cache settings" name="cacheManagementFoldout">
-        <ui:HelpBox message-type="Error" name="disabledErrorBox"/>
-        <ui:VisualElement name="cacheManagementContainer">
-            <ui:VisualElement>
-                <ui:Label text="Cache location" class="cacheSettingsLabel"/>
-                <ui:Label text="Maximum cache size (GB)" class="cacheSettingsLabel"/>
-                <ui:Label text="Cache size is " class="cacheSettingsLabel"/>
-                <ui:VisualElement name="cacheSizeOnDiskContainer">
-                    <ui:Button name="cleanCache" text="Clean cache"/>
-                    <ui:Button text="Clear extra cache" name="clearExtraCache"/>
-                </ui:VisualElement>
-            </ui:VisualElement>
-            <ui:VisualElement class="cacheSettingsElement">
-                <ui:VisualElement name="cacheLocationContainer">
-                    <ui:Label name="assetManagerCachePath"/>
-                    <ui:VisualElement name="toolbarMenu">
-                        <ui:VisualElement name="folderImage"/>
-                        <uie:ToolbarMenu name="assetManagerDropDown"/>
+        <ui:Foldout text="Import settings" class="settings-foldout">
+            <ui:VisualElement class="import-settings-container">
+                <ui:VisualElement class="flex-row">
+                    <ui:Label text="Default import location" class="import-setting-name"/>
+                    <ui:VisualElement class="label-toolbar-combo">
+                        <ui:Label name="importLocationPath" class="asset-manager-path"/>
+                        <ui:VisualElement class="toolbar-menu">
+                            <ui:VisualElement class="folder-image"/>
+                            <uie:ToolbarMenu name="importLocationDropdown" class="asset-manager-dropdown"/>
+                        </ui:VisualElement>
                     </ui:VisualElement>
                 </ui:VisualElement>
-                <ui:SliderInt name="maxCacheSize" show-input-field="true"/>
-                <ui:VisualElement name="cacheSizeOnDiskContainer">
-                    <ui:Label name="cacheSizeOnDisk" class="settings"/>
-                    <ui:Button text="Refresh" name="refresh"/>
+                <ui:VisualElement class="flex-row">
+                    <ui:Label text="Create subfolder on import" class="import-setting-name" tooltip="Enabling this option will automatically generate a folder named after the cloud asset and import files within it"/>
+                    <ui:Toggle name="subfolderCreationToggle"/>
+                </ui:VisualElement>
+        </ui:VisualElement>
+        </ui:Foldout>
+        <ui:Foldout text="Cache settings" class="settings-foldout">
+            <ui:HelpBox message-type="Error" name="disabledErrorBox"/>
+            <ui:VisualElement name="cacheManagementContainer">
+                <ui:VisualElement>
+                    <ui:Label text="Cache location" class="cache-settings-label"/>
+                    <ui:Label text="Maximum cache size (GB)" class="cache-settings-label"/>
+                    <ui:Label text="Cache size is " class="cache-settings-label"/>
+                    <ui:VisualElement name="cacheSizeOnDiskContainer">
+                        <ui:Button name="cleanCache" text="Clean cache"/>
+                        <ui:Button text="Clear extra cache" name="clearExtraCache"/>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement class="cache-settings-element">
+                    <ui:VisualElement class="flex-row">
+                        <ui:Label name="assetManagerCachePath" class="asset-manager-path"/>
+                        <ui:VisualElement class="toolbar-menu">
+                            <ui:VisualElement class="folder-image"/>
+                            <uie:ToolbarMenu name="cacheLocationDropdown" class="asset-manager-dropdown"/>
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:SliderInt name="maxCacheSize" show-input-field="true"/>
+                    <ui:VisualElement name="cacheSizeOnDiskContainer">
+                        <ui:Label name="cacheSizeOnDisk" class="settings"/>
+                        <ui:Button text="Refresh" name="refresh"/>
+                    </ui:VisualElement>
                 </ui:VisualElement>
             </ui:VisualElement>
-        </ui:VisualElement>
-    </ui:Foldout>
+        </ui:Foldout>
+    </ui:VisualElement>
 </ui:UXML>

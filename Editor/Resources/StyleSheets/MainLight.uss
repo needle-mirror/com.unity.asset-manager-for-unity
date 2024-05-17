@@ -1,13 +1,13 @@
+:root{
+    --icon-tint-color: #555555;
+}
+
 /************************************************
 * General
 ************************************************/
 
 .horizontal-separator {
     background-color: #7E7E7E;
-}
-
-.warning-icon {
-    background-image: resource("Images/Light/Warning");
 }
 
 /************************************************
@@ -80,10 +80,6 @@ TopBar {
     border-color: #7E7E7E;
 }
 
-#unity-search {
-    background-image: resource('Images/Light/Search');
-}
-
 .SearchFilterChip {
     background-color: #C6C6C6;
 }
@@ -92,17 +88,9 @@ TopBar {
     color: black;
 }
 
-#search-clear {
-    background-image: resource('Images/Light/Close');
-}
-
 /************************************************
 * Loading Icon
 ************************************************/
-
-.loading-icon {
-    background-image: resource('Images/Light/Loading');
-}
 
 .loading-bar {
     background-color: white;
@@ -111,6 +99,7 @@ TopBar {
 /************************************************
 * Bread Crumbs and Role Container
 ************************************************/
+
 .unity-breadcrumbs-and-role-container{
     background-color: #A5A5A5;
 }
@@ -118,11 +107,6 @@ TopBar {
 /************************************************
 * Bread Crumbs
 ************************************************/
-
-.unity-breadcrumbs-arrow {
-    background-image: resource('Images/Light/Arrow');
-
-}
 
 .unity-breadcrumbs-button:hover {
     color: rgb(50, 50, 50);
@@ -157,6 +141,11 @@ TopBar {
     border-color: #7E7E7E;
 }
 
+.unity-filters-chip--set
+{
+    background-color: #3A79BB;
+}
+
 /************************************************
 * Grid View
 ************************************************/
@@ -180,7 +169,6 @@ TopBar {
 
 .grid-view--item-download_cancel_button {
     background-color: white;
-    background-image: resource('Images/Light/Close');
 }
 
 GridErrorOrMessageView > .unity-label {
@@ -250,7 +238,11 @@ TagChip:hover {
 * Multi Selection Page Container
 ************************************************/
 
-.multi-selection-foldout > Toggle{
+.multi-selection-unimported-foldout > Toggle{
+    background-color: rgba(198, 198, 198, 1);
+}
+
+.multi-selection-imported-foldout > Toggle{
     background-color: rgba(198, 198, 198, 1);
 }
 
@@ -274,10 +266,6 @@ TagChip:hover {
     background-color: #676767;
 }
 
-.details-page-download-cancel-button {
-    background-image: resource("Images/Light/Close");
-}
-
 .details-files-foldout > Toggle{
     background-color: rgba(198, 198, 198, 1);
 }
@@ -290,33 +278,26 @@ TagChip:hover {
     color: black;
 }
 
-.details-page-three-dots-item {
-    background-image: resource("Images/Light/Settings");
-}
-
-.details-page-in-project-item {
-    background-image: resource("Images/Light/Folder-Closed");
-}
-
-.details-page-close-button {
-    background-image: resource('Images/Light/Close');
-}
-
 .details-page-close-button:hover, .details-page-download-cancel-button:hover {
     background-color: #EFEFEF;
+}
+
+.import-popup {
+    background-color: #F0F0F0;
+    border-color: #7E7E7E;
 }
 
 /************************************************
 * User Settings
 ************************************************/
 
-#cacheManagementFoldout {
+.settings-foldout {
     background-color: #D6D6D6;
     border-color: #8A8A8A;
 }
 
-#toolbarMenu,
-#assetManagerDropDown {
+.toolbar-menu,
+.asset-manager-dropdown {
     background-color: #E4E4E4;
     border-color: #939393;
 }
@@ -331,12 +312,4 @@ TagChip:hover {
 
 .cancellable-progress-bar--foreground {
     background-color: #3A79BB;
-}
-
-/************************************************
-* Icons
-************************************************/
-
-.status-icon-account {
-    background-image: resource('Images/Light/Icon-Account');
 }

@@ -4,6 +4,42 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2024-05-17
+
+[Added]
+* A new preprocessing directive "AM4U_ENABLE_ASSERTIONS" that enable assertion when set.
+
+[Changed]
+* Upload mode set to Override by default
+* Show In Project will ping the first file instead of the parent folder
+* Draft assets will display their version in yellow like on the web app
+* Disabling Remove button while re-import is in progress
+* Remove the ImportOperation.ImportAsync IAsset parameter, which was a duplicate of the IAssetData given in the constructor
+* Tracking recognizes version changes and out-of-date assets will be updated to the latest version on import
+* Cache location is now displayed with an absolute path in the user settings
+* Removed download progress indicators from the import operation
+* Upload progress indicators are no longer stick
+* Improved offline mode and domain reload support
+
+[Fixed]
+* Import to action wasn't working
+* Don't show import progression of -100% anymore
+* Imported asset without .meta file are now properly re-uploaded (need to be imported first)
+* Re-uploading a new version if an asset was not tracked properly
+* Upload progress not displaying error if details panel is opened
+* Normalizing path's separators in AM4U settings
+* Fixed Upload files displaying Assets/ folder
+* Fixed critical issue where Role and Permissions where not serialized properly
+* Fixed error when cancelling Import To folder selection
+* Fixed error when selecting Assets folder using Import To dialog
+* Removing unused constant causing warning
+* Improved search to better support underscores and other separator
+* Fixed missing Reveal In Finder label in settings
+* Asset files occasionally failing to re-import and being deleted.
+* Fixed the import of files with no extensions
+* Wrong search results when adding search words while the grid view has not finished loading.
+* Fixed a bug where upload progress indicators would be duplicated.
+
 ## [0.6.0] - 2024-04-26
 
 [Added]

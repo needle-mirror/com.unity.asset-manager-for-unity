@@ -6,21 +6,29 @@ namespace Unity.AssetManager.Editor
 {
     class SideBarCollectionFoldout : SideBarFoldout
     {
+        static readonly string k_IconFolderOpen = "icon-folder-open";
+        static readonly string k_IconFolderClose = "icon-folder-close";
+
         readonly ProjectInfo m_ProjectInfo;
         readonly string m_CollectionPath;
         readonly string m_CollectionId;
 
+        readonly Image m_Icon;
+
         public string CollectionPath => m_CollectionPath;
         public string CollectionId => m_CollectionId;
 
-        internal SideBarCollectionFoldout(IPageManager pageManager, IStateManager stateManager,
+        internal SideBarCollectionFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IStateManager stateManager,
             IProjectOrganizationProvider projectOrganizationProvider,
             string foldoutName, ProjectInfo projectInfo, string collectionPath)
-            : base(pageManager, stateManager, projectOrganizationProvider, foldoutName)
+            : base(unityConnectProxy, pageManager, stateManager, projectOrganizationProvider, foldoutName)
         {
             m_ProjectInfo = projectInfo;
             m_CollectionPath = collectionPath;
             m_CollectionId = $"{m_ProjectInfo.Id}/{m_CollectionPath}";
+
+            var iconParent = this.Q(className: inputUssClassName);
+            m_Icon = iconParent.Q<Image>();
 
             RegisterEventForIconChange();
 
@@ -88,12 +96,16 @@ namespace Unity.AssetManager.Editor
             if (string.IsNullOrEmpty(m_CollectionPath) || !m_HasChild)
                 return;
 
-            var iconParent = this.Q(className: inputUssClassName);
-            var image = iconParent.Q<Image>();
-
-            image.image = value ?
-                UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.OpenFoldoutName]) :
-                UIElementsUtils.GetCategoryIcon(Constants.CategoriesAndIcons[Constants.ClosedFoldoutName]);
+            if (value)
+            {
+                m_Icon.RemoveFromClassList(k_IconFolderClose);
+                m_Icon.AddToClassList(k_IconFolderOpen);
+            }
+            else
+            {
+                m_Icon.RemoveFromClassList(k_IconFolderOpen);
+                m_Icon.AddToClassList(k_IconFolderClose);
+            }
         }
     }
 }

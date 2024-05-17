@@ -7,16 +7,16 @@ namespace Unity.AssetManager.Editor
     static class AssetDataStatus
     {
         // Import
-        public static readonly AssetPreview.IStatus Imported = new PreviewStatus("Asset is imported", UssStyles.StatusIcon, UssStyles.StatusImported);
-        public static readonly AssetPreview.IStatus UpToDate = new PreviewStatus("Asset is up to date", UssStyles.StatusUpToDate);
-        public static readonly AssetPreview.IStatus OutOfDate = new PreviewStatus("Asset is outdated", UssStyles.StatusOutOfDate);
-        public static readonly AssetPreview.IStatus Error = new PreviewStatus("Asset was deleted or is not accessible", UssStyles.StatusError);
+        public static readonly AssetPreview.IStatus Imported = new PreviewStatus(Constants.ImportedText, Constants.ReimportActionText, UssStyles.StatusIcon, UssStyles.StatusImported);
+        public static readonly AssetPreview.IStatus UpToDate = new PreviewStatus(Constants.UpToDateText, Constants.ReimportActionText, UssStyles.StatusUpToDate);
+        public static readonly AssetPreview.IStatus OutOfDate = new PreviewStatus(Constants.OutOfDateText, Constants.UpdateToLatestActionText, UssStyles.StatusOutOfDate);
+        public static readonly AssetPreview.IStatus Error = new PreviewStatus(Constants.StatusErrorText, string.Empty, UssStyles.StatusError);
 
         // Upload
-        public static readonly AssetPreview.IStatus Linked = new PreviewStatus("This asset is a dependency of another asset", "grid-view--item-linked");
-        public static readonly AssetPreview.IStatus UploadSkip = new PreviewStatus("This asset already exists on the cloud and will not be uploaded", "grid-view--item-upload-skip");
-        public static readonly AssetPreview.IStatus UploadOverride = new PreviewStatus("This asset will override its cloud version", "grid-view--item-upload-override");
-        public static readonly AssetPreview.IStatus UploadDuplicate = new PreviewStatus("This asset already exists on the cloud but a new cloud asset will be uploaded", "grid-view--item-upload-duplicate");
+        public static readonly AssetPreview.IStatus Linked = new PreviewStatus(Constants.LinkedText, string.Empty, "grid-view--item-linked");
+        public static readonly AssetPreview.IStatus UploadSkip = new PreviewStatus(Constants.UploadSkipText, string.Empty, "grid-view--item-upload-skip");
+        public static readonly AssetPreview.IStatus UploadOverride = new PreviewStatus(Constants.UploadOverrideText, string.Empty, "grid-view--item-upload-override");
+        public static readonly AssetPreview.IStatus UploadDuplicate = new PreviewStatus(Constants.UploadDuplicateText, string.Empty, "grid-view--item-upload-duplicate");
 
         static class UssStyles
         {
@@ -34,10 +34,12 @@ namespace Unity.AssetManager.Editor
         readonly string[] m_Styles;
 
         public string Description { get; }
+        public string ActionText { get; }
 
-        public PreviewStatus(string description, params string[] ussStyles)
+        public PreviewStatus(string description, string actionText, params string[] ussStyles)
         {
             Description = description;
+            ActionText = actionText;
             m_Styles = ussStyles;
         }
 

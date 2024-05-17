@@ -18,8 +18,6 @@ namespace Unity.AssetManager.Editor
             LoadMoreGridItems
         }
 
-        public int VisibleRowCount { get; private set; }
-
         // Item height/widths are used to calculate the # of rows/columns
         const int k_DefaultItemHeight = 150;
         const int k_DefaultItemWidth = 125;
@@ -93,7 +91,7 @@ namespace Unity.AssetManager.Editor
                 if (m_ItemsSource == null && value == null)
                     return;
 
-                if (m_ItemsSource != null && Utilities.CompareListsBeginings(ItemsSource, value))
+                if (m_ItemsSource != null && Utilities.CompareListsBeginnings(ItemsSource, value))
                 {
                     // Value is equals to ItemsSource
                     if (m_ItemsSource.Count == value.Count)
@@ -263,7 +261,7 @@ namespace Unity.AssetManager.Editor
 
                 for (var i = 0; i < count && m_RowPool.Count > 0; ++i)
                 {
-                    var last = m_RowPool.Last();
+                    var last = m_RowPool[^1];
 
                     for (var j = 0; j < ColumnCount; j++)
                     {
@@ -590,6 +588,9 @@ namespace Unity.AssetManager.Editor
             if (m_RowPool.Count > 0)
             {
                 var lastIndex = m_RowPool.FindLastIndex(row => row.FirstIndex != -1);
+                if (lastIndex < 0)
+                    return;
+
                 for (var rowIndex = lastIndex; rowIndex < m_RowPool.Count; rowIndex++)
                 {
                     for (var indexInRow = 0; indexInRow < m_RowPool[rowIndex].childCount; indexInRow++)

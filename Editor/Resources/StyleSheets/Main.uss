@@ -23,6 +23,16 @@
     height: 13px;
     width: 13px;
     margin: 2px 2px 2px 2px;
+    background-image: resource("Images/Icons/Warning");
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+.flex-row {
+    flex-direction: row;
+}
+
+.flex-column {
+    flex-direction: column;
 }
 
 /************************************************
@@ -60,6 +70,20 @@
 .collapse-sidebar-button {
     height: 32px;
     width: 32px;
+    justify-content: center;
+    background-image: resource("Images/Icons/Left-Arrow");
+    -unity-background-image-tint-color: var(--icon-tint-color);
+    background-size: 24px 24px;
+    background-position-x: left;
+}
+
+.expend-sidebar-button {
+    height: 32px;
+    width: 32px;
+    justify-content: center;
+    background-image: resource("Images/Icons/Right-Arrow");
+    -unity-background-image-tint-color: var(--icon-tint-color);
+    background-size: 24px 24px;
 }
 
 .sidebar-top-section {
@@ -105,6 +129,28 @@ SideBarFoldout Label {
 SideBarFoldout Toggle {
     margin-left: 0;
     margin-right: 0;
+}
+
+SideBarAllAssetsFoldout Image {
+    width: 16px;
+    height: 16px;
+    background-image: resource("Images/Icons/All-Assets");
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+SideBarCollectionFoldout Image {
+    width: 16px;
+    height: 16px;
+}
+
+SideBarCollectionFoldout Image.icon-folder-open {
+    background-image: resource("Images/Icons/Folder-Open");
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+SideBarCollectionFoldout Image.icon-folder-close {
+    background-image: resource("Images/Icons/Folder-Close");
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 #categoryFoldoutButton {
@@ -278,6 +324,8 @@ is not intended properly and we need this to fix that issue*/
     width: 16px;
     min-width: 16px;
     height: 16px;
+    background-image: resource('Images/Icons/Caret-Right');
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 .unity-breadcrumbs-button {
@@ -333,6 +381,8 @@ is not intended properly and we need this to fix that issue*/
     width: 12px;
     height: 12px;
     margin-left: 12px;
+    background-image: resource('Images/Icons/Caret-Down');
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 .unity-filters-popup{
@@ -362,6 +412,8 @@ is not intended properly and we need this to fix that issue*/
     margin-right: 4px;
     width: 16px;
     height: 16px;
+    background-image: resource('Images/Icons/Check');
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 .unity-filters-chip-container {
@@ -377,16 +429,13 @@ is not intended properly and we need this to fix that issue*/
     align-items: center;
 }
 
-.unity-filters-chip--set
-{
-    background-color: #2C5D87;
-}
-
 .unity-filters-chip-delete {
     margin-left: 8px;
     margin-right: 4px;
     width: 12px;
     height: 12px;
+    background-image: resource('Images/Icons/Close');
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 /************************************************
@@ -533,6 +582,16 @@ TopBar {
     border-width: 1px;
 }
 
+#unity-search {
+    background-image: resource('Images/Icons/Search');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+#search-clear {
+    background-image: resource('Images/Icons/Close');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
 .SearchContentSplitView {
     min-width: 130px; /* Roughly the width of a grid item */
     flex-grow: 1;
@@ -664,7 +723,7 @@ UserChip {
     flex-direction: row;
 }
 
-UserChip #Name {
+UserChip #Username {
     text-overflow: ellipsis;
     overflow: hidden;
     flex-shrink: 1;
@@ -819,6 +878,11 @@ AssetsGridView {
     height: 3px;
     border-bottom-left-radius: 2px;
     border-bottom-right-radius: 2px;
+}
+
+.grid-view--item-download_cancel_button {
+    background-image: resource('Images/Icons/Close');
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 .grid-view--item-imported_status {
@@ -1152,40 +1216,65 @@ MultiAssetDetailsPage {
     overflow: scroll;
 }
 
-.multi-selection-foldout {
+.multi-selection-unimported-foldout {
     -unity-font-style: bold;
     margin-top: 20px;
-    height: 100%;
     min-height: 50px;
+    max-height: 400px;
     width: 100%;
 }
 
-.multi-selection-foldout > Toggle{
+.multi-selection-unimported-foldout > Toggle{
     padding: 8px 10px 8px 10px;
     margin: 0 0 5px 0;
 }
 
-.multi-selection-foldout > Toggle > VisualElement{
+.multi-selection-unimported-foldout > Toggle > VisualElement{
     flex-direction: row-reverse;
 }
 
-.multi-selection-foldout > Toggle > VisualElement > Label{
+.multi-selection-unimported-foldout > Toggle > VisualElement > Label{
     position: absolute;
     left: 5px;
 }
 
-.multi-selection-loading-label {
-    align-self: center;
-    margin-top: 5px;
-    -unity-font-style: normal;
-}
-
-.multi-selection-foldout-expanded {
+.multi-selection-unimpoted-foldout-expanded {
     min-height: 120px;
     max-height: 100%;
 }
 
-.multi-selection-foldout > .* > .unity-foldout__content {
+.multi-selection-unimported-foldout > .* > .unity-foldout__content {
+    margin-left: 0px;
+}
+
+.multi-selection-imported-foldout {
+    -unity-font-style: bold;
+    margin-top: 20px;
+    min-height: 50px;
+    max-height: 400px;
+    width: 100%;
+}
+
+.multi-selection-imported-foldout > Toggle{
+    padding: 8px 10px 8px 10px;
+    margin: 0 0 5px 0;
+}
+
+.multi-selection-imported-foldout > Toggle > VisualElement{
+    flex-direction: row-reverse;
+}
+
+.multi-selection-imported-foldout > Toggle > VisualElement > Label{
+    position: absolute;
+    left: 5px;
+}
+
+.multi-selection-imported-foldout-expanded {
+    min-height: 120px;
+    max-height: 100%;
+}
+
+.multi-selection-imported-foldout > .* > .unity-foldout__content {
     margin-left: 0px;
 }
 
@@ -1206,6 +1295,7 @@ AssetDetailsPage {
 #details-page-top {
     flex-direction: row;
     justify-content: space-between;
+    align-content: center;
     margin: 10px;
 }
 
@@ -1226,6 +1316,23 @@ AssetDetailsPage {
     -unity-text-overflow-position: end;
 }
 
+.asset-version {
+    padding: 0 5px;
+    align-self: center;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    -unity-font-style: bold;
+    border-color: rgba(255, 255, 255, 0.5);
+    border-width: 1px;
+    border-radius: 5px;
+    height: 18px;
+    -unity-text-overflow-position: end;
+}
+
+.asset-version--draft {
+    border-color: #FFCB47;
+}
+
 .details-page-close-button {
     width: 24px;
     height: 24px;
@@ -1234,6 +1341,8 @@ AssetDetailsPage {
     background-color: rgba(0, 0, 0, 0);
     align-self: center;
     flex-shrink: 0;
+    background-image: resource('Images/Icons/Close');
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 #asset-dashboard-link {
@@ -1241,26 +1350,21 @@ AssetDetailsPage {
     height: 16px;
     flex-shrink: 0;
     align-self: center;
+    background-image: resource('Images/Icons/External-Link');
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 #details-page-scrollview {
     align-self: flex-start;
     flex-grow: 1;
+    flex-shrink: 1;
     width: 100%;
 }
 
 #details-page-content-container {
-    flex-shrink: 1;
-    min-height: 450px;
+    flex-grow: 0;
+    flex-shrink: 0;
     padding: 10px;
-}
-
-.details-page-scrollview {
-    flex-shrink: 1;
-}
-
-.details-page-top {
-    align-content: center;
 }
 
 .details-page-scrollview > #unity-content-and-vertical-scroll-container > #unity-content-viewport > #unity-content-container {
@@ -1345,14 +1449,14 @@ AssetDetailsPage {
     width: 12px;
     cursor: link;
     margin-left: 4px;
+    background-image: resource("Images/Icons/Close");
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 .details-files-foldout {
     -unity-font-style: bold;
     margin-top: 20px;
-    min-height: 50px;
-    max-height: 400px;
-    width: 100%;
+    flex-grow: 1;
 }
 
 .details-files-foldout > Toggle{
@@ -1367,12 +1471,6 @@ AssetDetailsPage {
 .details-files-foldout > Toggle > VisualElement > Label{
     position: absolute;
     left: 5px;
-}
-
-.details-files-loading-label {
-    align-self: center;
-    margin-top: 5px;
-    -unity-font-style: normal;
 }
 
 .no-files-warning-box {
@@ -1390,6 +1488,10 @@ AssetDetailsPage {
 .no-dependencies-label {
     align-self: center;
     -unity-font-style: bold;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    white-space: normal;
+    -unity-text-align: middle-center;
 }
 
 .no-files-warning-box > Image {
@@ -1416,8 +1518,7 @@ AssetDetailsPage {
 }
 
 .details-foldout-expanded {
-    min-height: 120px;
-    max-height: 400px;
+
 }
 
 .asset-details-page-container {
@@ -1487,14 +1588,6 @@ AssetDetailsPage {
     padding-left: 10px;
 }
 
-.flex-row {
-    flex-direction: row;
-}
-
-.flex-column {
-    flex-direction: column;
-}
-
 .flex-wrap {
     flex-wrap: wrap;
 }
@@ -1508,9 +1601,84 @@ AssetDetailsPage {
 }
 
 .big-button {
+    flex-direction: row;
     height: 40px;
     width: 100%;
     flex-grow: 1;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.import-button {
+    flex-direction: row;
+    height: 40px;
+    flex-grow: 1;
+    margin-left: 0;
+    margin-right: 0;
+    border-right-width: 0;
+    border-bottom-right-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.import-to-button {
+    flex-direction: row;
+    height: 40px;
+    width: 40px;
+    margin-right: 0;
+    margin-left: 0;
+    border-left-width: 0;
+    border-bottom-left-radius: 0;
+    border-top-left-radius: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+.import-to-button-caret {
+    width: 12px;
+    height: 12px;
+    background-image: resource('Images/Icons/Caret-Down');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+.import-popup-container {
+    align-items: flex-end;
+    width: 100%;
+}
+
+.import-buttons-container {
+    flex-direction: row;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
+.import-popup {
+    flex-direction: column;
+    position: absolute;
+    padding: 5px;
+    margin-top: 5px;
+    min-width: 160px;
+    border-width: 1px;
+    border-radius: 8px;
+}
+
+.import-popup-import-to {
+    flex-direction: row;
+    font-size: 14px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    border-radius: 5px;
+}
+
+.import-popup-import-to:hover {
+    background-color: #2F60C1;
+}
+
+.import-popup-import-to > Image {
+    margin-left: 6px;
+    margin-right: 4px;
+    width: 16px;
+    height: 16px;
 }
 
 .details-page-file-item {
@@ -1568,12 +1736,16 @@ AssetDetailsPage {
     background-size : 16px 16px;
     width: 20px;
     flex-shrink: 0;
+    background-image: resource("Images/Icons/Folder-Close");
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 .details-page-three-dots-item {
     background-size : 16px 16px;
     width: 25px;
     flex-shrink: 0;
+    background-image: resource("Images/Icons/Settings");
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 .details-page-footer {
@@ -1618,6 +1790,14 @@ AssetDetailsPage {
     flex-shrink: 1;
 }
 
+.details-page-loading-label{
+    justify-content: center;
+    flex-grow: 1;
+    margin-top: 24px;
+    -unity-font-style: normal;
+    -unity-text-align: middle-center;
+}
+
 /************************************************
 * Loading icons
 ************************************************/
@@ -1627,6 +1807,8 @@ AssetDetailsPage {
     height: 20px;
     width: 20px;
     flex-shrink: 0;
+    background-image: resource('Images/Icons/Loading');
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 .loading-bar {
@@ -1661,16 +1843,22 @@ AssetDetailsPage {
     font-size: 19px;
     -unity-font-style: bold;
     padding-top: 0px;
+    margin-bottom: 10px;
 }
 
-#cacheManagementFoldout {
+.settings-foldout {
     border-width: 1px;
     margin: 2px 9px 2px 6px;
     min-width: 330px;
 }
 
-#cacheManagementFoldout Label {
+.settings-foldout Label {
     margin: 2px 0 0 3px;
+}
+
+.import-settings-container {
+    margin-bottom: 20px;
+    margin-top: 10px;
 }
 
 #cacheManagementContainer {
@@ -1679,27 +1867,23 @@ AssetDetailsPage {
     margin-top: 10px;
 }
 
-#cacheLocationContainer {
-    flex-direction: row;
-}
-
 #cacheSizeOnDiskContainer {
     flex-direction: row;
     align-self: flex-start;
     margin-top: 5px;
 }
 
-.cacheSettingsLabel,
-.cacheSettingsElement {
+.cache-settings-label,
+.cache-settings-element {
     padding-left: 10px;
 }
 
-.cacheSettingsElement {
+.cache-settings-element {
     flex-grow: 1;
     padding-right: 2px;
 }
 
-.cacheSettingsLabel {
+.cache-settings-label {
     padding-bottom: 7px;
 }
 
@@ -1716,7 +1900,7 @@ AssetDetailsPage {
     flex-grow: 1;
 }
 
-#assetManagerCachePath {
+.asset-manager-path {
     flex-grow: 1;
     flex-shrink: 1;
     text-overflow: ellipsis;
@@ -1725,24 +1909,35 @@ AssetDetailsPage {
     border-width: 1px;
 }
 
-#toolbarMenu {
+.toolbar-menu {
     border-width: 1px;
     margin-right: 5px;
     flex-direction: row;
 }
 
-#folderImage {
+.folder-image {
     background-image: resource("Images/Common/Folder-Opened");
     width: 20px;
 }
 
-#assetManagerDropDown {
+.asset-manager-dropdown {
     border-width: 0px;
 }
 
 #cleanCache {
     width: 120px;
     margin-left: 10px;
+}
+
+.label-toolbar-combo {
+    flex-direction: row;
+    flex-grow: 1;
+    justify-content: space-between;
+}
+
+.import-setting-name {
+    width: 250px;
+    padding-bottom: 7px;
 }
 
 /************************************************
@@ -1788,6 +1983,29 @@ AssetDetailsPage {
     background-image: resource('Images/Common/Default-Asset');
 }
 
+.status-icon-account {
+    background-image: resource('Images/Common/Icon-Account');
+}
+
+.icon-all-assets {
+    background-image: resource('Images/Icons/All-Assets');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+    width: 16px;
+    height: 16px;
+}
+
+.icon-in-project {
+    background-image: resource('Images/Icons/In-Project');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+    width: 16px;
+    height: 16px;
+}
+
+.icon-default-project {
+    background-image: resource('Images/Icons/Project-Icon');
+    background-size: 12px 12px;
+    background-position: center;
+}
 
 /************************************************
 * Upload

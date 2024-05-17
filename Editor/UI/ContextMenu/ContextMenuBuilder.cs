@@ -27,6 +27,9 @@ namespace Unity.AssetManager.Editor
         ILinksProxy m_LinksProxy;
 
         [SerializeReference]
+        IUnityConnectProxy m_UnityConnectProxy;
+        
+        [SerializeReference]
         IAssetDatabaseProxy m_AssetDatabaseProxy;
 
         [SerializeReference]
@@ -35,9 +38,10 @@ namespace Unity.AssetManager.Editor
         readonly Dictionary<Type, Type> m_AssetDataTypeToContextMenuType = new();
 
         [ServiceInjection]
-        public void Inject(IAssetDataManager assetDataManager, IAssetImporter assetImporter, ILinksProxy linksProxy,
+        public void Inject(IUnityConnectProxy unityConnectProxy, IAssetDataManager assetDataManager, IAssetImporter assetImporter, ILinksProxy linksProxy,
             IAssetDatabaseProxy assetDatabaseProxy, IPageManager pageManager)
         {
+            m_UnityConnectProxy = unityConnectProxy;
             m_AssetDataManager = assetDataManager;
             m_AssetImporter = assetImporter;
             m_LinksProxy = linksProxy;
@@ -56,7 +60,7 @@ namespace Unity.AssetManager.Editor
             return Activator.CreateInstance(contextType,
                 BindingFlags.Public |
                 BindingFlags.Instance,
-                null, new object[] { m_AssetDataManager, m_AssetImporter, m_LinksProxy, m_AssetDatabaseProxy, m_PageManager },
+                null, new object[] {m_UnityConnectProxy, m_AssetDataManager, m_AssetImporter, m_LinksProxy, m_AssetDatabaseProxy, m_PageManager },
                 null);
         }
 

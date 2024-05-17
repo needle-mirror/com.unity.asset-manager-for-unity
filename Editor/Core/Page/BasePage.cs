@@ -333,12 +333,11 @@ namespace Unity.AssetManager.Editor
 
             if (searchStrings != null && searchStrings.Any())
             {
-                var searchFilterString = string.Join(" ", searchStrings);
-                var partialSearchFilterString = $"*{searchFilterString}*";
+                var searchFilterString = string.Concat("*", string.Join('*', searchStrings), "*");
 
-                assetFilter.Any().Name.WithValue(partialSearchFilterString);
-                assetFilter.Any().Description.WithValue(partialSearchFilterString);
-                assetFilter.Any().Tags.WithValue(partialSearchFilterString);
+                assetFilter.Any().Name.WithValue(searchFilterString);
+                assetFilter.Any().Description.WithValue(searchFilterString);
+                assetFilter.Any().Tags.WithValue(searchFilterString);
             }
             else
             {

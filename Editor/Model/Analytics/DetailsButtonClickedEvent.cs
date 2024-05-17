@@ -10,7 +10,10 @@ namespace Unity.AssetManager.Editor
             Import,
             Reimport,
             Show,
-            Remove
+            Remove,
+            ImportAll,
+            ReImportAll,
+            RemoveAll
         }
 
         [Serializable]

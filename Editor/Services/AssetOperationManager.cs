@@ -49,7 +49,7 @@ namespace Unity.AssetManager.Editor
 
         public void RegisterOperation(AssetDataOperation operation)
         {
-            if (m_Operations.TryGetValue(operation.AssetId, out var existingOperation) &&
+            if (m_Operations.TryGetValue(operation.Identifier, out var existingOperation) &&
                 operation == existingOperation)
 
                 // The operation is already registered
@@ -67,13 +67,13 @@ namespace Unity.AssetManager.Editor
             {
                 if (!operation.IsSticky)
                 {
-                    m_Operations.Remove(operation.AssetId);
+                    m_Operations.Remove(operation.Identifier);
                 }
 
                 OperationFinished?.Invoke(operation);
             };
 
-            m_Operations[operation.AssetId] = operation;
+            m_Operations[operation.Identifier] = operation;
         }
 
         void OnActivePageChanged(IPage _)
@@ -87,7 +87,7 @@ namespace Unity.AssetManager.Editor
             {
                 if (operation.Status != OperationStatus.InProgress)
                 {
-                    m_Operations.Remove(operation.AssetId);
+                    m_Operations.Remove(operation.Identifier);
                 }
             }
         }
