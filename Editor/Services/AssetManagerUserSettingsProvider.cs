@@ -244,16 +244,14 @@ namespace Unity.AssetManager.Editor
         /// </summary>
         void ResetCacheLocationToDefault()
         {
-            var defaultLocation = m_CachePathHelper.GetDefaultCacheLocation();
-            m_SettingsManager.SetCacheLocation(defaultLocation.FullName);
-            SetLabelTextAndTooltip(m_AssetManagerCachePathLabel, defaultLocation.FullName, false);
+            var defaultLocation = m_SettingsManager.ResetCacheLocation();
+            SetLabelTextAndTooltip(m_AssetManagerCachePathLabel, defaultLocation, false);
             RefreshCacheSizeOnDiskLabel();
         }
 
         void ResetImportLocationToDefault()
         {
-            var defaultLocation = Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName);
-            m_SettingsManager.SetCacheLocation(defaultLocation);
+            var defaultLocation = m_SettingsManager.ResetImportLocation();
             SetLabelTextAndTooltip(m_ImportLocationPathLabel, defaultLocation, true);
         }
 
@@ -287,7 +285,7 @@ namespace Unity.AssetManager.Editor
             }
 
             UIElementsUtils.Hide(m_ErroLabel);
-            m_SettingsManager.SetDefaultImportLocation(importLocation);
+            m_SettingsManager.DefaultImportLocation = importLocation;
             SetLabelTextAndTooltip(m_ImportLocationPathLabel, importLocation, true);
         }
 

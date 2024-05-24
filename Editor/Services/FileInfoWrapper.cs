@@ -24,7 +24,7 @@ namespace Unity.AssetManager.Editor
         {
             if (!File.Exists(path))
             {
-                return long.MaxValue;
+                return 0;
             }
 
             var fileInfo = new FileInfo(path);

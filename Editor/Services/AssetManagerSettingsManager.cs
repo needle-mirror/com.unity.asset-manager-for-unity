@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using NUnit.Framework.Constraints;
 using UnityEditor;
 using UnityEditor.SettingsManagement;
 using UnityEngine;
@@ -9,21 +8,19 @@ namespace Unity.AssetManager.Editor
 {
     interface ISettingsManager : IService
     {
-        string DefaultImportLocation { get; }
+        string DefaultImportLocation { get; set; }
         bool IsSubfolderCreationEnabled { get; }
         string BaseCacheLocation { get; }
         string ThumbnailsCacheLocation { get; }
         int MaxCacheSizeGb { get; }
         int MaxCacheSizeMb { get; }
 
-        event Action DefaultImportLocationChanged;
-        event Action CacheLocationChanged;
-        event Action CacheSizeChanged;
-
-        void SetDefaultImportLocation(string importLocation);
         void SetIsSubfolderCreationEnabled(bool value);
         void SetCacheLocation(string cacheLocation);
         void SetMaxCacheSize(int cacheSize);
+
+        string ResetCacheLocation();
+        string ResetImportLocation();
     }
 
     class AssetManagerSettingsManager : BaseService<ISettingsManager>, ISettingsManager
@@ -31,17 +28,17 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         ICachePathHelper m_CachePathHelper;
 
-        const string k_DefaultImportLocationKey = "defaultImportLocation";
-        const string k_IsSubfolderCreationEnabledKey = "isSubfolderCreationEnabled";
-        const string k_CacheLocationKey = "cacheLocation";
-        const string k_MaxCacheSizeKey = "cacheSize";
-        const string k_TexturesCacheLocation = "texturesCaheLocation";
-        const string k_ThumbnailsCacheLocation = "thumbnailsCaheLocation";
-        const string k_AssetManagerCacheLocation = "assetManagerCacheLocation";
+        const string k_ImportRelativeLocationKey = "AM4U-importRelativeLocation";
+        const string k_IsSubfolderCreationEnabledKey = "AM4U-isSubfolderCreationEnabled";
+        const string k_CacheLocationKey = "AM4U-cacheLocation";
+        const string k_MaxCacheSizeKey = "AM4U-cacheSize";
+        const string k_TexturesCacheLocationKey = "AM4U-texturesCacheLocation";
+        const string k_ThumbnailsCacheLocationKey = "AM4U-thumbnailsCaheLocation";
+        const string k_AssetManagerCacheLocationKey = "AM4U-assetManagerCacheLocation";
 
         Settings m_Settings;
 
-        internal Settings Instance
+        Settings Instance
         {
             get
             {
@@ -54,29 +51,46 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public event Action DefaultImportLocationChanged = delegate { };
-        public event Action CacheLocationChanged = delegate { };
-        public event Action CacheSizeChanged = delegate { };
-
         public string DefaultImportLocation
         {
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                    return;
+
+                var relativePath = Utilities.GetPathRelativeToAssetsFolderIncludeAssets(value);
+
+                Utilities.DevAssert(relativePath.StartsWith(Constants.AssetsFolderName));
+
+                Instance.Set(k_ImportRelativeLocationKey, relativePath, SettingsScope.User);
+            }
+
             get
             {
-                var defaultImportLocation = Instance.Get<string>(k_DefaultImportLocationKey, SettingsScope.User);
-                if (Directory.Exists(defaultImportLocation))
+                var relativePath = Instance.Get<string>(k_ImportRelativeLocationKey, SettingsScope.User);
+
+                if (string.IsNullOrEmpty(relativePath))
                 {
-                    return defaultImportLocation;
+                    return GetDefaultImportLocation();
                 }
 
-                // if the directory doesn't exist
-                var defaultPath = Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName);
-                SetDefaultImportLocation(defaultPath);
+                Utilities.DevAssert(relativePath.StartsWith(Constants.AssetsFolderName));
 
-                return defaultPath;
+                relativePath = relativePath.Substring(Constants.AssetsFolderName.Length, relativePath.Length - Constants.AssetsFolderName.Length);
+                relativePath = relativePath.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var fullPath = Path.Combine(Application.dataPath, relativePath);
+
+                if (Utilities.IsPathInProject(fullPath))
+                {
+                    return fullPath;
+                }
+
+                Debug.LogWarning("Import location is not in the project. Using default location.");
+                return GetDefaultImportLocation();
             }
         }
 
-        public bool IsSubfolderCreationEnabled => Instance.Get<bool>(k_IsSubfolderCreationEnabledKey, SettingsScope.User, true);
+        public bool IsSubfolderCreationEnabled => Instance.Get(k_IsSubfolderCreationEnabledKey, SettingsScope.User, true);
 
         public string BaseCacheLocation
         {
@@ -91,7 +105,7 @@ namespace Unity.AssetManager.Editor
         {
             get
             {
-                var thumbnailsCacheLocation = Instance.Get<string>(k_ThumbnailsCacheLocation, SettingsScope.User);
+                var thumbnailsCacheLocation = Instance.Get<string>(k_ThumbnailsCacheLocationKey, SettingsScope.User);
                 return GetCacheLocationOrDefault(thumbnailsCacheLocation);
             }
         }
@@ -120,17 +134,6 @@ namespace Unity.AssetManager.Editor
             m_CachePathHelper = cachePathHelper;
         }
 
-        public void SetDefaultImportLocation(string importLocation)
-        {
-            if (string.IsNullOrEmpty(importLocation))
-            {
-                importLocation = Path.Combine(Constants.AssetsFolderName, Constants.ApplicationFolderName);
-            }
-
-            Instance.Set(k_DefaultImportLocationKey, importLocation, SettingsScope.User);
-            DefaultImportLocationChanged?.Invoke();
-        }
-
         public void SetIsSubfolderCreationEnabled(bool value)
         {
             Instance.Set(k_IsSubfolderCreationEnabledKey, value, SettingsScope.User);
@@ -145,13 +148,12 @@ namespace Unity.AssetManager.Editor
 
             Instance.Set(k_CacheLocationKey, cacheLocation, SettingsScope.User);
             var assetManagerCacheLocation = m_CachePathHelper.CreateAssetManagerCacheLocation(cacheLocation);
-            Instance.Set(k_AssetManagerCacheLocation, m_CachePathHelper.CreateAssetManagerCacheLocation(cacheLocation),
+            Instance.Set(k_AssetManagerCacheLocationKey, m_CachePathHelper.CreateAssetManagerCacheLocation(cacheLocation),
                 SettingsScope.User);
-            Instance.Set(k_ThumbnailsCacheLocation,
+            Instance.Set(k_ThumbnailsCacheLocationKey,
                 Path.Combine(assetManagerCacheLocation, Constants.CacheThumbnailsFolderName), SettingsScope.User);
-            Instance.Set(k_TexturesCacheLocation,
+            Instance.Set(k_TexturesCacheLocationKey,
                 Path.Combine(assetManagerCacheLocation, Constants.CacheTexturesFolderName), SettingsScope.User);
-            CacheLocationChanged?.Invoke();
         }
 
         public void SetMaxCacheSize(int cacheSize)
@@ -162,7 +164,25 @@ namespace Unity.AssetManager.Editor
             }
 
             Instance.Set(k_MaxCacheSizeKey, cacheSize, SettingsScope.User);
-            CacheSizeChanged?.Invoke();
+        }
+
+        static string GetDefaultImportLocation()
+        {
+            return Path.Combine(Application.dataPath, Constants.ApplicationFolderName);
+        }
+
+        public string ResetCacheLocation()
+        {
+            var defaultLocation = m_CachePathHelper.GetDefaultCacheLocation();
+            SetCacheLocation(defaultLocation.FullName);
+            return defaultLocation.FullName;
+        }
+
+        public string ResetImportLocation()
+        {
+            var defaultLocation = GetDefaultImportLocation();
+            DefaultImportLocation = defaultLocation;
+            return defaultLocation;
         }
 
         string GetCacheLocationOrDefault(string cachePath)

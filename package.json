@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "unity": "2021.3",
   "description": "An in-Editor tool that allows you to import assets directly into your project.",
   "keywords": [
@@ -15,18 +15,18 @@
     "com.unity.cloud.identity": "1.2.0-exp.1"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "0.7.0"
+    "com.unity.asset-manager-for-unity.tests": "0.7.1"
   },
   "_upm": {
-    "changelog": "[Added]\n* A new preprocessing directive \"AM4U_ENABLE_ASSERTIONS\" that enable assertion when set.\n\n[Changed]\n* Upload mode set to Override by default\n* Show In Project will ping the first file instead of the parent folder\n* Draft assets will display their version in yellow like on the web app\n* Disabling Remove button while re-import is in progress\n* Remove the ImportOperation.ImportAsync IAsset parameter, which was a duplicate of the IAssetData given in the constructor\n* Tracking recognizes version changes and out-of-date assets will be updated to the latest version on import\n* Cache location is now displayed with an absolute path in the user settings\n* Removed download progress indicators from the import operation\n* Upload progress indicators are no longer stick\n* Improved offline mode and domain reload support\n\n[Fixed]\n* Import to action wasn't working\n* Don't show import progression of -100% anymore\n* Imported asset without .meta file are now properly re-uploaded (need to be imported first)\n* Re-uploading a new version if an asset was not tracked properly\n* Upload progress not displaying error if details panel is opened\n* Normalizing path's separators in AM4U settings\n* Fixed Upload files displaying Assets/ folder\n* Fixed critical issue where Role and Permissions where not serialized properly\n* Fixed error when cancelling Import To folder selection\n* Fixed error when selecting Assets folder using Import To dialog\n* Removing unused constant causing warning\n* Improved search to better support underscores and other separator\n* Fixed missing Reveal In Finder label in settings\n* Asset files occasionally failing to re-import and being deleted.\n* Fixed the import of files with no extensions\n* Wrong search results when adding search words while the grid view has not finished loading.\n* Fixed a bug where upload progress indicators would be duplicated."
+    "changelog": "[Fixed]\n* Fixed Import Settings\n* Running transformation causing upload to fail and not being tracked as imported\n\n### Known Issues\n* Failing assertion on import settings path on Mac\n* Asset uploaded and tracked without being frozen properly because of transformation will most likely display the \"out of date\" status right after uploading is finished. This is due to transformation and preview modifying the date of the asset."
   },
   "upmCi": {
-    "footprint": "7fce8fdfc731df62e311e371f4cfb9e46e2e74fe"
+    "footprint": "64a683b74903c308edab8bcb6882e64b7c6405e0"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.7/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "c3ae85ea7c26aa70938405ce91d94e0f2aec0dcf"
+    "revision": "405a7a54eb82db0189c8704d38f9f7e0df061045"
   }
 }

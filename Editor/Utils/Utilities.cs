@@ -207,16 +207,25 @@ namespace Unity.AssetManager.Editor
             return Regex.Replace(str, pattern, Path.DirectorySeparatorChar.ToString());
         }
 
-        public static string OpenFolderPanelInProject(string title, string defaultLocation)
+        public static string OpenFolderPanelInProject(string title, string currentLocation)
         {
             var validPath = false;
             string importLocation = null;
 
+            try
+            {
+                currentLocation = IsPathInProject(currentLocation) && Directory.Exists(currentLocation) ? currentLocation : Application.dataPath;
+            }
+            catch
+            {
+                currentLocation = Application.dataPath;
+            }
+
             do
             {
-                importLocation = EditorUtility.OpenFolderPanel(title, defaultLocation, string.Empty);
+                importLocation = EditorUtility.OpenFolderPanel(title, currentLocation, string.Empty);
 
-                validPath = importLocation.Contains(Application.dataPath) || string.IsNullOrEmpty(importLocation);
+                validPath = IsPathInProject(importLocation) || string.IsNullOrEmpty(importLocation);
 
                 if (!validPath)
                 {
@@ -226,6 +235,11 @@ namespace Unity.AssetManager.Editor
             } while (!validPath);
 
             return importLocation;
+        }
+
+        public static bool IsPathInProject(string path)
+        {
+            return NormalizePathSeparators(path).StartsWith(NormalizePathSeparators(Application.dataPath));
         }
     }
 }

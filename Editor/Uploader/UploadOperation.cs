@@ -132,7 +132,16 @@ namespace Unity.AssetManager.Editor
                 await asset.UpdateAsync(assetUpdate, token);
             }
 
-            await asset.FreezeAsync(Constants.UploadChangelog, token);
+            try
+            {
+                await asset.FreezeAsync(Constants.UploadChangelog, token);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Unable to commit asset version for asset {asset.Descriptor.AssetId}. Asset will stay in Pending status.");
+                Utilities.DevLog(e.ToString());
+            }
+
             await asset.RefreshAsync(token);
 
             ReportStep("Done");
