@@ -4,7 +4,13 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2024-05-29
+
+[Fixed]
+* Fixed Not Found error while uploading
+
 ## [0.7.1] - 2024-05-24
+
 [Fixed]
 * Fixed Import Settings
 * Running transformation causing upload to fail and not being tracked as imported

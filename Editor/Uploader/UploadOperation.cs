@@ -172,7 +172,7 @@ namespace Unity.AssetManager.Editor
 
         async Task UploadFile(Stream stream, string destPath, IDataset targetDataset, CancellationToken token)
         {
-            var fileCreation = new FileCreation(destPath);
+            var fileCreation = new FileCreation(destPath.Replace('\\', '/')); // Backend doesn't support backslashes AMECO-2616
 
             await s_UploadFileSemaphore.WaitAsync(token);
 
