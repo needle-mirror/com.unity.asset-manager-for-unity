@@ -24,7 +24,7 @@ namespace Unity.AssetManager.Editor
                 {
                     if (localAssetIdentifier != null && localAssetIdentifier.IsIdValid())
                     {
-                        EditorGUIUtility.PingObject(m_AssetDatabaseProxy.LoadAssetAtPath(m_AssetDatabaseProxy.GuidToAssetPath(localAssetIdentifier.Guid)));
+                        m_AssetDatabaseProxy.PingAssetByGuid(localAssetIdentifier.Guid);
                     }
 
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent.ContextMenuItemType.ShowInProject));

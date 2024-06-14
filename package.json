@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "unity": "2021.3",
   "description": "An in-Editor tool that allows you to import assets directly into your project.",
   "keywords": [
@@ -11,22 +11,22 @@
   ],
   "dependencies": {
     "com.unity.settings-manager": "1.0.2",
-    "com.unity.cloud.assets": "1.2.0-exp.1",
-    "com.unity.cloud.identity": "1.2.0-exp.1"
+    "com.unity.cloud.assets": "1.2.0-exp.2",
+    "com.unity.cloud.identity": "1.2.0-exp.2"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "0.7.2"
+    "com.unity.asset-manager-for-unity.tests": "0.8.0"
   },
   "_upm": {
-    "changelog": "[Fixed]\n* Fixed Not Found error while uploading"
+    "changelog": "[Added]\n- Added a + status icon for newly added upload asset\n- Drag and Drop to Import/Upload in/from Project View\n\n[Changed]\n- Default import location is now set to Assets root with no sub folder creation\n- Improved thumbnail loading speed and preventing stutters during scrolling\n- Downloaded thumbnails are now 180px instead of 512px\n\n[Fixed]\n- Fixed the cancellation of loading assets that leaded to see previous request in search or filtered results.\n- Fixed duplication of item when scrolling to the last row\n- Fixed project selection not working after an domain reload\n- Thumbnails are downloaded in memory before being saved on disk for later use (previously it was saved on disk, then loaded on memory)\n- The number of thumbnails loaded per frame has been set to avoid causing stutters during scrolling\n- Fixed the overlay of the single and multi selection detail page.\n- Unresponsive project list after a domain reload\n- Popup maximum size is constrained in function of window size and filter selection popups have now scrollbar.\n- Removing am4u_guid files usage (re-upload requires an import first)\n- Fixed Show In Project regression pointing on parent folder instead of first file\n- Preventing free organization from being blocked from upload\n- Modifying or deleting an asset prepared for upload will now refresh the upload page\n- Properly clearing grid when switching page\n- Service Not Found error when upload assets on Windows using a folder hierarchy\n- Only ask once for create a new destination folder"
   },
   "upmCi": {
-    "footprint": "0c0a67ac1c7d2007343767429a3f93d0ab5d2c3e"
+    "footprint": "b28a47e9c7485777abd6e8888ae866e93928eebe"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.7/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.8/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "403442d32d714c05697221a4466b5a1a21e1f04e"
+    "revision": "8b17aa6166b08702f7d80f87169799c58c26fc5c"
   }
 }

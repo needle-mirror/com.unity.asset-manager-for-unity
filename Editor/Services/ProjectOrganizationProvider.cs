@@ -114,9 +114,10 @@ namespace Unity.AssetManager.Editor
             L10n.Tr("It seems your current project is not enabled for use in the Asset Manager.");
         static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
         static readonly string k_CollectionPathPrefKey = "com.unity.asset-manager-for-unity.selectedCollectionPath";
-        static readonly string k_NoConnectionMessage = L10n.Tr("No network connection. Please check your internet connection.");
-        static readonly string k_ErrorRetrievingAssets =
-            L10n.Tr("It seems there was an error while trying to retrieve assets.");
+        static readonly string k_NoConnectionMessage =
+            L10n.Tr("No network connection. Please check your internet connection.");
+        static readonly string k_ErrorRetrievingOrganization =
+            L10n.Tr("It seems there was an error while trying to retrieve organization info.");
 
         string SavedProjectId
         {
@@ -133,7 +134,7 @@ namespace Unity.AssetManager.Editor
         public event Action<OrganizationInfo> OrganizationChanged;
         public event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
 
-        public bool IsLoading => m_LoadOrganizationOperation.isLoading;
+        public bool IsLoading => m_LoadOrganizationOperation.IsLoading;
 
         public OrganizationInfo SelectedOrganization =>
             IsLoading || string.IsNullOrEmpty(m_OrganizationInfo?.Id) ? null : m_OrganizationInfo;
@@ -211,9 +212,11 @@ namespace Unity.AssetManager.Editor
             if (string.IsNullOrEmpty(projectId) && string.IsNullOrEmpty(currentProjectId))
                 return;
 
-            if (!string.IsNullOrEmpty(currentProjectId) && !m_OrganizationInfo.ProjectInfos.Exists(p => p.Id == currentProjectId))
+            if (!string.IsNullOrEmpty(currentProjectId) &&
+                !m_OrganizationInfo.ProjectInfos.Exists(p => p.Id == currentProjectId))
             {
-                Debug.LogError($"Project with id '{currentProjectId}' is not part of the organization '{m_OrganizationInfo.Id}'");
+                Debug.LogError(
+                    $"Project with id '{currentProjectId}' is not part of the organization '{m_OrganizationInfo.Id}'");
                 return;
             }
 
@@ -270,7 +273,8 @@ namespace Unity.AssetManager.Editor
                 else
                 {
                     m_ErrorOrMessageHandling.Message = k_NoOrganizationMessage;
-                    m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
+                    m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction =
+                        ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
                 }
 
                 InvokeOrganizationChanged();
@@ -296,8 +300,9 @@ namespace Unity.AssetManager.Editor
                     }
                     else
                     {
-                        m_ErrorOrMessageHandling.Message = L10n.Tr(k_ErrorRetrievingAssets);
-                        m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
+                        m_ErrorOrMessageHandling.Message = k_ErrorRetrievingOrganization;
+                        m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction =
+                            ErrorOrMessageRecommendedAction.Retry;
                     }
 
                     InvokeOrganizationChanged(); // TODO Send exception event

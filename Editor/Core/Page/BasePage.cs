@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
 using UnityEngine;
-using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -15,7 +14,7 @@ namespace Unity.AssetManager.Editor
     abstract class BasePage : IPage
     {
         [SerializeField]
-        AsyncLoadOperation m_LoadMoreAssetsOperation = new();
+        List<AsyncLoadOperation> m_LoadMoreAssetsOperations = new();
 
         [SerializeField]
         protected bool m_CanLoadMoreItems;
@@ -25,9 +24,6 @@ namespace Unity.AssetManager.Editor
 
         [SerializeField]
         PageFilters m_PageFilters;
-
-        [SerializeField]
-        bool m_IsActive;
 
         [SerializeField]
         List<AssetIdentifier> m_SelectedAssets = new();
@@ -45,41 +41,83 @@ namespace Unity.AssetManager.Editor
         protected List<IAssetData> m_AssetList = new();
 
         [SerializeReference]
-        IAssetsProvider m_AssetsProvider;
+        protected IAssetsProvider m_AssetsProvider;
 
         [SerializeReference]
         protected IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
-        public virtual string Title => null;
-        public virtual bool DisplayTopBar => true; // TODO Use enum flags for visibility toggles
+        [SerializeReference]
+        protected IPageManager m_PageManager;
+
+        public virtual bool DisplaySearchBar => true;
         public virtual bool DisplayBreadcrumbs => false;
         public virtual bool DisplaySideBar => true;
+        public virtual bool DisplayFilters => true;
+        public virtual bool DisplaySettings => false;
 
         public event Action<bool> LoadingStatusChanged;
         public event Action<List<AssetIdentifier>> SelectedAssetsChanged;
         public event Action<IEnumerable<string>> SearchFiltersChanged;
         public event Action<ErrorOrMessageHandlingData> ErrorOrMessageThrown;
 
-        public bool IsLoading => m_LoadMoreAssetsOperation.isLoading;
+        public bool IsLoading => m_LoadMoreAssetsOperations.Exists(op => op.IsLoading);
         public bool CanLoadMoreItems => m_CanLoadMoreItems;
         public PageFilters PageFilters => m_PageFilters;
-        public bool IsActivePage => m_IsActive;
         public List<AssetIdentifier> SelectedAssets => m_SelectedAssets;
         public AssetIdentifier LastSelectedAssetId => m_SelectedAssets.LastOrDefault();
         public IReadOnlyCollection<IAssetData> AssetList => m_AssetList;
         public ErrorOrMessageHandlingData ErrorOrMessageHandlingData => m_ErrorOrMessageHandling;
 
         protected BasePage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
-            IProjectOrganizationProvider projectOrganizationProvider)
+            IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
         {
             m_AssetDataManager = assetDataManager;
             m_AssetsProvider = assetsProvider;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_PageManager = pageManager;
 
             m_CanLoadMoreItems = true;
 
             m_PageFilters = new PageFilters(this, InitFilters());
         }
+
+        public virtual void OnActivated()
+        {
+            m_PageFilters.EnableFilters(false);
+            AnalyticsSender.SendEvent(new PageSelectedEvent(GetPageName()));
+        }
+
+        public virtual void OnDeactivated()
+        {
+            m_PageFilters.ClearSearchFilters();
+            Clear(false);
+        }
+
+        public virtual void OnEnable()
+        {
+            m_PageFilters.SearchFiltersChanged += OnSearchFiltersChanged;
+            m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
+
+            if (!m_ReTriggerSearchAfterDomainReload)
+                return;
+
+            m_ReTriggerSearchAfterDomainReload = false;
+            LoadMore();
+        }
+
+        public virtual void OnDisable()
+        {
+            m_PageFilters.SearchFiltersChanged -= OnSearchFiltersChanged;
+            m_ProjectOrganizationProvider.ProjectSelectionChanged -= OnProjectSelectionChanged;
+
+            if (!IsLoading)
+                return;
+
+            CancelAndClearLoadMoreOperations();
+            m_ReTriggerSearchAfterDomainReload = true;
+        }
+
+        public virtual void OpenSettings(VisualElement target) { }
 
         public void SelectAsset(AssetIdentifier asset, bool additive)
         {
@@ -129,64 +167,17 @@ namespace Unity.AssetManager.Editor
                 groupBy, token);
         }
 
-        public virtual void OnActivated()
-        {
-            m_IsActive = true;
-            m_PageFilters.EnableFilters(false);
-
-            AnalyticsSender.SendEvent(new PageSelectedEvent(GetPageName()));
-        }
-
-        public virtual void OnDeactivated()
-        {
-            m_IsActive = false;
-
-            m_PageFilters.ClearSearchFilters();
-            Clear(false);
-        }
-
-        public virtual void OnEnable()
-        {
-            m_PageFilters.SearchFiltersChanged += OnSearchFiltersChanged;
-
-            if (!m_ReTriggerSearchAfterDomainReload)
-                return;
-
-            m_ReTriggerSearchAfterDomainReload = false;
-            LoadMore();
-        }
-
-        public virtual void OnDisable()
-        {
-            m_PageFilters.SearchFiltersChanged -= OnSearchFiltersChanged;
-
-            if (!IsLoading)
-                return;
-
-            m_LoadMoreAssetsOperation.Cancel();
-            m_ReTriggerSearchAfterDomainReload = true;
-        }
-
-        public void OnDestroy()
-        {
-            Clear(false);
-            OnDeactivated();
-            LoadingStatusChanged = null;
-            SelectedAssetsChanged = null;
-            SearchFiltersChanged = null;
-            ErrorOrMessageThrown = null;
-        }
-
         public virtual void LoadMore()
         {
             if (!CanLoadMoreItems || IsLoading)
                 return;
 
-            _ = m_LoadMoreAssetsOperation.Start(LoadMoreAssets,
+            var loadMoreAssetsOperation = new AsyncLoadOperation();
+            m_LoadMoreAssetsOperations.Add(loadMoreAssetsOperation);
+            _ = loadMoreAssetsOperation.Start(LoadMoreAssets,
                 () =>
                 {
-                    ErrorOrMessageHandlingData.Message = default;
-                    ErrorOrMessageHandlingData.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
+                    SetErrorOrMessageData(default);
                     LoadingStatusChanged?.Invoke(IsLoading);
                 },
                 cancelledCallback: null,
@@ -194,7 +185,6 @@ namespace Unity.AssetManager.Editor
                 {
                     Debug.LogException(e);
                     SetErrorOrMessageData("It seems there was an error while trying to retrieve assets.");
-                    LoadingStatusChanged?.Invoke(IsLoading);
                 },
                 successCallback: results =>
                 {
@@ -220,12 +210,15 @@ namespace Unity.AssetManager.Editor
 
                     OnLoadMoreSuccessCallBack();
                     LoadingStatusChanged?.Invoke(IsLoading);
-                });
+                },
+                finallyCallback: () => m_LoadMoreAssetsOperations.Remove(loadMoreAssetsOperation)
+            );
         }
 
         public void Clear(bool reloadImmediately, bool keepSelection = false)
         {
-            m_LoadMoreAssetsOperation.Cancel();
+            CancelAndClearLoadMoreOperations();
+
             m_AssetList.Clear();
             m_CanLoadMoreItems = true;
             m_NextStartIndex = 0;
@@ -250,11 +243,10 @@ namespace Unity.AssetManager.Editor
                 new UnityTypeFilter(this, m_ProjectOrganizationProvider),
                 new CreatedByFilter(this, m_ProjectOrganizationProvider),
                 new UpdatedByFilter(this, m_ProjectOrganizationProvider)
-            };
+            }.OrderBy(f => f.DisplayName).ToList();
         }
 
-        protected void SetErrorOrMessageData(string errorMessage,
-            ErrorOrMessageRecommendedAction actionType = ErrorOrMessageRecommendedAction.Retry)
+        protected void SetErrorOrMessageData(string errorMessage, ErrorOrMessageRecommendedAction actionType = ErrorOrMessageRecommendedAction.Retry)
         {
             ErrorOrMessageHandlingData.Message = errorMessage;
             ErrorOrMessageHandlingData.ErrorOrMessageRecommendedAction = actionType;
@@ -267,6 +259,14 @@ namespace Unity.AssetManager.Editor
 
         protected internal abstract IAsyncEnumerable<IAssetData> LoadMoreAssets(CancellationToken token);
         protected abstract void OnLoadMoreSuccessCallBack();
+
+        protected virtual void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        {
+            if (projectInfo == null)
+                return;
+
+            m_PageManager.SetActivePage<CollectionPage>();
+        }
 
         protected async IAsyncEnumerable<IAssetData> LoadMoreAssets(CollectionInfo collectionInfo,
             [EnumeratorCancellation] CancellationToken token)
@@ -368,7 +368,17 @@ namespace Unity.AssetManager.Editor
         protected virtual string GetPageName()
         {
             var name = GetType().Name;
-            return name.EndsWith("Page") ? name.Substring(0, name.Length - 4) : name;
+            return name.EndsWith("Page") ? name[..^4] : name;
+        }
+
+        void CancelAndClearLoadMoreOperations()
+        {
+            foreach (var operation in m_LoadMoreAssetsOperations.Where(op => op.IsLoading))
+            {
+                operation.Cancel();
+            }
+
+            m_LoadMoreAssetsOperations.Clear();
         }
     }
 }

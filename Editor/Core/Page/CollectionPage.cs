@@ -18,8 +18,8 @@ namespace Unity.AssetManager.Editor
         public string CollectionPath => m_CollectionInfo?.GetFullPath();
 
         public CollectionPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
-            IProjectOrganizationProvider projectOrganizationProvider)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider)
+            IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider, pageManager)
         {
             m_CollectionInfo = m_ProjectOrganizationProvider.SelectedCollection;
         }
@@ -27,9 +27,9 @@ namespace Unity.AssetManager.Editor
         protected internal override async IAsyncEnumerable<IAssetData> LoadMoreAssets(
             [EnumeratorCancellation] CancellationToken token)
         {
-            if (m_ProjectOrganizationProvider.SelectedProject?.Id != m_CollectionInfo.ProjectId)
+            if (m_ProjectOrganizationProvider.SelectedProject?.Id != m_CollectionInfo.ProjectId || string.IsNullOrEmpty(m_CollectionInfo.ProjectId))
             {
-                yield return null;
+                yield break;
             }
 
             await foreach (var assetData in LoadMoreAssets(m_CollectionInfo, token))
@@ -61,6 +61,11 @@ namespace Unity.AssetManager.Editor
                 PageFilters.EnableFilters();
                 SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
             }
+        }
+
+        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        {
+            m_PageManager.SetActivePage<CollectionPage>(true);
         }
 
         protected override string GetPageName()

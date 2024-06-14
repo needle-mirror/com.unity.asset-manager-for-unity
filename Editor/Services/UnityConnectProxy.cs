@@ -13,7 +13,7 @@ namespace Unity.AssetManager.Editor
         event Action<string> OrganizationIdChanged;
         string OrganizationId { get; }
         string ProjectId { get; }
-        
+
         bool AreCloudServicesReachable { get; }
     }
 

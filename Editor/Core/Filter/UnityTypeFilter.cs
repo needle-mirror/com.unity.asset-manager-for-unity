@@ -6,9 +6,10 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    class UnityTypeFilter : CloudFilter
+    [Serializable]
+    class UnityTypeFilter : CloudFilter, ISerializationCallbackReceiver
     {
-        readonly Dictionary<string, UnityAssetType> m_AssetTypeMap = new();
+        Dictionary<string, UnityAssetType> m_AssetTypeMap = new();
         List<string> m_Selections = new();
 
         public override string DisplayName => "Type";
@@ -56,9 +57,11 @@ namespace Unity.AssetManager.Editor
             return Task.FromResult(m_Selections);
         }
 
+        public void OnBeforeSerialize() { }
+
         public void OnAfterDeserialize()
         {
-            m_AssetTypeMap.Clear();
+            m_AssetTypeMap = new();
             m_Selections.Clear();
 
             var types = (UnityAssetType[])Enum.GetValues(typeof(UnityAssetType));

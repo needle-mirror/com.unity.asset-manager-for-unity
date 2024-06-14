@@ -38,9 +38,15 @@ namespace Unity.AssetManager.Editor
             ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, IProjectIconDownloader projectIconDownloader,
             IPermissionsManager permissionsManager)
             : base(assetImporter, assetOperationManager, stateManager, pageManager, assetDataManager,
-                assetDatabaseProxy, projectOrganizationProvider, linksProxy, unityConnectProxy, projectIconDownloader, permissionsManager)
+                assetDatabaseProxy, projectOrganizationProvider, linksProxy, unityConnectProxy, projectIconDownloader,
+                permissionsManager)
         {
             BuildUxmlDocument();
+        }
+
+        public override bool IsVisible(int selectedAssetCount)
+        {
+            return selectedAssetCount > 1;
         }
 
         protected sealed override void BuildUxmlDocument()
@@ -106,7 +112,7 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnOperationProgress(AssetDataOperation operation)
         {
-            if(!UIElementsUtils.IsDisplayed(this) || m_SelectedAssetsData == null || !m_SelectedAssetsData.Any() || !m_SelectedAssetsData.Any(x => x.Identifier.Equals(operation.Identifier)))
+            if(!UIElementsUtils.IsDisplayed(this) || m_SelectedAssetsData == null || !m_SelectedAssetsData.Any() || !m_SelectedAssetsData.Exists(x => x.Identifier.Equals(operation.Identifier)))
                 return;
 
             m_OperationProgressBar.Refresh(operation);
@@ -116,7 +122,7 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnOperationFinished(AssetDataOperation operation)
         {
-            if(!UIElementsUtils.IsDisplayed(this) || m_SelectedAssetsData == null || !m_SelectedAssetsData.Any() || !m_SelectedAssetsData.Any(x => x.Identifier.Equals(operation.Identifier)))
+            if(!UIElementsUtils.IsDisplayed(this) || m_SelectedAssetsData == null || !m_SelectedAssetsData.Any() || !m_SelectedAssetsData.Exists(x => x.Identifier.Equals(operation.Identifier)))
                 return;
 
             RefreshUI();
@@ -127,7 +133,7 @@ namespace Unity.AssetManager.Editor
             if (!UIElementsUtils.IsDisplayed(this))
                 return;
 
-            var last = m_SelectedAssetsData.Last();
+            var last = m_SelectedAssetsData[^1];
             foreach (var assetData in m_SelectedAssetsData)
             {
                 if (args.Added.Concat(args.Updated).Concat(args.Removed)
@@ -141,7 +147,7 @@ namespace Unity.AssetManager.Editor
             }
 
             // In case of an import, force a full refresh of the displayed information
-            _ = SelectAssetDataAsync(m_SelectedAssetsData);
+            TaskUtils.TrackException(SelectAssetDataAsync(m_SelectedAssetsData));
         }
 
         protected override void OnAssetDataChanged(AssetChangeArgs args)
@@ -154,21 +160,9 @@ namespace Unity.AssetManager.Editor
             RefreshUI();
         }
 
-        bool UpdateVisibility()
-        {
-            if (m_SelectedAssetsData == null || m_SelectedAssetsData.Count <= 1)
-            {
-                UIElementsUtils.Hide(this);
-                return false;
-            }
-
-            UIElementsUtils.Show(this);
-            return true;
-        }
-
         void RefreshUI()
         {
-            if ( !UpdateVisibility())
+            if ( !IsVisible(m_SelectedAssetsData.Count))
                 return;
 
             m_TitleLabel.text = L10n.Tr(m_SelectedAssetsData.Count + " " + Constants.AssetsSelectedTitle);
@@ -220,11 +214,12 @@ namespace Unity.AssetManager.Editor
         {
             try
             {
-                m_AssetImporter.StartImportAsync(assetsData, null);
+                m_AssetImporter.StartImportAsync(assetsData, ImportOperation.ImportType.UpdateToLatest);
             }
             catch (Exception e)
             {
                Debug.LogException(e);
+               throw;
             }
         }
 

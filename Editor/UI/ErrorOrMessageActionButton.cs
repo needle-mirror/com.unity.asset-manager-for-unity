@@ -58,7 +58,17 @@ namespace Unity.AssetManager.Editor
                     tooltip = L10n.Tr("Open the Asset Manager Dashboard");
                     text = tooltip;
                 }
-                break;
+                    break;
+                case ErrorOrMessageRecommendedAction.OpenAssetManagerDocumentationPage:
+                {
+                    RemoveFromClassList(k_ButtonClassName);
+                    AddToClassList(k_LinkClassName);
+                    clicked += () => m_LinksProxy.OpenAssetManagerDocumentationPage("single-asset");
+
+                    tooltip = L10n.Tr("Open the Seat Manager Dashboard");
+                    text = tooltip;
+                } 
+                    break;
                 case ErrorOrMessageRecommendedAction.Retry when isPageError:
                 {
                     RemoveFromClassList(k_LinkClassName);

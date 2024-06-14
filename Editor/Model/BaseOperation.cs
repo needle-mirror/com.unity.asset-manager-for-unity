@@ -75,7 +75,7 @@ namespace Unity.AssetManager.Editor
             ProgressChanged?.Invoke(progress);
         }
 
-        public void Finish(OperationStatus status)
+        public virtual void Finish(OperationStatus status)
         {
             Status = status;
             UnityEditor.Progress.Finish(m_ProgressId, FromOperationStatus(status));

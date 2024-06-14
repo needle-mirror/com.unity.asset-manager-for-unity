@@ -8,6 +8,7 @@ namespace Unity.AssetManager.Editor
         OpenServicesSettingButton,
         OpenAssetManagerDashboardLink,
         EnableProject,
+        OpenAssetManagerDocumentationPage,
         Retry,
         None
     }

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
@@ -13,43 +12,46 @@ namespace Unity.AssetManager.Editor
         Action m_CancelledCallback;
 
         CancellationTokenSource m_TokenSource;
-        SemaphoreSlim m_Semaphore = new SemaphoreSlim(1, 1);
+        bool m_IsLoading;
 
-        public bool isLoading => m_TokenSource != null;
+        public bool IsLoading => m_IsLoading;
 
         public async Task Start<T>(Func<CancellationToken, IAsyncEnumerable<T>> createTaskFromToken,
             Action loadingStartCallback = null, Action<IEnumerable<T>> successCallback = null,
-            Action cancelledCallback = null, Action<Exception> exceptionCallback = null)
+            Action<T> onItemCallback = null,
+            Action cancelledCallback = null, Action<Exception> exceptionCallback = null, Action finallyCallback = null)
         {
             if (createTaskFromToken == null)
                 return;
-
-            await m_Semaphore.WaitAsync();
 
             m_CancelledCallback = cancelledCallback;
 
             m_TokenSource = new CancellationTokenSource();
 
+            m_IsLoading = true;
             loadingStartCallback?.Invoke();
 
             try
             {
                 var result = new List<T>();
+
                 await foreach (var item in createTaskFromToken(m_TokenSource.Token))
                 {
                     if (item != null)
                     {
-                        result.Add(item); // TODO Add a callback for each item instead
+                        onItemCallback?.Invoke(item);
+                        result.Add(item);
                     }
                 }
 
-                m_TokenSource?.Dispose();
-                m_TokenSource = null;
+                m_TokenSource.Token.ThrowIfCancellationRequested();
+
+                m_IsLoading = false;
                 successCallback?.Invoke(result);
             }
             catch (OperationCanceledException)
             {
-                // We do nothing here because when `CancelLoading` is called, we already set m_TokenSource to null and set loading to false,
+                // We do nothing here because when `CancelLoading` is called,
                 // `onLoadingCancelled` is also triggered already, the only thing left is to dispose the token source
             }
             catch (Exception e)
@@ -58,10 +60,10 @@ namespace Unity.AssetManager.Editor
             }
             finally
             {
+                m_IsLoading = false;
                 m_TokenSource?.Dispose();
                 m_TokenSource = null;
-
-                m_Semaphore.Release(1);
+                finallyCallback?.Invoke();
             }
         }
 
@@ -69,7 +71,7 @@ namespace Unity.AssetManager.Editor
             Action loadingStartCallback = null, Action<T> successCallback = null, Action cancelledCallback = null,
             Action<Exception> exceptionCallback = null)
         {
-            if (isLoading || createTaskFromToken == null)
+            if (IsLoading || createTaskFromToken == null)
                 return;
 
             m_CancelledCallback = cancelledCallback;
@@ -82,12 +84,13 @@ namespace Unity.AssetManager.Editor
             {
                 var result = await createTaskFromToken(m_TokenSource.Token);
 
-                m_TokenSource = null;
+                m_TokenSource.Token.ThrowIfCancellationRequested();
+
                 successCallback?.Invoke(result);
             }
             catch (OperationCanceledException)
             {
-                // We do nothing here because when `CancelLoading` is called, we already set m_TokenSource to null and set loading to false,
+                // We do nothing here because when `CancelLoading` is called,
                 // `onLoadingCancelled` is also triggered already, the only thing left is to dispose the token source
             }
             catch (Exception e)
@@ -107,8 +110,6 @@ namespace Unity.AssetManager.Editor
                 return;
 
             m_TokenSource.Cancel();
-            m_TokenSource.Dispose();
-            m_TokenSource = null;
 
             m_CancelledCallback?.Invoke();
             m_CancelledCallback = null;

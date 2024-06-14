@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -8,14 +7,14 @@ namespace Unity.AssetManager.Editor
     interface IPageManager : IService
     {
         IPage ActivePage { get; }
-
+        bool IsActivePage(IPage page);
         event Action<IPage> ActivePageChanged;
         event Action<IPage, bool> LoadingStatusChanged;
         event Action<IPage, IEnumerable<string>> SearchFiltersChanged;
         event Action<IPage, List<AssetIdentifier>> SelectedAssetChanged;
         event Action<IPage, ErrorOrMessageHandlingData> ErrorOrMessageThrown;
 
-        void SetActivePage<T>() where T : IPage;
+        void SetActivePage<T>(bool forceChange = false) where T : IPage;
     }
 
     [Serializable]
@@ -36,11 +35,13 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         IPage m_ActivePage;
 
-        public event Action<IPage> ActivePageChanged = delegate { };
-        public event Action<IPage, bool> LoadingStatusChanged = delegate { };
-        public event Action<IPage, IEnumerable<string>> SearchFiltersChanged = delegate { };
-        public event Action<IPage, List<AssetIdentifier>> SelectedAssetChanged = delegate { };
-        public event Action<IPage, ErrorOrMessageHandlingData> ErrorOrMessageThrown = delegate { };
+        public bool IsActivePage(IPage page) => m_ActivePage == page;
+
+        public event Action<IPage> ActivePageChanged;
+        public event Action<IPage, bool> LoadingStatusChanged;
+        public event Action<IPage, IEnumerable<string>> SearchFiltersChanged;
+        public event Action<IPage, List<AssetIdentifier>> SelectedAssetChanged;
+        public event Action<IPage, ErrorOrMessageHandlingData> ErrorOrMessageThrown;
 
         public IPage ActivePage => m_ActivePage;
 
@@ -57,7 +58,6 @@ namespace Unity.AssetManager.Editor
         public override void OnEnable()
         {
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
-            m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
 
             m_ActivePage?.OnEnable();
         }
@@ -73,38 +73,26 @@ namespace Unity.AssetManager.Editor
         public override void OnDisable()
         {
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
-            m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
 
             m_ActivePage?.OnDisable();
         }
 
-        public void SetActivePage(IPage page)
+        public void SetActivePage<T>(bool forceChange = false) where T : IPage
         {
-            if (page == m_ActivePage)
+            if (!forceChange && m_ActivePage is T)
                 return;
 
+            var page = CreatePage<T>();
+
             m_ActivePage?.OnDeactivated();
+            m_ActivePage?.OnDisable();
 
             m_ActivePage = page;
+
+            m_ActivePage?.OnEnable();
             m_ActivePage?.OnActivated();
 
             ActivePageChanged?.Invoke(m_ActivePage);
-        }
-
-        public void SetActivePage<T>() where T : IPage
-        {
-            var page = m_ActivePage is T ? m_ActivePage : CreatePage<T>();
-            SetActivePage(page);
-        }
-
-        void ProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
-        {
-            m_ActivePage = null; // TODO Do we need to do this
-
-            // TODO Move this code outside this class
-            // Handling page selection should happen outside the PageManager
-            // Use a new class that listens to m_ProjectOrganizationProvider.ProjectSelectionChanged event and sets the active page accordingly
-            SetActivePage<CollectionPage>();
         }
 
         void RegisterPageEvents(IPage page)
@@ -117,8 +105,7 @@ namespace Unity.AssetManager.Editor
 
         IPage CreatePage<T>()
         {
-            var page = (IPage)Activator.CreateInstance(typeof(T), m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider);
-            page?.OnEnable();
+            var page = (IPage)Activator.CreateInstance(typeof(T), m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider, this);
             RegisterPageEvents(page);
             return page;
         }

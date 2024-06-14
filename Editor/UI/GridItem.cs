@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEditor;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -26,6 +25,7 @@ namespace Unity.AssetManager.Editor
         readonly OperationProgressBar m_OperationProgressBar;
         readonly IPageManager m_PageManager;
         readonly IAssetDataManager m_AssetDataManager;
+        readonly IUploadManager m_UploadManager;
 
         AssetContextMenu m_ContextMenu;
         ContextualMenuManipulator m_ContextualMenuManipulator;
@@ -33,18 +33,20 @@ namespace Unity.AssetManager.Editor
 
         public IAssetData AssetData => m_AssetData;
 
-        internal GridItem(IUnityConnectProxy unityConnectProxy, IAssetOperationManager operationManager, IPageManager pageManager, IAssetDataManager assetDataManager)
+        internal GridItem(IUnityConnectProxy unityConnectProxy, IAssetOperationManager operationManager, IPageManager pageManager, IAssetDataManager assetDataManager, IUploadManager uploadManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_PageManager = pageManager;
             m_OperationManager = operationManager;
             m_AssetDataManager = assetDataManager;
+            m_UploadManager = uploadManager;
 
             AddToClassList(Constants.GridItemStyleClassName);
 
-            RegisterCallback<ClickEvent>(OnClick);
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+
+            _ = new ClickOrDragStartManipulator(this, OnPointerUp, OnDragStart);
 
             m_AssetPreview = new AssetPreview();
 
@@ -123,7 +125,10 @@ namespace Unity.AssetManager.Editor
             {
                 m_AssetPreview.EnableInClassList("asset-preview--upload", true);
                 m_AssetPreview.Toggle.value = !uploadAssetData.IsIgnored;
-                m_AssetPreview.Toggle.tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IncludeToggleTooltip) : L10n.Tr(Constants.IgnoreToggleTooltip);
+                m_AssetPreview.Toggle.tooltip = uploadAssetData.IsIgnored ?
+                    L10n.Tr(Constants.IncludeToggleTooltip) :
+                    L10n.Tr(Constants.IgnoreToggleTooltip);
+                m_AssetPreview.Toggle.SetEnabled(!m_UploadManager.IsUploading);
 
                 EnableInClassList(UssStyles.ItemIgnore, uploadAssetData.IsIgnored);
                 tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IgnoreAssetToolTip) : "";
@@ -161,7 +166,8 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public event Action<ClickEvent> Clicked;
+        public event Action<PointerUpEvent> PointerUpAction;
+        public event Action DragStartedAction;
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
@@ -171,6 +177,7 @@ namespace Unity.AssetManager.Editor
             m_OperationManager.OperationFinished += RefreshOperationProgress;
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
             m_AssetPreview.ToggleValueChanged += OnAssetPreviewToggleValueChanged;
+            m_UploadManager.UploadBegan += OnUploadBegan;
         }
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
@@ -186,6 +193,7 @@ namespace Unity.AssetManager.Editor
             m_OperationManager.OperationFinished -= RefreshOperationProgress;
             m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
             m_AssetPreview.ToggleValueChanged -= OnAssetPreviewToggleValueChanged;
+            m_UploadManager.UploadBegan -= OnUploadBegan;
         }
 
         void InitContextMenu(IAssetData assetData)
@@ -224,12 +232,17 @@ namespace Unity.AssetManager.Editor
             RefreshHighlight();
         }
 
+        void OnUploadBegan()
+        {
+            m_AssetPreview.Toggle.SetEnabled(false);
+        }
+
         async Task WaitForResultsAsync(IEnumerable<Task> tasks)
         {
             m_LoadingIcon.PlayAnimation();
             UIElementsUtils.Show(m_LoadingIcon);
 
-            await Utilities.WaitForTasksAndHandleExceptions(tasks);
+            await TaskUtils.WaitForTasksWithHandleExceptions(tasks);
 
             m_LoadingIcon.StopAnimation();
             UIElementsUtils.Hide(m_LoadingIcon);
@@ -251,9 +264,14 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        void OnClick(ClickEvent e)
+        void OnPointerUp(PointerUpEvent e)
         {
-            Clicked?.Invoke(e);
+            PointerUpAction?.Invoke(e);
+        }
+
+        void OnDragStart()
+        {
+            DragStartedAction?.Invoke();
         }
     }
 }

@@ -49,22 +49,25 @@ namespace Unity.AssetManager.Editor
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
-            OnRefresh(m_PageManager.ActivePage);
-            m_PageManager.ActivePageChanged += OnRefresh;
+            OnActivePageChanged(m_PageManager.ActivePage);
+            m_PageManager.ActivePageChanged += OnActivePageChanged;
+            m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
         }
 
-        private void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
-            OnRefresh(m_PageManager.ActivePage);
+            OnActivePageChanged(m_PageManager.ActivePage);
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
-            m_PageManager.ActivePageChanged -= OnRefresh;
+            m_PageManager.ActivePageChanged -= OnActivePageChanged;
         }
 
-        protected virtual void OnRefresh(IPage page) { }
+        protected virtual void OnActivePageChanged(IPage page) { }
+
+        protected virtual void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo) { }
 
         internal virtual void ChangeIntoParentFolder()
         {

@@ -1,9 +1,7 @@
 using System;
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityEditor;
 using UnityEngine.UIElements;
-using Unity.Cloud.Common.Runtime;
 
 namespace Unity.AssetManager.Editor
 {
@@ -14,6 +12,7 @@ namespace Unity.AssetManager.Editor
 
         bool m_IsDocked;
         AssetManagerWindowRoot m_Root;
+        DragFromOutsideManipulator m_Manipulator;
 
         public static AssetManagerWindow Instance => s_Instance;
 
@@ -55,18 +54,25 @@ namespace Unity.AssetManager.Editor
                 container.Resolve<ILinksProxy>(),
                 container.Resolve<IAssetDatabaseProxy>(),
                 container.Resolve<IProjectIconDownloader>(),
-                container.Resolve<IPermissionsManager>());
+                container.Resolve<IPermissionsManager>(),
+                container.Resolve<IUploadManager>(),
+                container.Resolve<IPopupManager>());
 
             m_Root.RegisterCallback<GeometryChangedEvent>(OnResized);
             m_Root.OnEnable();
             m_Root.StretchToParentSize();
             rootVisualElement.Add(m_Root);
 
+            m_Manipulator = new DragFromOutsideManipulator(rootVisualElement, ServicesContainer.instance.Resolve<IPageManager>());
+
             AnalyticsSender.SendEvent(new ServicesInitializationCompletedEvent(position.size));
             if (docked)
             {
                 AnalyticsSender.SendEvent(new WindowDockedEvent(true));
             }
+
+            // This need to be done in OnEnable to ensure the icon is the right color when switching between dark and light mode
+            titleContent = new GUIContent("Asset Manager", UIElementsUtils.GetPackageIcon());
 
             Enabled?.Invoke();
         }
@@ -81,8 +87,13 @@ namespace Unity.AssetManager.Editor
             if (s_Instance != this)
                 return;
 
+            m_Manipulator?.target.RemoveManipulator(m_Manipulator);
+
             m_Root?.UnregisterCallback<GeometryChangedEvent>(OnResized);
             m_Root?.OnDisable();
+
+            // Disable the service if the AM window is closed
+            ServicesContainer.instance.OnDisable();
         }
 
         void OnDestroy()
@@ -125,7 +136,6 @@ namespace Unity.AssetManager.Editor
         {
             var window = GetWindow<AssetManagerWindow>();
             window.minSize = k_MinWindowSize;
-            window.titleContent = new GUIContent("Asset Manager", UIElementsUtils.GetPackageIcon());
             window.Show();
         }
 

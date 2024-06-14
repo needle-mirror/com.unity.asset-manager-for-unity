@@ -1,7 +1,6 @@
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
-using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Editor
 {
@@ -19,7 +18,6 @@ namespace Unity.AssetManager.Editor
         readonly VisualElement m_Icon;
         readonly Button m_ThreeDots;
         readonly VisualElement m_InProjectIcon;
-        readonly IPageManager m_PageManager;
 
         string m_Guid;
         GenericMenu m_ThreeDotsMenu;
@@ -81,22 +79,12 @@ namespace Unity.AssetManager.Editor
 
         bool IsShowInProjectEnabled()
         {
-            return GetAssetObject(m_Guid) != null;
+            return m_AssetDatabaseProxy.CanPingAssetByGuid(m_Guid);
         }
 
         void ShowInProjectBrowser()
         {
-            var assetObject = GetAssetObject(m_Guid);
-
-            if (assetObject != null)
-            {
-                EditorGUIUtility.PingObject(assetObject);
-            }
-        }
-
-        Object GetAssetObject(string guid)
-        {
-            return m_AssetDatabaseProxy.LoadAssetAtPath(m_AssetDatabaseProxy.GuidToAssetPath(guid));
+            m_AssetDatabaseProxy.PingAssetByGuid(m_Guid);
         }
     }
 }

@@ -6,11 +6,11 @@ namespace Unity.AssetManager.Editor
     class TagChip : VisualElement
     {
         string m_Text;
-        internal event Action<string> TagChipClickAction;
+        internal event Action<string> TagChipPointerUpAction;
 
         public TagChip(string text)
         {
-            var manipulator = new ClickOrDragStartManipulator(this, OnClick, null);
+            _ = new ClickOrDragStartManipulator(this, OnPointerUp, null);
 
             var treeAsset = UIElementsUtils.LoadUXML(nameof(TagChip));
             treeAsset.CloneTree(this);
@@ -21,9 +21,9 @@ namespace Unity.AssetManager.Editor
             textLabel.pickingMode = PickingMode.Ignore;
         }
 
-        void OnClick()
+        void OnPointerUp(PointerUpEvent e)
         {
-            TagChipClickAction?.Invoke(m_Text);
+            TagChipPointerUpAction?.Invoke(m_Text);
         }
     }
 }

@@ -18,10 +18,10 @@ namespace Unity.AssetManager.Editor
         protected readonly IUnityConnectProxy m_UnityConnectProxy;
         protected readonly IStateManager m_StateManager;
 
-        static string k_InspectorPageContainerUxml = "InspectorPageContainer";
-        static string k_InspectorPageScrollviewClassName = "inspector-page-scrollview";
-        static string k_InspectorPageCloseButtonClassName = "closeButton";
-        static string k_InspectorPageTitleClassName = "inspector-page-title";
+        static readonly string k_InspectorPageContainerUxml = "InspectorPageContainer";
+        static readonly string k_InspectorPageScrollviewClassName = "inspector-page-scrollview";
+        static readonly string k_InspectorPageCloseButtonClassName = "closeButton";
+        static readonly string k_InspectorPageTitleClassName = "inspector-page-title";
 
         protected ScrollView m_ScrollView;
         protected Button m_CloseButton;
@@ -88,6 +88,8 @@ namespace Unity.AssetManager.Editor
 
             await SelectAssetDataAsync(data);
         }
+
+        public abstract bool IsVisible(int selectedAssetCount);
 
         protected abstract Task SelectAssetDataAsync(List<IAssetData> assetData);
 

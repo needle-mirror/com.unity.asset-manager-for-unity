@@ -7,13 +7,13 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    class TopBar : VisualElement
+    class SearchBar : VisualElement
     {
         const string k_SearchTerms = "Search";
-        const string k_TopBarAssetName = "TopBar";
+        const string k_SearchBarAssetName = "SearchBar";
         const string k_SearchCancelUssName = "search-clear";
         const string k_SearchFieldElementName = "inputSearch";
-        const string m_PlaceholderClass = k_TopBarAssetName + "__placeholder";
+        const string m_PlaceholderClass = k_SearchBarAssetName + "__placeholder";
 
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
@@ -27,16 +27,15 @@ namespace Unity.AssetManager.Editor
         TextField m_SearchTextField;
         ToolbarSearchField m_ToolbarSearchField;
 
-        public TopBar(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
+        public SearchBar(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
 
-            var windowContent = UIElementsUtils.LoadUXML(k_TopBarAssetName);
+            var windowContent = UIElementsUtils.LoadUXML(k_SearchBarAssetName);
             windowContent.CloneTree(this);
 
-            m_ToolbarSearchField =
-                UIElementsUtils.SetupToolbarSearchField(k_SearchFieldElementName, OnSearchbarValueChanged, this);
+            m_ToolbarSearchField = UIElementsUtils.SetupToolbarSearchField(k_SearchFieldElementName, OnSearchbarValueChanged, this);
             m_SearchTextField = m_ToolbarSearchField.Q<TextField>();
             m_SearchTextField.isDelayed = true;
 
@@ -81,7 +80,7 @@ namespace Unity.AssetManager.Editor
 
         void OnPageSearchFiltersChanged(IPage page, IEnumerable<string> searchFilters)
         {
-            if (page.IsActivePage)
+            if (m_PageManager.IsActivePage(page))
             {
                 Refresh(page);
             }

@@ -90,6 +90,23 @@ namespace Unity.AssetManager.Editor
             return Equals((AssetIdentifier)obj);
         }
 
+        public static bool operator ==(AssetIdentifier obj1, AssetIdentifier obj2)
+        {
+            if (ReferenceEquals(obj1, obj2))
+            {
+                return true;
+            }
+
+            if (ReferenceEquals(obj1, null))
+            {
+                return false;
+            }
+
+            return obj1.Equals(obj2);
+        }
+
+        public static bool operator !=(AssetIdentifier obj1, AssetIdentifier obj2) => !(obj1 == obj2);
+        
         public override int GetHashCode()
         {
             var orgIdHash = (OrganizationId ?? string.Empty).GetHashCode();

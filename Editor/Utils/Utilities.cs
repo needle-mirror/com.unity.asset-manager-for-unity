@@ -94,24 +94,6 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public static async Task WaitForTasksAndHandleExceptions(IEnumerable<Task> tasks)
-        {
-            try
-            {
-                await Task.WhenAll(tasks);
-            }
-            catch (Exception)
-            {
-                foreach (var task in tasks)
-                {
-                    if (task.IsFaulted && task.Exception != null)
-                    {
-                        Debug.LogException(task.Exception);
-                    }
-                }
-            }
-        }
-
         public static string GetInitials(string fullName)
         {
             if (string.IsNullOrWhiteSpace(fullName))

@@ -18,7 +18,7 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class AssetOperationManager : BaseService<IAssetOperationManager>, IAssetOperationManager
     {
-        readonly Dictionary<AssetIdentifier, AssetDataOperation> m_Operations = new();
+        readonly Dictionary<TrackedAssetIdentifier, AssetDataOperation> m_Operations = new();
 
         [SerializeReference]
         IPageManager m_PageManager;
@@ -44,12 +44,14 @@ namespace Unity.AssetManager.Editor
 
         public AssetDataOperation GetAssetOperation(AssetIdentifier identifier)
         {
-            return m_Operations.TryGetValue(identifier, out var result) ? result : null;
+            return m_Operations.GetValueOrDefault(new TrackedAssetIdentifier(identifier));
         }
 
         public void RegisterOperation(AssetDataOperation operation)
         {
-            if (m_Operations.TryGetValue(operation.Identifier, out var existingOperation) &&
+            var identifier = new TrackedAssetIdentifier(operation.Identifier);
+            
+            if (m_Operations.TryGetValue(identifier, out var existingOperation) &&
                 operation == existingOperation)
 
                 // The operation is already registered
@@ -67,13 +69,13 @@ namespace Unity.AssetManager.Editor
             {
                 if (!operation.IsSticky)
                 {
-                    m_Operations.Remove(operation.Identifier);
+                    m_Operations.Remove(identifier);
                 }
 
                 OperationFinished?.Invoke(operation);
             };
 
-            m_Operations[operation.Identifier] = operation;
+            m_Operations[identifier] = operation;
         }
 
         void OnActivePageChanged(IPage _)
@@ -87,7 +89,7 @@ namespace Unity.AssetManager.Editor
             {
                 if (operation.Status != OperationStatus.InProgress)
                 {
-                    m_Operations.Remove(operation.Identifier);
+                    m_Operations.Remove(new TrackedAssetIdentifier(operation.Identifier));
                 }
             }
         }

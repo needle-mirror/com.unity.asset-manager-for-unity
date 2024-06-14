@@ -9,6 +9,7 @@ namespace Unity.AssetManager.Editor
         {
             Refresh,
             GoToDashboard,
+            GotoSubscriptions,
             ProjectSettings,
             Preferences
         }

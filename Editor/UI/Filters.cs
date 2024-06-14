@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Unity.AssetManager.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -23,23 +22,22 @@ namespace Unity.AssetManager.Editor
 
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly IPopupManager m_PopupManager;
         readonly Dictionary<VisualElement, BaseFilter> m_FilterPerChip = new();
 
         Button m_FilterButton;
-        PageFilters m_OldPageFilters;
 
         VisualElement m_ChipContainer;
-        VisualElement m_PopupContainer;
         VisualElement m_CurrentChip;
 
         PageFilters PageFilters => m_PageManager?.ActivePage?.PageFilters;
         List<BaseFilter> SelectedFilters => PageFilters?.SelectedFilters ?? new List<BaseFilter>();
-        VisualElement PopupContainer => m_PopupContainer ?? CreatePopupContainer();
 
-        public Filters(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
+        public Filters(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider, IPopupManager popupManager)
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_PopupManager = popupManager;
 
             AddToClassList(k_UssClassName);
 
@@ -58,6 +56,7 @@ namespace Unity.AssetManager.Editor
                 PageFilters.FilterApplied += OnFilterApplied;
                 PageFilters.FilterAdded += OnFilterAdded;
             }
+            m_PopupManager.Container.RegisterCallback<FocusOutEvent>(DeleteEmptyChip);
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
@@ -70,17 +69,11 @@ namespace Unity.AssetManager.Editor
                 PageFilters.FilterApplied -= OnFilterApplied;
                 PageFilters.FilterAdded -= OnFilterAdded;
             }
+            m_PopupManager.Container.UnregisterCallback<FocusOutEvent>(DeleteEmptyChip);
         }
 
         void OnActivePageChanged(IPage page)
         {
-            if (m_OldPageFilters != null)
-            {
-                m_OldPageFilters.EnableStatusChanged -= OnEnableStatusChanged;
-                m_OldPageFilters.FilterApplied -= OnFilterApplied;
-                m_OldPageFilters.FilterAdded -= OnFilterAdded;
-            }
-
             PageFilters.EnableStatusChanged += OnEnableStatusChanged;
             PageFilters.FilterApplied += OnFilterApplied;
             PageFilters.FilterAdded += OnFilterAdded;
@@ -127,23 +120,6 @@ namespace Unity.AssetManager.Editor
             m_FilterButton.SetEnabled(PageFilters?.IsAvailableFilters() ?? false);
         }
 
-        VisualElement CreatePopupContainer()
-        {
-            m_PopupContainer = new VisualElement();
-            m_PopupContainer.focusable = true;
-            m_PopupContainer.AddToClassList(k_ItemPopupClassName);
-            UIElementsUtils.Hide(m_PopupContainer);
-            parent.Add(m_PopupContainer);
-
-            m_PopupContainer.RegisterCallback<FocusOutEvent>(e =>
-            {
-                UIElementsUtils.Hide(m_PopupContainer);
-                DeleteEmptyChip();
-            });
-
-            return m_PopupContainer;
-        }
-
         void OnFilterButtonClicked()
         {
             foreach (var selectedFilter in SelectedFilters)
@@ -151,16 +127,11 @@ namespace Unity.AssetManager.Editor
                 selectedFilter.Cancel();
             }
 
-            PopupContainer.Clear();
-
-            SetPopupPosition(m_FilterButton);
-
             var availableFilters = PageFilters.GetAvailableFilters() ?? new List<BaseFilter>();
 
             foreach (var filter in availableFilters)
             {
                 var filterSelection = new TextElement();
-                filterSelection.style.paddingLeft = 24; // Add padding to match the checkmark icon
                 filterSelection.AddToClassList(k_ItemFilterSelectionClassName);
                 filterSelection.text = filter.DisplayName;
                 filterSelection.RegisterCallback<ClickEvent>(evt =>
@@ -169,22 +140,12 @@ namespace Unity.AssetManager.Editor
                     AddFilter(filter);
                 });
 
-                PopupContainer.Add(filterSelection);
+                m_PopupManager.Container.Add(filterSelection);
             }
 
-            UIElementsUtils.Show(PopupContainer);
-            PopupContainer.Focus();
+            m_PopupManager.Show(m_FilterButton, PopupContainer.PopupAlignment.BottomLeft);
 
             AnalyticsSender.SendEvent(new FilterDropdownEvent());
-        }
-
-        void SetPopupPosition(VisualElement item)
-        {
-            var worldPos = item.LocalToWorld(Vector2.zero);
-            var localPos = PopupContainer.parent.WorldToLocal(worldPos);
-
-            PopupContainer.style.left = localPos.x;
-            PopupContainer.style.top = localPos.y + item.resolvedStyle.height;
         }
 
         Button CreateChipButton(BaseFilter filter, string selection = null)
@@ -220,7 +181,7 @@ namespace Unity.AssetManager.Editor
 
         void AddFilter(BaseFilter filter)
         {
-            UIElementsUtils.Hide(PopupContainer);
+            m_PopupManager.Hide();
 
             PageFilters.AddFilter(filter, true);
             m_FilterButton.SetEnabled(PageFilters.IsAvailableFilters());
@@ -241,17 +202,14 @@ namespace Unity.AssetManager.Editor
         {
             m_CurrentChip = Chip;
 
-            UIElementsUtils.Show(PopupContainer);
-            PopupContainer.Focus();
-            SetPopupPosition(Chip);
-            PopupContainer.Clear();
+            m_PopupManager.Show(Chip, PopupContainer.PopupAlignment.BottomLeft);
 
             var loadingLabel = new TextElement();
-            loadingLabel.text = L10n.Tr("Loading...");
+            loadingLabel.text = L10n.Tr(Constants.LoadingText);
             loadingLabel.AddToClassList(k_SelfCenterClassName);
-            PopupContainer.Add(loadingLabel);
+            m_PopupManager.Container.Add(loadingLabel);
 
-            _ = AddTextFilterSelectionItems(Chip, filter);
+            TaskUtils.TrackException(AddTextFilterSelectionItems(Chip, filter));
         }
 
         void OnChipDeleteClicked(Button Chip, BaseFilter filter)
@@ -263,7 +221,7 @@ namespace Unity.AssetManager.Editor
 
             ApplyFilter(filter, null);
 
-            UIElementsUtils.Hide(PopupContainer);
+            m_PopupManager.Hide();
         }
 
         async Task AddTextFilterSelectionItems(Button Chip, BaseFilter filter)
@@ -272,12 +230,16 @@ namespace Unity.AssetManager.Editor
             if (selections == null)
                 return;
 
-            PopupContainer.Clear();
+            m_PopupManager.Clear();
+
+            var scrollView = new ScrollView();
+            m_PopupManager.Container.Add(scrollView);
 
             foreach (var selection in selections)
             {
                 var filterSelection = new VisualElement();
                 filterSelection.AddToClassList(k_ItemFilterSelectionClassName);
+                filterSelection.style.paddingLeft = 0;
 
                 var checkmark = new Image();
                 filterSelection.Add(checkmark);
@@ -293,12 +255,12 @@ namespace Unity.AssetManager.Editor
                     evt.StopPropagation();
 
                     Chip.AddToClassList(k_ItemChipSetClassName);
-                    UIElementsUtils.Hide(PopupContainer);
+                    m_PopupManager.Hide();
 
                     ApplyFilter(filter, selection);
                 });
 
-                PopupContainer.Add(filterSelection);
+                scrollView.Add(filterSelection);
             }
         }
 
@@ -313,8 +275,11 @@ namespace Unity.AssetManager.Editor
             PageFilters.ApplyFilter(filter, selection);
         }
 
-        void DeleteEmptyChip()
+        void DeleteEmptyChip(FocusOutEvent evt)
         {
+            if(evt.relatedTarget != null && (evt.relatedTarget == m_PopupManager.Container || m_PopupManager.Container.Contains((VisualElement)evt.relatedTarget)))
+                return;
+
             if (m_CurrentChip != null)
             {
                 if (m_FilterPerChip.TryGetValue(m_CurrentChip, out var filter))

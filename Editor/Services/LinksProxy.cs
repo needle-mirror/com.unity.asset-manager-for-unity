@@ -8,6 +8,7 @@ namespace Unity.AssetManager.Editor
     {
         void OpenAssetManagerDashboard();
         void OpenAssetManagerDashboard(AssetIdentifier assetIdentifier);
+        void OpenAssetManagerDocumentationPage(string page);
         void OpenProjectSettingsServices();
         void OpenPreferences();
         void OpenCloudStorageUpgradePlan();
@@ -21,8 +22,10 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         IPageManager m_PageManager;
 
-        static readonly string k_CloudStorageUpgradePlanDomain = "https://unity.com";
         static readonly string k_CloudStorageUpgradePlanRoute = "/products/compare-plans/unity-cloud";
+        static readonly string k_HttpsUriScheme = "https://";
+        static readonly string k_UnityDocsDomain = "docs.unity.com";
+        static readonly string k_UnityDomain = "unity.com";
 
         [ServiceInjection]
         public void Inject(IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
@@ -78,8 +81,14 @@ namespace Unity.AssetManager.Editor
         
         public void OpenCloudStorageUpgradePlan()
         {
-            Application.OpenURL($"{k_CloudStorageUpgradePlanDomain}{k_CloudStorageUpgradePlanRoute}");
+            Application.OpenURL($"{k_HttpsUriScheme}{k_UnityDomain}{k_CloudStorageUpgradePlanRoute}");
             AnalyticsSender.SendEvent(new ExternalLinkClickedEvent(ExternalLinkClickedEvent.ExternalLinkType.UpgradeCloudStoragePlan));
+        }
+
+        public void OpenAssetManagerDocumentationPage(string page)
+        {
+            Application.OpenURL($"{k_HttpsUriScheme}{k_UnityDocsDomain}/cloud/en-us/asset-manager/{page}");
+            AnalyticsSender.SendEvent(new MenuItemSelectedEvent(MenuItemSelectedEvent.MenuItemType.GotoSubscriptions));
         }
 
         public void OpenProjectSettingsServices()

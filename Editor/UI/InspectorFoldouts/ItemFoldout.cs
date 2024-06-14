@@ -42,7 +42,7 @@ namespace Unity.AssetManager.Editor
                 if (!string.IsNullOrEmpty(foldoutTitle))
                 {
                     m_FoldoutTitle = foldoutTitle;
-                    m_Foldout.text = m_FoldoutTitle;
+                    m_Foldout.text = L10n.Tr(m_FoldoutTitle);
                 }
 
                 parent.contentContainer.hierarchy.Add(m_Foldout);
@@ -57,7 +57,7 @@ namespace Unity.AssetManager.Editor
                 if (!string.IsNullOrEmpty(foldoutTitle))
                 {
                     m_FoldoutTitle = foldoutTitle;
-                    m_Foldout.text = m_FoldoutTitle;
+                    m_Foldout.text = L10n.Tr(m_FoldoutTitle);
                 }
                 else
                 {
@@ -115,7 +115,7 @@ namespace Unity.AssetManager.Editor
 
         public virtual void Clear()
         {
-            m_Foldout.text = m_FoldoutTitle;
+            m_Foldout.text = L10n.Tr(m_FoldoutTitle);
             m_ListView.itemsSource = null;
         }
 
@@ -126,7 +126,7 @@ namespace Unity.AssetManager.Editor
             m_ListView.bindItem = (element, i) => { BindItem((TBinding)element, i); };
             m_ListView.fixedItemHeight = 30;
 
-            m_Foldout.text = $"{m_FoldoutTitle} ({m_ListView.itemsSource.Count})";
+            m_Foldout.text = $"{L10n.Tr(m_FoldoutTitle)} ({m_ListView.itemsSource.Count})";
         }
     }
 }

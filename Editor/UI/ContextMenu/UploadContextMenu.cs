@@ -20,7 +20,7 @@ namespace Unity.AssetManager.Editor
                 (_) =>
                 {
                     var uploadAssetData = (UploadAssetData)TargetAssetData;
-                    EditorGUIUtility.PingObject(m_AssetDatabaseProxy.LoadAssetAtPath(uploadAssetData.AssetPath));
+                    m_AssetDatabaseProxy.PingAssetByGuid(uploadAssetData.Guid);
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent.ContextMenuItemType.ShowInProject));
                 });
         }

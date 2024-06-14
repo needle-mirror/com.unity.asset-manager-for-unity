@@ -45,7 +45,7 @@ namespace Unity.AssetManager.Editor
                 AddMenuEntry(evt, L10n.Tr(Constants.ImportAllSelectedActionText), true,
                     _ =>
                     {
-                        m_AssetImporter.StartImportAsync(selectedAssetData, null);
+                        m_AssetImporter.StartImportAsync(selectedAssetData, ImportOperation.ImportType.UpdateToLatest);
                         AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
                             .ContextMenuItemType.ImportAll));
                     });
@@ -53,11 +53,18 @@ namespace Unity.AssetManager.Editor
             else if (!selectedAssetData.Any() || selectedAssetData.First().Identifier.AssetId == TargetAssetData.Identifier.AssetId)
             {
                 var status = TargetAssetData.PreviewStatus.FirstOrDefault();
-                var text = status != null ? L10n.Tr(status.ActionText) : L10n.Tr(Constants.ImportActionText);
-                AddMenuEntry(evt, text, true,
+
+                var text = AssetDetailsPageExtensions.GetImportButtonLabel(null, status);
+                var permissionsManager = ServicesContainer.instance.Resolve<PermissionsManager>();
+                var enabled = UIEnabledStates.HasPermissions.GetFlag(permissionsManager.CheckPermission(Constants.ImportPermission));
+                enabled |= UIEnabledStates.ServicesReachable.GetFlag(m_UnityConnectProxy.AreCloudServicesReachable);
+                enabled |= UIEnabledStates.ValidStatus.GetFlag(status == null || !string.IsNullOrEmpty(status.ActionText));
+                enabled |= UIEnabledStates.IsImporting.GetFlag(IsImporting);
+
+                AddMenuEntry(evt, text, AssetDetailsPageExtensions.IsImportAvailable(enabled),
                     _ =>
                     {
-                        m_AssetImporter.StartImportAsync(new List<IAssetData>() {TargetAssetData}, null);
+                        m_AssetImporter.StartImportAsync(new List<IAssetData>() {TargetAssetData}, ImportOperation.ImportType.UpdateToLatest);
                         AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(!IsInProject
                             ? GridContextMenuItemSelectedEvent.ContextMenuItemType.Import
                             : GridContextMenuItemSelectedEvent.ContextMenuItemType.Reimport));

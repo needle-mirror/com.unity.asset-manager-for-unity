@@ -12,7 +12,7 @@ using UnityEngine;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    class DependencyAsset // TODO Put behind an interface
+    class DependencyAsset // Might need to add an interface
     {
         [SerializeField]
         AssetIdentifier m_Identifier;
@@ -44,48 +44,40 @@ namespace Unity.AssetManager.Editor
 
     static class AssetDataDependencyHelper
     {
-        const int k_MaxRunningTasks = 5;
         const char k_AssetIdAssetVersionSeparator = '_';
 
-        public static readonly string DependencyExtension = ".am4u_dep";
-        public static readonly string GuidExtension = ".am4u_guid";
-
-        static readonly SemaphoreSlim s_SearchForAssetWithGuidSemaphore = new(k_MaxRunningTasks);
+        static readonly string k_DependencyExtension = ".am4u_dep";
+        static readonly string k_GuidExtension = ".am4u_guid";
 
         public static string EncodeDependencySystemFilename(string assetId, string assetVersion)
         {
-            return $"{assetId}{k_AssetIdAssetVersionSeparator}{assetVersion}{DependencyExtension}";
+            return $"{assetId}{k_AssetIdAssetVersionSeparator}{assetVersion}{k_DependencyExtension}";
         }
 
-        public static bool DecodeDependencySystemFilename(string filename, out string assetId, out string assetVersion)
+        static void DecodeDependencySystemFilename(string filename, out string assetId, out string assetVersion)
         {
             assetId = string.Empty;
             assetVersion = string.Empty;
 
-            if (Path.GetExtension(filename) != DependencyExtension)
-                return false;
+            if (Path.GetExtension(filename) != k_DependencyExtension)
+                return;
 
             var filenameParts = Path.GetFileNameWithoutExtension(filename)
                 .Split(k_AssetIdAssetVersionSeparator, StringSplitOptions.RemoveEmptyEntries);
 
             assetId = filenameParts[0];
             assetVersion = filenameParts.Length >= 2 ? filenameParts[1] : string.Empty;
-            return true;
         }
 
-        public static string GenerateGuidSystemFilename(IUploadAssetEntry uploadAssetEntry)
+        static bool IsAGuidSystemFile(string filename)
         {
-            return $"{uploadAssetEntry.Guid}{GuidExtension}";
+            // am4u_guid files are deprecated, but we still need this code to hide them in previously generated cloud assets.
+            return filename.ToLower().EndsWith(k_GuidExtension);
         }
 
-        public static bool IsAGuidSystemFile(string filename)
+        static bool IsADependencySystemFile(string filename)
         {
-            return filename.ToLower().EndsWith(GuidExtension);
-        }
-
-        public static bool IsADependencySystemFile(string filename)
-        {
-            return filename.ToLower().EndsWith(DependencyExtension);
+            return filename.ToLower().EndsWith(k_DependencyExtension);
         }
 
         public static bool IsASystemFile(string filename)
@@ -118,12 +110,13 @@ namespace Unity.AssetManager.Editor
             foreach (var dependency in dependencies)
             {
                 DecodeDependencySystemFilename(dependency.Path, out var assetId, out var assetVersion);
-                
+
                 // This should never happen, but if the version fails to parse, try to fetch the latest version from the cloud
                 if (string.IsNullOrEmpty(assetVersion))
                 {
                     assetVersion = await GetLatestVersionAsync(parentAssetDescriptor.ProjectDescriptor, new AssetId(assetId), token);
                 }
+
                 // IN CASE no version is found, skip the dependency
                 if (string.IsNullOrEmpty(assetVersion))
                 {
@@ -154,11 +147,33 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public static IAsset GetImportedAssetAssociatedWithGuid(string guid)
+        public static async Task<IAsset> GetAssetAssociatedWithGuidAsync(string assetGuid, string organizationId, string projectId, CancellationToken token)
         {
+            Utilities.DevAssert(!string.IsNullOrEmpty(assetGuid));
+            Utilities.DevAssert(!string.IsNullOrEmpty(organizationId));
+            Utilities.DevAssert(!string.IsNullOrEmpty(projectId));
+
+            IAsset existingAsset = null;
+
+            // First, check if the guid is associated with an asset that was already imported
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
-            var assetData = assetDataManager.GetImportedAssetInfosFromFileGuid(guid)?.FirstOrDefault()?.AssetData as AssetData;
-            return assetData?.Asset;
+            var assetData = assetDataManager.GetImportedAssetInfosFromFileGuid(assetGuid)?.FirstOrDefault()?.AssetData as AssetData;
+
+            // Imported asset must match current project and still exists on the cloud for it to be recycled
+            if (assetData != null && assetData.Identifier.OrganizationId == organizationId && assetData.Identifier.ProjectId == projectId)
+            {
+                var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+                var asset = assetData.Asset;
+
+                var status = await assetsProvider.CompareAssetWithCloudAsync(asset, token);
+
+                if (status != AssetComparisonResult.NotFoundOrInaccessible)
+                {
+                    existingAsset = asset;
+                }
+            }
+
+            return existingAsset;
         }
 
         static async Task<string> GetLatestVersionAsync(ProjectDescriptor projectDescriptor, AssetId assetId, CancellationToken token)
@@ -175,31 +190,6 @@ namespace Unity.AssetManager.Editor
             }
 
             return null;
-        }
-
-        public static async Task<IAsset> SearchForAssetWithGuid(string organizationId, string projectId, string guid,
-            CancellationToken token)
-        {
-            if (string.IsNullOrEmpty(organizationId) || string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(guid))
-            {
-                return null;
-            }
-
-            await s_SearchForAssetWithGuidSemaphore.WaitAsync(token);
-
-            var assetSearchFilter = new AssetSearchFilter();
-            assetSearchFilter.Include().Files.Path.WithValue($"{guid}*");
-
-            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-
-            var enumerator = assetsProvider.SearchAsync(organizationId, new[] { projectId }, assetSearchFilter, 0,
-                Constants.DefaultPageSize, token).GetAsyncEnumerator(token);
-
-            await enumerator.MoveNextAsync();
-
-            s_SearchForAssetWithGuidSemaphore.Release();
-
-            return enumerator.Current;
         }
     }
 }

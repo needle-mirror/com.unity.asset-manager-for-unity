@@ -137,8 +137,9 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            var download = m_DownloadManager.CreateDownloadOperation(iconUrl,
-                Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, iconFileName + k_TempExt));
+            var download = m_DownloadManager.CreateDownloadOperation<FileDownloadOperation>(iconUrl);
+            download.Path = Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, iconFileName + k_TempExt);
+
             m_DownloadManager.StartDownload(download);
             m_DownloadIdToProjectIdMap[download.Id] = projectId;
             var newCallbacks = new List<Action<string, Texture2D>>();
@@ -173,13 +174,19 @@ namespace Unity.AssetManager.Editor
             if (!m_IconDownloadCallbacks.TryGetValue(operation.Url, out var callbacks) || callbacks.Count == 0)
                 return;
 
-            var finalPath = operation.Path.Substring(0, operation.Path.Length - k_TempExt.Length);
+            if (operation is not FileDownloadOperation fileDownloadOperation)
+                return;
+
+            var path = fileDownloadOperation.Path;
+
+            var finalPath = path[..^k_TempExt.Length];
             m_IOProxy.DeleteFileIfExists(finalPath);
-            m_IOProxy.FileMove(operation.Path, finalPath);
+            m_IOProxy.FileMove(path, finalPath);
 
             var icon = LoadIcon(operation.Url, finalPath);
             m_CacheEvictionManager.OnCheckEvictConditions(finalPath);
             m_IconDownloadCallbacks.Remove(operation.Url);
+
             foreach (var callback in callbacks)
             {
                 callback?.Invoke(projectId, icon);

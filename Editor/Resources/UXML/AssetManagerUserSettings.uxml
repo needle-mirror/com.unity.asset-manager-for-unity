@@ -41,7 +41,7 @@
                             <uie:ToolbarMenu name="cacheLocationDropdown" class="asset-manager-dropdown"/>
                         </ui:VisualElement>
                     </ui:VisualElement>
-                    <ui:SliderInt name="maxCacheSize" show-input-field="true"/>
+                    <ui:SliderInt name="maxCacheSize" show-input-field="true" class="max-cache-size"/>
                     <ui:VisualElement name="cacheSizeOnDiskContainer">
                         <ui:Label name="cacheSizeOnDisk" class="settings"/>
                         <ui:Button text="Refresh" name="refresh"/>

@@ -16,7 +16,6 @@ namespace Unity.AssetManager.Editor
     class UploadOperation : AssetDataOperation, IProgress<HttpProgress>
     {
         const int k_MaxConcurrentFileTasks = 10;
-        static readonly SemaphoreSlim s_UploadFileSemaphore = new(k_MaxConcurrentFileTasks);
 
         readonly HashSet<HttpProgress> m_HttpProgresses = new();
         readonly IUploadAssetEntry m_UploadEntry;
@@ -57,10 +56,6 @@ namespace Unity.AssetManager.Editor
             var tasks = new List<Task>();
 
             var sourceDataset = await asset.GetSourceDatasetAsync(token);
-
-            // Upload the Guid file
-            var guidFile = AssetDataDependencyHelper.GenerateGuidSystemFilename(m_UploadEntry);
-            tasks.Add(UploadFile(new byte[] { }, guidFile, sourceDataset, token));
 
             // Dependency manifest
             if (m_UploadEntry.Dependencies.Any())
@@ -136,6 +131,10 @@ namespace Unity.AssetManager.Editor
             {
                 await asset.FreezeAsync(Constants.UploadChangelog, token);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception e)
             {
                 Debug.LogWarning($"Unable to commit asset version for asset {asset.Descriptor.AssetId}. Asset will stay in Pending status.");
@@ -162,19 +161,23 @@ namespace Unity.AssetManager.Editor
 
         async Task UploadFile(string sourcePath, string destPath, IDataset targetDataset, CancellationToken token)
         {
-            await UploadFile(File.OpenRead(sourcePath), destPath, targetDataset, token);
+            await using (var stream = File.OpenRead(sourcePath))
+            {
+                await UploadFile(stream, destPath, targetDataset, token);
+            }
         }
 
         async Task UploadFile(byte[] bytes, string destPath, IDataset targetDataset, CancellationToken token)
         {
-            await UploadFile(new MemoryStream(bytes), destPath, targetDataset, token);
+            await using (var stream = new MemoryStream(bytes))
+            {
+                await UploadFile(stream, destPath, targetDataset, token);
+            }
         }
 
         async Task UploadFile(Stream stream, string destPath, IDataset targetDataset, CancellationToken token)
         {
             var fileCreation = new FileCreation(destPath.Replace('\\', '/')); // Backend doesn't support backslashes AMECO-2616
-
-            await s_UploadFileSemaphore.WaitAsync(token);
 
             try
             {
@@ -183,14 +186,11 @@ namespace Unity.AssetManager.Editor
             catch (ServiceException e)
             {
                 if (e.StatusCode != HttpStatusCode.Conflict)
+                {
+                    Debug.LogError($"Unable to upload file {destPath} to dataset {targetDataset?.Name}");
                     throw;
+                }
             }
-            finally
-            {
-                s_UploadFileSemaphore.Release();
-            }
-
-            stream.Close();
         }
 
         async Task UploadDependencySystemFileAsync(IDataset sourceDataset, IAsset asset, CancellationToken token)

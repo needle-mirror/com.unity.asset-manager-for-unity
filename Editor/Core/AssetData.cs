@@ -17,7 +17,9 @@ namespace Unity.AssetManager.Editor
     {
         string Name { get; }
         AssetIdentifier Identifier { get; }
-        int VersionNumber { get; }
+        int SequenceNumber { get; }
+        int ParentSequenceNumber { get; }
+        string Changelog { get; }
         AssetType AssetType { get; }
         string Status { get; }
         DateTime? Updated { get; }
@@ -31,6 +33,7 @@ namespace Unity.AssetManager.Editor
         IEnumerable<AssetPreview.IStatus> PreviewStatus { get; }
         IEnumerable<DependencyAsset> Dependencies { get; }
         IEnumerable<IAssetDataFile> UVCSFiles { get; }
+        IEnumerable<IAssetData> Versions { get; }
 
         Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null, CancellationToken token = default);
         Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback, CancellationToken token = default);
@@ -41,10 +44,7 @@ namespace Unity.AssetManager.Editor
             CancellationToken token =
                 default); // TODO Move away all methods not related to the actual IAssetData raw data
 
-        IAsyncEnumerable<IFile>
-            GetSourceCloudFilesAsync(
-                CancellationToken token =
-                    default); // TODO Move away all methods not related to the actual IAssetData raw data
+        Task RefreshVersionsAsync(CancellationToken token = default);
     }
 
     static class AssetDataExtension
@@ -107,6 +107,9 @@ namespace Unity.AssetManager.Editor
 
         [SerializeReference]
         List<IAssetDataFile> m_UVCSFiles = new();
+        
+        [SerializeReference]
+        List<IAssetData> m_Versions = new();
 
         IAsset m_Asset;
         AssetIdentifier m_Identifier;
@@ -121,7 +124,9 @@ namespace Unity.AssetManager.Editor
 
         public IAsset Asset => m_Asset ??= Services.AssetRepository.DeserializeAsset(m_JsonAssetSerialized);
         public AssetIdentifier Identifier => m_Identifier ??= new AssetIdentifier(Asset.Descriptor);
-        public int VersionNumber => Asset.VersionNumber;
+        public int SequenceNumber => Asset.VersionNumber;
+        public int ParentSequenceNumber => Asset.ParentVersionNumber;
+        public string Changelog => Asset.Changelog;
         public string Name => Asset.Name;
         public AssetType AssetType => Asset.Type.ConvertCloudAssetTypeToAssetType();
         public string Status => Asset.Status;
@@ -159,6 +164,8 @@ namespace Unity.AssetManager.Editor
                 return new[] { s };
             }
         }
+
+        public IEnumerable<IAssetData> Versions => m_Versions;
 
         public AssetData(IAsset cloudAsset)
         {
@@ -200,11 +207,11 @@ namespace Unity.AssetManager.Editor
                 var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
                 var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
                 if (Services.AuthenticationState.Equals(AuthenticationState.LoggedIn) &&
-                    unityConnectProxy.AreCloudServicesReachable && 
+                    unityConnectProxy.AreCloudServicesReachable &&
                     assetDataManager.IsInProject(Identifier))
                 {
                     m_PreviewStatusTask = ServicesContainer.instance.Resolve<IAssetsProvider>()
-                        .CompareAssetWithCloudAsync(this, token);
+                        .CompareAssetWithCloudAsync(m_Asset, token);
                 }
                 else
                 {
@@ -250,45 +257,6 @@ namespace Unity.AssetManager.Editor
             callback?.Invoke(Identifier, m_PrimaryExtension);
         }
 
-        public async IAsyncEnumerable<IFile> GetSourceCloudFilesAsync(
-            [EnumeratorCancellation] CancellationToken token = default)
-        {
-            var sourceDataset = await Asset.GetSourceDatasetAsync(token);
-
-            if (sourceDataset == null)
-            {
-                yield break;
-            }
-
-            await foreach (var file in sourceDataset.ListFilesAsync(Range.All, token))
-            {
-                yield return file;
-            }
-        }
-
-        public async IAsyncEnumerable<IFile> GetUVCSCloudFilesAsync(
-            [EnumeratorCancellation] CancellationToken token = default)
-        {
-            IDataset uvcsDataset = null;
-            await foreach (var dataset in Asset.ListDatasetsAsync(Range.All, token))
-            {
-                if (dataset.SystemTags != null && dataset.SystemTags.Contains(k_UVCSTag))
-                {
-                    uvcsDataset = dataset;
-                }
-            }
-
-            if (uvcsDataset == null)
-            {
-                yield break;
-            }
-
-            await foreach (var file in uvcsDataset.ListFilesAsync(Range.All, token))
-            {
-                yield return file;
-            }
-        }
-
         public async Task SyncWithCloudAsync(Action<AssetIdentifier> callback, CancellationToken token = default)
         {
             // If there is already a sync operation in progress, wait for it to finish, but no need to trigger another sync
@@ -308,7 +276,8 @@ namespace Unity.AssetManager.Editor
                         RefreshSourceFilesAndPrimaryExtensionAsync(token),
                         RefreshUVCSFilesAndPrimaryExtensionAsync(token),
                         GetThumbnailUrlAsync(token),
-                        GetDependenciesAsync(token)
+                        GetDependenciesAsync(token),
+                        RefreshVersionsAsync(token)
                     };
 
                     m_SyncWithCloudTask = Task.WhenAll(tasks);
@@ -331,7 +300,7 @@ namespace Unity.AssetManager.Editor
 
             callback?.Invoke(Identifier);
         }
-        
+
         public async Task SyncWithCloudLatestAsync(Action<AssetIdentifier> callback, CancellationToken token = default)
         {
             // If there is already a sync operation in progress, wait for it to finish
@@ -340,7 +309,7 @@ namespace Unity.AssetManager.Editor
             {
                 await m_SyncWithCloudTask;
             }
-            
+
             // Use the same task to avoid multiple syncs at the same time
             if (m_SyncWithCloudLatestTask == null)
             {
@@ -361,7 +330,7 @@ namespace Unity.AssetManager.Editor
 
             callback?.Invoke(Identifier);
         }
-        
+
         async Task UpdateAssetToLatestAsync(CancellationToken token)
         {
             m_Asset = await Asset.QueryAssetVersions().SearchLatestAssetVersionAsync(token);
@@ -372,7 +341,8 @@ namespace Unity.AssetManager.Editor
             {
                 RefreshSourceFilesAndPrimaryExtensionAsync(token),
                 GetThumbnailUrlAsync(token),
-                GetDependenciesAsync(token)
+                GetDependenciesAsync(token),
+                RefreshVersionsAsync(token)
             };
 
             await Task.WhenAll(tasks);
@@ -395,6 +365,7 @@ namespace Unity.AssetManager.Editor
             m_SourceFiles.Clear();
             m_DependencyAssets.Clear();
             m_UVCSFiles.Clear();
+            m_Versions.Clear();
         }
 
         async Task GetThumbnailUrlAsync(CancellationToken token)
@@ -436,7 +407,7 @@ namespace Unity.AssetManager.Editor
             }
             finally
             {
-                m_RefreshFilesTask = null;   
+                m_RefreshFilesTask = null;
             }
         }
 
@@ -454,8 +425,24 @@ namespace Unity.AssetManager.Editor
             m_SourceFiles = files;
             m_PrimaryExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(extensions) ?? NoPrimaryExtension;
         }
+        
+        async IAsyncEnumerable<IFile> GetSourceCloudFilesAsync(
+            [EnumeratorCancellation] CancellationToken token = default)
+        {
+            var sourceDataset = await Asset.GetSourceDatasetAsync(token);
 
-        public async Task RefreshUVCSFilesAndPrimaryExtensionAsync(CancellationToken token = default)
+            if (sourceDataset == null)
+            {
+                yield break;
+            }
+
+            await foreach (var file in sourceDataset.ListFilesAsync(Range.All, token))
+            {
+                yield return file;
+            }
+        }
+
+        async Task RefreshUVCSFilesAndPrimaryExtensionAsync(CancellationToken token = default)
         {
             m_RefreshUVCSFilesTask ??= RefreshUVCSFilesAndPrimaryExtensionInternalAsync(token);
 
@@ -481,6 +468,29 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        async IAsyncEnumerable<IFile> GetUVCSCloudFilesAsync(
+            [EnumeratorCancellation] CancellationToken token = default)
+        {
+            IDataset uvcsDataset = null;
+            await foreach (var dataset in Asset.ListDatasetsAsync(Range.All, token))
+            {
+                if (dataset.SystemTags != null && dataset.SystemTags.Contains(k_UVCSTag))
+                {
+                    uvcsDataset = dataset;
+                }
+            }
+
+            if (uvcsDataset == null)
+            {
+                yield break;
+            }
+
+            await foreach (var file in uvcsDataset.ListFilesAsync(Range.All, token))
+            {
+                yield return file;
+            }
+        }
+
         async Task GetDependenciesAsync(CancellationToken token)
         {
             var deps = new List<DependencyAsset>();
@@ -490,6 +500,39 @@ namespace Unity.AssetManager.Editor
             }
 
             m_DependencyAssets = deps;
+        }
+
+        public async Task RefreshVersionsAsync(CancellationToken token = default)
+        {
+            m_Versions.Clear();
+
+            var versions = new List<IAssetData>();
+            try
+            {
+                await foreach (var asset in GetVersionsAsync(token))
+                {
+                    var assetData = new AssetData(asset);
+                    versions.Add(assetData);
+                    assetData.m_Versions = versions;
+                }
+            }
+            catch (NotFoundException)
+            {
+                versions.Clear();
+            }
+
+            m_Versions = versions;
+        }
+
+        async IAsyncEnumerable<IAsset> GetVersionsAsync(
+            [EnumeratorCancellation] CancellationToken token = default)
+        {
+            await foreach (var version in Asset.QueryAssetVersions()
+                               .OrderBy("versionNumber", SortingOrder.Descending)
+                               .ExecuteAsync(token))
+            {
+                yield return version;
+            }
         }
     }
 }

@@ -62,6 +62,21 @@
 }
 
 /************************************************
+* Tab View
+************************************************/
+TabView {
+    border-color: #7E7E7E;
+}
+
+.tab-button--selected .tab-button-label {
+    color: black;
+}
+
+.tab-button-underscore-bar {
+    background-color: #212121;
+}
+
+/************************************************
 * Search View
 ************************************************/
 
@@ -70,9 +85,8 @@
     border-color: #AAAAAA;
 }
 
-TopBar {
-    background-color: #C8C8C8;
-    border-color: #616161;
+SearchBar {
+    background-color: #A5A5A5;
 }
 
 #inputSearch {
@@ -94,6 +108,14 @@ TopBar {
 
 .loading-bar {
     background-color: white;
+}
+
+.unity-top-container{
+    background-color: #A5A5A5;
+}
+
+.unity-settings-button {
+    background-color: #A5A5A5;
 }
 
 /************************************************
@@ -194,7 +216,6 @@ ActionHelpBox ErrorOrMessageActionButton {
 }
 
 .ActionHelpBoxContainer {
-    border-color: #616161;
     background-color: #A5A5A5;
 }
 
@@ -250,7 +271,7 @@ TagChip:hover {
 * Details Page Container
 ************************************************/
 
-#details-page-thumbnail-container {
+.details-page-thumbnail-container {
     background-color: #A5A5A5;
 }
 
@@ -312,4 +333,26 @@ TagChip:hover {
 
 .cancellable-progress-bar--foreground {
     background-color: #3A79BB;
+}
+
+/************************************************
+* Upload
+************************************************/
+
+.upload-page-custom-section {
+    background-color: #C8C8C8;
+    border-color: #7E7E7E;
+}
+
+.upload-page-settings-popup DropdownField .unity-base-field__input {
+    background-color: #E4E4E4;
+}
+
+/************************************************
+* Popup
+************************************************/
+
+PopupContainer {
+    background-color: #C8C8C8;
+    border-color: #7E7E7E;
 }

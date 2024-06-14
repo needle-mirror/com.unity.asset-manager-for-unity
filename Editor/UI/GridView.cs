@@ -254,66 +254,76 @@ namespace Unity.AssetManager.Editor
             // we try to avoid rebinding a few items
             if (m_FirstVisibleIndex < m_RowPool[0].FirstIndex) //we're scrolling up
             {
-                //How many do we have to swap back
-                var initialFirstIndex = m_RowPool[0].FirstIndex;
-                var count = (initialFirstIndex - m_FirstVisibleIndex) / ColumnCount;
-                var inserting = m_ScrollInsertionList;
-
-                for (var i = 0; i < count && m_RowPool.Count > 0; ++i)
-                {
-                    var last = m_RowPool[^1];
-
-                    for (var j = 0; j < ColumnCount; j++)
-                    {
-                        var newIndex = initialFirstIndex - (i + 1) * ColumnCount + j;
-
-                        if (newIndex < 0)
-                            continue;
-
-                        UpdateItemAtIndexInRow(newIndex, j, last);
-                    }
-
-                    inserting.Add(last);
-                    m_RowPool.RemoveAt(m_RowPool.Count - 1); //we remove from the end
-
-                    last.SendToBack(); //We send the element to the top of the list (back in z-order)
-                }
-
-                inserting.Reverse();
-
-                m_ScrollInsertionList = m_RowPool;
-                m_RowPool = inserting;
-                m_RowPool.AddRange(m_ScrollInsertionList);
-                m_ScrollInsertionList.Clear();
+                OnScrollUp();
             }
             else if (m_FirstVisibleIndex > m_RowPool[0].FirstIndex) //down
             {
-                var inserting = m_ScrollInsertionList;
-
-                var checkIndex = 0;
-                while (checkIndex < m_RowPool.Count && m_FirstVisibleIndex > m_RowPool[checkIndex].FirstIndex)
-                {
-                    var first = m_RowPool[checkIndex];
-                    inserting.Add(first);
-                    first.BringToFront(); //We send the element to the bottom of the list (front in z-order)
-                    checkIndex++;
-                }
-
-                m_RowPool.RemoveRange(0, checkIndex); //we remove them all at once
-
-                for (var i = 0; i < checkIndex; i++)
-                {
-                    for (var j = 0; j < ColumnCount; j++)
-                    {
-                        UpdateItemAtIndexInRow(
-                            m_RowPool.Count * ColumnCount + i * ColumnCount + j + m_FirstVisibleIndex, j,
-                            inserting[i]);
-                    }
-                }
-
-                m_RowPool.AddRange(inserting); // add them back to the end
-                inserting.Clear();
+                OnScrollDown();
             }
+        }
+
+        void OnScrollUp()
+        {
+            //How many do we have to swap back
+            var initialFirstIndex = m_RowPool[0].FirstIndex;
+            var count = (initialFirstIndex - m_FirstVisibleIndex) / ColumnCount;
+            var inserting = m_ScrollInsertionList;
+
+            for (var i = 0; i < count && m_RowPool.Count > 0; ++i)
+            {
+                var last = m_RowPool[^1];
+
+                for (var j = 0; j < ColumnCount; j++)
+                {
+                    var newIndex = initialFirstIndex - (i + 1) * ColumnCount + j;
+
+                    if (newIndex < 0)
+                        continue;
+
+                    UpdateItemAtIndexInRow(newIndex, j, last);
+                }
+
+                inserting.Add(last);
+                m_RowPool.RemoveAt(m_RowPool.Count - 1); //we remove from the end
+
+                last.SendToBack(); //We send the element to the top of the list (back in z-order)
+            }
+
+            inserting.Reverse();
+
+            m_ScrollInsertionList = m_RowPool;
+            m_RowPool = inserting;
+            m_RowPool.AddRange(m_ScrollInsertionList);
+            m_ScrollInsertionList.Clear();
+        }
+
+        void OnScrollDown()
+        {
+            var inserting = m_ScrollInsertionList;
+
+            var checkIndex = 0;
+            while (checkIndex < m_RowPool.Count && m_FirstVisibleIndex > m_RowPool[checkIndex].FirstIndex)
+            {
+                var first = m_RowPool[checkIndex];
+                inserting.Add(first);
+                first.BringToFront(); //We send the element to the bottom of the list (front in z-order)
+                checkIndex++;
+            }
+
+            m_RowPool.RemoveRange(0, checkIndex); //we remove them all at once
+
+            for (var i = 0; i < checkIndex; i++)
+            {
+                for (var j = 0; j < ColumnCount; j++)
+                {
+                    UpdateItemAtIndexInRow(
+                        m_RowPool.Count * ColumnCount + i * ColumnCount + j + m_FirstVisibleIndex, j,
+                        inserting[i]);
+                }
+            }
+
+            m_RowPool.AddRange(inserting); // add them back to the end
+            inserting.Clear();
         }
 
         /// <summary>
@@ -349,6 +359,12 @@ namespace Unity.AssetManager.Editor
 
         void RefreshRows(float height, RefreshRowsType refreshType)
         {
+            if (refreshType == RefreshRowsType.ClearGrid)
+            {
+                ClearGrid();
+                return;
+            }
+
             if (height <= 0.0f) // Might happen during UI initialization
                 return;
 
@@ -373,9 +389,6 @@ namespace Unity.AssetManager.Editor
 
             switch (refreshType)
             {
-                case RefreshRowsType.ClearGrid:
-                    ClearGrid();
-                    break;
                 case RefreshRowsType.RebindGrid:
                     RebindGrid(height, rowCount);
                     break;
@@ -598,7 +611,7 @@ namespace Unity.AssetManager.Editor
                         if (m_RowPool[rowIndex].Indices[indexInRow] != RecycledRow.UndefinedIndex)
                             continue;
 
-                        var index = (m_RowPool.Count - 1) * ColumnCount + indexInRow + m_FirstVisibleIndex;
+                        var index = rowIndex * ColumnCount + indexInRow + m_FirstVisibleIndex;
                         UpdateItemAtIndexInRow(index, indexInRow, m_RowPool[rowIndex]);
                     }
                 }
@@ -660,10 +673,10 @@ namespace Unity.AssetManager.Editor
                 for (var i = 0; i < rowCount; i++)
                 {
                     var recycledRow = new RecycledRow(ResolvedItemHeight);
-                    var recycledRowColumnCount = Math.Min(ColumnCount, ItemsSource.Count);
-                    for (var j = 0; j < recycledRowColumnCount; j++)
+
+                    for (var j = 0; j < ColumnCount; j++)
                     {
-                        var index = recycledRowColumnCount * i + j + m_FirstVisibleIndex;
+                        var index = ColumnCount * i + j + m_FirstVisibleIndex;
 
                         if (index < firstQueueIndex || queue.Count == 0)
                         {

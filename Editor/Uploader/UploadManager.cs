@@ -12,27 +12,21 @@ namespace Unity.AssetManager.Editor
 {
     interface IUploadManager : IService
     {
-        Task UploadAsync(IReadOnlyCollection<IUploadAssetEntry> uploadEntries, UploadSettings settings,
-            CancellationToken token = default);
+        event Action UploadBegan;
+        event Action UploadEnded;
+
+        bool IsUploading { get; }
+
+        void CancelUpload();
+        Task UploadAsync(IReadOnlyCollection<IUploadAssetEntry> uploadEntries, UploadSettings settings);
     }
 
     enum AssetUploadMode
     {
-        // TODO Communicates with the user to confirm if the current asset is identical to the one on the cloud
-        IgnoreAlreadyUploadedAssets, // Skips the upload if an asset with the same ID already exists on the cloud
-        OverrideExistingAssets, // Replaces and overrides any existing asset with the same ID on the cloud
-        DuplicateExistingAssets // Uploads new assets and potentially duplicates without checking for existing matches
-    }
-
-    [Serializable]
-    class UploadSettings
-    {
-        public string OrganizationId;
-        public string ProjectId;
-        public string CollectionPath;
-
-        // Thanks to versioning, we can override existing assets by default
-        public AssetUploadMode AssetUploadMode = AssetUploadMode.OverrideExistingAssets;
+        Ignore, // Skips the upload if an asset with the same ID already exists on the cloud
+        Override, // Replaces and overrides any existing asset with the same ID on the cloud
+        Duplicate, // Uploads new assets and potentially duplicates without checking for existing matches
+        None, // Not assigned
     }
 
     [Serializable]
@@ -54,108 +48,150 @@ namespace Unity.AssetManager.Editor
 
         [SerializeReference]
         IAssetOperationManager m_AssetOperationManager;
+
         [SerializeReference]
         IImportedAssetsTracker m_ImportTracker;
 
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
+
         const int k_MaxConcurrentUploadTasks = 10;
-        static readonly SemaphoreSlim s_UploadAssetSemaphore = new(k_MaxConcurrentUploadTasks);
-        static readonly SemaphoreSlim s_CreateAssetSemaphore = new(k_MaxConcurrentUploadTasks);
+
+        CancellationTokenSource m_TokenSource;
+
+        bool m_Uploading;
+
+        public bool IsUploading => m_Uploading;
+        public event Action UploadBegan;
+        public event Action UploadEnded;
 
         [ServiceInjection]
-        public void Inject(IAssetOperationManager assetOperationManager, IImportedAssetsTracker importTracker)
+        public void Inject(IAssetOperationManager assetOperationManager, IImportedAssetsTracker importTracker, IAssetsProvider assetsProvider)
         {
             m_AssetOperationManager = assetOperationManager;
             m_ImportTracker = importTracker;
+            m_AssetsProvider = assetsProvider;
         }
 
-        public async Task UploadAsync(IReadOnlyCollection<IUploadAssetEntry> uploadEntries, UploadSettings settings,
-            CancellationToken token = default)
+        public async Task UploadAsync(IReadOnlyCollection<IUploadAssetEntry> uploadEntries, UploadSettings settings)
         {
-            var assetEntriesWithAllDependencies = new List<IUploadAssetEntry>();
+            if (m_Uploading)
+                return;
 
-            var targetProject = new ProjectDescriptor(new OrganizationId(settings.OrganizationId),
-                new ProjectId(settings.ProjectId));
-            var targetCollection = settings.CollectionPath;
-
-            var database = uploadEntries.ToDictionary(entry => entry.Guid);
-
-            // Get all assets, including their dependencies
-            foreach (var uploadEntry in uploadEntries)
-            {
-                AddDependencies(uploadEntry, assetEntriesWithAllDependencies, database);
-            }
+            m_Uploading = true;
+            UploadBegan?.Invoke();
 
             var uploadEntryToAssetLookup = new Dictionary<IUploadAssetEntry, IAsset>();
             var uploadEntryToOperationLookup = new Dictionary<IUploadAssetEntry, UploadOperation>();
             var guidToAssetLookup = new Dictionary<string, IAsset>();
 
-            // Prepare the IAssets
-            var createAssetTasks = new List<Task<AssetUploadInfo>>();
+            m_TokenSource = new CancellationTokenSource();
+            var token = m_TokenSource.Token;
 
-            foreach (var uploadEntry in assetEntriesWithAllDependencies)
+            try
             {
-                var operation = StartNewOperation(uploadEntry);
-                uploadEntryToOperationLookup[uploadEntry] = operation;
+                var assetEntriesWithAllDependencies = new List<IUploadAssetEntry>();
 
-                var task = CreateOrRecycleAsset(operation, uploadEntry, settings.AssetUploadMode, targetProject,
-                    targetCollection, token);
-                createAssetTasks.Add(task);
-            }
+                var targetProject = new ProjectDescriptor(new OrganizationId(settings.OrganizationId),
+                    new ProjectId(settings.ProjectId));
+                var targetCollection = settings.CollectionPath;
 
-            await Task.WhenAll(createAssetTasks);
+                var database = uploadEntries.ToDictionary(entry => entry.Guid);
 
-            foreach (var task in createAssetTasks)
-            {
-                var assetUploadInfo = task.Result;
-
-                if (assetUploadInfo == null) // Something went wrong during asset creation and the error was already reported
-                    continue;
-
-                var uploadEntry = assetUploadInfo.UploadEntry;
-
-                if (!assetUploadInfo.Skip)
+                // Get all assets, including their dependencies
+                foreach (var uploadEntry in uploadEntries)
                 {
-                    uploadEntryToAssetLookup[uploadEntry] = assetUploadInfo.Asset;
+                    AddDependencies(uploadEntry, assetEntriesWithAllDependencies, database);
                 }
-                else
+
+                // Prepare the IAssets
+                var createAssetTasks = new List<Task<AssetUploadInfo>>();
+
+                foreach (var uploadEntry in assetEntriesWithAllDependencies)
+                {
+                    var operation = StartNewOperation(uploadEntry);
+                    uploadEntryToOperationLookup[uploadEntry] = operation;
+
+                    var task = CreateOrRecycleAsset(operation, uploadEntry, settings.AssetUploadMode, targetProject,
+                        targetCollection, token);
+                    createAssetTasks.Add(task);
+                }
+
+                await Task.WhenAll(createAssetTasks);
+
+                foreach (var task in createAssetTasks)
+                {
+                    var assetUploadInfo = task.Result;
+
+                    if (assetUploadInfo == null) // Something went wrong during asset creation and the error was already reported
+                        continue;
+
+                    var uploadEntry = assetUploadInfo.UploadEntry;
+
+                    if (!assetUploadInfo.Skip)
+                    {
+                        uploadEntryToAssetLookup[uploadEntry] = assetUploadInfo.Asset;
+                    }
+                    else
+                    {
+                        var operation = uploadEntryToOperationLookup[uploadEntry];
+                        operation.Finish(OperationStatus.Success);
+                    }
+
+                    guidToAssetLookup[uploadEntry.Guid] = assetUploadInfo.Asset;
+                }
+
+                // Generate dependency files
+                var prepareTasks = new List<Task>();
+
+                foreach (var (uploadEntry, asset) in uploadEntryToAssetLookup)
                 {
                     var operation = uploadEntryToOperationLookup[uploadEntry];
-                    operation.Finish(OperationStatus.Success); // TODO Add a new Skip status
+                    prepareTasks.Add(PrepareUploadAsync(operation, asset, guidToAssetLookup, token));
                 }
 
-                guidToAssetLookup[uploadEntry.Guid] = assetUploadInfo.Asset;
+                await Task.WhenAll(prepareTasks);
+
+                // Upload the assets
+                var uploadTasks = new List<Task>();
+
+                foreach (var (uploadEntry, asset) in uploadEntryToAssetLookup)
+                {
+                    var operation = uploadEntryToOperationLookup[uploadEntry];
+                    uploadTasks.Add(UploadAssetAsync(operation, asset, token));
+                }
+
+                await Task.WhenAll(uploadTasks);
+
+                var trackAssetsTasks = new List<Task>();
+
+                foreach (var (uploadEntry, asset) in uploadEntryToAssetLookup)
+                {
+                    trackAssetsTasks.Add(TrackAsset(token, uploadEntry, asset));
+                }
+
+                await Task.WhenAll(trackAssetsTasks);
             }
-
-            // Generate dependency files
-            var prepareTasks = new List<Task>();
-
-            foreach (var (uploadEntry, asset) in uploadEntryToAssetLookup)
+            catch (OperationCanceledException)
             {
-                var operation = uploadEntryToOperationLookup[uploadEntry];
-                prepareTasks.Add(PrepareUploadAsync(operation, asset, guidToAssetLookup, token));
+                // TODO: Delete already uploaded assets
+                foreach (var (uploadEntry, operation) in uploadEntryToOperationLookup)
+                {
+                    operation.Finish(OperationStatus.Cancelled);
+                }
             }
-
-            await Task.WhenAll(prepareTasks);
-
-            // Upload the assets
-            var uploadTasks = new List<Task>();
-
-            foreach (var (uploadEntry, asset) in uploadEntryToAssetLookup)
+            finally
             {
-                var operation = uploadEntryToOperationLookup[uploadEntry];
-                uploadTasks.Add(UploadAssetAsync(operation, asset, token));
+                m_Uploading = false;
+                m_TokenSource?.Dispose();
+                m_TokenSource = null;
+                UploadEnded?.Invoke();
             }
+        }
 
-            await Task.WhenAll(uploadTasks);
-
-            var trackAssetsTasks = new List<Task>();
-
-            foreach (var (uploadEntry, asset) in uploadEntryToAssetLookup)
-            {
-                trackAssetsTasks.Add(TrackAsset(token, uploadEntry, asset));
-            }
-
-            await Task.WhenAll(trackAssetsTasks);
+        public void CancelUpload()
+        {
+            m_TokenSource?.Cancel();
         }
 
         async Task TrackAsset(CancellationToken token, IUploadAssetEntry uploadEntry, IAsset asset)
@@ -173,9 +209,12 @@ namespace Unity.AssetManager.Editor
                 IAssetData assetData;
                 try
                 {
-                    var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-                    var cloudAsset = await assetProvider.GetAssetAsync(asset.Descriptor, token);
+                    var cloudAsset = await m_AssetsProvider.GetAssetAsync(asset.Descriptor, token);
                     assetData = new AssetData(cloudAsset);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
                 }
                 catch (Exception e)
                 {
@@ -188,6 +227,10 @@ namespace Unity.AssetManager.Editor
 
                 m_ImportTracker.TrackAssets(assetPaths, assetData);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception e)
             {
                 Debug.LogException(e);
@@ -199,21 +242,21 @@ namespace Unity.AssetManager.Editor
             AssetUploadMode uploadMode, ProjectDescriptor targetProject, CollectionPath targetCollection,
             CancellationToken token)
         {
-            await s_CreateAssetSemaphore.WaitAsync(token);
 
             try
             {
                 return await CreateOrRecycleAsset(uploadEntry, uploadMode, targetProject,
                     targetCollection, token);
             }
+            catch (OperationCanceledException)
+            {
+                // Do nothing if cancelled
+                throw;
+            }
             catch (Exception e)
             {
                 Debug.LogException(e);
                 operation.Finish(OperationStatus.Error);
-            }
-            finally
-            {
-                s_CreateAssetSemaphore.Release();
             }
 
             return null;
@@ -224,37 +267,33 @@ namespace Unity.AssetManager.Editor
         {
             IAsset existingAsset = null;
 
-            if (uploadMode != AssetUploadMode.DuplicateExistingAssets)
+            if (uploadMode != AssetUploadMode.Duplicate)
             {
                 try
                 {
-                    existingAsset = AssetDataDependencyHelper.GetImportedAssetAssociatedWithGuid(uploadEntry.Guid);
+                    existingAsset = await AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(uploadEntry.Guid,
+                        targetProject.OrganizationId.ToString(), targetProject.ProjectId.ToString(), token);
 
-                    if (existingAsset == null)
+                    if (existingAsset != null && uploadMode == AssetUploadMode.Ignore)
                     {
-                        existingAsset = await AssetDataDependencyHelper.SearchForAssetWithGuid(
-                            targetProject.OrganizationId.ToString(),
-                            targetProject.ProjectId.ToString(), uploadEntry.Guid, CancellationToken.None);
+                        Utilities.DevLog($"Asset is already on the cloud: {existingAsset.Name}. Skipping...");
+                        return new AssetUploadInfo(uploadEntry, existingAsset, true);
                     }
-
-                    if (existingAsset != null)
-                    {
-                        if (uploadMode == AssetUploadMode.IgnoreAlreadyUploadedAssets)
-                        {
-                            Utilities.DevLog($"Asset is already on the cloud: {existingAsset.Name}. Skipping...");
-                            return new AssetUploadInfo(uploadEntry, existingAsset, true);
-                        }
-                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
                 }
                 catch (Exception)
                 {
-                    // TODO The user might not have access to that project
+                    // The user might not have access to that project
+                    // We cannot recycle the asset in this case.
                 }
             }
 
             IAsset asset;
 
-            if (existingAsset != null && uploadMode == AssetUploadMode.OverrideExistingAssets)
+            if (existingAsset != null && uploadMode == AssetUploadMode.Override)
             {
                 asset = await RecycleAsset(uploadEntry, existingAsset, token);
             }
@@ -283,6 +322,10 @@ namespace Unity.AssetManager.Editor
             {
                 await operation.PrepareUploadAsync(asset, guidToAssetLookup, token);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception e)
             {
                 Debug.LogException(e);
@@ -290,21 +333,19 @@ namespace Unity.AssetManager.Editor
                 AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.PreparationError, e.Message));
                 throw;
             }
-            finally
-            {
-                s_UploadAssetSemaphore.Release();
-            }
         }
 
         async Task UploadAssetAsync(UploadOperation operation, IAsset asset, CancellationToken token = default)
         {
-            await s_UploadAssetSemaphore.WaitAsync(token);
-
             try
             {
                 await operation.UploadAsync(asset, token);
                 operation.Finish(OperationStatus.Success);
                 AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.Ok));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception e)
             {
@@ -312,10 +353,6 @@ namespace Unity.AssetManager.Editor
                 operation.Finish(OperationStatus.Error);
                 AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.UploadError, e.Message));
                 throw;
-            }
-            finally
-            {
-                s_UploadAssetSemaphore.Release();
             }
         }
 
@@ -340,21 +377,17 @@ namespace Unity.AssetManager.Editor
         {
             var assetCreation = new AssetCreation(uploadAssetEntry.Name)
             {
-                Collections = string.IsNullOrEmpty(targetCollection) ?
-                    null :
-                    new List<CollectionPath> { new(targetCollection) },
+                Collections = string.IsNullOrEmpty(targetCollection) ? null : new List<CollectionPath> { new(targetCollection) },
                 Type = uploadAssetEntry.CloudType,
                 Tags = uploadAssetEntry.Tags.ToList()
             };
 
-            var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-            return await assetProvider.CreateAssetAsync(targetProject, assetCreation, token);
+            return await m_AssetsProvider.CreateAssetAsync(targetProject, assetCreation, token);
         }
 
         async Task<IAsset> RecycleAsset(IUploadAssetEntry uploadAssetEntry, IAsset asset, CancellationToken token)
         {
-            // if (!asset.IsFrozen) // Bug in SDK to fix - will be fixed as part of AMECO-1232 (E2E test coverage)
-            if (asset.VersionNumber > 0)
+            if (asset.IsFrozen)
             {
                 asset = await asset.CreateUnfrozenVersionAsync(token);
             }
@@ -372,7 +405,7 @@ namespace Unity.AssetManager.Editor
             var tasks = new List<Task>
             {
                 asset.UpdateAsync(assetUpdate, token),
-                WipeDataset(sourceDataset, token), // TODO Remove only what is not needed
+                WipeDataset(sourceDataset, token),
                 RemoveFileIfExistsAsync(previewDataset, Constants.ThumbnailFilename, token)
             };
 
@@ -399,13 +432,6 @@ namespace Unity.AssetManager.Editor
             var filesToWipe = new List<IFile>();
             await foreach (var file in dataset.ListFilesAsync(Range.All, token))
             {
-                if (AssetDataDependencyHelper
-                    .IsAGuidSystemFile(file.Descriptor
-                        .Path)) // Keep the am4u_guid file so we can track back this asset if anything goes wrong
-                {
-                    continue;
-                }
-
                 filesToWipe.Add(file);
             }
 

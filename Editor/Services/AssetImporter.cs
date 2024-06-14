@@ -5,11 +5,9 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
-using Object = UnityEngine.Object;
 using Task = System.Threading.Tasks.Task;
 
 namespace Unity.AssetManager.Editor
@@ -18,7 +16,7 @@ namespace Unity.AssetManager.Editor
     {
         ImportOperation GetImportOperation(AssetIdentifier identifier);
         bool IsImporting(AssetIdentifier identifier);
-        Task<bool> StartImportAsync(List<IAssetData> assetData, string optionalImportDestination);
+        Task<bool> StartImportAsync(List<IAssetData> assetData, ImportOperation.ImportType importType, string importDestination = null);
         bool RemoveImport(AssetIdentifier identifier, bool showConfirmationDialog = false);
         bool RemoveBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false);
         void ShowInProject(AssetIdentifier identifier);
@@ -89,6 +87,7 @@ namespace Unity.AssetManager.Editor
 
         readonly Dictionary<string, ImportOperation> m_ImportOperations = new();
         readonly Dictionary<Uri, DownloadOperation> m_UriToDownloadOperationMap = new();
+        readonly Dictionary<string, string> m_ResolvedDestinationPaths = new();
 
         [ServiceInjection]
         public void Inject(IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy,
@@ -116,7 +115,7 @@ namespace Unity.AssetManager.Editor
             return importOperation is { Status: OperationStatus.InProgress };
         }
 
-        public async Task<bool> StartImportAsync(List<IAssetData> assetData, string optionalImportDestination)
+        public async Task<bool> StartImportAsync(List<IAssetData> assetData, ImportOperation.ImportType importType, string importDestination = null)
         {
             SendImportAnalytics(assetData);
 
@@ -136,7 +135,7 @@ namespace Unity.AssetManager.Editor
                     continue;
                 }
 
-                tasks.Add(ImportAssetAsync(asset, CancellationToken.None));
+                tasks.Add(ImportAssetAsync(asset, importType, CancellationToken.None));
             }
 
             await Task.WhenAll(tasks);
@@ -149,7 +148,7 @@ namespace Unity.AssetManager.Editor
                     AssetData = x
                 }).ToList();
 
-            return Import(pendingImports, optionalImportDestination ?? m_SettingsManager.DefaultImportLocation, CancellationToken.None);
+            return Import(pendingImports, importDestination ?? m_SettingsManager.DefaultImportLocation, CancellationToken.None);
         }
 
         public void ShowInProject(AssetIdentifier identifier)
@@ -158,13 +157,9 @@ namespace Unity.AssetManager.Editor
             {
                 var importedInfo = m_AssetDataManager.GetImportedAssetInfo(identifier);
 
-                // A Cloud Asset can contain multiple files, but for simplicity we use the first one as the ping target
                 var fileInfo = importedInfo.FileInfos[0];
 
-                var assetPath = m_AssetDatabaseProxy.GuidToAssetPath(fileInfo.Guid);
-
-                var asset = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
-                EditorGUIUtility.PingObject(asset);
+                m_AssetDatabaseProxy.PingAssetByGuid(fileInfo.Guid);
             }
             catch (Exception)
             {
@@ -280,7 +275,7 @@ namespace Unity.AssetManager.Editor
             m_UriToDownloadOperationMap.Clear();
 
             var filesToTrack = new Dictionary<ImportOperation, List<(string originalPath, string finalPath)>>();
-            AssetDatabase.StartAssetEditing();
+            m_AssetDatabaseProxy.StartAssetEditing();
 
             try
             {
@@ -295,8 +290,8 @@ namespace Unity.AssetManager.Editor
             }
             finally
             {
-                AssetDatabase.StopAssetEditing();
-                AssetDatabase.Refresh();
+                m_AssetDatabaseProxy.StopAssetEditing();
+                m_AssetDatabaseProxy.Refresh();
             }
 
             foreach (var kvp in filesToTrack)
@@ -455,14 +450,39 @@ namespace Unity.AssetManager.Editor
                 tempFilesToTrack = MoveImportToTempPath(assetData.Identifier, tempPath, importDestination);
             }
 
-            var nonConflictingImportPath = GetNonConflictingImportPath(destinationPath);
-            if (destinationPath != nonConflictingImportPath)
+            // Check if we already asked the user for this path
+            if (m_ResolvedDestinationPaths.TryGetValue(destinationPath, out var resolvedPath))
             {
-                var destinationFolderName = new DirectoryInfo(destinationPath).Name;
+                destinationPath = resolvedPath;
+            }
+            else
+            {
+                destinationPath = AskUserForDestinationPath(destinationPath, out cancelImport);
+                m_ResolvedDestinationPaths[destinationPath] = destinationPath;
+            }
+
+            if (existingImport != null)
+            {
+                MoveImportToAssetPath(tempPath, importDestination, tempFilesToTrack);
+                m_IOProxy.DirectoryDelete(tempPath, true);
+            }
+
+            return destinationPath;
+        }
+
+        string AskUserForDestinationPath(string defaultDestinationPath, out bool cancelImport)
+        {
+            var destinationPath = defaultDestinationPath;
+            cancelImport = false;
+
+            var nonConflictingImportPath = GetNonConflictingImportPath(defaultDestinationPath);
+            if (defaultDestinationPath != nonConflictingImportPath)
+            {
+                var destinationFolderName = new DirectoryInfo(defaultDestinationPath).Name;
                 var newPathFolderName = new DirectoryInfo(nonConflictingImportPath).Name;
                 var title = L10n.Tr("Import conflict");
 
-                if (m_IOProxy.FileExists(destinationPath))
+                if (m_IOProxy.FileExists(defaultDestinationPath))
                 {
                     var message = string.Format(L10n.Tr("A file named '{0}' already exists." +
                             "\nDo you want to create a new folder named '{1}' and import the selected assets into that folder?"),
@@ -471,7 +491,8 @@ namespace Unity.AssetManager.Editor
                     if (m_EditorUtilityProxy.DisplayDialog(title, message, L10n.Tr("Create new folder"),
                             L10n.Tr("Cancel")))
                     {
-                        return nonConflictingImportPath;
+                        m_ResolvedDestinationPaths[defaultDestinationPath] = nonConflictingImportPath;
+                        destinationPath = nonConflictingImportPath;
                     }
 
                     cancelImport = true;
@@ -487,18 +508,14 @@ namespace Unity.AssetManager.Editor
                                 L10n.Tr("Create new folder"), L10n.Tr("Cancel")))
                     {
                         case 1:
-                            return nonConflictingImportPath;
+                            m_ResolvedDestinationPaths[defaultDestinationPath] = nonConflictingImportPath;
+                            destinationPath = nonConflictingImportPath;
+                            break;
                         case 2:
                             cancelImport = true;
                             break;
                     }
                 }
-            }
-
-            if (existingImport != null)
-            {
-                MoveImportToAssetPath(tempPath, importDestination, tempFilesToTrack);
-                m_IOProxy.DirectoryDelete(tempPath, true);
             }
 
             return destinationPath;
@@ -544,16 +561,23 @@ namespace Unity.AssetManager.Editor
                 request.SetRequestHeader("Range", bytesRange);
             }
 
-            request.downloadHandler = new DownloadHandlerFile(path, append) {removeFileOnAbort = true};
+            request.downloadHandler = new DownloadHandlerFile(path, append) { removeFileOnAbort = true };
             return request.SendWebRequest();
         }
 
-        async Task<List<IAssetData>> ImportAssetAsync(IAssetData asset, CancellationToken token)
+        async Task<List<IAssetData>> ImportAssetAsync(IAssetData asset, ImportOperation.ImportType importType, CancellationToken token)
         {
             // Sync before fetching dependencies to ensure you have the latest dependencies
+            switch (importType)
+            {
+                case ImportOperation.ImportType.Import:
+                    await asset.SyncWithCloudAsync(null, token);
+                    break;
 
-            // Default behaviour is sync to latest
-            await asset.SyncWithCloudLatestAsync(null, token);
+                default:
+                    await asset.SyncWithCloudLatestAsync(null, token);
+                    break;
+            }
 
             // Fetch dependencies
             return await GetDependenciesAsync(asset);
@@ -592,6 +616,9 @@ namespace Unity.AssetManager.Editor
             }
 
             var importOperations = new List<ImportOperation>();
+
+            // Reset the resolved paths to ask the user again
+            m_ResolvedDestinationPaths.Clear();
 
             foreach (var pendingImport in pendingImports)
             {

@@ -12,9 +12,7 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class InProjectPage : BasePage
     {
-        public override bool DisplayTopBar => false;
-
-        public override string Title => L10n.Tr("In Project");
+        public override bool DisplaySearchBar => false;
 
         protected override List<BaseFilter> InitFilters()
         {
@@ -26,9 +24,8 @@ namespace Unity.AssetManager.Editor
         }
 
         public InProjectPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
-            IProjectOrganizationProvider projectOrganizationProvider)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider) { }
-
+            IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider, pageManager) { }
 
         public override void OnEnable()
         {
@@ -44,7 +41,7 @@ namespace Unity.AssetManager.Editor
 
         void OnImportedAssetInfoChanged(AssetChangeArgs args)
         {
-            if (!IsActivePage)
+            if (!m_PageManager.IsActivePage(this))
                 return;
 
             var keepSelection = !args.Removed.Any(a => a.Equals(LastSelectedAssetId));

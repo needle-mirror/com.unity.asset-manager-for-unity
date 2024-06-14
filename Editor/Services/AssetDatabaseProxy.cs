@@ -12,11 +12,11 @@ namespace Unity.AssetManager.Editor
         string[] FindAssets(string filter, string[] searchInFolders);
 
         bool DeleteAssets(string[] paths, List<string> outFailedPaths);
-        string[] GetSubFolders(string folderPath);
         string AssetPathToGuid(string assetPath);
         string GuidToAssetPath(string guid);
         void Refresh();
-        Object LoadAssetAtPath(string assetPath);
+        void PingAssetByGuid(string guid);
+        bool CanPingAssetByGuid(string guid);
         void StartAssetEditing();
         void StopAssetEditing();
     }
@@ -37,14 +37,31 @@ namespace Unity.AssetManager.Editor
 
         public bool DeleteAssets(string[] paths, List<string> outFailedPaths) => AssetDatabase.DeleteAssets(paths, outFailedPaths);
 
-        public string[] GetSubFolders(string folderPath) => AssetDatabase.GetSubFolders(folderPath);
-
         public string AssetPathToGuid(string assetPath) => AssetDatabase.AssetPathToGUID(assetPath);
 
         public string GuidToAssetPath(string guid) => AssetDatabase.GUIDToAssetPath(guid);
 
         public void Refresh() => AssetDatabase.Refresh();
-        public Object LoadAssetAtPath(string assetPath) => AssetDatabase.LoadAssetAtPath<Object>(assetPath);
+
+        public void PingAssetByGuid(string guid)
+        {
+            var assetObject = GetAssetObject(guid);
+
+            if (assetObject != null)
+            {
+                EditorGUIUtility.PingObject(assetObject);
+            }
+        }
+
+        public bool CanPingAssetByGuid(string guid)
+        {
+            return GetAssetObject(guid) != null;
+        }
+
+        Object GetAssetObject(string guid)
+        {
+            return AssetDatabase.LoadAssetAtPath<Object>(GuidToAssetPath(guid));
+        }
 
         public void StartAssetEditing() => AssetDatabase.StartAssetEditing();
 

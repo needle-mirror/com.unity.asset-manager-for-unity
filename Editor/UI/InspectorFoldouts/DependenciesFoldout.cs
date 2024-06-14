@@ -22,7 +22,7 @@ namespace Unity.AssetManager.Editor
         protected override void BindItem(DetailsPageDependencyItem element, int index)
         {
             var dependency = (DependencyAsset)Items[index];
-            _ = element.Refresh(dependency);
+            TaskUtils.TrackException(element.Refresh(dependency));
         }
     }
 }

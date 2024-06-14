@@ -98,7 +98,7 @@ namespace Unity.AssetManager.Editor
             m_ProgressBar.style.left = Length.Percent(m_AnimationLeftOffset * 100.0f);
         }
 
-        internal void Refresh(AssetDataOperation operation)
+        internal void Refresh(BaseOperation operation)
         {
             if (operation == null)
             {

@@ -57,7 +57,7 @@ namespace Unity.AssetManager.Editor
 
             if (m_ProjectOrganizationProvider != null)
             {
-                _ = Init();
+                TaskUtils.TrackException(Init());
                 m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
                 m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             }
@@ -199,13 +199,13 @@ namespace Unity.AssetManager.Editor
 
         void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
         {
-            _ = SetProjectAsync(projectInfo);
+            TaskUtils.TrackException(SetProjectAsync(projectInfo));
         }
 
         void OnOrganizationChanged(OrganizationInfo organizationInfo)
         {
             Reset();
-            _ = SetOrganizationAsync(organizationInfo);
+            TaskUtils.TrackException(SetOrganizationAsync(organizationInfo));
         }
 
         void Reset()

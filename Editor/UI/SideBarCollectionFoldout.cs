@@ -13,9 +13,10 @@ namespace Unity.AssetManager.Editor
         readonly string m_CollectionPath;
         readonly string m_CollectionId;
 
+        readonly IUploadManager m_UploadManager;
+
         readonly Image m_Icon;
 
-        public string CollectionPath => m_CollectionPath;
         public string CollectionId => m_CollectionId;
 
         internal SideBarCollectionFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IStateManager stateManager,
@@ -26,6 +27,8 @@ namespace Unity.AssetManager.Editor
             m_ProjectInfo = projectInfo;
             m_CollectionPath = collectionPath;
             m_CollectionId = $"{m_ProjectInfo.Id}/{m_CollectionPath}";
+
+            m_UploadManager = ServicesContainer.instance.Resolve<IUploadManager>();
 
             var iconParent = this.Q(className: inputUssClassName);
             m_Icon = iconParent.Q<Image>();
@@ -40,13 +43,42 @@ namespace Unity.AssetManager.Editor
                     return;
 
                 m_ProjectOrganizationProvider.SelectProject(m_ProjectInfo, m_CollectionPath);
-                m_PageManager.SetActivePage<CollectionPage>();
             }, TrickleDown.TrickleDown);
+
+            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+            RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
         }
 
-        protected override void OnRefresh(IPage page)
+        void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            if (page is CollectionPage)
+            m_UploadManager.UploadBegan += OnUploadBegan;
+            m_UploadManager.UploadEnded += OnUploadEnded;
+        }
+
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
+        {
+            m_UploadManager.UploadBegan -= OnUploadBegan;
+            m_UploadManager.UploadEnded -= OnUploadEnded;
+        }
+
+        void OnUploadBegan()
+        {
+            SetEnabled(false);
+        }
+
+        void OnUploadEnded()
+        {
+            SetEnabled(true);
+        }
+
+        protected override void OnActivePageChanged(IPage page)
+        {
+            if(m_UploadManager.IsUploading)
+            {
+                SetEnabled(page is not UploadPage);
+            }
+
+            if (page is CollectionPage or UploadPage)
             {
                 var selected = m_ProjectOrganizationProvider.SelectedProject?.Id == m_ProjectInfo.Id
                     && m_ProjectOrganizationProvider.SelectedCollection?.GetFullPath() ==
@@ -57,6 +89,17 @@ namespace Unity.AssetManager.Editor
             else
             {
                 m_Toggle.EnableInClassList(k_UnityListViewItemSelected, false);
+            }
+        }
+
+        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        {
+            if (m_PageManager.ActivePage is CollectionPage or UploadPage)
+            {
+                var selected = projectInfo?.Id == m_ProjectInfo.Id
+                    && collectionInfo?.GetFullPath() == (m_CollectionPath ?? string.Empty);
+
+                m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
             }
         }
 

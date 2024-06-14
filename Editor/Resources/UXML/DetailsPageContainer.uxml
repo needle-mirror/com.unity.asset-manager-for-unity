@@ -8,61 +8,9 @@
             </ui:VisualElement>
             <ui:Button tabindex="-1" display-tooltip-when-elided="true" name="closeButton" class="details-page-close-button" style="margin-left: 0; margin-right: 0; margin-top: 0; margin-bottom: 0;" />
         </ui:VisualElement>
+        <ui:VisualElement name="details-page-tabs" class="details-page-tabs" />
         <ui:ScrollView name="details-page-scrollview" mode="Vertical" class="details-page-scrollview">
-            <ui:VisualElement name="details-page-content-container" class="details-page-content-containe">
-                <ui:VisualElement name="details-page-entries-container" class="details-page-entries-container" >
-                    <ui:Label name="description" class="details-page-entry whitespace-wrap" />
-                    <ui:VisualElement name="details-page-thumbnail-container" class="details-page-entry image-container self-center" />
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Status" class="details-page-entry-label" />
-                        <ui:Label name="status" class="details-page-entry-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement name="details-page-project-container" class="details-page-entry">
-                        <ui:Label text="Project" class="details-page-entry-label" />
-                        <ui:VisualElement name="details-page-project-chip-container" class="details-page-chip-container"/>
-                    </ui:VisualElement>
-                    <ui:VisualElement name="details-page-tag-section" class="details-page-entry">
-                        <ui:Label text="Tags" class="details-page-entry-label" />
-                        <ui:VisualElement name="details-page-tags-container" class="flex-row flex-wrap flex-grow-1" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label name="total-files-label" class="details-page-entry-label" />
-                        <ui:Label name="total-files" class="details-page-entry-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label name="files-size-label" class="details-page-entry-label" />
-                        <ui:Label name="files-size" class="details-page-entry-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Asset ID" class="details-page-entry-label" />
-                        <ui:Label name="id" class="details-page-entry-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Asset type" class="details-page-entry-label" />
-                        <ui:Label name="assetType" class="details-page-entry-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Last modified" class="details-page-entry-label" />
-                        <ui:Label name="updated-date" class="details-page-entry-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Last edit by" class="details-page-entry-label" />
-                        <ui:VisualElement name="details-page-last-edit-by-chip-container" class="details-page-chip-container" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Created date" class="details-page-entry-label" />
-                        <ui:Label name="created-date" class="details-page-entry-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Created by" class="details-page-entry-label" />
-                        <ui:VisualElement name="details-page-create-by-chip-container" class="details-page-chip-container" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="details-page-entry">
-                        <ui:Label text="Version" class="details-page-entry-label" />
-                        <ui:Label name="version" class="details-page-entry-value" />
-                    </ui:VisualElement>
-                </ui:VisualElement>
-                <ui:Label name="details-page-loading" class="details-page-loading-label" />
+            <ui:VisualElement name="details-page-content-container" class="details-page-content-container">
                 <ui:VisualElement name="no-files-warning-box" class="no-files-warning-box">
                     <ui:Image name="no-files-warning-icon" />
                     <ui:Label name="no-files-warning-label" class="text-bold" />
@@ -79,16 +27,6 @@
                 <ui:Label name="no-dependencies-label" class="no-dependencies-label" />
             </ui:VisualElement>
         </ui:ScrollView>
-        <ui:VisualElement name="footer" class="details-page-footer px-2">
-            <ui:VisualElement name="footer-container" class="details-page-footer-container">
-                <ui:Button name="removeImportButton" class="big-button" />
-                <ui:Button name="showInProjectBrowserButton" class="big-button" />
-                <ui:VisualElement name="importButtonContainer" class="import-popup-container"/>
-                <ui:VisualElement class="import-buttons-container">
-                    <ui:Button name="importButton" class="import-button" />
-                    <ui:Button name="importToButton" class="import-to-button" />
-                </ui:VisualElement>
-            </ui:VisualElement>
-        </ui:VisualElement>
+        <ui:VisualElement name="footer" class="details-page-footer px-2" />
     </ui:VisualElement>
 </ui:UXML>

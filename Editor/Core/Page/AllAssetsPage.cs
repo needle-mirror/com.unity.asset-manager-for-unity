@@ -10,11 +10,17 @@ namespace Unity.AssetManager.Editor
     class AllAssetsPage : BasePage
     {
         public AllAssetsPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
-            IProjectOrganizationProvider projectOrganizationProvider)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider) { }
+            IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider, pageManager) { }
 
-        public override string Title => Constants.AllAssetsFolderName;
-        public override bool DisplayBreadcrumbs => false;
+        public override bool DisplayBreadcrumbs => true;
+
+        public override void OnActivated()
+        {
+            base.OnActivated();
+
+            m_ProjectOrganizationProvider.SelectProject(string.Empty);
+        }
 
         public override void LoadMore()
         {

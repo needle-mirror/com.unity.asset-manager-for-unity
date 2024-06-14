@@ -140,7 +140,6 @@ namespace Unity.AssetManager.Editor
             Register(new IOProxy());
             Register(new ApplicationProxy());
             Register(new DirectoryInfoFactory());
-            Register(new WebRequestProxy());
             Register(new AssetOperationManager());
             Register(new DownloadManager());
             Register(new UploadManager());
@@ -162,6 +161,9 @@ namespace Unity.AssetManager.Editor
             Register(new AssetImporter());
             Register(new ContextMenuBuilder());
             Register(new PermissionsManager());
+            Register(new UIPreferences());
+            Register(new DragAndDropProjectBrowserProxy());
+            Register(new PopupManager());
 
             InjectServicesAndBuildDependencies();
 

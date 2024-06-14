@@ -2,13 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
     interface IThumbnailDownloader : IService
     {
-        void DownloadThumbnail(AssetIdentifier identifier, string thumbnailUrl,
+        void DownloadThumbnail(AssetIdentifier identifier, string url,
             Action<AssetIdentifier, Texture2D> doneCallbackAction = null);
 
         Texture2D GetCachedThumbnail(string thumbnailUrl);
@@ -65,17 +66,20 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void DownloadThumbnail(AssetIdentifier identifier, string thumbnailUrl, Action<AssetIdentifier, Texture2D> doneCallbackAction = null)
+        public void DownloadThumbnail(AssetIdentifier identifier, string url, Action<AssetIdentifier, Texture2D> doneCallbackAction = null)
         {
-            if (string.IsNullOrEmpty(thumbnailUrl))
+            if (string.IsNullOrEmpty(url))
             {
                 doneCallbackAction?.Invoke(identifier, null);
                 return;
             }
 
+            var thumbnailUrl = $"https://transformation.unity.com/api/images?url={Uri.EscapeDataString(url)}&width={180}"; // 180 is roughly the size of the Detail panel thumbnail
             var thumbnailFileName = Hash128.Compute(thumbnailUrl).ToString();
+
             var thumbnail = LoadThumbnail(thumbnailUrl,
                 Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName));
+
             if (thumbnail != null)
             {
                 doneCallbackAction?.Invoke(identifier, thumbnail);
@@ -88,10 +92,10 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            var download = m_DownloadManager.CreateDownloadOperation(thumbnailUrl,
-                Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName + k_TempExt));
-            m_DownloadManager.StartDownload(download);
+            var download = m_DownloadManager.CreateDownloadOperation<TextureDownloadOperation>(thumbnailUrl);
             m_DownloadIdToAssetIdMap[download.Id] = identifier;
+            m_DownloadManager.StartDownload(download);
+
             var newCallbacks = new List<Action<AssetIdentifier, Texture2D>>();
             if (doneCallbackAction != null)
             {
@@ -125,17 +129,29 @@ namespace Unity.AssetManager.Editor
             if (!m_ThumbnailDownloadCallbacks.TryGetValue(operation.Url, out var callbacks) || callbacks.Count == 0)
                 return;
 
-            var finalPath = operation.Path.Substring(0, operation.Path.Length - k_TempExt.Length);
-            m_IOProxy.DeleteFileIfExists(finalPath);
-            m_IOProxy.FileMove(operation.Path, finalPath);
-
-            var thumbnail = LoadThumbnail(operation.Url, finalPath);
-            m_CacheEvictionManager.OnCheckEvictConditions(finalPath);
             m_ThumbnailDownloadCallbacks.Remove(operation.Url);
+
+            if (operation is not TextureDownloadOperation textureDownloadOperation)
+                return;
+
+            var thumbnail = textureDownloadOperation.Texture;
             foreach (var callback in callbacks)
             {
                 callback?.Invoke(assetId, thumbnail);
             }
+
+            SaveThumbnailInCache(textureDownloadOperation);
+        }
+
+        void SaveThumbnailInCache(TextureDownloadOperation operation)
+        {
+            if (operation.Texture == null)
+                return;
+
+            var thumbnailFileName = Hash128.Compute(operation.Url).ToString();
+            var finalPath = Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName);
+            var bytes = operation.Texture.EncodeToPNG();
+            Task.Run(() => File.WriteAllBytes(finalPath, bytes));
         }
 
         Texture2D LoadThumbnail(string url, string thumbnailPath)

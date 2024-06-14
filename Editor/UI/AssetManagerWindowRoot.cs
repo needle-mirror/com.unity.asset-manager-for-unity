@@ -18,6 +18,7 @@ namespace Unity.AssetManager.Editor
         const int k_InspectorPanelMinWidth = 200;
         const string k_MainDarkUssName = "MainDark";
         const string k_MainLightUssName = "MainLight";
+        const string k_PopupClassName = "unity-popup-container";
 
         VisualElement m_AssetManagerContainer;
         VisualElement m_SearchContentSplitViewContainer;
@@ -27,12 +28,12 @@ namespace Unity.AssetManager.Editor
 
         LoginPage m_LoginPage;
         SideBar m_SideBar;
-        Label m_Title;
-        TopBar m_TopBar;
+        SearchBar m_SearchBar;
         Breadcrumbs m_Breadcrumbs;
         Filters m_Filters;
         TwoPaneSplitView m_CategoriesSplit;
         TwoPaneSplitView m_InspectorSplit;
+        Button m_SettingsButton;
 
         AssetsGridView m_AssetsGridView;
         List<SelectionInspectorPage> m_SelectionInspectorPages = new();
@@ -55,6 +56,8 @@ namespace Unity.AssetManager.Editor
         readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
         readonly IProjectIconDownloader m_ProjectIconDownloader;
         readonly IPermissionsManager m_PermissionsManager;
+        readonly IUploadManager m_UploadManager;
+        readonly IPopupManager m_PopupManager;
 
         public AssetManagerWindowRoot(IPageManager pageManager,
             IAssetDataManager assetDataManager,
@@ -66,7 +69,9 @@ namespace Unity.AssetManager.Editor
             ILinksProxy linksProxy,
             IAssetDatabaseProxy assetDatabaseProxy,
             IProjectIconDownloader projectIconDownloader,
-            IPermissionsManager permissionsManager)
+            IPermissionsManager permissionsManager,
+            IUploadManager uploadManager,
+            IPopupManager popupManager)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -79,6 +84,8 @@ namespace Unity.AssetManager.Editor
             m_AssetDatabaseProxy = assetDatabaseProxy;
             m_ProjectIconDownloader = projectIconDownloader;
             m_PermissionsManager = permissionsManager;
+            m_UploadManager = uploadManager;
+            m_PopupManager = popupManager;
         }
 
         public void OnEnable()
@@ -113,6 +120,11 @@ namespace Unity.AssetManager.Editor
                 EditorGUIUtility.isProSkin ? k_MainDarkUssName : k_MainLightUssName);
             m_AssetManagerContainer.StretchToParentSize();
 
+            m_PopupManager.CreatePopupContainer(this);
+            UIElementsUtils.LoadCommonStyleSheet(m_PopupManager.Container);
+            UIElementsUtils.LoadCustomStyleSheet(m_PopupManager.Container,
+                EditorGUIUtility.isProSkin ? k_MainDarkUssName : k_MainLightUssName);
+
             m_LoadingScreen = new LoadingScreen();
             m_LoadingScreen.AddToClassList("LoadingScreen");
             m_AssetManagerContainer.Add(m_LoadingScreen);
@@ -121,7 +133,8 @@ namespace Unity.AssetManager.Editor
                 new TwoPaneSplitView(1, k_InspectorPanelMaxWidth, TwoPaneSplitViewOrientation.Horizontal);
             m_CategoriesSplit = new TwoPaneSplitView(0, k_SidebarMinWidth, TwoPaneSplitViewOrientation.Horizontal);
 
-            m_SideBar = new SideBar(m_UnityConnect, m_StateManager, m_PageManager, m_ProjectOrganizationProvider, m_CategoriesSplit);
+            m_SideBar = new SideBar(m_UnityConnect, m_StateManager, m_PageManager, m_ProjectOrganizationProvider,
+                m_CategoriesSplit);
             m_SideBar.AddToClassList("SideBarContainer");
             m_CategoriesSplit.Add(m_SideBar);
 
@@ -136,6 +149,13 @@ namespace Unity.AssetManager.Editor
             actionHelpBoxContainer.Add(m_ActionHelpBox);
             m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
 
+            var tabView = new TabView(m_PageManager, m_UnityConnect);
+            tabView.AddPage<CollectionPage>(L10n.Tr(Constants.AssetsTabLabel));
+            tabView.MergePage<CollectionPage, AllAssetsPage>();
+            tabView.AddPage<InProjectPage>(L10n.Tr(Constants.InProjectTabLabel));
+            tabView.AddPage<UploadPage>(L10n.Tr(Constants.UploadTabLabel));
+            m_SearchContentSplitViewContainer.Add(tabView);
+
             var storageInfoHelpBoxContainer = new VisualElement();
             storageInfoHelpBoxContainer.AddToClassList("StorageInfoHelpBoxContainer");
             var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
@@ -146,26 +166,40 @@ namespace Unity.AssetManager.Editor
 
             // Schedule storage info to be refreshed each 30 seconds
             m_StorageInfoRefreshScheduledItem = storageInfoHelpBox.schedule.Execute(storageInfoHelpBox.RefreshCloudStorageAsync).Every(k_CloudStorageUsageRefreshMs);
+            var topContainer = new VisualElement();
+            topContainer.AddToClassList("unity-top-container");
 
-            m_Title = new Label();
-            m_Title.AddToClassList("page-title-label");
-            m_SearchContentSplitViewContainer.Add(m_Title);
-
-            m_TopBar = new TopBar(m_PageManager, m_ProjectOrganizationProvider);
-            m_SearchContentSplitViewContainer.Add(m_TopBar);
-
-            var breadcrumbsAndRoleContainer = new VisualElement();
-            breadcrumbsAndRoleContainer.AddToClassList("unity-breadcrumbs-and-role-container");
+            var topLeftContainer = new VisualElement();
+            topLeftContainer.AddToClassList("unity-top-left-container");
 
             m_Breadcrumbs = new Breadcrumbs(m_PageManager, m_ProjectOrganizationProvider);
-            breadcrumbsAndRoleContainer.Add(m_Breadcrumbs);
+            topLeftContainer.Add(m_Breadcrumbs);
 
             var roleChip = new RoleChip(m_PageManager, m_ProjectOrganizationProvider, m_PermissionsManager);
-            breadcrumbsAndRoleContainer.Add(roleChip);
+            topLeftContainer.Add(roleChip);
 
-            m_SearchContentSplitViewContainer.Add(breadcrumbsAndRoleContainer);
+            topContainer.Add(topLeftContainer);
 
-            m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider);
+            var topRightContainer = new VisualElement();
+            topRightContainer.AddToClassList("unity-top-right-container");
+
+            m_SettingsButton = new Button(() =>
+            {
+                var page = (BasePage)m_PageManager.ActivePage;
+                page?.OpenSettings(m_PopupManager.Container);
+
+                m_PopupManager.Show(m_SettingsButton, PopupContainer.PopupAlignment.BottomRight);
+            });
+            m_SettingsButton.AddToClassList("unity-settings-button");
+            topRightContainer.Add(m_SettingsButton);
+            topContainer.Add(topRightContainer);
+
+            m_SearchContentSplitViewContainer.Add(topContainer);
+
+            m_SearchBar = new SearchBar(m_PageManager, m_ProjectOrganizationProvider);
+            m_SearchContentSplitViewContainer.Add(m_SearchBar);
+
+            m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider, m_PopupManager);
             m_SearchContentSplitViewContainer.Add(m_Filters);
 
             var content = new VisualElement();
@@ -186,11 +220,11 @@ namespace Unity.AssetManager.Editor
             }
 
             m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager,
-                m_AssetDataManager, m_AssetOperationManager, m_LinksProxy);
+                m_AssetDataManager, m_AssetOperationManager, m_LinksProxy, m_UploadManager, m_AssetImporter);
 
             m_SelectionInspectorPages.Add(new AssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
-                m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect,
-                m_ProjectIconDownloader, m_PermissionsManager));
+                m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy,
+                m_UnityConnect, m_ProjectIconDownloader, m_PermissionsManager));
 
             m_SelectionInspectorPages.Add(new MultiAssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
                 m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect,
@@ -212,15 +246,15 @@ namespace Unity.AssetManager.Editor
 
             m_AssetManagerContainer.Add(m_InspectorSplit);
 
-            m_CustomizableSection = new VisualElement();
-            m_AssetManagerContainer.Add(m_CustomizableSection);
-
             if (m_PageManager.ActivePage?.LastSelectedAssetId == null)
             {
                 SetInspectorVisibility(null);
             }
 
             content.Add(m_AssetsGridView);
+
+            m_CustomizableSection = new VisualElement();
+            content.Add(m_CustomizableSection);
 
             SetCustomFieldsVisibility(m_PageManager.ActivePage);
         }
@@ -277,10 +311,16 @@ namespace Unity.AssetManager.Editor
                 m_InspectorSplit.fixedPaneInitialDimension = m_InspectorPanelLastWidth;
                 m_InspectorSplit.UnCollapse();
 
-                foreach (var page in m_SelectionInspectorPages)
+                //Hide all pages
+                foreach (var inspectorPage in m_SelectionInspectorPages)
                 {
-                    _ = page.SelectedAsset(assets);
+                    UIElementsUtils.Hide(inspectorPage);
                 }
+
+                // Show only the first page that is visible
+                var inspectorPageToShow = m_SelectionInspectorPages.Find(page => page.IsVisible(validAssets.Count));
+                TaskUtils.TrackException(inspectorPageToShow?.SelectedAsset(validAssets));
+                UIElementsUtils.Show(inspectorPageToShow);
             }
             else
             {
@@ -298,17 +338,9 @@ namespace Unity.AssetManager.Editor
 
             var basePage = (BasePage)page;
 
-            if (!string.IsNullOrEmpty(basePage.Title))
-            {
-                m_Title.text = basePage.Title;
-                UIElementsUtils.Show(m_Title);
-            }
-            else
-            {
-                UIElementsUtils.Hide(m_Title);
-            }
-
-            UIElementsUtils.SetDisplay(m_TopBar, basePage.DisplayTopBar);
+            UIElementsUtils.SetDisplay(m_SearchBar, basePage.DisplaySearchBar);
+            UIElementsUtils.SetDisplay(m_Filters, basePage.DisplayFilters);
+            UIElementsUtils.SetDisplay(m_SettingsButton, basePage.DisplaySettings);
 
             if (basePage.DisplaySideBar)
             {

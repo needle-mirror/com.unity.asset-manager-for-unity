@@ -28,13 +28,13 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         ICachePathHelper m_CachePathHelper;
 
-        const string k_ImportRelativeLocationKey = "AM4U-importRelativeLocation";
-        const string k_IsSubfolderCreationEnabledKey = "AM4U-isSubfolderCreationEnabled";
-        const string k_CacheLocationKey = "AM4U-cacheLocation";
-        const string k_MaxCacheSizeKey = "AM4U-cacheSize";
-        const string k_TexturesCacheLocationKey = "AM4U-texturesCacheLocation";
-        const string k_ThumbnailsCacheLocationKey = "AM4U-thumbnailsCaheLocation";
-        const string k_AssetManagerCacheLocationKey = "AM4U-assetManagerCacheLocation";
+        const string k_DefaultImportLocationKey = "AM4U.defaultImportLocation";
+        const string k_IsSubfolderCreationEnabledKey = "AM4U.isSubfolderCreationEnabled";
+        const string k_CacheLocationKey = "AM4U.cacheLocation";
+        const string k_MaxCacheSizeKey = "AM4U.cacheSize";
+        const string k_TexturesCacheLocationKey = "AM4U.texturesCacheLocation";
+        const string k_ThumbnailsCacheLocationKey = "AM4U.thumbnailsCaheLocation";
+        const string k_AssetManagerCacheLocationKey = "AM4U.assetManagerCacheLocation";
 
         Settings m_Settings;
 
@@ -55,42 +55,18 @@ namespace Unity.AssetManager.Editor
         {
             set
             {
+                Utilities.DevAssert(value.StartsWith(Constants.AssetsFolderName));
+
                 if (string.IsNullOrEmpty(value))
                     return;
 
-                var relativePath = Utilities.GetPathRelativeToAssetsFolderIncludeAssets(value);
-
-                Utilities.DevAssert(relativePath.StartsWith(Constants.AssetsFolderName));
-
-                Instance.Set(k_ImportRelativeLocationKey, relativePath, SettingsScope.User);
+                Instance.Set(k_DefaultImportLocationKey, value, SettingsScope.User);
             }
 
-            get
-            {
-                var relativePath = Instance.Get<string>(k_ImportRelativeLocationKey, SettingsScope.User);
-
-                if (string.IsNullOrEmpty(relativePath))
-                {
-                    return GetDefaultImportLocation();
-                }
-
-                Utilities.DevAssert(relativePath.StartsWith(Constants.AssetsFolderName));
-
-                relativePath = relativePath.Substring(Constants.AssetsFolderName.Length, relativePath.Length - Constants.AssetsFolderName.Length);
-                relativePath = relativePath.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                var fullPath = Path.Combine(Application.dataPath, relativePath);
-
-                if (Utilities.IsPathInProject(fullPath))
-                {
-                    return fullPath;
-                }
-
-                Debug.LogWarning("Import location is not in the project. Using default location.");
-                return GetDefaultImportLocation();
-            }
+            get => Instance.Get(k_DefaultImportLocationKey, SettingsScope.User, GetDefaultImportLocation());
         }
 
-        public bool IsSubfolderCreationEnabled => Instance.Get(k_IsSubfolderCreationEnabledKey, SettingsScope.User, true);
+        public bool IsSubfolderCreationEnabled => Instance.Get(k_IsSubfolderCreationEnabledKey, SettingsScope.User, false);
 
         public string BaseCacheLocation
         {
@@ -168,7 +144,7 @@ namespace Unity.AssetManager.Editor
 
         static string GetDefaultImportLocation()
         {
-            return Path.Combine(Application.dataPath, Constants.ApplicationFolderName);
+            return Constants.AssetsFolderName;
         }
 
         public string ResetCacheLocation()

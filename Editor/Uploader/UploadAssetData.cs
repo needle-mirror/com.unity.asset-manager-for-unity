@@ -50,7 +50,9 @@ namespace Unity.AssetManager.Editor
         public bool IsADependency => m_IsADependency;
         public string Name => m_AssetEntry.Name;
         public AssetIdentifier Identifier => m_Identifier;
-        public int VersionNumber => -1;
+        public int SequenceNumber => -1;
+        public int ParentSequenceNumber => -1;
+        public string Changelog => "";
         public AssetType AssetType => m_AssetEntry.CloudType.ConvertCloudAssetTypeToAssetType();
         public string Status => "Local";
         public DateTime? Updated => null;
@@ -114,6 +116,8 @@ namespace Unity.AssetManager.Editor
 
         public IEnumerable<DependencyAsset> Dependencies => m_Dependencies;
 
+        public IEnumerable<IAssetData> Versions { get; } = Array.Empty<IAssetData>();
+
         public async Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null,
             CancellationToken token = default)
         {
@@ -141,45 +145,45 @@ namespace Unity.AssetManager.Editor
         {
             m_ExistingStatus = null;
 
-            IAsset result = null;
+            var guidWasMatchedWithAnAsset = false;
 
-            result = AssetDataDependencyHelper.GetImportedAssetAssociatedWithGuid(m_AssetGuid);
+            m_PreviewStatusTask ??= AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(m_AssetGuid, m_Settings.OrganizationId, m_Settings.ProjectId, token);
 
-            if (result == null)
+            try
             {
-                m_PreviewStatusTask ??= AssetDataDependencyHelper.SearchForAssetWithGuid(m_Settings.OrganizationId,
-                    m_Settings.ProjectId, m_AssetGuid, token);
-
-                try
-                {
-                    result = await m_PreviewStatusTask;
-                }
-                catch (Exception)
-                {
-                    m_PreviewStatusTask = null;
-                    throw;
-                }
+                var result = await m_PreviewStatusTask;
+                guidWasMatchedWithAnAsset = result != null;
+            }
+            catch (Exception)
+            {
+                m_PreviewStatusTask = null;
+                throw;
             }
 
-            if (result != null)
+            if (guidWasMatchedWithAnAsset)
             {
                 m_ExistingStatus = m_Settings.AssetUploadMode switch
                 {
-                    AssetUploadMode.DuplicateExistingAssets => AssetDataStatus.UploadDuplicate,
-                    AssetUploadMode.OverrideExistingAssets => AssetDataStatus.UploadOverride,
-                    AssetUploadMode.IgnoreAlreadyUploadedAssets => AssetDataStatus.UploadSkip,
+                    AssetUploadMode.Duplicate => AssetDataStatus.UploadDuplicate,
+                    AssetUploadMode.Override => AssetDataStatus.UploadOverride,
+                    AssetUploadMode.Ignore => AssetDataStatus.UploadSkip,
 
                     _ => AssetDataStatus.Imported
                 };
             }
             else
             {
-                m_ExistingStatus = null;
+                m_ExistingStatus = AssetDataStatus.UploadAdd;
             }
 
             m_PreviewStatusTask = null;
 
             callback?.Invoke(m_Identifier, PreviewStatus);
+        }
+
+        public Task RefreshVersionsAsync(CancellationToken token = default)
+        {
+            return Task.CompletedTask;
         }
 
         public Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback,

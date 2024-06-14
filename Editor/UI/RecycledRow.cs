@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    class RecycledRow : VisualElement, ISerializationCallbackReceiver
+    class RecycledRow : VisualElement
     {
         internal const int UndefinedIndex = -1;
 
@@ -23,8 +23,5 @@ namespace Unity.AssetManager.Editor
         }
 
         internal int FirstIndex => Indices.Count > 0 ? Indices[0] : UndefinedIndex;
-
-        public void OnBeforeSerialize() { /* Do Nothing */ }
-        public void OnAfterDeserialize() { /* Do Nothing */ }
     }
 }

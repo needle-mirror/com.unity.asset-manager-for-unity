@@ -10,14 +10,16 @@ namespace Unity.AssetManager.Editor
     /// </summary>
     class ClickOrDragStartManipulator : PointerManipulator
     {
-        Action m_ButtonClicked;
+        Action<PointerUpEvent> m_ButtonClicked;
         Action m_DragStart;
-
         bool m_CanStartDrag;
 
-        internal ClickOrDragStartManipulator(VisualElement root, Action onButtonClicked, Action onDragStart)
+        internal ClickOrDragStartManipulator(VisualElement root, Action<PointerUpEvent> onButtonClicked, Action onDragStart)
         {
             activators.Add(new ManipulatorActivationFilter { button = MouseButton.LeftMouse });
+            activators.Add(new ManipulatorActivationFilter{ modifiers = EventModifiers.Shift });
+            activators.Add(new ManipulatorActivationFilter{ modifiers = EventModifiers.Control });
+            activators.Add(new ManipulatorActivationFilter{ modifiers = EventModifiers.Command });
             target = root;
             m_ButtonClicked = onButtonClicked;
             m_DragStart = onDragStart;
@@ -58,11 +60,11 @@ namespace Unity.AssetManager.Editor
                 return;
 
             CompleteInteraction(e);
-            m_ButtonClicked?.Invoke();
+            m_ButtonClicked?.Invoke(e);
         }
         void OnPointerMove(PointerMoveEvent e)
         {
-            if (CannotCompleteInteraction(e))
+            if (CannotCompleteInteraction(e) || e.deltaPosition.sqrMagnitude < 5f)
                 return;
 
             CompleteInteraction(e);
@@ -86,7 +88,7 @@ namespace Unity.AssetManager.Editor
             m_DragStart = newOnDragStart;
         }
 
-        internal void SetOnButtonClicked(Action newOnButtonClicked)
+        internal void SetOnButtonClicked(Action<PointerUpEvent> newOnButtonClicked)
         {
             m_ButtonClicked = newOnButtonClicked;
         }

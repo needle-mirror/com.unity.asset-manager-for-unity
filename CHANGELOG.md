@@ -4,6 +4,34 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2024-06-14
+
+[Added]
+- Added a + status icon for newly added upload asset
+- Drag and Drop to Import/Upload in/from Project View
+
+[Changed]
+- Default import location is now set to Assets root with no sub folder creation
+- Improved thumbnail loading speed and preventing stutters during scrolling
+- Downloaded thumbnails are now 180px instead of 512px
+
+[Fixed]
+- Fixed the cancellation of loading assets that leaded to see previous request in search or filtered results.
+- Fixed duplication of item when scrolling to the last row
+- Fixed project selection not working after an domain reload
+- Thumbnails are downloaded in memory before being saved on disk for later use (previously it was saved on disk, then loaded on memory)
+- The number of thumbnails loaded per frame has been set to avoid causing stutters during scrolling
+- Fixed the overlay of the single and multi selection detail page.
+- Unresponsive project list after a domain reload
+- Popup maximum size is constrained in function of window size and filter selection popups have now scrollbar.
+- Removing am4u_guid files usage (re-upload requires an import first)
+- Fixed Show In Project regression pointing on parent folder instead of first file
+- Preventing free organization from being blocked from upload
+- Modifying or deleting an asset prepared for upload will now refresh the upload page
+- Properly clearing grid when switching page
+- Service Not Found error when upload assets on Windows using a folder hierarchy
+- Only ask once for create a new destination folder
+
 ## [0.7.2] - 2024-05-29
 
 [Fixed]

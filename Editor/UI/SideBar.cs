@@ -19,7 +19,7 @@ namespace Unity.AssetManager.Editor
         VisualElement m_Sidebar;
         VisualElement m_CollapsedSidebar;
         float m_DraglineHorizontalPosition;
-
+        VisualElement m_AllAssetsButton;
 
         static bool IsCollapsed
         {
@@ -48,6 +48,24 @@ namespace Unity.AssetManager.Editor
             {
                 SwitchToExpandedSidebar();
             }
+
+            RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
+            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+        }
+
+        void OnAttachToPanel(AttachToPanelEvent evt)
+        {
+            m_PageManager.ActivePageChanged += OnActivePageChanged;
+        }
+
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
+        {
+            m_PageManager.ActivePageChanged -= OnActivePageChanged;
+        }
+
+        void OnActivePageChanged(IPage page)
+        {
+            UpdateCollapseBarButtons(page);
         }
 
         VisualElement CreateSidebar()
@@ -70,14 +88,9 @@ namespace Unity.AssetManager.Editor
             topSection.Add(title);
             topSection.Add(button);
 
-            var footerContainer = new VisualElement { name = "FooterContainer" };
-            footerContainer.Add(new HorizontalSeparator());
-            footerContainer.Add(new SideBarButton<InProjectPage>(m_PageManager, "In Project", "icon-in-project"));
-
             sidebar.Add(topSection);
             sidebar.Add(new HorizontalSeparator());
             sidebar.Add(new SidebarContent(m_UnityConnectProxy, m_ProjectOrganizationProvider, m_PageManager, m_StateManager));
-            sidebar.Add(footerContainer);
 
             return sidebar;
         }
@@ -89,21 +102,17 @@ namespace Unity.AssetManager.Editor
 
             var button = new Button();
             button.AddToClassList("unity-list-view__item");
-            button.AddToClassList("expend-sidebar-button");
+            button.AddToClassList("expand-sidebar-button");
             button.RemoveFromClassList("unity-button");
             button.clickable.clicked += SwitchToExpandedSidebar;
-
-            var footerContainer = new VisualElement {name = "FooterContainer"};
-            footerContainer.Add(new HorizontalSeparator());
-            footerContainer.Add(new SideBarButton<InProjectPage>(m_PageManager, null, "icon-in-project"));
 
             collapsedSidebar.Add(button);
             if (m_UnityConnectProxy.AreCloudServicesReachable)
             {
                 collapsedSidebar.Add(new HorizontalSeparator());
-                collapsedSidebar.Add(new SideBarButton<AllAssetsPage>(m_PageManager, null, "icon-all-assets"));
+                m_AllAssetsButton = new SideBarButton<AllAssetsPage>(m_PageManager, null, "icon-all-assets");
+                collapsedSidebar.Add(m_AllAssetsButton);
             }
-            collapsedSidebar.Add(footerContainer);    
 
             return collapsedSidebar;
         }
@@ -141,6 +150,7 @@ namespace Unity.AssetManager.Editor
             {
                 m_CollapsedSidebar = CreateCollapsedSidebar();
                 Add(m_CollapsedSidebar);
+                UpdateCollapseBarButtons(m_PageManager.ActivePage);
             }
             else
             {
@@ -154,6 +164,11 @@ namespace Unity.AssetManager.Editor
             RemoveFromClassList("expanded-sidebar");
 
             IsCollapsed = true;
+        }
+
+        void UpdateCollapseBarButtons(IPage page)
+        {
+            m_AllAssetsButton?.SetEnabled(page is not UploadPage);
         }
     }
 }

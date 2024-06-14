@@ -77,7 +77,7 @@
     background-position-x: left;
 }
 
-.expend-sidebar-button {
+.expand-sidebar-button {
     height: 32px;
     width: 32px;
     justify-content: center;
@@ -138,19 +138,18 @@ SideBarAllAssetsFoldout Image {
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
-SideBarCollectionFoldout Image {
-    width: 16px;
-    height: 16px;
-}
-
 SideBarCollectionFoldout Image.icon-folder-open {
     background-image: resource("Images/Icons/Folder-Open");
     -unity-background-image-tint-color: var(--icon-tint-color);
+    width: 16px;
+    height: 16px;
 }
 
 SideBarCollectionFoldout Image.icon-folder-close {
     background-image: resource("Images/Icons/Folder-Close");
     -unity-background-image-tint-color: var(--icon-tint-color);
+    width: 16px;
+    height: 16px;
 }
 
 #categoryFoldoutButton {
@@ -281,7 +280,7 @@ TwoPaneSplitView {
     -unity-font-style: bold;
 }
 
-.TopBar__placeholder {
+.SearchBar__placeholder {
     -unity-font-style: italic;
     opacity: 0.5;
 }
@@ -297,15 +296,35 @@ is not intended properly and we need this to fix that issue*/
 }
 
 /************************************************
-* Bread Crumbs and Role Container
+* Top Container
 ************************************************/
-.unity-breadcrumbs-and-role-container {
+.unity-top-container {
+    flex-direction: row;
+    flex-grow: 1;
+    flex-shrink: 0;
+}
+
+/************************************************
+* Top Left Container
+************************************************/
+.unity-top-left-container {
     flex-direction: row;
     justify-content: flex-start;
     flex-grow: 1;
-    flex-shrink: 0;
+    flex-shrink: 1;
     padding-top: 8px;
+    padding-right: 12px;
     flex-wrap: wrap;
+}
+
+/************************************************
+* Top Right Container
+************************************************/
+.unity-top-right-container {
+    flex-direction: row;
+    justify-content: flex-end;
+    flex-grow: 1;
+    flex-shrink: 1;
 }
 
 /************************************************
@@ -343,6 +362,23 @@ is not intended properly and we need this to fix that issue*/
 }
 
 /************************************************
+* Settings Button
+************************************************/
+.unity-settings-button {
+    height: 20px;
+    width: 20px;
+    flex-shrink: 0;
+    border-width: 0;
+    border-radius: 0;
+    margin: 0;
+    padding: 0;
+    margin-top: 8px;
+    margin-right: 8px;
+    background-image: resource('Images/Icons/Gear');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+/************************************************
 * Role chip
 ************************************************/
 .unity-role-chip {
@@ -355,6 +391,10 @@ is not intended properly and we need this to fix that issue*/
     padding: 1px 4px;
     cursor: link;
 }
+.unity-role-chip > Label {
+    -unity-text-align: middle-center;
+}
+
 
 /************************************************
 * Filters
@@ -364,7 +404,7 @@ is not intended properly and we need this to fix that issue*/
     flex-wrap: wrap;
     flex-shrink: 0;
     padding-top: 6px;
-    padding-left: 6px;
+    padding-left: 8px;
     padding-bottom: 6px;
 }
 
@@ -375,6 +415,10 @@ is not intended properly and we need this to fix that issue*/
     flex-grow: 0;
     justify-content: flex-start;
     align-items: center;
+    border-width: 0;
+    margin: 0;
+    padding-top: 3px;
+    padding-bottom: 3px;
 }
 
 .unity-filters-button-caret {
@@ -400,6 +444,8 @@ is not intended properly and we need this to fix that issue*/
     font-size: 14px;
     padding-top: 3px;
     padding-bottom: 3px;
+    padding-right: 8px;
+    padding-left: 8px;
     border-radius: 5px;
 }
 
@@ -408,7 +454,7 @@ is not intended properly and we need this to fix that issue*/
 }
 
 .unity-filters-popup-filter-selection > Image {
-    margin-left: 6px;
+    margin-left: 0;
     margin-right: 4px;
     width: 16px;
     height: 16px;
@@ -544,6 +590,45 @@ is not intended properly and we need this to fix that issue*/
 }
 
 /************************************************
+* Tab View
+************************************************/
+TabView {
+    flex-direction: row;
+    justify-content: flex-start;
+    min-height: 32px;
+    flex-shrink: 0;
+    padding-left: 5px;
+    flex-wrap: wrap;
+    border-bottom-width: 1px;
+}
+
+.tab-button {
+    justify-content: center;
+}
+
+.tab-button-label {
+    font-size: 12px;
+    -unity-text-align: middle-center;
+    margin-left: 20px;
+    margin-right: 20px;
+}
+
+.tab-button-underscore-bar {
+    display: none;
+    background-color: white;
+    height: 2px;
+    flex-grow: 1;
+    position: absolute;
+    bottom: 2px;
+    right: 0;
+    left: 0;
+}
+
+.tab-button--selected .tab-button-underscore-bar{
+    display: flex;
+}
+
+/************************************************
 * Search View
 ************************************************/
 
@@ -552,9 +637,8 @@ is not intended properly and we need this to fix that issue*/
     height: 70px;
 }
 
-TopBar {
+SearchBar {
     height: 42px;
-    border-bottom-width: 1px;
     flex-shrink: 0;
 }
 
@@ -567,10 +651,6 @@ TopBar {
 }
 
 #inputSearch {
-    position: absolute;
-    left: 5px;
-    top: 6px;
-    right: 5px;
     height: 30px;
     width: auto;
     min-width: 0;
@@ -578,7 +658,7 @@ TopBar {
     align-items: center;
     flex-wrap: nowrap;
     border-radius: 4px;
-    margin: 0 0 0 0;
+    margin: 8px;
     border-width: 1px;
 }
 
@@ -948,8 +1028,18 @@ AssetsGridView {
     right: 0;
 }
 
+.grid-view--item-upload-add {
+    background-image: resource('Images/AssetStatus/Plus@2x');
+    width: 16px;
+    height: 16px;
+    position: absolute;
+    margin: 4px;
+    bottom: 0;
+    right: 0;
+}
+
 .grid-view--item-upload-skip {
-    background-image: resource('Images/AssetStatus/CloudCheck@2x');
+    background-image: resource('Images/AssetStatus/Checkmark@2x');
     width: 24px;
     height: 24px;
     position: absolute;
@@ -958,7 +1048,7 @@ AssetsGridView {
 }
 
 .grid-view--item-upload-override {
-    background-image: resource('Images/AssetStatus/CloudWarning@2x');
+    background-image: resource('Images/AssetStatus/ArrowUp@2x');
     width: 24px;
     height: 24px;
     position: absolute;
@@ -967,10 +1057,11 @@ AssetsGridView {
 }
 
 .grid-view--item-upload-duplicate {
-    background-image: resource('Images/AssetStatus/Copy@2x');
-    width: 24px;
-    height: 24px;
+    background-image: resource('Images/AssetStatus/Plus@2x');
+    width: 16px;
+    height: 16px;
     position: absolute;
+    margin: 4px;
     bottom: 0;
     right: 0;
 }
@@ -1115,7 +1206,6 @@ ActionHelpBox > Label {
 
 .ActionHelpBoxContainer {
     flex-shrink: 0;
-    border-bottom-width: 1px;
 }
 
 /************************************************
@@ -1218,7 +1308,7 @@ MultiAssetDetailsPage {
 
 .multi-selection-unimported-foldout {
     -unity-font-style: bold;
-    margin-top: 20px;
+    margin-bottom: 20px;
     min-height: 50px;
     max-height: 400px;
     width: 100%;
@@ -1249,7 +1339,6 @@ MultiAssetDetailsPage {
 
 .multi-selection-imported-foldout {
     -unity-font-style: bold;
-    margin-top: 20px;
     min-height: 50px;
     max-height: 400px;
     width: 100%;
@@ -1292,8 +1381,9 @@ AssetDetailsPage {
     overflow: scroll;
 }
 
-#details-page-top {
+.details-page-top {
     flex-direction: row;
+    flex-shrink: 0;
     justify-content: space-between;
     align-content: center;
     margin: 10px;
@@ -1306,9 +1396,44 @@ AssetDetailsPage {
 
 .details-page-dashboard-link{
     cursor: link;
+    margin-left: 4px;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    align-self: center;
+    background-image: resource('Images/Icons/External-Link');
+    -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
-#asset-name {
+.details-page-tabs {
+    height: 27px;
+    flex-shrink: 0;
+    flex-direction: row;
+    margin-bottom: 5px;
+}
+
+.details-page-tabs Button {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 0;
+    padding-left: 20px;
+    padding-right: 20px;
+    margin: 0;
+    color: rgb(158, 158, 158);
+}
+
+.details-page-tabs Button:hover {
+    color: rgb(222, 222, 222);
+}
+
+.details-page-tabs Button:disabled {
+    color: rgb(222, 222, 222);
+    opacity: 1;
+    border-bottom-width: 2px;
+    border-color: rgb(222, 222, 222);
+}
+
+.asset-name {
     padding: 5px;
     align-self: center;
     text-overflow: ellipsis;
@@ -1345,48 +1470,76 @@ AssetDetailsPage {
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
-#asset-dashboard-link {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-    align-self: center;
-    background-image: resource('Images/Icons/External-Link');
-    -unity-background-image-tint-color: var(--icon-tint-color);
-}
-
-#details-page-scrollview {
+.details-page-scrollview {
     align-self: flex-start;
     flex-grow: 1;
     flex-shrink: 1;
     width: 100%;
 }
 
-#details-page-content-container {
+.asset-version-details-foldout > Toggle {
+    margin: 0;
+    padding: 8px 4px;
+    -unity-font-style: bold;
+    background-color: rgba(255, 255, 255, 0.06);
+    border-width: 1px;
+    border-top-color: rgba(48,48,48,1);
+}
+
+.asset-version-label-container
+{
+    position: absolute;
+    top: 0;
+    right: 0;
+    flex-direction: row-reverse;
+    flex-wrap: nowrap;
+    margin: 3px;
+    padding: 0 4px;
+}
+
+.asset-version-label
+{
+    margin: 2px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border-width: 1px;
+}
+
+.asset-version-label-latest
+{
+    background-color: #585858;
+    border-color: #585858;
+}
+
+.asset-version-label-imported
+{
+    border-color: #C4C4C4;
+}
+
+.details-page-content-container {
     flex-grow: 0;
     flex-shrink: 0;
     padding: 10px;
 }
 
 .details-page-scrollview > #unity-content-and-vertical-scroll-container > #unity-content-viewport > #unity-content-container {
-    flex-shrink: 1;
+    flex-shrink: 0;
 }
 
 .details-page-entries-container {
     flex-shrink: 0;
 }
 
-#details-page-thumbnail-container {
+.details-page-thumbnail-container {
     min-width: 100px;
     min-height: 200px;
     width: 100%;
     border-radius: 8px;
-}
-
-#details-page-asset-preview {
+    padding: 8px 4px;
     align-self: center;
 }
 
-#details-page-thumbnail-container .asset-preview > DraggableImage {
+.details-page-thumbnail-container .asset-preview > DraggableImage {
     position: relative;
     flex-grow: 1;
     bottom: 0;
@@ -1397,18 +1550,6 @@ AssetDetailsPage {
 .details-page-chip-container {
     flex-direction: row;
     align-items: center;
-}
-
-.details-page-asset-preview-thumbnail {
-    width: 100%;
-    height: 100%;
-}
-
-.details-page-asset-preview-thumbnail .asset-preview-thumbnail {
-    padding-top: 8px;
-    padding-bottom: 8px;
-    padding-left: 4px;
-    padding-right: 4px;
 }
 
 .details-page-download-progress-container{
@@ -1618,6 +1759,7 @@ AssetDetailsPage {
     border-right-width: 0;
     border-bottom-right-radius: 0;
     border-top-right-radius: 0;
+    padding-left: 40px;
 }
 
 .import-to-button {
@@ -1640,11 +1782,6 @@ AssetDetailsPage {
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
-.import-popup-container {
-    align-items: flex-end;
-    width: 100%;
-}
-
 .import-buttons-container {
     flex-direction: row;
     width: 100%;
@@ -1655,8 +1792,8 @@ AssetDetailsPage {
 .import-popup {
     flex-direction: column;
     position: absolute;
+    right: 0;
     padding: 5px;
-    margin-top: 5px;
     min-width: 160px;
     border-width: 1px;
     border-radius: 8px;
@@ -1667,6 +1804,8 @@ AssetDetailsPage {
     font-size: 14px;
     padding-top: 3px;
     padding-bottom: 3px;
+    padding-left: 24px;
+    padding-right: 24px;
     border-radius: 5px;
 }
 
@@ -1756,8 +1895,8 @@ AssetDetailsPage {
 }
 
 .details-page-footer-container {
-    flex-direction: column-reverse;
-    height: 100%;
+    flex-direction: column;
+    flex-shrink: 0;
     width: 100%;
     align-items: center;
 }
@@ -1780,7 +1919,9 @@ AssetDetailsPage {
 .details-page-entry {
     flex-shrink: 1;
     flex-direction: row;
-    margin-top: 5px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    align-items: center;
 }
 
 .details-page-entry-value {
@@ -1880,11 +2021,10 @@ AssetDetailsPage {
 
 .cache-settings-element {
     flex-grow: 1;
-    padding-right: 2px;
 }
 
 .cache-settings-label {
-    padding-bottom: 7px;
+    padding-bottom: 9px;
 }
 
 #cacheSize {
@@ -1896,7 +2036,7 @@ AssetDetailsPage {
 }
 
 #cacheSizeOnDisk {
-    padding-top: 3px;
+    padding-top: 1px;
     flex-grow: 1;
 }
 
@@ -1912,6 +2052,7 @@ AssetDetailsPage {
 .toolbar-menu {
     border-width: 1px;
     margin-right: 5px;
+    height: 24px;
     flex-direction: row;
 }
 
@@ -1922,6 +2063,10 @@ AssetDetailsPage {
 
 .asset-manager-dropdown {
     border-width: 0px;
+}
+
+.max-cache-size {
+    margin: 2px 5px;
 }
 
 #cleanCache {
@@ -2011,12 +2156,12 @@ AssetDetailsPage {
 * Upload
 ************************************************/
 
-
 .upload-page-custom-section {
     background-color: rgba(0, 0, 0, 0.3);
     flex-direction: row;
     justify-content: space-between;
     padding: 5px;
+    border-top-width: 1px;
 }
 
 .upload-page-all-settings-section {
@@ -2034,25 +2179,6 @@ AssetDetailsPage {
     margin-right: 20px;
 }
 
-.upload-page-custom-section > * > * > * > .unity-popup-field__label {
-    width: 80px;
-    min-width: 40px;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    flex-shrink: 1;
-}
-
-.upload-page-custom-section > * > * > * > .unity-popup-field__input {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.upload-page-custom-section > * > * > * > .unity-toggle__label {
-    text-overflow: ellipsis;
-    overflow: hidden;
-    flex-shrink: 1;
-    min-width: 80px;
-}
-
 .upload-page-action-section {
     flex-direction: row;
 }
@@ -2060,4 +2186,29 @@ AssetDetailsPage {
 .upload-page-selection-section {
     flex-direction: row;
     margin-right: 50px;
+}
+
+.upload-page-settings-popup {
+    width: 225px;
+}
+
+.unity-page-settings-popup-dependencies {
+    margin-top: 8px;
+}
+
+.upload-page-settings-popup .unity-toggle__input {
+    justify-content: flex-end;
+}
+
+/************************************************
+* Popup
+************************************************/
+
+PopupContainer {
+    flex-direction: column;
+    position: absolute;
+    padding: 5px;
+    margin-top: 5px;
+    border-width: 1px;
+    border-radius: 8px;
 }

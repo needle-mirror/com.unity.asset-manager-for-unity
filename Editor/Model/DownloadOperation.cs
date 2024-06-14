@@ -1,26 +1,77 @@
 using System;
+using UnityEngine;
+using UnityEngine.Networking;
 
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    class DownloadOperation : BaseOperation
+    class TextureDownloadOperation : DownloadOperation
+    {
+        public Texture2D Texture;
+        public override string Description => "{Texture}";
+
+        protected override DownloadHandler GetDownloadHandler()
+        {
+            return new DownloadHandlerTexture();
+        }
+
+        public override void Finish(OperationStatus status)
+        {
+            if (status == OperationStatus.Success)
+            {
+                Texture = DownloadHandlerTexture.GetContent(UnityWebRequest);
+            }
+
+            base.Finish(status);
+        }
+    }
+
+    [Serializable]
+    class FileDownloadOperation : DownloadOperation
+    {
+        public string Path;
+        public override string Description => $"{System.IO.Path.GetFileName(Path)}";
+
+        protected override DownloadHandler GetDownloadHandler()
+        {
+            return new DownloadHandlerFile(Path) { removeFileOnAbort = true };
+        }
+    }
+
+    [Serializable]
+    abstract class DownloadOperation : BaseOperation
     {
         public ulong Id;
         public string Url;
-        public string Path;
+
         public long TotalBytes;
-        public string Error;
 
         float m_Progress;
 
         public override float Progress => m_Progress;
         public override string OperationName => "Downloading";
-        public override string Description => $"{System.IO.Path.GetFileName(Path)}";
+        public abstract override string Description { get; }
+        public IWebRequestItem RequestItem { get; protected set; }
+
+        protected UnityWebRequest UnityWebRequest;
+
+        public IWebRequestItem SendWebRequest()
+        {
+            Utilities.DevAssert(RequestItem == null);
+            UnityWebRequest = new UnityWebRequest(Url, UnityWebRequest.kHttpVerbGET) { disposeDownloadHandlerOnDispose = true };
+
+            UnityWebRequest.downloadHandler = GetDownloadHandler();
+            UnityWebRequest.SendWebRequest();
+            RequestItem = new WebRequestItem(UnityWebRequest);
+            return RequestItem;
+        }
 
         public void SetProgress(float progress)
         {
             m_Progress = progress;
             Report();
         }
+
+        protected abstract DownloadHandler GetDownloadHandler();
     }
 }

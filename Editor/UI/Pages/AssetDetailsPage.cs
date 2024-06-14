@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -10,67 +9,91 @@ using Button = UnityEngine.UIElements.Button;
 
 namespace Unity.AssetManager.Editor
 {
+    interface IPageComponent
+    {
+        void OnSelection(IAssetData assetData, bool isLoading);
+        void RefreshUI(IAssetData assetData, bool isLoading = false);
+        void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress);
+    }
+
     class AssetDetailsPage : SelectionInspectorPage
     {
-        static readonly string k_TotalFiles = L10n.Tr("Total Files");
-        static readonly string k_FilesSize = L10n.Tr("Files Size");
-        static readonly string k_SourceFiles = L10n.Tr("Source Files");
-        static readonly string k_UVCSFiles = L10n.Tr("UVCS Files");
-        static readonly string k_Dependencies = L10n.Tr("Dependencies");
-        static readonly string k_ImportLocationTitle = L10n.Tr("Choose import location");
-        static readonly string k_Loading = L10n.Tr("Loading...");
+        readonly IEnumerable<IPageComponent> m_PageComponents;
 
-        static readonly string k_DraftVersionUSSClassName = "asset-version--draft";
-
-        AssetPreview m_AssetPreview;
-        Label m_AssetName;
-        Label m_AssetVersion;
-        Label m_AssetId;
-        Label m_Version;
-        Label m_Description;
-        Label m_UpdatedDate;
-        Label m_CreatedDate;
-        Label m_FilesSizeLabel;
-        Label m_FilesSizeText;
-        Label m_AssetType;
-        Label m_Status;
-        Label m_TotalFilesLabel;
-        Label m_TotalFilesText;
-        VisualElement m_TagsContainer;
-        VisualElement m_TagSection;
-        VisualElement m_ButtonsContainer;
-        Button m_ImportButton;
-        Button m_ImportToButton;
-        Button m_ShowInProjectBrowserButton;
-        Button m_RemoveImportButton;
-        OperationProgressBar m_OperationProgressBar;
         VisualElement m_NoFilesWarningBox;
         VisualElement m_NoDependenciesBox;
-        VisualElement m_ProjectContainer;
-        Image m_AssetDashboardLink;
         FilesFoldout m_SourceFilesFoldout;
         FilesFoldout m_UVCSFilesFoldout;
         DependenciesFoldout m_DependenciesFoldout;
         IAssetData m_SelectedAssetData;
-        UserInfo m_CreatedBy;
-        UserInfo m_LastModifiedBy;
-        VisualElement m_PopupContainer;
-        Label m_LoadingLabel;
 
         int m_TotalFilesCount;
         long m_TotalFileSize;
 
-        protected VisualElement m_CreatedByContainer;
-        protected VisualElement m_LastModifiedByContainer;
+        readonly Action<IEnumerable<AssetPreview.IStatus>> PreviewStatusUpdated;
+        readonly Action<Texture2D> PreviewImageUpdated;
+        readonly Action<string> SetFileCount;
+        readonly Action<string> SetFileSize;
+        Action<Type, string> ApplyFilter;
 
         public AssetDetailsPage(IAssetImporter assetImporter, IAssetOperationManager assetOperationManager,
             IStateManager stateManager, IPageManager pageManager, IAssetDataManager assetDataManager,
             IAssetDatabaseProxy assetDatabaseProxy, IProjectOrganizationProvider projectOrganizationProvider,
-            ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, IProjectIconDownloader projectIconDownloader, IPermissionsManager permissionsManager)
+            ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, IProjectIconDownloader projectIconDownloader,
+            IPermissionsManager permissionsManager)
             : base(assetImporter, assetOperationManager, stateManager, pageManager, assetDataManager,
-                assetDatabaseProxy, projectOrganizationProvider, linksProxy, unityConnectProxy, projectIconDownloader, permissionsManager)
+                assetDatabaseProxy, projectOrganizationProvider, linksProxy, unityConnectProxy, projectIconDownloader,
+                permissionsManager)
         {
             BuildUxmlDocument();
+
+            var header = new AssetDetailsHeader(this);
+            header.OpenDashboard += LinkToDashboard;
+
+            var footer = new AssetDetailsFooter(this);
+            footer.CancelOperation += () => m_AssetImporter.CancelImport(m_PageManager.ActivePage.LastSelectedAssetId, true);
+            footer.ImportAsset += ImportAssetAsync;
+            footer.HighlightAsset += ShowInProjectBrowser;
+            footer.RemoveAsset += RemoveFromProject;
+            PreviewStatusUpdated += footer.UpdatePreviewStatus;
+
+            var detailsTab = new AssetDetailsTab(m_ScrollView.contentContainer);
+            detailsTab.CreateProjectChip += CreateProjectChip;
+            detailsTab.CreateUserChip += CreateUserChip;
+            detailsTab.ApplyFilter += OnFilterModified;
+            PreviewStatusUpdated += detailsTab.UpdatePreviewStatus;
+            PreviewImageUpdated += detailsTab.SetPreviewImage;
+            SetFileCount += detailsTab.SetFileCount;
+            SetFileSize += detailsTab.SetFileSize;
+
+            var versionsTab = new AssetVersionsTab(m_ScrollView.contentContainer);
+            versionsTab.CreateUserChip += CreateUserChip;
+            versionsTab.ApplyFilter += OnFilterModified;
+            versionsTab.ApplyFilter += OnFilterModified;
+            versionsTab.ImportAsset += ImportAssetAsync;
+
+            var tabBar = new AssetDetailsPageTabs(this, footer.ButtonsContainer,
+                new AssetTab[]
+                {
+                    detailsTab,
+                    versionsTab
+                });
+
+            m_PageComponents = new IPageComponent[]
+            {
+                header,
+                footer,
+                tabBar,
+                detailsTab,
+                versionsTab,
+            };
+
+            RefreshUI();
+        }
+
+        public override bool IsVisible(int selectedAssetCount)
+        {
+            return selectedAssetCount == 1;
         }
 
         protected sealed override void BuildUxmlDocument()
@@ -79,87 +102,25 @@ namespace Unity.AssetManager.Editor
             treeAsset.CloneTree(this);
 
             m_ScrollView = this.Q<ScrollView>("details-page-scrollview");
-            m_AssetName = this.Q<Label>("asset-name");
-            m_AssetVersion = this.Q<Label>("asset-version");
-            m_AssetId = this.Q<Label>("id");
-            m_Version = this.Q<Label>("version");
-            m_Description = this.Q<Label>("description");
-            var thumbnailContainer = this.Q<VisualElement>("details-page-thumbnail-container");
-            m_AssetType = this.Q<Label>("assetType");
-            m_Status = this.Q<Label>("status");
-            m_TotalFilesText = this.Q<Label>("total-files");
-            m_TotalFilesLabel = this.Q<Label>("total-files-label");
-            m_TotalFilesLabel.text = k_TotalFiles;
-            m_FilesSizeText = this.Q<Label>("files-size");
-            m_FilesSizeLabel = this.Q<Label>("files-size-label");
-            m_FilesSizeLabel.text = k_FilesSize;
-            m_LoadingLabel = this.Q<Label>("details-page-loading");
-            m_LoadingLabel.text = L10n.Tr(k_Loading);
-            UIElementsUtils.Hide(m_LoadingLabel);
 
             m_SourceFilesFoldout = new FilesFoldout(this, "details-source-files-foldout",
                 "details-source-files-listview", m_AssetDataManager, m_AssetDatabaseProxy,
-                k_SourceFiles);
+                Constants.SourceFilesText);
 
             m_UVCSFilesFoldout = new FilesFoldout(this, "details-uvcs-files-foldout",
                 "details-uvcs-files-listview", m_AssetDataManager, m_AssetDatabaseProxy,
-                k_UVCSFiles);
+                Constants.UVCSFilesText);
 
             m_DependenciesFoldout = new DependenciesFoldout(this, "details-dependencies-foldout",
-                "details-dependencies-listview", m_PageManager, k_Dependencies);
+                "details-dependencies-listview", m_PageManager, Constants.DependenciesText);
 
-            m_CreatedDate = this.Q<Label>("created-date");
-            m_UpdatedDate = this.Q<Label>("updated-date");
             m_CloseButton = this.Q<Button>("closeButton");
 
-            m_ImportButton = this.Q<Button>("importButton");
-            m_ImportButton.text = L10n.Tr(Constants.ImportActionText);
-
-            m_PopupContainer = CreatePopupContainer();
-
-            m_ImportToButton = this.Q<Button>("importToButton");
-            var caret = new VisualElement();
-
-            caret.AddToClassList("import-to-button-caret");
-            m_ImportToButton.Add(caret);
-
-            m_ShowInProjectBrowserButton = this.Q<Button>("showInProjectBrowserButton");
-            m_ShowInProjectBrowserButton.text = L10n.Tr(Constants.ShowInProjectActionText);
-
-            m_RemoveImportButton = this.Q<Button>("removeImportButton");
-            m_RemoveImportButton.text = L10n.Tr(Constants.RemoveFromProjectActionText);
-
-            m_TagSection = this.Q<VisualElement>("details-page-tag-section");
-            m_TagsContainer = this.Q<VisualElement>("details-page-tags-container");
-
             m_NoFilesWarningBox = this.Q<VisualElement>("no-files-warning-box");
-            m_NoFilesWarningBox.Q<Label>().text = L10n.Tr("No files were found in this asset.");
+            m_NoFilesWarningBox.Q<Label>().text = L10n.Tr(Constants.NoFilesText);
 
             m_NoDependenciesBox = this.Q<Label>("no-dependencies-label");
-            m_NoDependenciesBox.Q<Label>().text = L10n.Tr("This asset has no dependencies");
-
-            m_ProjectContainer = this.Q<VisualElement>("details-page-project-chip-container");
-            m_CreatedByContainer = this.Q<VisualElement>("details-page-create-by-chip-container");
-            m_LastModifiedByContainer = this.Q<VisualElement>("details-page-last-edit-by-chip-container");
-
-            m_AssetDashboardLink = this.Q<Image>("asset-dashboard-link");
-            m_AssetDashboardLink.tooltip = L10n.Tr("Open asset in the dashboard");
-            m_AssetDashboardLink.RegisterCallback<ClickEvent>(e =>
-            {
-                m_LinksProxy.OpenAssetManagerDashboard(m_SelectedAssetData?.Identifier);
-            });
-
-            m_AssetPreview = new AssetPreview { name = "details-page-asset-preview" };
-            m_AssetPreview.AddToClassList("image-container");
-            m_AssetPreview.AddToClassList("details-page-asset-preview-thumbnail");
-            thumbnailContainer.Add(m_AssetPreview);
-
-            m_ButtonsContainer = this.Q<VisualElement>("footer-container");
-            m_OperationProgressBar = new OperationProgressBar(() =>
-            {
-                m_AssetImporter.CancelImport(m_PageManager.ActivePage.LastSelectedAssetId, true);
-            });
-            m_ButtonsContainer.Add(m_OperationProgressBar);
+            m_NoDependenciesBox.Q<Label>().text = L10n.Tr(Constants.NoDependenciesText);
 
             m_ScrollView.viewDataKey = "details-page-scrollview";
 
@@ -187,36 +148,27 @@ namespace Unity.AssetManager.Editor
 
             m_DependenciesFoldout.Expanded = m_StateManager.DependenciesFoldoutValue;
 
-            // Setup the import button logic here. Since we have the assetData information both in this object's properties
-            // and in AssetManagerWindow.m_CurrentAssetData, we should not need any special method with arguments
-            m_ImportButton.clicked += () => _ = ImportAssetAsync(null);
-            m_ImportToButton.clicked += ShowImportOptions;
-            m_ShowInProjectBrowserButton.clicked += ShowInProjectBrowser;
-            m_RemoveImportButton.clicked += RemoveFromProject;
             m_CloseButton.clicked += () => m_PageManager.ActivePage.ClearSelection();
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
 
             // We need to manually refresh once to make sure the UI is updated when the window is opened.
-            m_SelectedAssetData = m_AssetDataManager.GetAssetData(m_PageManager.ActivePage?.LastSelectedAssetId);
-            RefreshUI();
+            m_SelectedAssetData = m_PageManager.ActivePage?.SelectedAssets.Count > 1 ? null : m_AssetDataManager.GetAssetData(m_PageManager.ActivePage?.LastSelectedAssetId);
         }
 
         protected override void OnAttachToPanel(AttachToPanelEvent evt)
         {
             base.OnAttachToPanel(evt);
 
-            m_CreatedByContainer.RegisterCallback<ClickEvent>(OnCreatedByClicked);
-            m_LastModifiedByContainer.RegisterCallback<ClickEvent>(OnLastModifiedByClicked);
+            ApplyFilter += OnFilterModified;
         }
 
         protected override void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             base.OnDetachFromPanel(evt);
 
-            m_CreatedByContainer.UnregisterCallback<ClickEvent>(OnCreatedByClicked);
-            m_LastModifiedByContainer.UnregisterCallback<ClickEvent>(OnLastModifiedByClicked);
+            ApplyFilter -= OnFilterModified;
         }
 
         protected override void OnOperationProgress(AssetDataOperation operation)
@@ -224,11 +176,11 @@ namespace Unity.AssetManager.Editor
             if (operation is not ImportOperation) // Only import operation are displayed in the details page
                 return;
 
-            if (!UIElementsUtils.IsDisplayed(this) || !operation.Identifier.Equals(m_SelectedAssetData?.Identifier))
+            if (!UIElementsUtils.IsDisplayed(this)
+                || !operation.Identifier.Equals(m_SelectedAssetData?.Identifier))
                 return;
 
             RefreshButtons(m_SelectedAssetData, operation);
-            m_OperationProgressBar.Refresh(operation);
         }
 
         protected override void OnOperationFinished(AssetDataOperation operation)
@@ -236,7 +188,9 @@ namespace Unity.AssetManager.Editor
             if (operation is not ImportOperation) // Only import operation are displayed in the details page
                 return;
 
-            if (!UIElementsUtils.IsDisplayed(this) || !operation.Identifier.Equals(m_SelectedAssetData?.Identifier) || operation.Status == OperationStatus.None)
+            if (!UIElementsUtils.IsDisplayed(this)
+                || !operation.Identifier.Equals(m_SelectedAssetData?.Identifier)
+                || operation.Status == OperationStatus.None)
                 return;
 
             RefreshUI();
@@ -244,66 +198,27 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnImportedAssetInfoChanged(AssetChangeArgs args)
         {
-            if (!UIElementsUtils.IsDisplayed(this) || !args.Added.Concat(args.Updated).Concat(args.Removed).Any(a => a.Equals(m_SelectedAssetData?.Identifier)))
+            if (!UIElementsUtils.IsDisplayed(this)
+                || !args.Added.Concat(args.Updated).Concat(args.Removed).Any(a => a.Equals(m_SelectedAssetData?.Identifier)))
                 return;
 
             // In case of an import, force a full refresh of the displayed information
-            _ = SelectAssetDataAsync(new List<IAssetData> { m_SelectedAssetData });
+            TaskUtils.TrackException(SelectAssetDataAsync(new List<IAssetData> { m_SelectedAssetData }));
         }
 
-        void OnCreatedByClicked(ClickEvent evt)
+        void OnFilterModified(Type filterType, string filterValue)
         {
-            _ = m_PageManager.ActivePage.PageFilters.ApplyFilter(typeof(CreatedByFilter), m_CreatedBy?.Name);
+            TaskUtils.TrackException(m_PageManager.ActivePage.PageFilters.ApplyFilter(filterType, filterValue));
         }
 
-        void OnLastModifiedByClicked(ClickEvent evt)
+        void OnFilterModified(IEnumerable<string> filterValue)
         {
-            _ = m_PageManager.ActivePage.PageFilters.ApplyFilter(typeof(UpdatedByFilter), m_LastModifiedBy?.Name);
+            m_PageManager.ActivePage.PageFilters.AddSearchFilter(filterValue);
         }
 
-        VisualElement CreatePopupContainer()
+        void LinkToDashboard()
         {
-            var popupContainer = new VisualElement();
-            popupContainer.focusable = true;
-            popupContainer.AddToClassList("import-popup");
-            UIElementsUtils.Hide(popupContainer);
-            this.Q("importButtonContainer").Add(popupContainer);
-
-            popupContainer.RegisterCallback<FocusOutEvent>(e =>
-            {
-                UIElementsUtils.Hide(popupContainer);
-            });
-
-            return popupContainer;
-        }
-
-        void ShowImportOptions()
-        {
-            m_PopupContainer.Clear();
-
-            var importToText = new TextElement();
-            importToText.style.paddingLeft = 24; // Add padding to match the checkmark icon
-            importToText.AddToClassList("import-popup-import-to");
-            importToText.text = L10n.Tr("Import to");
-            importToText.RegisterCallback<ClickEvent>(evt =>
-            {
-                evt.StopPropagation();
-                UIElementsUtils.Hide(m_PopupContainer);
-
-                var importLocation = Utilities.OpenFolderPanelInProject(k_ImportLocationTitle,
-                    Constants.AssetsFolderName);
-
-                // The user clicked cancel
-                if (string.IsNullOrEmpty(importLocation))
-                    return;
-
-                _ = ImportAssetAsync(importLocation);
-            });
-
-            m_PopupContainer.Add(importToText);
-
-            UIElementsUtils.Show(m_PopupContainer);
-            m_PopupContainer.Focus();
+            m_LinksProxy.OpenAssetManagerDashboard(m_SelectedAssetData?.Identifier);
         }
 
         protected override void OnCloudServicesReachabilityChanged(bool cloudServiceReachable)
@@ -311,21 +226,25 @@ namespace Unity.AssetManager.Editor
             RefreshUI();
         }
 
-        async Task ImportAssetAsync(string optionalImportDestination)
+        async void ImportAssetAsync(string importDestination, IEnumerable<IAssetData> assetsToImport = null)
         {
-            var buttonType = m_ImportButton.text == Constants.ImportActionText ? DetailsButtonClickedEvent.ButtonType.Import : DetailsButtonClickedEvent.ButtonType.Reimport;
-            AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(buttonType));
-
-            m_ImportButton.SetEnabled(false);
-            m_ImportToButton.SetEnabled(false);
             try
             {
-                var isImporting = await m_AssetImporter.StartImportAsync(
-                    m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList(),
-                    optionalImportDestination);
+                var importType = assetsToImport == null ? ImportOperation.ImportType.UpdateToLatest : ImportOperation.ImportType.Import;
+
+                var previouslySelectedAssetData = m_SelectedAssetData;
+
+                // If assets have been targeted for import, we use the first asset as the selected asset
+                m_SelectedAssetData = assetsToImport?.FirstOrDefault() ?? m_SelectedAssetData;
+
+                // If no assets have been targeted for import, we use the selected asset from the details page
+                assetsToImport ??= m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x));
+
+                var isImporting = await m_AssetImporter.StartImportAsync(assetsToImport.ToList(), importType, importDestination);
 
                 if (!isImporting)
                 {
+                    m_SelectedAssetData = previouslySelectedAssetData;
                     RefreshButtons(m_SelectedAssetData,
                         m_AssetOperationManager.GetAssetOperation(m_SelectedAssetData?.Identifier));
                 }
@@ -340,26 +259,18 @@ namespace Unity.AssetManager.Editor
 
         void ShowInProjectBrowser()
         {
-            var assetData = m_AssetDataManager.GetAssetData(m_PageManager.ActivePage.LastSelectedAssetId);
-            m_AssetImporter.ShowInProject(assetData.Identifier);
+            m_AssetImporter.ShowInProject(m_SelectedAssetData?.Identifier);
 
             AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Show));
         }
 
-        void RemoveFromProject()
+        bool RemoveFromProject()
         {
             AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Remove));
 
-            m_RemoveImportButton.SetEnabled(false);
-            m_ShowInProjectBrowserButton.SetEnabled(false);
-
             try
             {
-                if (!m_AssetImporter.RemoveImport(m_SelectedAssetData?.Identifier, true))
-                {
-                    m_RemoveImportButton.SetEnabled(true);
-                    m_ShowInProjectBrowserButton.SetEnabled(true);
-                }
+                return m_AssetImporter.RemoveImport(m_SelectedAssetData?.Identifier, true);
             }
             catch (Exception)
             {
@@ -369,110 +280,36 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        void RefreshBaseInformationUI(IAssetData assetData)
-        {
-            m_AssetName.text = assetData.Name;
-
-            m_AssetVersion.text = assetData.VersionNumber > 0
-                ? L10n.Tr(Constants.VersionText) + assetData.VersionNumber
-                : L10n.Tr(Constants.PendingText);
-
-            if (assetData.Status == Constants.AssetDraftStatus)
-            {
-                m_AssetVersion.AddToClassList(k_DraftVersionUSSClassName);
-            }
-            else
-            {
-                m_AssetVersion.RemoveFromClassList(k_DraftVersionUSSClassName);
-            }
-
-            m_AssetId.text = assetData.Identifier.AssetId;
-            UIElementsUtils.SetDisplay(m_AssetId.parent, !string.IsNullOrEmpty(m_AssetId.text));
-
-            m_AssetType.text = assetData.AssetType.DisplayValue();
-            UIElementsUtils.SetDisplay(m_AssetType.parent, !string.IsNullOrEmpty(m_AssetType.text));
-
-            m_Status.text = assetData.Status;
-            UIElementsUtils.SetDisplay(m_Status.parent, !string.IsNullOrEmpty(m_Status.text));
-
-            m_Version.text = assetData.Identifier.Version;
-            UIElementsUtils.SetDisplay(m_Version.parent, !string.IsNullOrEmpty(m_Version.text));
-
-            m_CreatedDate.text = assetData.Created?.ToLocalTime().ToString("G");
-            UIElementsUtils.SetDisplay(m_CreatedDate.parent, !string.IsNullOrEmpty(m_CreatedDate.text));
-            UIElementsUtils.SetDisplay(m_AssetDashboardLink,
-                !(string.IsNullOrEmpty(assetData.Identifier.OrganizationId) ||
-                  string.IsNullOrEmpty(assetData.Identifier.ProjectId) ||
-                  string.IsNullOrEmpty(assetData.Identifier.AssetId)));
-
-            _ = m_ProjectOrganizationProvider.SelectedOrganization.GetUserInfosAsync(userInfos =>
-            {
-                m_CreatedBy = userInfos.Find(ui => ui.UserId == assetData.CreatedBy);
-                RefreshUserChip(m_CreatedByContainer, m_CreatedBy);
-            });
-
-            m_UpdatedDate.text = assetData.Updated?.ToLocalTime().ToString("G");
-            UIElementsUtils.SetDisplay(m_UpdatedDate.parent, !string.IsNullOrEmpty(m_UpdatedDate.text));
-
-            if (assetData.UpdatedBy == "System" || assetData.UpdatedBy == "Service Account")
-            {
-                m_LastModifiedBy = new UserInfo { Name = L10n.Tr("Service Account") };
-                RefreshUserChip(m_LastModifiedByContainer, m_LastModifiedBy);
-            }
-            else
-            {
-                _ = m_ProjectOrganizationProvider.SelectedOrganization.GetUserInfosAsync(userInfos =>
-                {
-                    m_LastModifiedBy = userInfos.Find(ui => ui.UserId == assetData.UpdatedBy);
-                    RefreshUserChip(m_LastModifiedByContainer, m_LastModifiedBy);
-                });
-            }
-
-            m_Description.text = assetData.Description;
-            UIElementsUtils.SetDisplay(m_Description, !string.IsNullOrEmpty(m_Description.text));
-
-            m_AssetPreview.SetAssetType(assetData.PrimaryExtension);
-            m_AssetPreview.SetStatuses(assetData.PreviewStatus);
-
-            RefreshProjectChip(assetData.Identifier.ProjectId);
-            RefreshTags(assetData.Tags);
-
-            var operation = m_AssetOperationManager.GetAssetOperation(assetData.Identifier);
-            RefreshButtons(assetData, operation);
-
-            m_OperationProgressBar.Refresh(operation);
-
-            m_SourceFilesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
-            m_UVCSFilesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
-            m_DependenciesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
-        }
-
-        void RefreshUI()
+        void RefreshUI(bool isLoading = false)
         {
             if (m_SelectedAssetData == null)
-            {
-                UIElementsUtils.Hide(this);
                 return;
-            }
 
-            m_AssetPreview.ClearPreview();
-
-            UIElementsUtils.Show(this);
-
-            RefreshBaseInformationUI(m_SelectedAssetData);
-
-            _ = m_SelectedAssetData.GetThumbnailAsync((identifier, texture2D) =>
+            // Asynchrounously load the new image and update the UI
+            TaskUtils.TrackException(m_SelectedAssetData.GetThumbnailAsync((identifier, texture2D) =>
             {
                 if (!identifier.Equals(m_SelectedAssetData?.Identifier))
                     return;
 
-                m_AssetPreview.SetThumbnail(texture2D);
-            });
+                PreviewImageUpdated?.Invoke(texture2D);
+            }));
+
+            foreach (var component in m_PageComponents)
+            {
+                component.RefreshUI(m_SelectedAssetData, isLoading);
+            }
+
+            var operation = m_AssetOperationManager.GetAssetOperation(m_SelectedAssetData.Identifier);
+
+            RefreshButtons(m_SelectedAssetData, operation);
+
+            m_SourceFilesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
+            m_UVCSFilesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
+            m_DependenciesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
 
             m_TotalFilesCount = 0;
             m_TotalFileSize = 0;
 
-            UIElementsUtils.Hide(m_LoadingLabel);
             RefreshSourceFilesInformationUI(m_SelectedAssetData);
             RefreshUVCSFilesInformationUI(m_SelectedAssetData);
             RefreshDependenciesInformationUI(m_SelectedAssetData);
@@ -480,13 +317,13 @@ namespace Unity.AssetManager.Editor
             var hasFiles = m_TotalFilesCount > 0;
             if (hasFiles)
             {
-                m_FilesSizeText.text = Utilities.BytesToReadableString(m_TotalFileSize);
-                m_TotalFilesText.text = m_TotalFilesCount.ToString();
+                SetFileSize?.Invoke(Utilities.BytesToReadableString(m_TotalFileSize));
+                SetFileCount?.Invoke(m_TotalFilesCount.ToString());
             }
             else
             {
-                m_FilesSizeText.text = Utilities.BytesToReadableString(0);
-                m_TotalFilesText.text = "0";
+                SetFileSize?.Invoke(Utilities.BytesToReadableString(0));
+                SetFileCount?.Invoke("0");
             }
 
             UIElementsUtils.SetDisplay(m_NoFilesWarningBox, !hasFiles);
@@ -496,39 +333,41 @@ namespace Unity.AssetManager.Editor
         {
             if (assetData.Count > 1)
             {
-                UIElementsUtils.Hide(this);
+                m_SelectedAssetData = null;
                 return;
             }
-
-            UIElementsUtils.Show(this);
 
             m_SelectedAssetData = assetData.FirstOrDefault();
 
             if (m_SelectedAssetData == null)
                 return;
 
-            RefreshUI();
+            var requiresLoading = !m_AssetDataManager.IsInProject(m_SelectedAssetData.Identifier);
+
+            foreach (var component in m_PageComponents)
+            {
+                component.OnSelection(m_SelectedAssetData, requiresLoading);
+            }
+
+            RefreshUI(requiresLoading);
             RefreshScrollView();
 
-            var isInProject = m_AssetDataManager.IsInProject(m_SelectedAssetData.Identifier);
             var tasks = new List<Task>();
-
-            if (!isInProject)
+            if (requiresLoading)
             {
                 UIElementsUtils.Hide(m_NoFilesWarningBox);
                 UIElementsUtils.Hide(m_NoDependenciesBox);
-                UIElementsUtils.Show(m_LoadingLabel);
 
                 m_SourceFilesFoldout.StartPopulating();
                 m_UVCSFilesFoldout.StartPopulating();
                 m_DependenciesFoldout.StartPopulating();
 
-                m_TotalFilesText.text = "-";
-                m_FilesSizeText.text = "-";
+                SetFileSize?.Invoke("-");
+                SetFileCount?.Invoke("-");
 
                 tasks.Add(m_SelectedAssetData.SyncWithCloudAsync(identifier =>
                 {
-                    if (!identifier.AssetId.Equals(m_SelectedAssetData?.Identifier.AssetId))
+                    if (!identifier.Equals(m_SelectedAssetData?.Identifier))
                         return;
 
                     RefreshUI();
@@ -536,48 +375,65 @@ namespace Unity.AssetManager.Editor
                 }));
             }
 
-            m_AssetPreview.SetStatuses(null);
+            PreviewStatusUpdated?.Invoke(null);
 
             tasks.Add(m_SelectedAssetData.GetPreviewStatusAsync((identifier, status) =>
             {
                 if (!identifier.Equals(m_SelectedAssetData?.Identifier))
                     return;
 
-                m_AssetPreview.SetStatuses(status);
+                PreviewStatusUpdated?.Invoke(status);
             }));
 
-            await Utilities.WaitForTasksAndHandleExceptions(tasks);
+            await TaskUtils.WaitForTasksWithHandleExceptions(tasks);
         }
 
-        static void RefreshUserChip(VisualElement container, UserInfo userInfo)
+        async Task<UserChip> CreateUserChip(string userId, Type searchFilterType)
         {
-            container.Clear();
+            UserChip userChip = null;
 
-            if (userInfo == null || string.IsNullOrEmpty(userInfo.Name))
+            if (userId is "System" or "Service Account")
             {
-                UIElementsUtils.Hide(container);
-                return;
+                var userInfo = new UserInfo { Name = L10n.Tr(Constants.ServiceAccountText) };
+                userChip = RefreshUserChip(userInfo, null);
+            }
+            else
+            {
+                await m_ProjectOrganizationProvider.SelectedOrganization.GetUserInfosAsync(userInfos =>
+                {
+                    var userInfo = userInfos.Find(ui => ui.UserId == userId);
+                    userChip = RefreshUserChip(userInfo, searchFilterType);
+                });
             }
 
-            UIElementsUtils.Show(container);
-
-            var userChip = new UserChip(userInfo);
-            container.Add(userChip);
+            return userChip;
         }
 
-        void RefreshProjectChip(string projectId)
+        UserChip RefreshUserChip(UserInfo userInfo, Type searchFilterType)
         {
-            m_ProjectContainer.Clear();
+            if (userInfo == null || string.IsNullOrEmpty(userInfo.Name))
+            {
+                return null;
+            }
 
+            var userChip = new UserChip(userInfo);
+
+            if (searchFilterType != null)
+            {
+                userChip.RegisterCallback<ClickEvent>(_ => ApplyFilter?.Invoke(searchFilterType, userInfo.Name));
+            }
+
+            return userChip;
+        }
+
+        ProjectChip CreateProjectChip(string projectId)
+        {
             var projectInfo = m_ProjectOrganizationProvider.SelectedOrganization?.ProjectInfos.Find(p => p.Id == projectId);
 
             if (projectInfo == null)
             {
-                UIElementsUtils.Hide(m_ProjectContainer.parent);
-                return;
+                return null;
             }
-
-            UIElementsUtils.Show(m_ProjectContainer.parent);
 
             var projectChip = new ProjectChip(projectInfo);
             projectChip.ProjectChipClickAction += pi => { m_ProjectOrganizationProvider.SelectProject(pi); };
@@ -590,30 +446,13 @@ namespace Unity.AssetManager.Editor
                 }
             });
 
-            m_ProjectContainer.Add(projectChip);
-        }
-
-        void RefreshTags(IEnumerable<string> tags)
-        {
-            m_TagsContainer.Clear();
-
-            foreach (var tag in tags)
-            {
-                var tagChip = new TagChip(tag);
-                tagChip.TagChipClickAction += tagText =>
-                {
-                    var words = tagText.Split(' ').Where(w => !string.IsNullOrEmpty(w));
-                    m_PageManager.ActivePage.PageFilters.AddSearchFilter(words);
-                };
-                m_TagsContainer.Add(tagChip);
-            }
-
-            UIElementsUtils.SetDisplay(m_TagSection, m_TagsContainer.childCount > 0);
+            return projectChip;
         }
 
         protected override void OnAssetDataChanged(AssetChangeArgs args)
         {
-            if (!UIElementsUtils.IsDisplayed(this) || !args.Added.Concat(args.Removed).Concat(args.Updated).Any(a => a.Equals(m_SelectedAssetData?.Identifier)))
+            if (!UIElementsUtils.IsDisplayed(this)
+                || !args.Added.Concat(args.Removed).Concat(args.Updated).Any(a => a.Equals(m_SelectedAssetData?.Identifier)))
                 return;
 
             RefreshButtons(m_SelectedAssetData, m_AssetImporter.GetImportOperation(m_SelectedAssetData?.Identifier));
@@ -673,44 +512,18 @@ namespace Unity.AssetManager.Editor
 
         void RefreshButtons(IAssetData assetData, BaseOperation importOperation)
         {
-            UIElementsUtils.SetDisplay(m_ButtonsContainer, assetData is AssetData);
+            var status = assetData?.PreviewStatus.FirstOrDefault();
+            var enabled = UIEnabledStates.CanImport.GetFlag(assetData is AssetData);
+            enabled |= UIEnabledStates.InProject.GetFlag(m_AssetDataManager.IsInProject(assetData?.Identifier));
+            enabled |= UIEnabledStates.HasPermissions.GetFlag(m_PermissionsManager.CheckPermission(Constants.ImportPermission));
+            enabled |= UIEnabledStates.ServicesReachable.GetFlag(m_UnityConnectProxy.AreCloudServicesReachable);
+            enabled |= UIEnabledStates.ValidStatus.GetFlag(status == null || !string.IsNullOrEmpty(status.ActionText));
+            enabled |= UIEnabledStates.IsImporting.GetFlag(importOperation?.Status == OperationStatus.InProgress);
 
-            var isInProject = m_AssetDataManager.IsInProject(assetData.Identifier);
-            var isImporting = importOperation?.Status == OperationStatus.InProgress;
-            var isImportingPermission = m_PermissionsManager.CheckPermission(Constants.ImportPermission);
-            var isEnabled = !isImporting && isImportingPermission && m_UnityConnectProxy.AreCloudServicesReachable;
-
-            m_ImportButton.SetEnabled(isEnabled);
-            m_ImportToButton.SetEnabled(isEnabled);
-            m_ImportButton.text = GetImportButtonLabel(isImporting, assetData.PreviewStatus.FirstOrDefault(), importOperation);
-            m_ImportButton.tooltip = m_ImportToButton.tooltip = GetImportButtonTooltip(isEnabled, isImportingPermission);
-
-            m_ProjectContainer.SetEnabled(m_UnityConnectProxy.AreCloudServicesReachable);
-            m_AssetDashboardLink.SetEnabled(m_UnityConnectProxy.AreCloudServicesReachable);
-            m_ImportToButton.SetEnabled(isEnabled);
-            m_ShowInProjectBrowserButton.SetEnabled(isInProject);
-            m_RemoveImportButton.SetEnabled(isInProject && !isImporting);
-            m_RemoveImportButton.tooltip = isInProject ? string.Empty : L10n.Tr(Constants.RemoveFromProjectButtonDisabledToolTip);
-        }
-
-        static string GetImportButtonTooltip(bool isEnabled, bool isImportingPermission)
-        {
-            if (isEnabled)
+            foreach (var component in m_PageComponents)
             {
-                return string.Empty;
+                component.RefreshButtons(enabled, assetData, importOperation);
             }
-
-            return L10n.Tr(isImportingPermission ? Constants.ImportButtonDisabledToolTip : Constants.ImportNoPermissionMessage);
-        }
-
-        static string GetImportButtonLabel(bool isImporting, AssetPreview.IStatus status, BaseOperation importOperation)
-        {
-            if (isImporting)
-            {
-                return $"{L10n.Tr(Constants.ImportingText)} ({importOperation.Progress * 100:0.#}%)";
-            }
-
-            return status != null ? L10n.Tr(status.ActionText) : L10n.Tr(Constants.ImportActionText);
         }
     }
 }

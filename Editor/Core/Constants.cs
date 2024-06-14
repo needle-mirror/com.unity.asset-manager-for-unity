@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace Unity.AssetManager.Editor
 {
@@ -11,9 +10,14 @@ namespace Unity.AssetManager.Editor
 
         public const string CategoriesScrollViewUssName = "categories-scrollView";
 
-        public const int DefaultPageSize = 25;
+        public const int DefaultPageSize = 50;
 
         public const string ThumbnailFilename = "unity_thumbnail.png";
+
+        // Tabs
+        public const string AssetsTabLabel = "Assets";
+        public const string InProjectTabLabel = "In Project";
+        public const string UploadTabLabel = "Upload";
 
         // Upload
         public const string IgnoreAsset = "Ignore Asset";
@@ -24,6 +28,12 @@ namespace Unity.AssetManager.Editor
         public const string IgnoreDependenciesDialogTitle = "Warning";
         public const string IgnoreDependenciesDialogMessage = "You are trying to upload assets without their dependencies. This might break other assets that depend on them.\nAre you sure you want to proceed?";
         public const string UploadChangelog = "Asset Manager Upload";
+        public const string UploadNoAssetsMessage = "Drag and drop assets from the Project window\n\nor\n\nIn the Project window, right-click on a file or folder and select Upload to Asset Manager";
+        public const string CancelUploadActionText = "Cancel Upload";
+        public const string ClearAllActionText = "Clear All";
+        public const string UploadActionText = "Upload Assets";
+        public const string UploadingText = "Uploading...";
+        public const string UploadNoEntitlementMessage = "You can't upload this asset without an assigned seat. \nContact your Organization Owner to assign you a seat.";
 
         // Preview Status
         public const string ImportedText = "Asset is imported";
@@ -33,21 +43,49 @@ namespace Unity.AssetManager.Editor
 
         // Upload Status
         public const string LinkedText = "This asset is a dependency of another asset";
+        public const string UploadAddText = "This asset does not exist on the cloud and will be added";
         public const string UploadSkipText = "This asset already exists on the cloud and will not be uploaded";
         public const string UploadOverrideText = "This asset will override its cloud version";
         public const string UploadDuplicateText = "This asset already exists on the cloud but a new cloud asset will be uploaded";
 
         // AssetDetailsView Asset info
+        public const string AssetIdText = "Asset Id";
         public const string VersionText = "Ver. ";
-        public const string PendingText = "Pending";
+        public const string PendingVersionText = "Pending Ver.";
+        public const string FromVersionText = "From Ver.";
+        public const string DashboardLinkTooltip = "Open asset in the dashboard";
+        public const string TotalFilesText = "Total Files";
+        public const string FilesSizeText = "Files Size";
+        public const string LoadingText = "Loading...";
+        public const string ChangeLogText = "What's changed?";
+        public const string NoChangeLogText = "No change log provided.";
+        public const string CreatedFromText = "Created From";
+        public const string CreatedByText = "Created By";
+        public const string CreatedDateText = "Created Date";
+        public const string ModifiedByText = "Modified By";
+        public const string ModifiedDateText = "Modified Date";
+        public const string TagsText = "Tags";
+        public const string ProjectText = "Project";
+        public const string AssetTypeText = "Asset Type";
+        public const string StatusText = "Status";
+        public const string SourceFilesText = "Source Files";
+        public const string UVCSFilesText = "UVCS Files";
+        public const string NoFilesText = "No files were found in this asset.";
+        public const string DependenciesText = "Dependencies";
+        public const string NoDependenciesText = "This asset has no dependencies";
+        public const string ServiceAccountText = "Service Account";
+        public const string LatestTagText = "Latest";
+        public const string ImportedTagText = "Imported";
 
         // AssetDetailsView Asset status
         public const string AssetDraftStatus = "Draft";
 
         // AssetDetailsView Import action text
         public const string ImportActionText = "Import";
+        public const string ImportToActionText = "Import To";
         public const string UpdateToLatestActionText = "Update To Latest";
         public const string ReimportActionText = "Re-import";
+        public const string ImportLocationTitle = "Choose import location";
         public const string RemoveFromProjectActionText = "Remove From Project";
         public const string RemoveAllFromProjectActionText = "Remove All From Local Project";
         public const string CancelImportActionText = "Cancel Import";
@@ -75,8 +113,8 @@ namespace Unity.AssetManager.Editor
         public const string GridItemStyleClassName = "grid-view--item";
         public const string EmptyCollectionsText = "This collection has no assets, use the Asset Manager dashboard to link your assets to a collection.";
         public const string EmptyInProjectText = "Your imported assets will be shown here.";
-        public const string EmptyProjectText = "It seems you don't have any assets uploaded to the selected project in your Asset Manager Dashboard.";
-        public const string EmptyAllAssetsText = "It seems you don't have any assets uploaded to the selected organization in your Asset Manager Dashboard.";
+        public const string EmptyProjectText = "The selected project is empty. To add assets, right click on any asset in project window and select upload to asset manager.";
+        public const string EmptyAllAssetsText = "The selected organization is empty. To add assets, right click on any asset in project window and select upload to asset manager.";
         public const int ShrinkSizeInMb = 200;
         public const int DefaultCacheSizeGb = 2;
         public const int DefaultCacheSizeMb = DefaultCacheSizeGb * 1024;
@@ -84,10 +122,6 @@ namespace Unity.AssetManager.Editor
         // Permissions
         public const string ImportPermission = "amc.assets.download";
         public const string UploadPermission = "amc.assets.create";
-
-        // Icons
-        public const string PackageIcon = "Package-Icon.png";
-        public const string ProjectIcon = "Project-Icon.png";
 
         // This exists here for compatibility with 2020.x versions
         public static DateTime UnixEpoch = new(1970, 1, 1, 0, 0, 0);

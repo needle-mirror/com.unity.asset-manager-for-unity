@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using System.Net;
-using Unity.Cloud.Identity;
+using UnityEditor;
 using UnityEngine.UIElements;
+using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Editor
 {
@@ -25,19 +25,25 @@ namespace Unity.AssetManager.Editor
         readonly IAssetDataManager m_AssetDataManager;
         readonly IAssetOperationManager m_AssetOperationManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly IUploadManager m_UploadManager;
+        readonly IAssetImporter m_AssetImporter;
 
         public AssetsGridView(IProjectOrganizationProvider projectOrganizationProvider,
             IUnityConnectProxy unityConnect,
             IPageManager pageManager,
             IAssetDataManager assetDataManager,
             IAssetOperationManager assetOperationManager,
-            ILinksProxy linksProxy)
+            ILinksProxy linksProxy,
+            IUploadManager uploadManager,
+            IAssetImporter assetImporter)
         {
             m_UnityConnect = unityConnect;
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
             m_AssetOperationManager = assetOperationManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_UploadManager = uploadManager;
+            m_AssetImporter = assetImporter;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
             Add(m_Gridview);
@@ -53,6 +59,8 @@ namespace Unity.AssetManager.Editor
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+
+            ServicesContainer.instance.Resolve<IDragAndDropProjectBrowserProxy>().RegisterProjectBrowserHandler(OnProjectBrowserDrop);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
@@ -87,14 +95,80 @@ namespace Unity.AssetManager.Editor
 
         void OnActivePageChanged(IPage page)
         {
+            ClearGrid();
             Refresh();
         }
 
         VisualElement MakeGridViewItem()
         {
-            var item = new GridItem(m_UnityConnect, m_AssetOperationManager, m_PageManager, m_AssetDataManager);
+            var item = new GridItem(m_UnityConnect, m_AssetOperationManager, m_PageManager, m_AssetDataManager, m_UploadManager);
 
-            item.Clicked += e =>
+            item.PointerUpAction += GridItemOnPointerUp(item);
+            item.DragStartedAction += GridItemOnDragStarted(item);
+
+            return item;
+        }
+
+        DragAndDropVisualMode OnProjectBrowserDrop(int id, string path, bool perform)
+        {
+            var draggableObjects = DragAndDrop.objectReferences.OfType<DraggableObjectToImport>().ToList();
+            if (draggableObjects.Count == 0)
+                return DragAndDropVisualMode.None;
+
+            if (perform)
+            {
+                var assetsData = draggableObjects.Select(x => x.AssetIdentifier).Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
+                if (assetsData.Count == 0)
+                    return DragAndDropVisualMode.None;
+
+                try
+                {
+                    m_AssetImporter.StartImportAsync(assetsData, ImportOperation.ImportType.UpdateToLatest, path);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                }
+            }
+
+            return DragAndDropVisualMode.Move;
+        }
+
+        Action GridItemOnDragStarted(GridItem item)
+        {
+            return () =>
+            {
+                // We don't want to be able to drag items when we are on the UploadPage.
+                if (m_PageManager.ActivePage is UploadPage)
+                    return;
+
+                Utilities.DevLog("Drag started on item " + item.AssetData.Name);
+                // Clear existing data in DragAndDrop class.
+                DragAndDrop.PrepareStartDrag();
+
+                // Store reference to object and path to object in DragAndDrop static fields.
+                var selectedAssets = new HashSet<AssetIdentifier> { item.AssetData.Identifier };
+                foreach (var assetIdentifier in m_PageManager.ActivePage.SelectedAssets)
+                {
+                    selectedAssets.Add(assetIdentifier);
+                }
+                var objectReferences = selectedAssets.Select(identifier =>
+                {
+                    var draggableObj = ScriptableObject.CreateInstance<DraggableObjectToImport>();
+                    draggableObj.AssetIdentifier = identifier;
+                    return (Object)draggableObj;
+                }).ToArray();
+
+                DragAndDrop.objectReferences = objectReferences;
+
+                // Start a drag.
+                DragAndDrop.StartDrag($"Drag to Import {objectReferences.Length} Item" + (objectReferences.Length > 1 ? "s" : ""));
+            };
+        }
+
+        Action<PointerUpEvent> GridItemOnPointerUp(GridItem item)
+        {
+            return e =>
             {
                 if(e.target is Toggle)
                     return;
@@ -118,8 +192,6 @@ namespace Unity.AssetManager.Editor
                         (e.modifiers & (EventModifiers.Command | EventModifiers.Control)) != 0);
                 }
             };
-
-            return item;
         }
 
         void BindGridViewItem(VisualElement element, int index)
@@ -141,8 +213,11 @@ namespace Unity.AssetManager.Editor
             var page = m_PageManager.ActivePage;
 
             // The order matters since page is null if there is a Project Level error
-            if ( m_GridErrorOrMessageView.Refresh() || page == null)
+            if (m_GridErrorOrMessageView.Refresh() || page == null)
+            {
+                ClearGrid();
                 return;
+            }
 
             UIElementsUtils.Show(m_Gridview);
 
@@ -152,6 +227,7 @@ namespace Unity.AssetManager.Editor
 
         void ClearGrid()
         {
+            Utilities.DevLog("Clearing grid...");
             m_Gridview.ItemsSource = Array.Empty<IAssetData>();
             m_Gridview.Refresh(GridView.RefreshRowsType.ClearGrid);
             m_Gridview.ResetScrollBarTop();
@@ -159,7 +235,7 @@ namespace Unity.AssetManager.Editor
 
         void OnLoadingStatusChanged(IPage page, bool isLoading)
         {
-            if (!page.IsActivePage)
+            if (!m_PageManager.IsActivePage(page))
                 return;
 
             var hasAsset = page.AssetList?.Any() ?? false;
@@ -183,15 +259,12 @@ namespace Unity.AssetManager.Editor
         void OnLastGridViewItemVisible()
         {
             var page = m_PageManager.ActivePage;
-            if (page is { CanLoadMoreItems: true, IsLoading: false })
-            {
-                page.LoadMore();
-            }
+            page.LoadMore();
         }
 
         void OnErrorOrMessageThrown(IPage page, ErrorOrMessageHandlingData _)
         {
-            if (!page.IsActivePage)
+            if (!m_PageManager.IsActivePage(page))
                 return;
 
             Refresh();

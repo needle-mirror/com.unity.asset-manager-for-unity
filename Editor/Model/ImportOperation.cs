@@ -14,13 +14,18 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class ImportOperation : AssetDataOperation
     {
+        public enum ImportType
+        {
+            Import,
+            UpdateToLatest
+        }
+
         static readonly string k_UVCSUrl = "cloud.plasticscm.com"; // TODO: Would probably need to be changed to support local servers
         const int k_MaxNumberOfFilesForAssetDownloadUrlFetch = 100;
         const int k_MaxConcurrentDownloads = 10;
-        
+
         static readonly SemaphoreSlim k_DownloadFileSemaphore = new(k_MaxConcurrentDownloads);
-        
-        [SerializeField]
+
         Dictionary<string, UnityWebRequest> m_DownloadRequests = new();
 
         [SerializeReference]
@@ -64,10 +69,7 @@ namespace Unity.AssetManager.Editor
         {
             if (TypedAssetData == null)
                 return;
-            
-            // Before importing, ensure the data is synced with the cloud
-            await TypedAssetData.SyncWithCloudAsync(null, token);
-            
+
             await k_DownloadFileSemaphore.WaitAsync(token);
             try
             {
@@ -121,7 +123,7 @@ namespace Unity.AssetManager.Editor
                     var urls = await TypedAssetData.Asset.GetAssetDownloadUrlsAsync(token);
                     foreach (var url in urls)
                     {
-                        if ( (sourceDatasetId == null || !url.ToString().Contains(sourceDatasetId)) && !url.ToString().Contains(k_UVCSUrl))
+                        if ((sourceDatasetId == null || !url.ToString().Contains(sourceDatasetId)) && !url.ToString().Contains(k_UVCSUrl))
                             continue;
 
                         if (MetafilesHelper.IsOrphanMetafile(url.Key, urls.Keys))
@@ -157,13 +159,13 @@ namespace Unity.AssetManager.Editor
                 downloadRequest.Value.SendWebRequest();
             }
         }
-        
+
         void Update()
         {
             if (Progress - m_LastReportedProgress > 0.01)
             {
                 m_LastReportedProgress = Progress;
-                
+
                 Report();
             }
 
@@ -180,7 +182,7 @@ namespace Unity.AssetManager.Editor
         void FinishImport(OperationStatus status)
         {
             Finish(status);
-            
+
             EditorApplication.update -= Update;
         }
     }
