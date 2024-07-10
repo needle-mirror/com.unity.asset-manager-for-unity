@@ -59,19 +59,22 @@ namespace Unity.AssetManager.Editor
                 case OperationStatus.Success:
                     status = ImportEndStatus.Ok;
                     break;
+
                 case OperationStatus.Cancelled:
                     status = ImportEndStatus.Cancelled;
                     break;
+
                 case OperationStatus.Error:
                     status = ImportEndStatus.DownloadError;
                     foreach (var importOperation in m_ImportOperations)
                     {
-                        if(importOperation.Status == OperationStatus.Error){
+                        if (importOperation.Status == OperationStatus.Error)
+                        {
                             foreach (var downloadRequest in importOperation.DownloadRequests)
                             {
-                                if (!string.IsNullOrEmpty(downloadRequest.Value.error))
+                                if (!string.IsNullOrEmpty(downloadRequest.Error))
                                 {
-                                    errorMessage = downloadRequest.Value.error;
+                                    errorMessage = downloadRequest.Error;
                                     break;
                                 }
                             }
@@ -79,7 +82,9 @@ namespace Unity.AssetManager.Editor
                             break;
                         }
                     }
+
                     break;
+
                 default:
                     status = ImportEndStatus.GenericError;
                     break;

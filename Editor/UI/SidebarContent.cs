@@ -15,7 +15,6 @@ namespace Unity.AssetManager.Editor
         readonly IUnityConnectProxy m_UnityConnectProxy;
 
         SideBarAllAssetsFoldout m_AllAssetsFolder;
-        List<SideBarFoldout> m_Foldouts;
         VisualElement m_NoProjectSelectedContainer;
         ScrollView m_ScrollContainer;
 
@@ -45,11 +44,10 @@ namespace Unity.AssetManager.Editor
                 m_ProjectOrganizationProvider, Constants.AllAssetsFolderName);
             m_AllAssetsFolder.AddToClassList("allAssetsFolder");
             m_ScrollContainer.Add(m_AllAssetsFolder);
-            m_Foldouts = new List<SideBarFoldout> { m_AllAssetsFolder };
 
             m_NoProjectSelectedContainer = new VisualElement();
             m_NoProjectSelectedContainer.AddToClassList("NoProjectSelected");
-            m_NoProjectSelectedContainer.Add(new Label { text = L10n.Tr("No project selected") });
+            m_NoProjectSelectedContainer.Add(new Label {text = L10n.Tr("No project selected")});
 
             Add(m_ScrollContainer);
             Add(m_NoProjectSelectedContainer);
@@ -83,7 +81,7 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        internal void Refresh()
+        void Refresh()
         {
             if (!m_UnityConnectProxy.AreCloudServicesReachable)
             {
@@ -93,7 +91,7 @@ namespace Unity.AssetManager.Editor
             }
 
             var projectInfos = m_ProjectOrganizationProvider.SelectedOrganization?.ProjectInfos as IList<ProjectInfo> ??
-                               Array.Empty<ProjectInfo>();
+                Array.Empty<ProjectInfo>();
             if (projectInfos.Count == 0)
             {
                 UIElementsUtils.Hide(m_ScrollContainer);
@@ -121,7 +119,6 @@ namespace Unity.AssetManager.Editor
         void RebuildProjectList(List<ProjectInfo> projectInfos)
         {
             m_ScrollContainer.Clear();
-            m_Foldouts.Clear();
 
             if (projectInfos?.Any() != true)
                 return;
@@ -129,7 +126,6 @@ namespace Unity.AssetManager.Editor
             if (projectInfos.Count > 1)
             {
                 m_ScrollContainer.Add(m_AllAssetsFolder);
-                m_Foldouts.Add(m_AllAssetsFolder);
             }
 
             foreach (var projectInfo in projectInfos)
@@ -137,36 +133,59 @@ namespace Unity.AssetManager.Editor
                 var projectFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
                     m_ProjectOrganizationProvider, projectInfo.Name, projectInfo, null);
                 m_ScrollContainer.Add(projectFoldout);
-                m_Foldouts.Add(projectFoldout);
 
-                if (projectInfo.CollectionInfos?.Any() != true)
-                    continue;
-
-                projectFoldout.ChangeIntoParentFolder();
-                projectFoldout.value = false;
-                foreach (var collection in projectInfo.CollectionInfos)
-                {
-                    if (string.IsNullOrEmpty(collection.ParentPath))
-                    {
-                        var collectionFoldout =
-                            CreateSideBarCollectionFoldout(collection.Name, projectInfo, collection.GetFullPath());
-                        m_Foldouts.Add(collectionFoldout);
-                        projectFoldout.Add(collectionFoldout);
-                    }
-                    else
-                    {
-                        var parentFoldout = GetParentCollectionFoldout(collection);
-                        if (parentFoldout == null)
-                            continue;
-
-                        var collectionFoldout =
-                            CreateSideBarCollectionFoldout(collection.Name, projectInfo, collection.GetFullPath());
-                        parentFoldout.ChangeIntoParentFolder();
-                        parentFoldout.Add(collectionFoldout);
-                        m_Foldouts.Add(collectionFoldout);
-                    }
-                }
+                TryAddCollections(projectInfo);
             }
+        }
+
+        void TryAddCollections(ProjectInfo projectInfo)
+        {
+            // Clean up any existing collection foldouts for the project
+            var projectFoldout = m_ScrollContainer.Q<SideBarCollectionFoldout>(projectInfo.Id);
+            if (projectFoldout == null)
+                return;
+
+            projectFoldout.Clear();
+            projectFoldout.ChangeBackToChildlessFolder();
+
+            projectInfo.OnCollectionsUpdated -= TryAddCollections;
+            if (projectInfo.CollectionInfos == null)
+            {
+                projectInfo.OnCollectionsUpdated += TryAddCollections;
+                return;
+            }
+
+            if (!projectInfo.CollectionInfos.Any())
+                return;
+
+            projectFoldout.value = false;
+            foreach (var collection in projectInfo.CollectionInfos)
+            {
+                CreateFoldoutForParentsThenItself(collection, projectInfo, projectFoldout);
+            }
+        }
+
+        void CreateFoldoutForParentsThenItself(CollectionInfo collectionInfo, ProjectInfo projectInfo,
+            SideBarCollectionFoldout projectFoldout)
+        {
+            if (GetCollectionFoldout(projectInfo, collectionInfo.GetFullPath()) != null)
+                return;
+
+            var collectionFoldout =
+                CreateSideBarCollectionFoldout(collectionInfo.Name, projectInfo, collectionInfo.GetFullPath());
+
+            SideBarFoldout parentFoldout = null;
+            if (!string.IsNullOrEmpty(collectionInfo.ParentPath))
+            {
+                var parentCollection = projectInfo.GetCollection(collectionInfo.ParentPath);
+                CreateFoldoutForParentsThenItself(parentCollection, projectInfo, projectFoldout);
+
+                parentFoldout = GetCollectionFoldout(projectInfo, parentCollection.GetFullPath());
+                Utilities.DevAssert(parentFoldout != null);
+            }
+
+            var immediateParent = parentFoldout ?? projectFoldout;
+            immediateParent.AddFoldout(collectionFoldout);
         }
 
         SideBarFoldout CreateSideBarCollectionFoldout(string foldoutName, ProjectInfo projectInfo,
@@ -176,10 +195,10 @@ namespace Unity.AssetManager.Editor
                 foldoutName, projectInfo, collectionPath);
         }
 
-        SideBarFoldout GetParentCollectionFoldout(CollectionInfo collectionInfo)
+        SideBarFoldout GetCollectionFoldout(ProjectInfo projectInfo, string collectionPath)
         {
-            var collectionFoldouts = m_Foldouts.OfType<SideBarCollectionFoldout>();
-            return collectionFoldouts.FirstOrDefault(i => i.CollectionId == $"{collectionInfo.ProjectId}/{collectionInfo.ParentPath}");
+            var collectionId = SideBarCollectionFoldout.GetCollectionId(projectInfo, collectionPath);
+            return m_ScrollContainer.Q<SideBarFoldout>(collectionId);
         }
 
         void ScrollToHeight(float height)

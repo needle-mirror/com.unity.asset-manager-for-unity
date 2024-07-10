@@ -224,6 +224,7 @@ namespace Unity.AssetManager.Editor
                 var assetData = m_AssetDataManager.GetAssetData(m_AssetData.Identifier);
                 m_AssetData = null;
                 BindWithItem(assetData);
+                m_OperationProgressBar.Refresh(null);
             }
         }
 
@@ -237,7 +238,7 @@ namespace Unity.AssetManager.Editor
             m_AssetPreview.Toggle.SetEnabled(false);
         }
 
-        async Task WaitForResultsAsync(IEnumerable<Task> tasks)
+        async Task WaitForResultsAsync(IReadOnlyCollection<Task> tasks)
         {
             m_LoadingIcon.PlayAnimation();
             UIElementsUtils.Show(m_LoadingIcon);

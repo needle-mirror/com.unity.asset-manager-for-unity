@@ -13,6 +13,7 @@ namespace Unity.AssetManager.Editor
             public static readonly string k_ProgressBarBackground = "download-progress-bar-background";
             public static readonly string k_ProgressBarColor = "download-progress-bar";
             public static readonly string k_ProgressBarError = "download-progress-bar-error";
+            public static readonly string k_ProgressBarSuccess = "download-progress-bar-success";
             public static readonly string k_ProgressBarGridItem = "grid-view--item-download_progress_bar";
             public static readonly string k_ProgressBarDetailsPage = "details-page-download-progress-bar";
             public static readonly string k_ProgressBarDetailsPageContainer = "details-page-download-progress-container";
@@ -106,15 +107,25 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            if (operation.Status != OperationStatus.Error)
+            switch (operation.Status)
             {
-                m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarColor);
-                m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarError);
-            }
-            else
-            {
-                m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
-                m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarError);
+                case OperationStatus.Success:
+                    m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarSuccess);
+                    m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
+                    m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarError);
+                    break;
+
+                case OperationStatus.Error:
+                    m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarError);
+                    m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
+                    m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarSuccess);
+                    break;
+
+                default:
+                    m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarColor);
+                    m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarError);
+                    m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarSuccess);
+                    break;
             }
 
             if (operation.Status == OperationStatus.InProgress)

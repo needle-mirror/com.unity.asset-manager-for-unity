@@ -13,19 +13,19 @@ namespace Unity.AssetManager.Editor
         PageFilters PageFilters { get; }
         AssetIdentifier LastSelectedAssetId { get; }
         IReadOnlyCollection<IAssetData> AssetList { get; }
-        ErrorOrMessageHandlingData ErrorOrMessageHandlingData { get; }
+        MessageData MessageData { get; }
         List<AssetIdentifier> SelectedAssets { get; }
 
         event Action<bool> LoadingStatusChanged;
         event Action<List<AssetIdentifier>> SelectedAssetsChanged;
         event Action<IEnumerable<string>> SearchFiltersChanged;
-        event Action<ErrorOrMessageHandlingData> ErrorOrMessageThrown;
+        event Action<MessageData> MessageThrown;
 
         Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
             GroupableField groupBy, CancellationToken token);
 
         void SelectAsset(AssetIdentifier asset, bool additive);
-        void SelectAssets(List<AssetIdentifier> assets);
+        void SelectAssets(IEnumerable<AssetIdentifier> assets);
         public void ToggleAsset(IAssetData assetData, bool checkState);
         void LoadMore();
         void Clear(bool reloadImmediately, bool keepSelection = false);

@@ -14,6 +14,8 @@ namespace Unity.AssetManager.Editor
         string OrganizationId { get; }
         string ProjectId { get; }
 
+        bool HasValidOrganizationId { get; }
+
         bool AreCloudServicesReachable { get; }
     }
 
@@ -27,34 +29,42 @@ namespace Unity.AssetManager.Editor
         public string OrganizationId => m_ConnectedOrganizationId;
 
         public string ProjectId => m_ConnectedProjectId;
+        public bool HasValidOrganizationId => m_ConnectedOrganizationId != k_NoValue && !string.IsNullOrEmpty(m_ConnectedOrganizationId);
 
-        public bool AreCloudServicesReachable => m_AreCloudServicesReachable;
+        public bool AreCloudServicesReachable => m_AreCloudServicesReachable != CloudServiceReachability.NotReachable;
 
         static readonly string k_NoValue = "none";
         static readonly string k_CloudServiceHealhCheckUrl = "https://services.api.unity.com";
 
-        [SerializeField] 
+        [SerializeField]
         string m_ConnectedOrganizationId = k_NoValue;
 
-        [SerializeField] 
+        [SerializeField]
         string m_ConnectedProjectId = k_NoValue;
 
-        [SerializeField] 
-        bool m_AreCloudServicesReachable;
+        [SerializeField]
+        CloudServiceReachability m_AreCloudServicesReachable = CloudServiceReachability.Unknown;
 
-        [SerializeField] 
+        enum CloudServiceReachability
+        {
+            Unknown,
+            Reachable,
+            NotReachable
+        }
+
+        [SerializeField]
         double m_LastInternetCheck;
 
-        [SerializeField] 
+        [SerializeField]
         bool m_IsInternetReachable;
 
         bool m_IsCouldServicesReachableRequestComplete;
-        
+
         public override void OnEnable()
         {
             m_LastInternetCheck = EditorApplication.timeSinceStartup;
             CheckCloudServicesHealth();
-            
+
             EditorApplication.update += Update;
         }
 
@@ -87,10 +97,10 @@ namespace Unity.AssetManager.Editor
                 m_ConnectedProjectId = CloudProjectSettings.projectId;
                 OnProjectStateChanged();
             }
-            
+
             if (EditorApplication.timeSinceStartup - m_LastInternetCheck < 2.0 || !m_IsCouldServicesReachableRequestComplete)
                 return;
-            
+
             m_LastInternetCheck = EditorApplication.timeSinceStartup;
 
             CheckCloudServicesReachability();
@@ -108,8 +118,8 @@ namespace Unity.AssetManager.Editor
                 }
                 else
                 {
-                    m_AreCloudServicesReachable = false;
-                    OnCloudServicesReachabilityChanged?.Invoke(m_AreCloudServicesReachable);
+                    m_AreCloudServicesReachable = CloudServiceReachability.NotReachable;
+                    OnCloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
                 }
             }
         }
@@ -123,15 +133,15 @@ namespace Unity.AssetManager.Editor
             {
                 asyncOperation.completed += _ =>
                 {
-                    m_AreCloudServicesReachable = request.responseCode is >= 200 and < 300;
-                    OnCloudServicesReachabilityChanged?.Invoke(m_AreCloudServicesReachable);
+                    m_AreCloudServicesReachable = request.responseCode is >= 200 and < 300 ? CloudServiceReachability.Reachable : CloudServiceReachability.NotReachable;
+                    OnCloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
                     m_IsCouldServicesReachableRequestComplete = true;
                 };
             }
             catch (Exception)
             {
-                m_AreCloudServicesReachable = false;
-                OnCloudServicesReachabilityChanged?.Invoke(m_AreCloudServicesReachable);
+                m_AreCloudServicesReachable = CloudServiceReachability.NotReachable;
+                OnCloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
                 m_IsCouldServicesReachableRequestComplete = true;
             }
         }

@@ -7,11 +7,9 @@ namespace Unity.AssetManager.Editor
         const string k_DetailsPageFileItemUssStyle = "details-page-file-item";
         const string k_DetailsPageFileIconItemUssStyle = "details-page-file-item-icon";
         const string k_DetailsPageFileLabelItemUssStyle = "details-page-file-item-label";
-        
+
         readonly Label m_FileName;
         readonly VisualElement m_Icon;
-        readonly IPageManager m_PageManager;
-        string m_Guid;
 
         public MultiSelectionItem()
         {

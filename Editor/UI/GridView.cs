@@ -359,7 +359,7 @@ namespace Unity.AssetManager.Editor
 
         void RefreshRows(float height, RefreshRowsType refreshType)
         {
-            if (refreshType == RefreshRowsType.ClearGrid)
+            if (refreshType == RefreshRowsType.ClearGrid || ItemsSource.Count == 0)
             {
                 ClearGrid();
                 return;

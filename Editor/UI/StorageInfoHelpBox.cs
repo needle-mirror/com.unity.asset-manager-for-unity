@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Cloud.Common;
 using Unity.Cloud.Identity;
@@ -12,6 +13,7 @@ namespace Unity.AssetManager.Editor
     interface IStorageInfoHelpBox
     {
         void RefreshCloudStorageAsync(TimerState timerState);
+        Button DismissButton { get; }
     }
 
     class StorageInfoHelpBox : HelpBox, IStorageInfoHelpBox
@@ -20,31 +22,48 @@ namespace Unity.AssetManager.Editor
         readonly IAssetsProvider m_AssetsProvider;
 
         readonly IUnityConnectProxy m_UnityConnectProxy;
-
+        readonly IPageManager m_PageManager;
+        
         ICloudStorageUsage m_CloudStorageUsage;
         IOrganization m_Organization;
 
-        static readonly string k_StorageUsageWarningMessage = L10n.Tr("Your organization has used {0}% of your included Unity Asset Manager cloud storage.");
-        static readonly string k_ContactOrganizationOwnerMessage = L10n.Tr("Contact your organization owner to upgrade your plan.");
-        static readonly string k_UpgradeToContinueMessage = L10n.Tr("Upgrade to continue use without interruption.");
-        static readonly string k_Upgrade = L10n.Tr("Upgrade");
+        readonly Button m_DismissButton;
 
-        static readonly int? k_StoragePercentUsageWarningThreshold = 75;
+        public Button DismissButton => m_DismissButton;
 
-        public StorageInfoHelpBox(IProjectOrganizationProvider projectOrganizationProvider,
+        static readonly string k_StorageUsageWarningMessage = L10n.Tr("{0} asset storage has reached {1}% usage.");
+        static readonly string k_UploadPageErrorLevelMessage = L10n.Tr("You will not be able to upload new assets.");
+        static readonly string k_Dismiss = L10n.Tr("Dismiss");
+        static readonly string k_Upgrade = L10n.Tr("Upgrade Storage");
+
+        static readonly int? k_StoragePercentUsageInfoThreshold = 75;
+        static readonly int? k_StoragePercentUsageWarningThreshold = 90;
+        static readonly int? k_StoragePercentUsageErrorThreshold = 100;
+        
+        static List<string> m_DismissedOrganizationInfoLevelMessage = new();
+        
+        public StorageInfoHelpBox(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy, IAssetsProvider assetsProvider, IUnityConnectProxy unityConnectProxy)
         {
+            m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_AssetsProvider = assetsProvider;
             m_UnityConnectProxy = unityConnectProxy;
 
             messageType = HelpBoxMessageType.Info;
 
+            m_DismissButton = new Button(DismissOrganizationInfoLevelMessage)
+            {
+                text = k_Dismiss
+            };
+            Add(m_DismissButton);
+            
             var cloudStorageUpgradeButton = new Button(linksProxy.OpenCloudStorageUpgradePlan)
             {
                 text = k_Upgrade
             };
             Add(cloudStorageUpgradeButton);
+
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
@@ -53,6 +72,7 @@ namespace Unity.AssetManager.Editor
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
+            m_PageManager.ActivePageChanged += OnActivePageChanged;
             OnOrganizationChanged(m_ProjectOrganizationProvider.SelectedOrganization);
             Refresh();
         }
@@ -60,6 +80,18 @@ namespace Unity.AssetManager.Editor
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+            m_PageManager.ActivePageChanged -= OnActivePageChanged;
+        }
+        
+        void OnActivePageChanged(IPage page) => Refresh();
+        
+        void DismissOrganizationInfoLevelMessage()
+        {
+            if (!string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedOrganization?.Id) &&
+                !m_DismissedOrganizationInfoLevelMessage.Contains(m_ProjectOrganizationProvider.SelectedOrganization?.Id))
+            {
+                m_DismissedOrganizationInfoLevelMessage.Add(m_ProjectOrganizationProvider.SelectedOrganization?.Id);
+            }
         }
 
         public async void RefreshCloudStorageAsync(TimerState timerState)
@@ -83,16 +115,46 @@ namespace Unity.AssetManager.Editor
                 UIElementsUtils.Hide(this);
                 return;
             }
-
+            
             var percentUsage = FormatUsage(m_CloudStorageUsage.UsageBytes * 1.0 / m_CloudStorageUsage.TotalStorageQuotaBytes * 1.0);
-            if (percentUsage < k_StoragePercentUsageWarningThreshold)
+            if (percentUsage < k_StoragePercentUsageInfoThreshold)
             {
                 UIElementsUtils.Hide(this);
                 return;
             }
 
-            var callToActionText = UserCanUpgradeStoragePlan() ? k_UpgradeToContinueMessage : k_ContactOrganizationOwnerMessage;
-            text = $"{string.Format(k_StorageUsageWarningMessage, percentUsage)} {callToActionText}";
+            // Only hide if dismissed by user and usage is under the warning threshold
+            if (percentUsage < k_StoragePercentUsageWarningThreshold &&
+                !string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedOrganization?.Id) &&
+                m_DismissedOrganizationInfoLevelMessage.Contains(m_ProjectOrganizationProvider.SelectedOrganization?.Id))
+            {
+                UIElementsUtils.Hide(this);
+                return;
+            }
+
+            DisplayUsageMessage(percentUsage);
+        }
+
+        void DisplayUsageMessage(int percentUsage)
+        {
+            text = $"{string.Format(k_StorageUsageWarningMessage, m_Organization.Name,  percentUsage)}";
+            
+            // Hide dismiss button if usage reached the warning level
+            if (percentUsage >= k_StoragePercentUsageWarningThreshold)
+            {
+                messageType = HelpBoxMessageType.Warning;
+                UIElementsUtils.Hide(m_DismissButton);
+            }
+            
+            if (percentUsage >= k_StoragePercentUsageErrorThreshold)
+            {
+                messageType = HelpBoxMessageType.Error;
+                if (m_PageManager.ActivePage is UploadPage)
+                {
+                    text = $"{text} {k_UploadPageErrorLevelMessage}";                    
+                }
+            }
+            
             UIElementsUtils.Show(this);
         }
 
@@ -101,14 +163,6 @@ namespace Unity.AssetManager.Editor
             return Convert.ToInt32(Math.Round(usage * 100.0));
         }
 
-        bool UserCanUpgradeStoragePlan()
-        {
-            if (m_Organization == null)
-                return false;
-
-            return m_Organization.Role.Equals(Unity.Cloud.Common.Role.Manager) ||
-                   m_Organization.Role.Equals(Unity.Cloud.Common.Role.Owner);
-        }
 
         async void OnOrganizationChanged(OrganizationInfo organizationInfo)
         {

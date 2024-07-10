@@ -5,7 +5,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using Unity.Cloud.Common;
 using UnityEngine;
 
@@ -147,13 +146,13 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public static async Task<IAsset> GetAssetAssociatedWithGuidAsync(string assetGuid, string organizationId, string projectId, CancellationToken token)
+        public static async Task<AssetData> GetAssetAssociatedWithGuidAsync(string assetGuid, string organizationId, string projectId, CancellationToken token)
         {
             Utilities.DevAssert(!string.IsNullOrEmpty(assetGuid));
             Utilities.DevAssert(!string.IsNullOrEmpty(organizationId));
             Utilities.DevAssert(!string.IsNullOrEmpty(projectId));
 
-            IAsset existingAsset = null;
+            AssetData existingAsset = null;
 
             // First, check if the guid is associated with an asset that was already imported
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
@@ -163,13 +162,11 @@ namespace Unity.AssetManager.Editor
             if (assetData != null && assetData.Identifier.OrganizationId == organizationId && assetData.Identifier.ProjectId == projectId)
             {
                 var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-                var asset = assetData.Asset;
-
-                var status = await assetsProvider.CompareAssetWithCloudAsync(asset, token);
+                var status = await assetsProvider.CompareAssetWithCloudAsync(assetData, token);
 
                 if (status != AssetComparisonResult.NotFoundOrInaccessible)
                 {
-                    existingAsset = asset;
+                    existingAsset = assetData;
                 }
             }
 
@@ -182,7 +179,7 @@ namespace Unity.AssetManager.Editor
             {
                 var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
                 var asset = await assetProvider.GetLatestAssetVersionAsync(projectDescriptor, assetId, token);
-                return asset?.Descriptor.AssetVersion.ToString();
+                return asset?.Identifier.Version;
             }
             catch (Exception e)
             {

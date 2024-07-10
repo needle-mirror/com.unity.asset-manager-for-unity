@@ -3,7 +3,7 @@ using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Editor
 {
-    enum ErrorOrMessageRecommendedAction
+    enum RecommendedAction
     {
         OpenServicesSettingButton,
         OpenAssetManagerDashboardLink,
@@ -14,9 +14,10 @@ namespace Unity.AssetManager.Editor
     }
 
     [Serializable]
-    class ErrorOrMessageHandlingData
+    class MessageData
     {
-        public string Message;
-        public ErrorOrMessageRecommendedAction ErrorOrMessageRecommendedAction;
+        public string Message { get; set; }
+        public RecommendedAction RecommendedAction { get; set; }
+        public bool IsPageScope { get; set; }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -28,6 +29,7 @@ namespace Unity.AssetManager.Editor
         IAssetData m_SelectedAssetData;
 
         int m_TotalFilesCount;
+        int m_IncompleteFilesCount;
         long m_TotalFileSize;
 
         readonly Action<IEnumerable<AssetPreview.IStatus>> PreviewStatusUpdated;
@@ -173,7 +175,7 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnOperationProgress(AssetDataOperation operation)
         {
-            if (operation is not ImportOperation) // Only import operation are displayed in the details page
+            if (operation is not ImportOperation and not IndefiniteOperation) // Only import operation are displayed in the details page
                 return;
 
             if (!UIElementsUtils.IsDisplayed(this)
@@ -185,7 +187,7 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnOperationFinished(AssetDataOperation operation)
         {
-            if (operation is not ImportOperation) // Only import operation are displayed in the details page
+            if (operation is not ImportOperation and not IndefiniteOperation) // Only import operation are displayed in the details page
                 return;
 
             if (!UIElementsUtils.IsDisplayed(this)
@@ -285,7 +287,7 @@ namespace Unity.AssetManager.Editor
             if (m_SelectedAssetData == null)
                 return;
 
-            // Asynchrounously load the new image and update the UI
+            // Asynchronously load the new image and update the UI
             TaskUtils.TrackException(m_SelectedAssetData.GetThumbnailAsync((identifier, texture2D) =>
             {
                 if (!identifier.Equals(m_SelectedAssetData?.Identifier))
@@ -308,6 +310,7 @@ namespace Unity.AssetManager.Editor
             m_DependenciesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
 
             m_TotalFilesCount = 0;
+            m_IncompleteFilesCount = 0;
             m_TotalFileSize = 0;
 
             RefreshSourceFilesInformationUI(m_SelectedAssetData);
@@ -318,7 +321,7 @@ namespace Unity.AssetManager.Editor
             if (hasFiles)
             {
                 SetFileSize?.Invoke(Utilities.BytesToReadableString(m_TotalFileSize));
-                SetFileCount?.Invoke(m_TotalFilesCount.ToString());
+                SetFileCount?.Invoke(m_IncompleteFilesCount > 0 ? $"{m_TotalFilesCount} [{m_TotalFilesCount} incomplete]" : m_TotalFilesCount.ToString());
             }
             else
             {
@@ -460,7 +463,13 @@ namespace Unity.AssetManager.Editor
 
         void RefreshSourceFilesInformationUI(IAssetData assetData)
         {
-            var files = assetData.SourceFiles.ToList();
+            var files = assetData.SourceFiles.Where(f =>
+            {
+                if (string.IsNullOrEmpty(f?.Path))
+                    return false;
+
+                return !AssetDataDependencyHelper.IsASystemFile(Path.GetExtension(f.Path));
+            }).ToList();
 
             var hasFiles = files.Any();
 
@@ -469,6 +478,7 @@ namespace Unity.AssetManager.Editor
                 var assetFileSize = files.Sum(i => i.FileSize);
                 m_TotalFileSize += assetFileSize;
                 m_TotalFilesCount += files.Count;
+                m_IncompleteFilesCount += files.Count(f => !f.Available);
 
                 m_SourceFilesFoldout.Populate(assetData, files);
             }
@@ -515,10 +525,23 @@ namespace Unity.AssetManager.Editor
             var status = assetData?.PreviewStatus.FirstOrDefault();
             var enabled = UIEnabledStates.CanImport.GetFlag(assetData is AssetData);
             enabled |= UIEnabledStates.InProject.GetFlag(m_AssetDataManager.IsInProject(assetData?.Identifier));
-            enabled |= UIEnabledStates.HasPermissions.GetFlag(m_PermissionsManager.CheckPermission(Constants.ImportPermission));
             enabled |= UIEnabledStates.ServicesReachable.GetFlag(m_UnityConnectProxy.AreCloudServicesReachable);
             enabled |= UIEnabledStates.ValidStatus.GetFlag(status == null || !string.IsNullOrEmpty(status.ActionText));
             enabled |= UIEnabledStates.IsImporting.GetFlag(importOperation?.Status == OperationStatus.InProgress);
+            enabled |= UIEnabledStates.HasPermissions.GetFlag(false);
+
+            foreach (var component in m_PageComponents)
+            {
+                component.RefreshButtons(enabled, assetData, importOperation);
+            }
+
+            TaskUtils.TrackException(RefreshButtonsAsync(assetData, importOperation, enabled));
+        }
+
+        async Task RefreshButtonsAsync(IAssetData assetData, BaseOperation importOperation, UIEnabledStates enabled)
+        {
+            var hasPermissions = await m_PermissionsManager.CheckPermissionAsync(assetData?.Identifier.OrganizationId, assetData?.Identifier.ProjectId, Constants.ImportPermission);
+            enabled |= UIEnabledStates.HasPermissions.GetFlag(hasPermissions);
 
             foreach (var component in m_PageComponents)
             {

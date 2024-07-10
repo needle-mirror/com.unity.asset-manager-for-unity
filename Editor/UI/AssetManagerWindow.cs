@@ -56,7 +56,8 @@ namespace Unity.AssetManager.Editor
                 container.Resolve<IProjectIconDownloader>(),
                 container.Resolve<IPermissionsManager>(),
                 container.Resolve<IUploadManager>(),
-                container.Resolve<IPopupManager>());
+                container.Resolve<IPopupManager>(),
+                container.Resolve<IAssetsProvider>());
 
             m_Root.RegisterCallback<GeometryChangedEvent>(OnResized);
             m_Root.OnEnable();
@@ -121,11 +122,8 @@ namespace Unity.AssetManager.Editor
 
         public void AddItemsToMenu(GenericMenu menu)
         {
-            if (ServicesContainer.instance.Resolve<IUnityConnectProxy>().AreCloudServicesReachable)
-            {
-                var refreshItem = new GUIContent("Refresh");
-                menu.AddItem(refreshItem, false, Refresh);
-            }
+            var refreshItem = new GUIContent("Refresh");
+            menu.AddItem(refreshItem, false, Refresh);
 
             m_Root?.AddItemsToMenu(menu);
         }
@@ -139,7 +137,7 @@ namespace Unity.AssetManager.Editor
             window.Show();
         }
 
-        void RefreshAll()
+        internal void RefreshAll()
         {
             // Calling a manual Refresh should force a brand new initialization of the services and UI
             OnDisable();

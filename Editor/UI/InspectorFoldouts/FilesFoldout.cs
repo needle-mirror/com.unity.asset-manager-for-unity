@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -15,11 +16,13 @@ namespace Unity.AssetManager.Editor
         {
             public string Filename { get; }
             public string Guid { get; }
+            public bool Uploaded { get; }
 
-            public FileItem(string filename, string guid)
+            public FileItem(string filename, string guid, bool uploaded)
             {
                 Filename = filename;
                 Guid = guid;
+                Uploaded = uploaded;
             }
         }
 
@@ -54,7 +57,7 @@ namespace Unity.AssetManager.Editor
                     guid = GetFileGuid(assetData, assetDataFile.Path);
                 }
 
-                m_FilesList.Add(new FileItem(assetDataFile.Path, guid));
+                m_FilesList.Add(new FileItem(assetDataFile.Path, guid, assetDataFile.Available));
             }
 
             return m_FilesList;
@@ -71,7 +74,7 @@ namespace Unity.AssetManager.Editor
 
             var enabled = !MetafilesHelper.IsOrphanMetafile(fileItem.Filename, m_FilesList.Select(f => f.Filename).ToList());
 
-            element.Refresh(fileItem.Filename, fileItem.Guid, enabled);
+            element.Refresh(fileItem.Filename, fileItem.Guid, enabled, fileItem.Uploaded);
         }
 
         string GetFileGuid(IAssetData assetData, string filename)

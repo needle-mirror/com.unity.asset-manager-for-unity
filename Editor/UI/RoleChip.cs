@@ -26,10 +26,8 @@ namespace Unity.AssetManager.Editor
 
             m_Label = new Label();
             m_Label.pickingMode = PickingMode.Ignore;
-            m_Label.text = m_PermissionsManager.Role.ToString();
+            m_Label.text =string.Empty;
             Add(m_Label);
-
-            UpdateVisibility();
 
             RegisterCallback<ClickEvent>(OnClicked);
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
@@ -45,6 +43,8 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
+
+            TaskUtils.TrackException(SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id, m_ProjectOrganizationProvider.SelectedProject?.Id));
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
@@ -57,30 +57,26 @@ namespace Unity.AssetManager.Editor
         {
             if (projectInfo != null)
             {
-                await SetProjectRole(projectInfo.Id);
+                await SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id, projectInfo.Id);
             }
         }
 
         void OnActivePageChanged(IPage page)
         {
-            UpdateVisibility();
+            TaskUtils.TrackException(SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id, m_ProjectOrganizationProvider.SelectedProject?.Id));
         }
 
-        async Task SetProjectRole(string projectId)
+        async Task SetProjectRole(string organizationId, string projectId)
         {
-            UIElementsUtils.SetDisplay(this, false);
+            UIElementsUtils.Hide(this);
             if (string.IsNullOrEmpty(projectId))
                 return;
 
-            var role = await m_PermissionsManager.FetchRoleAsync(projectId);
+            var role = await m_PermissionsManager.GetRoleAsync(organizationId, projectId);
             m_Label.text = role.ToString();
-            UpdateVisibility();
-        }
 
-        void UpdateVisibility()
-        {
             var isVisible = m_PageManager.ActivePage is CollectionPage or UploadPage;
-            UIElementsUtils.SetDisplay(this, isVisible && m_PermissionsManager.Role != Role.None);
+            UIElementsUtils.SetDisplay(this, isVisible && role != Role.None);
         }
     }
 }

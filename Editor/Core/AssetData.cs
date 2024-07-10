@@ -107,7 +107,7 @@ namespace Unity.AssetManager.Editor
 
         [SerializeReference]
         List<IAssetDataFile> m_UVCSFiles = new();
-        
+
         [SerializeReference]
         List<IAssetData> m_Versions = new();
 
@@ -122,10 +122,33 @@ namespace Unity.AssetManager.Editor
         Task m_SyncWithCloudTask;
         Task m_SyncWithCloudLatestTask;
 
-        public IAsset Asset => m_Asset ??= Services.AssetRepository.DeserializeAsset(m_JsonAssetSerialized);
+        public IAsset Asset
+        {
+            get
+            {
+                if (m_Asset == null)
+                {
+                    // Internal Asset is null. Probably because of a domain reload. Ask the assets provider to deserialized
+                    // our internal data.
+                    var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+                    assetsProvider.OnAfterDeserializeAssetData(this);
+                }
+    
+                return m_Asset;
+            }
+            // Only AssetsSdkProvider should be setting this value
+            set
+            {
+                m_Asset = value;
+            }
+        }
+
+        // Only AssetsSdkProvider should be getting this value
+        public string AssetSerialized => m_JsonAssetSerialized;
+    
         public AssetIdentifier Identifier => m_Identifier ??= new AssetIdentifier(Asset.Descriptor);
-        public int SequenceNumber => Asset.VersionNumber;
-        public int ParentSequenceNumber => Asset.ParentVersionNumber;
+        public int SequenceNumber => Asset.FrozenSequenceNumber;
+        public int ParentSequenceNumber => Asset.ParentFrozenSequenceNumber;
         public string Changelog => Asset.Changelog;
         public string Name => Asset.Name;
         public AssetType AssetType => Asset.Type.ConvertCloudAssetTypeToAssetType();
@@ -135,11 +158,13 @@ namespace Unity.AssetManager.Editor
         public DateTime? Updated => Asset.AuthoringInfo?.Updated;
         public string CreatedBy => Asset.AuthoringInfo?.CreatedBy.ToString() ?? null;
         public string UpdatedBy => Asset.AuthoringInfo?.UpdatedBy.ToString() ?? null;
+        public bool IsFrozen => Asset.IsFrozen;
         public IEnumerable<string> Tags => Asset.Tags;
         public string PrimaryExtension => m_PrimaryExtension;
         public IEnumerable<IAssetDataFile> SourceFiles => m_SourceFiles;
         public IEnumerable<DependencyAsset> Dependencies => m_DependencyAssets;
         public IEnumerable<IAssetDataFile> UVCSFiles => m_UVCSFiles;
+
         public IEnumerable<AssetPreview.IStatus> PreviewStatus
         {
             get
@@ -206,12 +231,13 @@ namespace Unity.AssetManager.Editor
             {
                 var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
                 var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
-                if (Services.AuthenticationState.Equals(AuthenticationState.LoggedIn) &&
+                var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+                if (assetsSdkProvider.AuthenticationState == AuthenticationState.LoggedIn &&
                     unityConnectProxy.AreCloudServicesReachable &&
                     assetDataManager.IsInProject(Identifier))
                 {
                     m_PreviewStatusTask = ServicesContainer.instance.Resolve<IAssetsProvider>()
-                        .CompareAssetWithCloudAsync(m_Asset, token);
+                        .CompareAssetWithCloudAsync(this, token);
                 }
                 else
                 {
@@ -238,7 +264,7 @@ namespace Unity.AssetManager.Editor
                 try
                 {
                     await m_PrimaryExtensionTask;
-                    if(string.IsNullOrEmpty(m_PrimaryExtension) || m_PrimaryExtension == NoPrimaryExtension)
+                    if (string.IsNullOrEmpty(m_PrimaryExtension) || m_PrimaryExtension == NoPrimaryExtension)
                     {
                         m_PrimaryExtensionTask ??= RefreshUVCSFilesAndPrimaryExtensionAsync(token);
                         await m_PrimaryExtensionTask;
@@ -333,9 +359,8 @@ namespace Unity.AssetManager.Editor
 
         async Task UpdateAssetToLatestAsync(CancellationToken token)
         {
-            m_Asset = await Asset.QueryAssetVersions().SearchLatestAssetVersionAsync(token);
+            m_Asset = await Asset.WithLatestVersionAsync(token);
             m_Identifier = new AssetIdentifier(m_Asset.Descriptor);
-            m_AssetComparisonResult = AssetComparisonResult.UpToDate;
 
             var tasks = new List<Task>
             {
@@ -356,7 +381,8 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void OnAfterDeserialize() { }
+        public void OnAfterDeserialize()
+        { }
 
         void CleanCachedData()
         {
@@ -415,7 +441,7 @@ namespace Unity.AssetManager.Editor
         {
             var files = new List<IAssetDataFile>();
 
-            var extensions = new List<string>();
+            var extensions = new HashSet<string>();
             await foreach (var file in GetSourceCloudFilesAsync(token))
             {
                 files.Add(new AssetDataFile(file));
@@ -425,7 +451,7 @@ namespace Unity.AssetManager.Editor
             m_SourceFiles = files;
             m_PrimaryExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(extensions) ?? NoPrimaryExtension;
         }
-        
+
         async IAsyncEnumerable<IFile> GetSourceCloudFilesAsync(
             [EnumeratorCancellation] CancellationToken token = default)
         {
@@ -509,9 +535,8 @@ namespace Unity.AssetManager.Editor
             var versions = new List<IAssetData>();
             try
             {
-                await foreach (var asset in GetVersionsAsync(token))
+                await foreach (var assetData in GetVersionsAsync(token))
                 {
-                    var assetData = new AssetData(asset);
                     versions.Add(assetData);
                     assetData.m_Versions = versions;
                 }
@@ -524,14 +549,14 @@ namespace Unity.AssetManager.Editor
             m_Versions = versions;
         }
 
-        async IAsyncEnumerable<IAsset> GetVersionsAsync(
+        async IAsyncEnumerable<AssetData> GetVersionsAsync(
             [EnumeratorCancellation] CancellationToken token = default)
         {
-            await foreach (var version in Asset.QueryAssetVersions()
+            await foreach (var version in Asset.QueryVersions()
                                .OrderBy("versionNumber", SortingOrder.Descending)
                                .ExecuteAsync(token))
             {
-                yield return version;
+                yield return version == null ? null : new AssetData(version);
             }
         }
     }

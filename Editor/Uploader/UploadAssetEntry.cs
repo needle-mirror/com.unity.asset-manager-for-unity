@@ -15,7 +15,7 @@ namespace Unity.AssetManager.Editor
         string Name { get; }
         string Guid { get; }
         bool IsIgnored { get; set; }
-        Cloud.Assets.AssetType CloudType { get; }
+        AssetType AssetType { get; }
         IReadOnlyCollection<string> Tags { get; }
         IReadOnlyCollection<string> Files { get; }
         IReadOnlyCollection<string> Dependencies { get; }
@@ -42,12 +42,16 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         List<string> m_Dependencies;
 
+        [SerializeField]
+        AssetType m_AssetType;
+
         public string Name => m_Name;
         public string Guid => m_Guid;
-        public Cloud.Assets.AssetType CloudType => Cloud.Assets.AssetType.Other; // TODO
+        public AssetType AssetType => m_AssetType;
         public IReadOnlyCollection<string> Tags => m_Tags;
         public IReadOnlyCollection<string> Files => m_Files;
         public IReadOnlyCollection<string> Dependencies => m_Dependencies;
+
         public bool IsIgnored
         {
             get => m_Ignored;
@@ -86,6 +90,13 @@ namespace Unity.AssetManager.Editor
                     .Select(AssetDatabase.AssetPathToGUID)
                     .ToList();
             }
+
+            var extensions = m_Files.Select(Path.GetExtension).ToHashSet();
+            var primaryExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(extensions);
+
+            var unityAssetType = AssetDataTypeHelper.GetUnityAssetType(primaryExtension);
+
+            m_AssetType = unityAssetType.ConvertUnityAssetTypeToAssetType();
         }
 
         void AddAssetAndItsMetaFile(string assetPath)

@@ -38,37 +38,38 @@ namespace Unity.AssetManager.Editor
 
     class UnityTypeDescriptor
     {
-        public HashSet<string> Extensions;
-        public IconSource IconSource;
-        public string IconStr;
-        public UnityAssetType Type;
+        public readonly HashSet<string> Extensions;
+        public readonly UnityAssetType Type;
+
+        readonly IconSource m_IconSource;
+        readonly string m_IconStr;
 
         public UnityTypeDescriptor(UnityAssetType type, params string[] ext)
         {
             Type = type;
             Extensions = new HashSet<string>(ext);
-            IconSource = IconSource.Default;
-            IconStr = string.Empty;
+            m_IconSource = IconSource.Default;
+            m_IconStr = string.Empty;
         }
 
         public UnityTypeDescriptor(UnityAssetType type, IconSource iconSource, string iconStr, params string[] ext)
         {
             Type = type;
             Extensions = new HashSet<string>(ext);
-            IconSource = iconSource;
-            IconStr = iconStr;
+            m_IconSource = iconSource;
+            m_IconStr = iconStr;
         }
 
         public Texture2D GetIcon()
         {
-            switch (IconSource)
+            switch (m_IconSource)
             {
                 case IconSource.Typename:
-                    return AssetDataTypeHelper.GetIconFromType(IconStr);
+                    return AssetDataTypeHelper.GetIconFromType(m_IconStr);
                 case IconSource.Resource:
-                    return AssetDataTypeHelper.GetIconFromResource(IconStr);
+                    return AssetDataTypeHelper.GetIconFromResource(m_IconStr);
                 case IconSource.TextureName:
-                    return AssetDataTypeHelper.GetIconFromTextureName(IconStr);
+                    return AssetDataTypeHelper.GetIconFromTextureName(m_IconStr);
                 default:
                     return InternalEditorUtility.GetIconForFile(Extensions.FirstOrDefault());
             }
@@ -82,6 +83,7 @@ namespace Unity.AssetManager.Editor
         {
             new UnityTypeDescriptor(UnityAssetType.Scene, ".unity"),
             new UnityTypeDescriptor(UnityAssetType.Prefab, ".prefab"),
+            new UnityTypeDescriptor(UnityAssetType.Other, IconSource.TextureName, "SpeedTreeImporter Icon", ".st"),
             new UnityTypeDescriptor(UnityAssetType.Mesh, ".3df", ".3dm", ".3dmf", ".3ds", ".3dv", ".3dx",
                 ".blend", ".c4d", ".fbx", ".lwo", ".lws", ".ma", ".max", ".mb", ".mesh", ".obj", ".vrl", ".wrl",
                 ".wrz"),
@@ -174,11 +176,6 @@ namespace Unity.AssetManager.Editor
             return InternalEditorUtility.GetIconForFile(extension);
         }
 
-        public static Texture2D GetIconForFile(string path)
-        {
-            return GetIconForExtension(string.IsNullOrEmpty(path) ? null : Path.GetExtension(path));
-        }
-
         public static UnityAssetType GetUnityAssetType(string extension)
         {
             if (string.IsNullOrEmpty(extension))
@@ -199,7 +196,7 @@ namespace Unity.AssetManager.Editor
         public static Regex GetRegexForExtensions(UnityAssetType type)
         {
             var pattern = string.Empty;
-            var extensions = k_UnityTypeDescriptors.FirstOrDefault(x => x.Type == type)?.Extensions;
+            var extensions = k_UnityTypeDescriptors.Find(x => x.Type == type)?.Extensions;
 
             if (extensions != null)
             {
@@ -209,7 +206,7 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
-            pattern = pattern.Substring(1);
+            pattern = pattern[1..];
 
             return new Regex($".*({pattern})", RegexOptions.IgnoreCase);
         }

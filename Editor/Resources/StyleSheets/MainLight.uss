@@ -193,7 +193,7 @@ SearchBar {
     background-color: white;
 }
 
-GridErrorOrMessageView > .unity-label {
+GridMessageView > .unity-label {
     color: rgb(100, 100, 100);
 }
 
@@ -204,19 +204,6 @@ GridErrorOrMessageView > .unity-label {
 .errorView-action-button-link{
     color: #3A72B0;
     background-color: rgba(0, 0, 0, 0);
-}
-
-ActionHelpBox {
-    background-color: #E0E0E0;
-    border-color: #616161;
-}
-
-ActionHelpBox ErrorOrMessageActionButton {
-    background-color: #b4b4b4;
-}
-
-.ActionHelpBoxContainer {
-    background-color: #A5A5A5;
 }
 
 /************************************************
@@ -259,11 +246,7 @@ TagChip:hover {
 * Multi Selection Page Container
 ************************************************/
 
-.multi-selection-unimported-foldout > Toggle{
-    background-color: rgba(198, 198, 198, 1);
-}
-
-.multi-selection-imported-foldout > Toggle{
+.multi-selection-unimported-foldout > Toggle, .multi-selection-imported-foldout > Toggle, .multi-selection-upload-ignored-foldout > Toggle, .multi-selection-upload-included-foldout > Toggle{
     background-color: rgba(198, 198, 198, 1);
 }
 

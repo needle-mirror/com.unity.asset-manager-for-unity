@@ -86,7 +86,7 @@ namespace Unity.AssetManager.Editor
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_DownloadManager.DownloadFinalized += OnDownloadFinalized;
-            Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         }
 
         public override void OnDisable()
@@ -94,12 +94,12 @@ namespace Unity.AssetManager.Editor
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_DownloadManager.DownloadFinalized -= OnDownloadFinalized;
-            Services.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         }
 
-        void OnAuthenticationStateChanged()
+        void OnAuthenticationStateChanged(AuthenticationState newState)
         {
-            if (Services.AuthenticationState.Equals(AuthenticationState.LoggedIn)
+            if (newState == AuthenticationState.LoggedIn
                 && m_UnityConnectProxy.AreCloudServicesReachable
                 && m_OrganizationInfo != null)
             {
@@ -109,7 +109,8 @@ namespace Unity.AssetManager.Editor
 
         private void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
-            if (cloudServicesReachable && m_OrganizationInfo != null && Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
+            if (cloudServicesReachable && m_OrganizationInfo != null &&
+                m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedIn)
             {
                 OnOrganizationChanged(m_OrganizationInfo);
             }
@@ -217,7 +218,7 @@ namespace Unity.AssetManager.Editor
             m_OrganizationInfo = organizationInfo;
             if (organizationInfo != null
                 && m_UnityConnectProxy.AreCloudServicesReachable
-                && Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
+                && m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedIn)
             {
                 var iconsUrls = await m_AssetsProvider.GetProjectIconUrlsAsync(organizationInfo.Id, CancellationToken.None);
 

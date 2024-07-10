@@ -116,7 +116,7 @@ namespace Unity.AssetManager.Editor
             if (page == null)
                 return;
 
-            if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.ErrorOrMessageHandlingData.Message))
+            if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.MessageData.Message))
             {
                 UIElementsUtils.Hide(m_RefreshButton);
                 UIElementsUtils.Hide(m_ToolbarSearchField);

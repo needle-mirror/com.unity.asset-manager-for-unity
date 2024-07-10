@@ -4,16 +4,16 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    class ErrorOrMessageActionButton : Button
+    class MessageActionButton : Button
     {
-        const string k_ButtonClassName = "errorOrMessageView-button";
-        const string k_LinkClassName = "errorOrMessageView-action-button-link";
+        const string k_ButtonClassName = "messageView-button";
+        const string k_LinkClassName = "messageView-action-button-link";
         readonly ILinksProxy m_LinksProxy;
 
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
-        public ErrorOrMessageActionButton(IPageManager pageManager,
+        public MessageActionButton(IPageManager pageManager,
             IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy)
         {
@@ -22,14 +22,14 @@ namespace Unity.AssetManager.Editor
             m_LinksProxy = linksProxy;
         }
 
-        public void SetErrorSuggestion(ErrorOrMessageRecommendedAction action, bool isPageError)
+        public void SetRecommendedAction(RecommendedAction action)
         {
             clickable = null;
             UIElementsUtils.Show(this);
 
             switch (action)
             {
-                case ErrorOrMessageRecommendedAction.OpenServicesSettingButton:
+                case RecommendedAction.OpenServicesSettingButton:
                 {
                     RemoveFromClassList(k_LinkClassName);
                     AddToClassList(k_ButtonClassName);
@@ -39,7 +39,7 @@ namespace Unity.AssetManager.Editor
                     text = tooltip;
                 }
                     break;
-                case ErrorOrMessageRecommendedAction.EnableProject:
+                case RecommendedAction.EnableProject:
                 {
                     RemoveFromClassList(k_LinkClassName);
                     AddToClassList(k_ButtonClassName);
@@ -49,7 +49,7 @@ namespace Unity.AssetManager.Editor
                     text = tooltip;
                 }
                     break;
-                case ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink:
+                case RecommendedAction.OpenAssetManagerDashboardLink:
                 {
                     RemoveFromClassList(k_ButtonClassName);
                     AddToClassList(k_LinkClassName);
@@ -59,23 +59,23 @@ namespace Unity.AssetManager.Editor
                     text = tooltip;
                 }
                     break;
-                case ErrorOrMessageRecommendedAction.OpenAssetManagerDocumentationPage:
-                {
-                    RemoveFromClassList(k_ButtonClassName);
-                    AddToClassList(k_LinkClassName);
-                    clicked += () => m_LinksProxy.OpenAssetManagerDocumentationPage("single-asset");
-
-                    tooltip = L10n.Tr("Open the Seat Manager Dashboard");
-                    text = tooltip;
-                } 
-                    break;
-                case ErrorOrMessageRecommendedAction.Retry when isPageError:
+                case RecommendedAction.OpenAssetManagerDocumentationPage:
                 {
                     RemoveFromClassList(k_LinkClassName);
                     AddToClassList(k_ButtonClassName);
-                    clicked += ClearActivePage;
+                    clicked += () => m_LinksProxy.OpenAssetManagerDocumentationPage("unity-editor/upload-editor-assets-to-cloud");
 
-                    tooltip = L10n.Tr("Retry");
+                    tooltip = L10n.Tr("Open Documentation");
+                    text = tooltip;
+                }
+                    break;
+                case RecommendedAction.Retry:
+                {
+                    RemoveFromClassList(k_LinkClassName);
+                    AddToClassList(k_ButtonClassName);
+                    clicked += RefreshWindow;
+
+                    tooltip = L10n.Tr("Refresh");
                     text = tooltip;
                 }
                     break;
@@ -85,9 +85,10 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        void ClearActivePage()
+        static void RefreshWindow()
         {
-            m_PageManager.ActivePage?.Clear(true);
+            Utilities.DevAssert(AssetManagerWindow.Instance != null);
+            AssetManagerWindow.Instance.RefreshAll();
         }
     }
 }

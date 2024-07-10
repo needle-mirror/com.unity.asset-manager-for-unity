@@ -42,24 +42,24 @@ namespace Unity.AssetManager.Editor
         {
             if (string.IsNullOrEmpty(CollectionPath) && !m_AssetList.Any() && !PageFilters.SearchFilters.Any())
             {
-                SetErrorOrMessageData(L10n.Tr(Constants.EmptyProjectText),
-                    ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
+                SetMessageData(L10n.Tr(Constants.EmptyProjectText),
+                    RecommendedAction.OpenAssetManagerDashboardLink);
             }
             else if (PageFilters.SearchFilters.Any() && !m_AssetList.Any())
             {
-                SetErrorOrMessageData(
+                SetMessageData(
                     L10n.Tr("No results found for \"" + string.Join(", ", PageFilters.SearchFilters) + "\""),
-                    ErrorOrMessageRecommendedAction.None);
+                    RecommendedAction.None);
             }
             else if (!m_AssetList.Any())
             {
-                SetErrorOrMessageData(L10n.Tr(Constants.EmptyCollectionsText),
-                    ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
+                SetMessageData(L10n.Tr(Constants.EmptyCollectionsText),
+                    RecommendedAction.OpenAssetManagerDashboardLink);
             }
             else
             {
                 PageFilters.EnableFilters();
-                SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
+                SetMessageData(string.Empty, RecommendedAction.None);
             }
         }
 

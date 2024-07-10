@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using Unity.Cloud.Common;
 using Unity.Cloud.Identity;
 using UnityEngine;
@@ -50,24 +49,33 @@ namespace Unity.AssetManager.Editor
         readonly Dictionary<TrackedAssetIdentifier, ImportedAssetInfo> m_TrackedIdentifierToImportedAssetInfoLookup = new();
         readonly Dictionary<string, List<ImportedAssetInfo>> m_FileGuidToImportedAssetInfosMap = new();
 
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
+        
         public event Action<AssetChangeArgs> ImportedAssetInfoChanged = delegate { };
         public event Action<AssetChangeArgs> AssetDataChanged = delegate { };
-
+        
         public IReadOnlyCollection<ImportedAssetInfo> ImportedAssetInfos => m_TrackedIdentifierToImportedAssetInfoLookup.Values;
 
+        [ServiceInjection]
+        public void Inject(IAssetsProvider assetsProvider)
+        {
+            m_AssetsProvider = assetsProvider;
+        }
+        
         public override void OnEnable()
         {
-            Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         }
 
         public override void OnDisable()
         {
-            Services.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         }
 
-        void OnAuthenticationStateChanged()
+        void OnAuthenticationStateChanged(AuthenticationState newState)
         {
-            if (Services.AuthenticationState != AuthenticationState.LoggedIn)
+            if (newState != AuthenticationState.LoggedIn)
             {
                 m_AssetData.Clear();
             }
@@ -264,13 +272,11 @@ namespace Unity.AssetManager.Editor
             {
                 return assetData;
             }
-
-            IAsset asset = null;
-
+            
             try
             {
                 var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-                asset = await assetProvider.GetAssetAsync(assetIdentifier.ToAssetDescriptor(), token);
+                assetData = await assetProvider.GetAssetAsync(assetIdentifier.ToAssetDescriptor(), token);
             }
             catch (ForbiddenException)
             {
@@ -281,15 +287,12 @@ namespace Unity.AssetManager.Editor
                 Debug.LogException(e);
             }
 
-            if (asset != null)
+            if (assetData != null)
             {
-                assetData = new AssetData(asset);
-                AddOrUpdateAssetDataFromCloudAsset(new[] {assetData});
-
-                return assetData;
+                AddOrUpdateAssetDataFromCloudAsset(new[] { assetData });
             }
 
-            return null;
+            return assetData;
         }
 
         public bool IsInProject(AssetIdentifier id)

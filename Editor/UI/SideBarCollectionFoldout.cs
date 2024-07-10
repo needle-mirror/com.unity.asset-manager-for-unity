@@ -11,13 +11,10 @@ namespace Unity.AssetManager.Editor
 
         readonly ProjectInfo m_ProjectInfo;
         readonly string m_CollectionPath;
-        readonly string m_CollectionId;
 
         readonly IUploadManager m_UploadManager;
 
         readonly Image m_Icon;
-
-        public string CollectionId => m_CollectionId;
 
         internal SideBarCollectionFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IStateManager stateManager,
             IProjectOrganizationProvider projectOrganizationProvider,
@@ -26,7 +23,7 @@ namespace Unity.AssetManager.Editor
         {
             m_ProjectInfo = projectInfo;
             m_CollectionPath = collectionPath;
-            m_CollectionId = $"{m_ProjectInfo.Id}/{m_CollectionPath}";
+            name = GetCollectionId(m_ProjectInfo, m_CollectionPath);
 
             m_UploadManager = ServicesContainer.instance.Resolve<IUploadManager>();
 
@@ -49,6 +46,11 @@ namespace Unity.AssetManager.Editor
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
         }
 
+        public static string GetCollectionId(ProjectInfo projectInfo, string collectionPath)
+        {
+            return string.IsNullOrEmpty(collectionPath) ? projectInfo.Id : $"{projectInfo.Id}::{collectionPath}";
+        }
+        
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_UploadManager.UploadBegan += OnUploadBegan;
@@ -102,15 +104,15 @@ namespace Unity.AssetManager.Editor
                 m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
             }
         }
-
-        internal override void ChangeIntoParentFolder()
+        
+        public override void AddFoldout(SideBarFoldout child)
         {
-            base.ChangeIntoParentFolder();
+            base.AddFoldout(child);
 
             if (string.IsNullOrEmpty(m_CollectionPath))
                 return;
 
-            value = !m_StateManager.CollapsedCollections.Contains(m_CollectionId);
+            value = !m_StateManager.CollapsedCollections.Contains(name);
             SetIcon();
         }
 
@@ -125,11 +127,11 @@ namespace Unity.AssetManager.Editor
 
                 if (!value)
                 {
-                    m_StateManager.CollapsedCollections.Add(m_CollectionId);
+                    m_StateManager.CollapsedCollections.Add(name);
                 }
                 else
                 {
-                    m_StateManager.CollapsedCollections.Remove(m_CollectionId);
+                    m_StateManager.CollapsedCollections.Remove(name);
                 }
             });
         }

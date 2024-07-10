@@ -91,7 +91,7 @@ namespace Unity.AssetManager.Editor
 
         void InitializeUI()
         {
-            if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.ErrorOrMessageHandlingData.Message))
+            if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.MessageData.Message))
                 return;
 
             m_FilterButton = new Button();

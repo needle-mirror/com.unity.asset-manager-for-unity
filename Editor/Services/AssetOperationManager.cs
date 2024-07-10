@@ -11,8 +11,8 @@ namespace Unity.AssetManager.Editor
         event Action<AssetDataOperation> OperationFinished;
 
         AssetDataOperation GetAssetOperation(AssetIdentifier identifier);
-
         void RegisterOperation(AssetDataOperation operation);
+        void ClearFinishedOperations();
     }
 
     [Serializable]
@@ -50,7 +50,7 @@ namespace Unity.AssetManager.Editor
         public void RegisterOperation(AssetDataOperation operation)
         {
             var identifier = new TrackedAssetIdentifier(operation.Identifier);
-            
+
             if (m_Operations.TryGetValue(identifier, out var existingOperation) &&
                 operation == existingOperation)
 

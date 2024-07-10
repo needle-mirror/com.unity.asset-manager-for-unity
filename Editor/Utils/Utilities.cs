@@ -94,6 +94,12 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        [System.Diagnostics.Conditional("AM4U_DEV")]
+        public static void DevLogError(string message)
+        {
+            Debug.LogError(message);
+        }
+
         public static string GetInitials(string fullName)
         {
             if (string.IsNullOrWhiteSpace(fullName))

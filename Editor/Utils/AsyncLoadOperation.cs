@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
@@ -17,9 +18,12 @@ namespace Unity.AssetManager.Editor
         public bool IsLoading => m_IsLoading;
 
         public async Task Start<T>(Func<CancellationToken, IAsyncEnumerable<T>> createTaskFromToken,
-            Action loadingStartCallback = null, Action<IEnumerable<T>> successCallback = null,
+            Action loadingStartCallback = null,
+            Action<IEnumerable<T>> successCallback = null,
             Action<T> onItemCallback = null,
-            Action cancelledCallback = null, Action<Exception> exceptionCallback = null, Action finallyCallback = null)
+            Action cancelledCallback = null,
+            Action<Exception> exceptionCallback = null,
+            Action finallyCallback = null)
         {
             if (createTaskFromToken == null)
                 return;
@@ -68,8 +72,11 @@ namespace Unity.AssetManager.Editor
         }
 
         public async Task Start<T>(Func<CancellationToken, Task<T>> createTaskFromToken,
-            Action loadingStartCallback = null, Action<T> successCallback = null, Action cancelledCallback = null,
-            Action<Exception> exceptionCallback = null)
+            Action loadingStartCallback = null,
+            Action<T> successCallback = null,
+            Action cancelledCallback = null,
+            Action<Exception> exceptionCallback = null,
+            Action finallyCallback = null)
         {
             if (IsLoading || createTaskFromToken == null)
                 return;
@@ -101,6 +108,7 @@ namespace Unity.AssetManager.Editor
             {
                 m_TokenSource?.Dispose();
                 m_TokenSource = null;
+                finallyCallback?.Invoke();
             }
         }
 

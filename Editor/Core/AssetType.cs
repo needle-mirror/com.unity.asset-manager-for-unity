@@ -18,15 +18,20 @@ namespace Unity.AssetManager.Editor
     {
         internal static string DisplayValue(this AssetType assetType)
         {
+            return assetType.ConvertAssetTypeToCloudAssetType().GetValueAsString();
+        }
+
+        internal static Cloud.Assets.AssetType ConvertAssetTypeToCloudAssetType(this AssetType assetType)
+        {
             return assetType switch
             {
-                AssetType.Asset2D => Cloud.Assets.AssetType.Asset_2D.GetValueAsString(),
-                AssetType.Model3D => Cloud.Assets.AssetType.Model_3D.GetValueAsString(),
-                AssetType.Audio => Cloud.Assets.AssetType.Audio.GetValueAsString(),
-                AssetType.Material => Cloud.Assets.AssetType.Material.GetValueAsString(),
-                AssetType.Script => Cloud.Assets.AssetType.Script.GetValueAsString(),
-                AssetType.Video => Cloud.Assets.AssetType.Video.GetValueAsString(),
-                _ => Cloud.Assets.AssetType.Other.GetValueAsString()
+                AssetType.Asset2D => Cloud.Assets.AssetType.Asset_2D,
+                AssetType.Model3D => Cloud.Assets.AssetType.Model_3D,
+                AssetType.Audio => Cloud.Assets.AssetType.Audio,
+                AssetType.Material => Cloud.Assets.AssetType.Material,
+                AssetType.Script => Cloud.Assets.AssetType.Script,
+                AssetType.Video => Cloud.Assets.AssetType.Video,
+                _ => Cloud.Assets.AssetType.Other
             };
         }
 
@@ -40,6 +45,27 @@ namespace Unity.AssetManager.Editor
                 Cloud.Assets.AssetType.Material => AssetType.Material,
                 Cloud.Assets.AssetType.Script => AssetType.Script,
                 Cloud.Assets.AssetType.Video => AssetType.Video,
+                _ => AssetType.Other
+            };
+        }
+
+        internal static AssetType ConvertUnityAssetTypeToAssetType(this UnityAssetType unityAssetType)
+        {
+            return unityAssetType switch
+            {
+                UnityAssetType.AnimationClip => AssetType.Other,
+                UnityAssetType.AudioClip => AssetType.Audio,
+                UnityAssetType.AudioMixer => AssetType.Audio,
+                UnityAssetType.Font => AssetType.Other,
+                UnityAssetType.Material => AssetType.Material,
+                UnityAssetType.Mesh => AssetType.Model3D,
+                UnityAssetType.PhysicMaterial => AssetType.Other,
+                UnityAssetType.Prefab => AssetType.Model3D,
+                UnityAssetType.Scene => AssetType.Other,
+                UnityAssetType.Script => AssetType.Other,
+                UnityAssetType.Shader => AssetType.Other,
+                UnityAssetType.Texture => AssetType.Asset2D,
+                UnityAssetType.VisualEffect => AssetType.Other,
                 _ => AssetType.Other
             };
         }

@@ -19,13 +19,13 @@ namespace Unity.AssetManager.Editor
         public abstract AssetIdentifier Identifier { get; }
     }
 
-    abstract class BaseOperation // TODO Add a interface
+    abstract class BaseOperation
     {
         int m_ProgressId;
 
         public event Action<OperationStatus> Finished;
 
-        public event Action<float> ProgressChanged; // TODO Leverage those events for DownloadOperation and ImportOperation
+        public event Action<float> ProgressChanged;
 
         public abstract float Progress { get; }
 
@@ -33,9 +33,9 @@ namespace Unity.AssetManager.Editor
 
         public abstract string Description { get; }
 
-        public virtual bool StartIndefinite { get; } = false;
+        public virtual bool StartIndefinite => false;
 
-        public virtual bool IsSticky { get; } = false;
+        public virtual bool IsSticky => false;
 
         public OperationStatus Status { get; private set; } = OperationStatus.None;
 
@@ -44,22 +44,12 @@ namespace Unity.AssetManager.Editor
             Status = OperationStatus.InProgress;
             var options = StartIndefinite ? UnityEditor.Progress.Options.Indefinite : UnityEditor.Progress.Options.None;
 
-            if (!StartIndefinite && IsSticky)
-            {
-                options |= UnityEditor.Progress.Options.Sticky;
-            }
-
             m_ProgressId = UnityEditor.Progress.Start(OperationName, Description, options);
             ProgressChanged?.Invoke(0.0f);
         }
 
-        public void Report()
+        protected void Report()
         {
-            if (m_ProgressId == 0)
-            {
-                Start();
-            }
-
             var progress = Progress;
 
             if (StartIndefinite && progress > 0.0f &&
@@ -79,7 +69,6 @@ namespace Unity.AssetManager.Editor
         {
             Status = status;
             UnityEditor.Progress.Finish(m_ProgressId, FromOperationStatus(status));
-            m_ProgressId = 0;
 
             Finished?.Invoke(status);
         }

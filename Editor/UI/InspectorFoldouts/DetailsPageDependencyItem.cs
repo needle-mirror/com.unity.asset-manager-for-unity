@@ -81,7 +81,7 @@ namespace Unity.AssetManager.Editor
                 m_FetchingTask = null;
             }
 
-            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForFile(assetData?.PrimaryExtension);
+            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(assetData?.PrimaryExtension);
 
             m_AssetIdentifier = assetData?.Identifier;
 

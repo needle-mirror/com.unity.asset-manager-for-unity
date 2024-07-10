@@ -128,7 +128,7 @@ namespace Unity.AssetManager.Editor
         {
             if (!string.IsNullOrEmpty(errorMessage))
             {
-                Debug.LogError($"Encountered error while downloading {operation.Description}: {errorMessage}");
+                Utilities.DevLogError($"Encountered error while downloading {operation.Description}: {errorMessage}");
             }
 
             if (finalStatus == OperationStatus.Success)

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -11,34 +12,36 @@ namespace Unity.AssetManager.Editor
         protected const string k_CheckMarkName = "unity-checkmark";
         
         List<IAssetData> m_FilesList = new();
-        readonly Foldout m_Foldout;
-        readonly Toggle m_Toggle;
-        VisualElement m_CheckMark;
-        Label m_Label;
+        readonly Button m_Button;
 
         public MultiSelectionFoldout(VisualElement parent, string foldoutName, string listViewName, string buttonTitle, Action buttonCallback , string foldoutTitle = null, string foldoutExpandedClassName = null)
             : base(parent, foldoutName, listViewName, foldoutTitle, foldoutExpandedClassName)
         {
-            m_Foldout = parent.Q<Foldout>(foldoutName);
-            m_Toggle = m_Foldout.Q<Toggle>();
-            m_CheckMark = m_Toggle.Q<VisualElement>(k_CheckMarkName);
-            m_CheckMark.parent.style.flexDirection = FlexDirection.Row;
-            m_Label = m_Toggle.Q<Label>();
-            m_Label.style.position = Position.Relative;
-            var button = new Button
+            var foldout = parent.Q<Foldout>(foldoutName);
+            var toggle = foldout.Q<Toggle>();
+            var checkmark = toggle.Q<VisualElement>(k_CheckMarkName);
+            checkmark.parent.style.flexDirection = FlexDirection.Row;
+            var label = toggle.Q<Label>();
+            label.style.position = Position.Relative;
+            m_Button = new Button
             {
-                text = buttonTitle
+                text = L10n.Tr(buttonTitle)
             };
-            button.clicked += buttonCallback;
-            button.style.position = Position.Relative;
-            button.style.paddingLeft = 6;
-            m_Toggle.Add(button);
+            m_Button.clicked += buttonCallback;
+            m_Button.style.position = Position.Relative;
+            m_Button.style.paddingLeft = 6;
+            toggle.Add(m_Button);
         }
 
         public override void Clear()
         {
             base.Clear();
             m_FilesList.Clear();
+        }
+        
+        public void SetButtonDisplayed(bool displayed)
+        {
+            UIElementsUtils.SetDisplay(m_Button, displayed);
         }
 
         protected override IList PrepareListItem(IAssetData assetData, IEnumerable<IAssetData> items)

@@ -18,7 +18,6 @@ namespace Unity.AssetManager.Editor
         const int k_InspectorPanelMinWidth = 200;
         const string k_MainDarkUssName = "MainDark";
         const string k_MainLightUssName = "MainLight";
-        const string k_PopupClassName = "unity-popup-container";
 
         VisualElement m_AssetManagerContainer;
         VisualElement m_SearchContentSplitViewContainer;
@@ -36,7 +35,7 @@ namespace Unity.AssetManager.Editor
         Button m_SettingsButton;
 
         AssetsGridView m_AssetsGridView;
-        List<SelectionInspectorPage> m_SelectionInspectorPages = new();
+        readonly List<SelectionInspectorPage> m_SelectionInspectorPages = new();
         ActionHelpBox m_ActionHelpBox;
 
         IVisualElementScheduledItem m_StorageInfoRefreshScheduledItem;
@@ -58,6 +57,7 @@ namespace Unity.AssetManager.Editor
         readonly IPermissionsManager m_PermissionsManager;
         readonly IUploadManager m_UploadManager;
         readonly IPopupManager m_PopupManager;
+        readonly IAssetsProvider m_AssetsProvider;
 
         public AssetManagerWindowRoot(IPageManager pageManager,
             IAssetDataManager assetDataManager,
@@ -71,7 +71,8 @@ namespace Unity.AssetManager.Editor
             IProjectIconDownloader projectIconDownloader,
             IPermissionsManager permissionsManager,
             IUploadManager uploadManager,
-            IPopupManager popupManager)
+            IPopupManager popupManager,
+            IAssetsProvider assetsProvider)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -86,14 +87,13 @@ namespace Unity.AssetManager.Editor
             m_PermissionsManager = permissionsManager;
             m_UploadManager = uploadManager;
             m_PopupManager = popupManager;
+            m_AssetsProvider = assetsProvider;
         }
 
         public void OnEnable()
         {
             InitializeLayout();
             RegisterCallbacks();
-
-            Services.InitAuthenticatedServices();
 
             // We need to do an initial refresh here to make sure the window is correctly updated after it's opened
             // All following Refresh called will triggered through callbacks
@@ -127,6 +127,7 @@ namespace Unity.AssetManager.Editor
 
             m_LoadingScreen = new LoadingScreen();
             m_LoadingScreen.AddToClassList("LoadingScreen");
+            m_LoadingScreen.SetVisible(false);
             m_AssetManagerContainer.Add(m_LoadingScreen);
 
             m_InspectorSplit =
@@ -143,12 +144,6 @@ namespace Unity.AssetManager.Editor
             m_CategoriesSplit.Add(m_SearchContentSplitViewContainer);
             m_CategoriesSplit.fixedPaneInitialDimension = m_StateManager.SideBarWidth;
 
-            var actionHelpBoxContainer = new VisualElement();
-            actionHelpBoxContainer.AddToClassList("ActionHelpBoxContainer");
-            m_ActionHelpBox = new ActionHelpBox(m_UnityConnect, m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy);
-            actionHelpBoxContainer.Add(m_ActionHelpBox);
-            m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
-
             var tabView = new TabView(m_PageManager, m_UnityConnect);
             tabView.AddPage<CollectionPage>(L10n.Tr(Constants.AssetsTabLabel));
             tabView.MergePage<CollectionPage, AllAssetsPage>();
@@ -156,11 +151,16 @@ namespace Unity.AssetManager.Editor
             tabView.AddPage<UploadPage>(L10n.Tr(Constants.UploadTabLabel));
             m_SearchContentSplitViewContainer.Add(tabView);
 
+            var actionHelpBoxContainer = new VisualElement();
+            actionHelpBoxContainer.AddToClassList("HelpBoxContainer");
+            m_ActionHelpBox = new ActionHelpBox(m_UnityConnect, m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy);
+            actionHelpBoxContainer.Add(m_ActionHelpBox);
+            m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
+            
             var storageInfoHelpBoxContainer = new VisualElement();
-            storageInfoHelpBoxContainer.AddToClassList("StorageInfoHelpBoxContainer");
+            storageInfoHelpBoxContainer.AddToClassList("HelpBoxContainer");
             var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
-            var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-            var storageInfoHelpBox = new StorageInfoHelpBox(m_ProjectOrganizationProvider, m_LinksProxy, assetProvider, unityConnectProxy);
+            var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_AssetsProvider, unityConnectProxy);
             storageInfoHelpBoxContainer.Add(storageInfoHelpBox);
             m_SearchContentSplitViewContainer.Add(storageInfoHelpBoxContainer);
 
@@ -220,7 +220,7 @@ namespace Unity.AssetManager.Editor
             }
 
             m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager,
-                m_AssetDataManager, m_AssetOperationManager, m_LinksProxy, m_UploadManager, m_AssetImporter);
+                m_AssetDataManager, m_AssetOperationManager, m_LinksProxy, m_UploadManager, m_AssetImporter, m_AssetsProvider);
 
             m_SelectionInspectorPages.Add(new AssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
                 m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy,
@@ -250,6 +250,10 @@ namespace Unity.AssetManager.Editor
             {
                 SetInspectorVisibility(null);
             }
+            else
+            {
+                SetInspectorVisibility(m_PageManager.ActivePage?.SelectedAssets); 
+            }
 
             content.Add(m_AssetsGridView);
 
@@ -263,10 +267,11 @@ namespace Unity.AssetManager.Editor
         {
             m_SelectionInspectorContainer.RegisterCallback<GeometryChangedEvent>(OnInspectorResized);
 
-            Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
             m_PageManager.ActivePageChanged += OnActivePageChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
+            m_ProjectOrganizationProvider.LoadingStateChanged += OnLoadingStateChanged;
             m_UnityConnect.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
         }
 
@@ -274,10 +279,11 @@ namespace Unity.AssetManager.Editor
         {
             m_SelectionInspectorContainer?.UnregisterCallback<GeometryChangedEvent>(OnInspectorResized);
 
-            Services.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+            m_ProjectOrganizationProvider.LoadingStateChanged -= OnLoadingStateChanged;
             m_UnityConnect.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
         }
 
@@ -293,13 +299,18 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        void OnAuthenticationStateChanged() => Refresh();
+        void OnAuthenticationStateChanged(AuthenticationState _) => Refresh();
 
-        void OrganizationChanged(OrganizationInfo organizationInfo) => Refresh();
+        void OnOrganizationChanged(OrganizationInfo organizationInfo) => Refresh();
 
         void OnSelectedAssetChanged(IPage page, List<AssetIdentifier> assets)
         {
             SetInspectorVisibility(assets);
+        }
+
+        void OnLoadingStateChanged(bool isLoading)
+        {
+            m_LoadingScreen.SetVisible(isLoading);
         }
 
         void SetInspectorVisibility(List<AssetIdentifier> assets)
@@ -372,33 +383,34 @@ namespace Unity.AssetManager.Editor
                 UIElementsUtils.Hide(m_LoginPage);
                 UIElementsUtils.Show(m_AssetManagerContainer);
 
-                m_LoadingScreen.SetVisible(false);
                 m_ActionHelpBox.Refresh();
                 return;
             }
 
             m_StorageInfoRefreshScheduledItem.Resume();
 
-            if (Services.AuthenticationState == AuthenticationState.AwaitingLogin)
+            if (m_AssetsProvider.AuthenticationState == AuthenticationState.AwaitingLogin)
             {
                 UIElementsUtils.Hide(m_LoginPage);
                 UIElementsUtils.Hide(m_AssetManagerContainer);
                 return;
             }
 
-            if (Services.AuthenticationState == AuthenticationState.LoggedOut)
+            if (m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedOut)
             {
                 UIElementsUtils.Show(m_LoginPage);
                 UIElementsUtils.Hide(m_AssetManagerContainer);
+                
+                m_PermissionsManager.Reset();
+                
                 return;
             }
 
-            if (Services.AuthenticationState == AuthenticationState.LoggedIn)
+            if (m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedIn)
             {
                 UIElementsUtils.Hide(m_LoginPage);
                 UIElementsUtils.Show(m_AssetManagerContainer);
 
-                m_LoadingScreen.SetVisible(m_ProjectOrganizationProvider.IsLoading);
                 m_ActionHelpBox.Refresh();
             }
         }

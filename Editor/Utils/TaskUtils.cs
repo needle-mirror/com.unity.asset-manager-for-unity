@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -21,7 +22,7 @@ namespace Unity.AssetManager.Editor
             _ = task;
         }
 
-        public static async Task WaitForTasksWithHandleExceptions(IEnumerable<Task> tasks)
+        public static async Task WaitForTasksWithHandleExceptions(IReadOnlyCollection<Task> tasks)
         {
             try
             {
@@ -37,6 +38,33 @@ namespace Unity.AssetManager.Editor
                     }
                 }
             }
+        }
+
+        public static async Task<IReadOnlyCollection<Task>> RunWithMaxConcurrentTasks<T>(IEnumerable<T> inputs,
+            CancellationToken token, Func<T, Task> taskCreation, int maxConcurrentTasks)
+        {
+            var semaphore = new SemaphoreSlim(maxConcurrentTasks);
+
+            var allTasks = new List<Task>();
+
+            foreach (var input in inputs)
+            {
+                await semaphore.WaitAsync(token);
+
+                var task = taskCreation.Invoke(input);
+
+                var awaiter = task.GetAwaiter();
+                awaiter.OnCompleted(() =>
+                {
+                    semaphore.Release();
+                });
+
+                allTasks.Add(task);
+            }
+
+            await Task.WhenAll(allTasks);
+
+            return allTasks;
         }
     }
 }

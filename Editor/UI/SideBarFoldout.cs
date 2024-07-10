@@ -54,22 +54,30 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
         }
 
-        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
-        {
-            OnActivePageChanged(m_PageManager.ActivePage);
-        }
-
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
+            m_ProjectOrganizationProvider.ProjectSelectionChanged -= OnProjectSelectionChanged;
+        }
+
+        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            OnActivePageChanged(m_PageManager.ActivePage);
         }
 
         protected virtual void OnActivePageChanged(IPage page) { }
 
         protected virtual void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo) { }
 
-        internal virtual void ChangeIntoParentFolder()
+        public virtual void AddFoldout(SideBarFoldout child)
+        {
+            Add(child);
+
+            ChangeIntoParentFolder();
+        }
+        
+        void ChangeIntoParentFolder()
         {
             if (m_HasChild)
                 return;

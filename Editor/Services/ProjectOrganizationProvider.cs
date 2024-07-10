@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Unity.Cloud.Identity;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Editor
 {
@@ -55,9 +56,24 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class ProjectInfo
     {
+        [SerializeField]
+        List<CollectionInfo> m_CollectionInfos;
+        
         public string Id;
         public string Name;
-        public List<CollectionInfo> CollectionInfos = new();
+        public IEnumerable<CollectionInfo> CollectionInfos => m_CollectionInfos;
+        public event Action<ProjectInfo> OnCollectionsUpdated;
+        
+        public void SetCollections(IEnumerable<CollectionInfo> collections)
+        {
+            m_CollectionInfos = collections?.ToList();
+            OnCollectionsUpdated?.Invoke(this);
+        }
+
+        public CollectionInfo GetCollection(string collectionPath)
+        {
+            return m_CollectionInfos?.Find(c => c.GetFullPath() == collectionPath);
+        }
     }
 
     [Serializable]
@@ -73,9 +89,10 @@ namespace Unity.AssetManager.Editor
         ProjectInfo SelectedProject { get; }
         CollectionInfo SelectedCollection { get; }
         bool IsLoading { get; }
-        ErrorOrMessageHandlingData ErrorOrMessageHandlingData { get; } // TODO Error reporting should be an event
-
+        MessageData MessageData { get; }
+        event Action<MessageData> MessageThrown;
         event Action<OrganizationInfo> OrganizationChanged;
+        event Action<bool> LoadingStateChanged;
         event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
 
         void SelectProject(ProjectInfo projectInfo, string collectionPath = null);
@@ -98,8 +115,8 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         string m_CollectionPath;
 
-        [SerializeField]
-        ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
+        [FormerlySerializedAs("m_ErrorOrMessageHandling")] [SerializeField]
+        MessageData m_MessageData = new();
 
         [SerializeReference]
         IAssetsProvider m_AssetsProvider;
@@ -135,6 +152,10 @@ namespace Unity.AssetManager.Editor
         public event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
 
         public bool IsLoading => m_LoadOrganizationOperation.IsLoading;
+        public MessageData MessageData => m_MessageData;
+        public event Action<MessageData> MessageThrown;
+
+        public event Action<bool> LoadingStateChanged;
 
         public OrganizationInfo SelectedOrganization =>
             IsLoading || string.IsNullOrEmpty(m_OrganizationInfo?.Id) ? null : m_OrganizationInfo;
@@ -148,7 +169,7 @@ namespace Unity.AssetManager.Editor
         {
             get
             {
-                var collection = SelectedProject?.CollectionInfos.Find(c => c.GetFullPath() == m_CollectionPath);
+                var collection = SelectedProject?.GetCollection(m_CollectionPath);
 
                 if (collection != null)
                 {
@@ -162,7 +183,7 @@ namespace Unity.AssetManager.Editor
                 };
             }
         }
-
+        
         [ServiceInjection]
         public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider)
         {
@@ -172,21 +193,21 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
-            Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_UnityConnectProxy.OrganizationIdChanged += OnProjectStateChanged;
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
         }
 
         public override void OnDisable()
         {
-            Services.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_UnityConnectProxy.OrganizationIdChanged -= OnProjectStateChanged;
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
         }
 
-        void OnAuthenticationStateChanged()
+        void OnAuthenticationStateChanged(AuthenticationState newState)
         {
-            if (Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
+            if (newState == AuthenticationState.LoggedIn)
             {
                 FetchProjectOrganization(m_UnityConnectProxy.OrganizationId);
             }
@@ -194,7 +215,7 @@ namespace Unity.AssetManager.Editor
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
-            if (cloudServicesReachable)
+            if (cloudServicesReachable && m_UnityConnectProxy.HasValidOrganizationId)
             {
                 FetchProjectOrganization(m_UnityConnectProxy.OrganizationId);
             }
@@ -228,9 +249,7 @@ namespace Unity.AssetManager.Editor
 
             ProjectSelectionChanged?.Invoke(SelectedProject, SelectedCollection);
         }
-
-        public ErrorOrMessageHandlingData ErrorOrMessageHandlingData => m_ErrorOrMessageHandling;
-
+        
         public async void EnableProjectForAssetManager()
         {
             await m_AssetsProvider.EnableProjectAsync();
@@ -245,7 +264,7 @@ namespace Unity.AssetManager.Editor
 
         void FetchProjectOrganization(string newOrgId, bool forceRefresh = false)
         {
-            if (!m_UnityConnectProxy.AreCloudServicesReachable || !Services.AuthenticationState.Equals(AuthenticationState.LoggedIn))
+            if (!m_UnityConnectProxy.AreCloudServicesReachable || m_AssetsProvider.AuthenticationState != AuthenticationState.LoggedIn)
                 return;
 
             if (!forceRefresh && !string.IsNullOrEmpty(m_OrganizationInfo?.Id) && m_OrganizationInfo.Id == newOrgId)
@@ -267,14 +286,13 @@ namespace Unity.AssetManager.Editor
             {
                 if (!m_UnityConnectProxy.AreCloudServicesReachable)
                 {
-                    m_ErrorOrMessageHandling.Message = k_NoConnectionMessage;
-                    m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.None;
+                    RaiseNoConnectionErrorMessage();
                 }
                 else
                 {
-                    m_ErrorOrMessageHandling.Message = k_NoOrganizationMessage;
-                    m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction =
-                        ErrorOrMessageRecommendedAction.OpenServicesSettingButton;
+                    m_MessageData.Message = k_NoOrganizationMessage;
+                    m_MessageData.RecommendedAction = RecommendedAction.OpenServicesSettingButton;
+                    m_MessageData.IsPageScope = true;
                 }
 
                 InvokeOrganizationChanged();
@@ -284,8 +302,10 @@ namespace Unity.AssetManager.Editor
             _ = m_LoadOrganizationOperation.Start(token => m_AssetsProvider.GetOrganizationInfoAsync(newOrgId, token),
                 () =>
                 {
-                    ErrorOrMessageHandlingData.Message = string.Empty;
-                    ErrorOrMessageHandlingData.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.Retry;
+                    LoadingStateChanged?.Invoke(true);
+                    m_MessageData.Message = string.Empty;
+                    m_MessageData.RecommendedAction = RecommendedAction.Retry;
+                    m_MessageData.IsPageScope = true;
                     InvokeOrganizationChanged(); // TODO Should use a different event
                 },
                 cancelledCallback: InvokeOrganizationChanged,
@@ -295,14 +315,13 @@ namespace Unity.AssetManager.Editor
 
                     if (!m_UnityConnectProxy.AreCloudServicesReachable)
                     {
-                        m_ErrorOrMessageHandling.Message = k_NoConnectionMessage;
-                        m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction = ErrorOrMessageRecommendedAction.None;
+                        RaiseNoConnectionErrorMessage();
                     }
                     else
                     {
-                        m_ErrorOrMessageHandling.Message = k_ErrorRetrievingOrganization;
-                        m_ErrorOrMessageHandling.ErrorOrMessageRecommendedAction =
-                            ErrorOrMessageRecommendedAction.Retry;
+                        m_MessageData.Message = k_ErrorRetrievingOrganization;
+                        m_MessageData.RecommendedAction = RecommendedAction.Retry;
+                        m_MessageData.IsPageScope = true;
                     }
 
                     InvokeOrganizationChanged(); // TODO Send exception event
@@ -313,9 +332,9 @@ namespace Unity.AssetManager.Editor
                     if (m_OrganizationInfo?.ProjectInfos.Any() == false)
                     {
                         SelectProject(string.Empty);
-                        ErrorOrMessageHandlingData.Message = k_CurrentProjectNotEnabledMessage;
-                        ErrorOrMessageHandlingData.ErrorOrMessageRecommendedAction =
-                            ErrorOrMessageRecommendedAction.EnableProject;
+                        m_MessageData.Message = k_CurrentProjectNotEnabledMessage;
+                        m_MessageData.RecommendedAction = RecommendedAction.EnableProject;
+                        m_MessageData.IsPageScope = true;
                     }
                     else
                     {
@@ -323,7 +342,22 @@ namespace Unity.AssetManager.Editor
                     }
 
                     InvokeOrganizationChanged();
-                });
+                },
+                finallyCallback: () =>
+                {
+                    LoadingStateChanged?.Invoke(false);
+                }
+            );
+        }
+
+        void RaiseNoConnectionErrorMessage()
+        {
+            MessageData messageData = new()
+            {
+                Message = k_NoConnectionMessage,
+                RecommendedAction = RecommendedAction.None
+            };
+            MessageThrown?.Invoke(messageData);
         }
 
         ProjectInfo RestoreSelectedProject()

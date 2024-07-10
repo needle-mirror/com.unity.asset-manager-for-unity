@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Cloud.Common;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -37,8 +39,7 @@ namespace Unity.AssetManager.Editor
         static readonly string k_PopupUssClassName = "upload-page-settings-popup";
 
         IUploadManager m_UploadManager;
-
-        AsyncLoadOperation m_GetUserEntitlementsOperation = new();
+        IReadOnlyCollection<AssetIdentifier> m_SelectionToRestore;
 
         Button m_UploadAssetsButton;
         Button m_CancelUploadButton;
@@ -104,12 +105,6 @@ namespace Unity.AssetManager.Editor
             return new List<BaseFilter>();
         }
 
-        public override void OnEnable()
-        {
-            base.OnEnable();
-            GetUserEntitlements();
-        }
-
         public override void OnActivated()
         {
             base.OnActivated();
@@ -132,33 +127,6 @@ namespace Unity.AssetManager.Editor
             target.Add(m_SettingsPopup);
         }
 
-        public void GetUserEntitlements()
-        {
-            _ = m_GetUserEntitlementsOperation.Start(Services.GetUserEntitlementsAsync,
-                cancelledCallback: () =>
-                {
-                    OnUserEntitlementsResult(null);
-                },
-                exceptionCallback: e =>
-                {
-                    Debug.LogException(e);
-                    OnUserEntitlementsResult(null);
-                },
-                successCallback: OnUserEntitlementsResult);
-        }
-
-        void OnUserEntitlementsResult(IEnumerable<UserEntitlement> userEntitlementResults)
-        {
-            m_UploadContext.SetUserEntitlements(userEntitlementResults);
-            if (userEntitlementResults == null || !m_UploadContext.HasAssignedSeatInOrganization())
-            {
-                SetErrorOrMessageData(L10n.Tr(Constants.UploadNoEntitlementMessage),
-                    ErrorOrMessageRecommendedAction.OpenAssetManagerDocumentationPage);
-            }
-
-            UpdateButtonsState();
-        }
-
         public override void ToggleAsset(IAssetData assetData, bool checkState)
         {
             if (assetData is UploadAssetData uploadAssetData)
@@ -173,7 +141,7 @@ namespace Unity.AssetManager.Editor
                 }
 
                 uploadAssetData.IsIgnored = !checkState;
-                ServicesContainer.instance.Resolve<IPageManager>().ActivePage.Clear(true,true);
+                ServicesContainer.instance.Resolve<IPageManager>().ActivePage.Clear(true, true);
                 UpdateButtonsState();
             }
         }
@@ -210,7 +178,7 @@ namespace Unity.AssetManager.Editor
 
             if (dirty)
             {
-                Clear(true);
+                Reload();
             }
         }
 
@@ -229,6 +197,12 @@ namespace Unity.AssetManager.Editor
                 m_AssetGuidSelection.Add(assetGuid);
             }
 
+            Reload();
+        }
+
+        void Reload()
+        {
+            m_SelectionToRestore = SelectedAssets.ToList();
             Clear(true);
         }
 
@@ -335,7 +309,7 @@ namespace Unity.AssetManager.Editor
                 var value = (AssetUploadMode)uploadModeDropdown.index;
                 m_UploadContext.Settings.AssetUploadMode = value;
                 uploadModeDropdown.tooltip = GetUploadModeTooltip(value);
-                Clear(true);
+                Reload();
             });
 
             m_SettingsPopup.Add(uploadModeDropdown);
@@ -350,7 +324,7 @@ namespace Unity.AssetManager.Editor
             dependenciesAsAssetsToggle.RegisterValueChangedCallback(v =>
             {
                 m_UploadContext.EmbedDependencies = v.newValue;
-                Clear(true);
+                Reload();
             });
 
             m_SettingsPopup.Add(dependenciesAsAssetsToggle);
@@ -358,22 +332,24 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnLoadMoreSuccessCallBack()
         {
-            if (!m_GetUserEntitlementsOperation.IsLoading && !m_UploadContext.HasAssignedSeatInOrganization())
-            {
-                SetErrorOrMessageData(L10n.Tr(Constants.UploadNoEntitlementMessage),
-                    ErrorOrMessageRecommendedAction.OpenAssetManagerDocumentationPage);
-            }
-            else if (m_ProjectOrganizationProvider.SelectedProject == null)
+            if (m_ProjectOrganizationProvider.SelectedProject == null)
             {
                 // If no project is selected (coming from AllAssets or AM window never was opened), show select project message
-                SetErrorOrMessageData("Select a project to upload to", ErrorOrMessageRecommendedAction.None);
+                SetMessageData(MissingSelectedProjectErrorData);
             }
             else
             {
-                SetErrorOrMessageData(
-                    !m_AssetList.Any()
-                        ? L10n.Tr(Constants.UploadNoAssetsMessage)
-                        : string.Empty, ErrorOrMessageRecommendedAction.None);
+                SetMessageData(
+                    !m_AssetList.Any() ? L10n.Tr(Constants.UploadNoAssetsMessage) : string.Empty, RecommendedAction.None);
+            }
+
+            if (m_SelectionToRestore != null)
+            {
+                // Some selected asset might not exist anymore in this page, so we remove them.
+                var parsedSelection = m_SelectionToRestore.Where(identifier => m_AssetList.Exists(assetData => assetData.Identifier == identifier));
+                m_SelectionToRestore = null;
+
+                SelectAssets(parsedSelection);
             }
         }
 
@@ -426,19 +402,32 @@ namespace Unity.AssetManager.Editor
             {
                 await task;
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                // Errors are supposed to be logged in the IUploaderManager
+                // All Exception are logged in the IUploaderManager
+                // If it happens to be a ServiceClientException, we provide visual feedback to user
+                if (e is ServiceClientException serviceClientException)
+                {
+                    DisplayErrorMessageFromServiceClientException(serviceClientException);
+                }
             }
-
-            m_UploadAssetsButton.SetEnabled(true);
-            m_UploadAssetsButton.text = L10n.Tr(Constants.UploadActionText);
-
-            if (task.IsCompletedSuccessfully)
+            finally
             {
-                UpdateCancelButtonLabel();
-                GoBackToCollectionPage();
+                m_UploadAssetsButton.SetEnabled(true);
+                m_UploadAssetsButton.text = L10n.Tr(Constants.UploadActionText);
+
+                if (task.IsCompletedSuccessfully)
+                {
+                    UpdateCancelButtonLabel();
+                    GoBackToCollectionPage();
+                }
             }
+        }
+
+        void DisplayErrorMessageFromServiceClientException(ServiceClientException serviceClientException)
+        {
+            var uploadErrorMessage = $"Upload operation was refused. {serviceClientException.Detail}.";
+            SetMessageData(uploadErrorMessage, RecommendedAction.OpenAssetManagerDocumentationPage, false);
         }
 
         public override VisualElement CreateCustomUISection()
@@ -468,15 +457,16 @@ namespace Unity.AssetManager.Editor
 
             m_CancelUploadButton = new Button(() =>
             {
-                if(UploadManager.IsUploading)
+                if (UploadManager.IsUploading)
                 {
                     UploadManager.CancelUpload();
                 }
                 else
                 {
                     m_AssetGuidSelection.Clear();
-                    Clear(true);
+                    Reload();
                 }
+
                 UpdateCancelButtonLabel();
             });
             UpdateCancelButtonLabel();
@@ -488,7 +478,7 @@ namespace Unity.AssetManager.Editor
             m_UploadContext.ProjectIdChanged += () =>
             {
                 UpdateButtonsState();
-                Clear(true);
+                Reload();
             };
 
             m_UploadContext.UploadAssetEntriesChanged += UpdateButtonsState;
@@ -516,41 +506,83 @@ namespace Unity.AssetManager.Editor
         {
             if (m_UploadAssetsButton != null)
             {
-                var areCloudServicesReachable =
-                    ServicesContainer.instance.Resolve<IUnityConnectProxy>().AreCloudServicesReachable;
-                var permissionsManager = ServicesContainer.instance.Resolve<IPermissionsManager>();
-                var hasUploadPermission = permissionsManager.CheckPermission(Constants.UploadPermission);
-                m_UploadAssetsButton.SetEnabled(!string.IsNullOrEmpty(m_UploadContext.ProjectId) &&
-                                                hasUploadPermission &&
-                                                areCloudServicesReachable &&
-                                                m_UploadContext.HasAssignedSeatInOrganization() &&
-                                                m_UploadContext.UploadAssetEntries.Count > 0 &&
-                                                m_UploadContext.UploadAssetEntries.Where(uae => !uae.IsIgnored).ToList().Count > 0);
+                var areCloudServicesReachable = ServicesContainer.instance.Resolve<IUnityConnectProxy>().AreCloudServicesReachable;
 
-                string tooltip;
+                m_UploadAssetsButton.SetEnabled(false);
 
-                if (areCloudServicesReachable)
+                if (!areCloudServicesReachable)
                 {
-                    if (!hasUploadPermission)
-                    {
-                        tooltip = L10n.Tr("You don’t have permissions to upload assets. \nSee your role from the project settings page on \nthe Asset Manager dashboard.");
-                    }
-                    else
-                    {
-                        var allAssetsIgnored = m_UploadContext.UploadAssetEntries.Count > 0 && m_UploadContext.UploadAssetEntries.All(uae => uae.IsIgnored);
-
-                        tooltip = L10n.Tr(allAssetsIgnored ? "All assets are ignored." : "Upload assets to the cloud.");
-                    }
+                    m_UploadAssetsButton.tooltip = L10n.Tr(Constants.UploadCloudServicesNotReachableTooltip);
                 }
                 else
                 {
-                    tooltip = L10n.Tr("Cloud services are not reachable.");
+                    m_UploadAssetsButton.tooltip = L10n.Tr(Constants.UploadWaitStatusTooltip);
+                    TaskUtils.TrackException(UpdateUploadButtonAsync());
                 }
-
-                m_UploadAssetsButton.tooltip = tooltip;
             }
 
             m_CancelUploadButton?.SetEnabled(m_UploadContext.UploadAssetEntries.Count > 0);
+        }
+
+        async Task UpdateUploadButtonAsync()
+        {
+            string tooltip;
+            var permissionsManager = ServicesContainer.instance.Resolve<IPermissionsManager>();
+            var hasUploadPermission = await permissionsManager.CheckPermissionAsync(m_UploadContext.Settings.OrganizationId, m_UploadContext.ProjectId, Constants.UploadPermission);
+            var allAssetsIgnored = m_UploadContext.UploadAssetEntries.Count > 0 && m_UploadContext.UploadAssetEntries.All(uae => uae.IsIgnored);
+
+            if (!hasUploadPermission)
+            {
+                tooltip = L10n.Tr(Constants.UploadNoPermissionTooltip);
+            }
+            else if (allAssetsIgnored)
+            {
+                tooltip = L10n.Tr(Constants.UploadAllIgnoredTooltip);
+            }
+            else if (string.IsNullOrEmpty(m_UploadContext.ProjectId))
+            {
+                tooltip = L10n.Tr(Constants.UploadNoProjectSelectedTooltip);
+            }
+            else if (m_UploadContext.UploadAssetEntries.Count == 0)
+            {
+                tooltip = L10n.Tr(Constants.UploadNoAssetsTooltip);
+            }
+            else if (m_UploadContext.Settings.AssetUploadMode == AssetUploadMode.Ignore)
+            {
+                tooltip = L10n.Tr(Constants.UploadWaitStatusTooltip);
+                TaskUtils.TrackException(UpdateUploadButtonIgnoreModeAsync());
+            }
+            else
+            {
+                m_UploadAssetsButton.SetEnabled(true);
+                tooltip = L10n.Tr(Constants.UploadAssetsTooltip);
+            }
+
+            m_UploadAssetsButton.tooltip = tooltip;
+        }
+
+        async Task<string> UpdateUploadButtonIgnoreModeAsync()
+        {
+            bool hasNonExistingAssets = false;
+            foreach (var uploadAssetEntry in m_UploadContext.UploadAssetEntries)
+            {
+                var existingAsset = await AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(uploadAssetEntry.Guid,
+                    m_UploadContext.Settings.OrganizationId, m_UploadContext.Settings.ProjectId, CancellationToken.None);
+
+                if (existingAsset == null && !uploadAssetEntry.IsIgnored)
+                {
+                    hasNonExistingAssets = true;
+                    break;
+                }
+            }
+
+            if (hasNonExistingAssets)
+            {
+                m_UploadAssetsButton.SetEnabled(true);
+                return L10n.Tr(Constants.UploadAssetsTooltip);
+            }
+
+            return L10n.Tr(Constants.UploadAssetsExistsTooltip);
         }
 
         void UpdateCancelButtonLabel()

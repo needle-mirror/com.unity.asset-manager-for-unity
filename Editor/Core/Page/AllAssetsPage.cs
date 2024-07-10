@@ -43,19 +43,19 @@ namespace Unity.AssetManager.Editor
         {
             if (!m_AssetList.Any() && !PageFilters.SearchFilters.Any())
             {
-                SetErrorOrMessageData(L10n.Tr(Constants.EmptyAllAssetsText),
-                    ErrorOrMessageRecommendedAction.OpenAssetManagerDashboardLink);
+                SetMessageData(L10n.Tr(Constants.EmptyAllAssetsText),
+                    RecommendedAction.OpenAssetManagerDashboardLink);
             }
             else if (PageFilters.SearchFilters.Any() && !m_AssetList.Any())
             {
-                SetErrorOrMessageData(
+                SetMessageData(
                     L10n.Tr("No results found for \"" + string.Join(", ", PageFilters.SearchFilters) + "\""),
-                    ErrorOrMessageRecommendedAction.None);
+                    RecommendedAction.None);
             }
             else
             {
                 PageFilters.EnableFilters();
-                SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
+                SetMessageData(string.Empty, RecommendedAction.None);
             }
         }
     }

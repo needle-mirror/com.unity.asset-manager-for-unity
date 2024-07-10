@@ -5,7 +5,9 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Assets;
+using UnityEditor;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -28,8 +30,8 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         List<AssetIdentifier> m_SelectedAssets = new();
 
-        [SerializeField]
-        ErrorOrMessageHandlingData m_ErrorOrMessageHandling = new();
+        [FormerlySerializedAs("m_ErrorOrMessageHandling")] [SerializeField]
+        MessageData m_MessageData = new();
 
         [SerializeField]
         bool m_ReTriggerSearchAfterDomainReload;
@@ -58,7 +60,7 @@ namespace Unity.AssetManager.Editor
         public event Action<bool> LoadingStatusChanged;
         public event Action<List<AssetIdentifier>> SelectedAssetsChanged;
         public event Action<IEnumerable<string>> SearchFiltersChanged;
-        public event Action<ErrorOrMessageHandlingData> ErrorOrMessageThrown;
+        public event Action<MessageData> MessageThrown;
 
         public bool IsLoading => m_LoadMoreAssetsOperations.Exists(op => op.IsLoading);
         public bool CanLoadMoreItems => m_CanLoadMoreItems;
@@ -66,7 +68,21 @@ namespace Unity.AssetManager.Editor
         public List<AssetIdentifier> SelectedAssets => m_SelectedAssets;
         public AssetIdentifier LastSelectedAssetId => m_SelectedAssets.LastOrDefault();
         public IReadOnlyCollection<IAssetData> AssetList => m_AssetList;
-        public ErrorOrMessageHandlingData ErrorOrMessageHandlingData => m_ErrorOrMessageHandling;
+        public MessageData MessageData => m_MessageData;
+
+        public static readonly MessageData MissingSelectedProjectErrorData = new()
+        {
+            Message = L10n.Tr("Select a project to upload to"),
+            RecommendedAction = RecommendedAction.None,
+            IsPageScope = true
+        };
+
+        public static readonly MessageData LoadMoreAssetsOperationsErrorData = new()
+        {
+            Message = L10n.Tr("It seems there was an error while trying to retrieve assets."),
+            RecommendedAction = RecommendedAction.Retry,
+            IsPageScope = true
+        };
 
         protected BasePage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
             IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
@@ -147,7 +163,7 @@ namespace Unity.AssetManager.Editor
             SelectedAssetsChanged?.Invoke(SelectedAssets);
         }
 
-        public void SelectAssets(List<AssetIdentifier> assets)
+        public void SelectAssets(IEnumerable<AssetIdentifier> assets)
         {
             SelectedAssets.AddRange(assets);
             m_SelectedAssets = SelectedAssets.Distinct().ToList();
@@ -177,14 +193,14 @@ namespace Unity.AssetManager.Editor
             _ = loadMoreAssetsOperation.Start(LoadMoreAssets,
                 () =>
                 {
-                    SetErrorOrMessageData(default);
+                    SetMessageData(default, RecommendedAction.None);
                     LoadingStatusChanged?.Invoke(IsLoading);
                 },
                 cancelledCallback: null,
                 exceptionCallback: e =>
                 {
                     Debug.LogException(e);
-                    SetErrorOrMessageData("It seems there was an error while trying to retrieve assets.");
+                    SetMessageData(LoadMoreAssetsOperationsErrorData);
                 },
                 successCallback: results =>
                 {
@@ -222,7 +238,7 @@ namespace Unity.AssetManager.Editor
             m_AssetList.Clear();
             m_CanLoadMoreItems = true;
             m_NextStartIndex = 0;
-            SetErrorOrMessageData(string.Empty, ErrorOrMessageRecommendedAction.None);
+            SetMessageData(string.Empty, RecommendedAction.None);
 
             if (!keepSelection)
             {
@@ -246,15 +262,23 @@ namespace Unity.AssetManager.Editor
             }.OrderBy(f => f.DisplayName).ToList();
         }
 
-        protected void SetErrorOrMessageData(string errorMessage, ErrorOrMessageRecommendedAction actionType = ErrorOrMessageRecommendedAction.Retry)
+        protected void SetMessageData(string errorMessage, RecommendedAction actionType = RecommendedAction.Retry, bool isPageScope = true)
         {
-            ErrorOrMessageHandlingData.Message = errorMessage;
-            ErrorOrMessageHandlingData.ErrorOrMessageRecommendedAction = actionType;
-
-            if (actionType != ErrorOrMessageRecommendedAction.None)
+            MessageData.Message = errorMessage;
+            MessageData.RecommendedAction = actionType;
+            MessageData.IsPageScope = isPageScope;
+            // Only invoke MessageThrown if not default message
+            if (errorMessage != default)
             {
-                ErrorOrMessageThrown?.Invoke(ErrorOrMessageHandlingData);
+                MessageThrown?.Invoke(MessageData);
             }
+        }
+
+        protected void SetMessageData(MessageData messageData)
+        {
+            SetMessageData(messageData.Message,
+                messageData.RecommendedAction,
+                messageData.IsPageScope);
         }
 
         protected internal abstract IAsyncEnumerable<IAssetData> LoadMoreAssets(CancellationToken token);
@@ -295,14 +319,14 @@ namespace Unity.AssetManager.Editor
             UpdateSearchFilter(assetSearchFilter, collectionPath, m_PageFilters.SearchFilters);
 
             var count = 0;
-            await foreach (var asset in m_AssetsProvider.SearchAsync(organizationId, projectIds, assetSearchFilter,
+            await foreach (var cloudAssetData in m_AssetsProvider.SearchAsync(organizationId, projectIds, assetSearchFilter,
                                m_NextStartIndex, Constants.DefaultPageSize, token))
             {
                 ++count;
 
                 // If an asset was imported, we need to display it's state and not the one from the cloud
-                var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(new AssetIdentifier(asset.Descriptor));
-                var assetData = importedAssetInfo != null ? importedAssetInfo.AssetData : new AssetData(asset);
+                var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(cloudAssetData.Identifier);
+                var assetData = importedAssetInfo != null ? importedAssetInfo.AssetData : cloudAssetData;
 
                 if (await IsDiscardedByLocalFilter(assetData))
                     continue;

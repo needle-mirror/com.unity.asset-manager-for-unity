@@ -40,7 +40,7 @@ namespace Unity.AssetManager.Editor
         List<IAssetDataFile> m_Files = new();
 
         Task<Texture2D> m_GetThumbnailTask;
-        Task<IAsset> m_PreviewStatusTask;
+        Task<AssetData> m_PreviewStatusTask;
 
         AssetPreview.IStatus m_ExistingStatus;
 
@@ -53,7 +53,7 @@ namespace Unity.AssetManager.Editor
         public int SequenceNumber => -1;
         public int ParentSequenceNumber => -1;
         public string Changelog => "";
-        public AssetType AssetType => m_AssetEntry.CloudType.ConvertCloudAssetTypeToAssetType();
+        public AssetType AssetType => m_AssetEntry.AssetType;
         public string Status => "Local";
         public DateTime? Updated => null;
         public DateTime? Created => null;
@@ -87,7 +87,7 @@ namespace Unity.AssetManager.Editor
             {
                 var guid = AssetDatabase.GUIDFromAssetPath(file);
                 var relativePath = Utilities.GetPathRelativeToAssetsFolder(file);
-                m_Files.Add(new AssetDataFile(relativePath, guid.Empty() ? null : guid.ToString(), null, s_Tags, GetFileSize(relativePath)));
+                m_Files.Add(new AssetDataFile(relativePath, guid.Empty() ? null : guid.ToString(), null, s_Tags, GetFileSize(relativePath), true));
             }
 
             // Dependencies

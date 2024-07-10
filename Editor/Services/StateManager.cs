@@ -18,6 +18,8 @@ namespace Unity.AssetManager.Editor
         bool DependenciesFoldoutValue { get; set; }
         bool MultiSelectionUnimportedFoldoutValue { get; set; }
         bool MultiSelectionImportedFoldoutValue { get; set; }
+        bool MultiSelectionUploadIgnoredFoldoutValue { get; set; }
+        bool MultiSelectionUploadIncludedFoldoutValue { get; set; }
     }
 
     [Serializable]
@@ -52,6 +54,12 @@ namespace Unity.AssetManager.Editor
         
         [SerializeField]
         bool m_MultiSelectionImportedFoldoutValue;
+        
+        [SerializeField]
+        bool m_MultiSelectionUploadIgnoredFoldoutValue;
+        
+        [SerializeField]
+        bool m_MultiSelectionUploadIncludedFoldoutValue;
 
         HashSet<string> m_CollapsedCollections = new();
 
@@ -125,6 +133,18 @@ namespace Unity.AssetManager.Editor
         {
             get => m_MultiSelectionImportedFoldoutValue;
             set => m_MultiSelectionImportedFoldoutValue = value;
+        }
+        
+        public bool MultiSelectionUploadIgnoredFoldoutValue
+        {
+            get => m_MultiSelectionUploadIgnoredFoldoutValue;
+            set => m_MultiSelectionUploadIgnoredFoldoutValue = value;
+        }
+        
+        public bool MultiSelectionUploadIncludedFoldoutValue
+        {
+            get => m_MultiSelectionUploadIncludedFoldoutValue;
+            set => m_MultiSelectionUploadIncludedFoldoutValue = value;
         }
 
         public void OnBeforeSerialize()

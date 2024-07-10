@@ -4,6 +4,57 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2024-07-10
+
+[Added]
+- Incomplete and failed files will be marked as such
+- Speedtree .st assets are now displaying proper icon
+- Multi selection in upload tab show the ignored/included file in the selection
+
+[Changed]
+- Upgraded Asset SDK dependency to 1.2.0
+- Changed version label color to white and added colored dot next to it
+- Uploaded assets will be Published instead of Draft
+- Limiting upload to 5 concurrent tasks at a time
+- Asset Type is now different than Other when it makes sense
+- Better support for bulk import operation (when importing 20 items +)
+- Finished import will display a green progress bar (similar to upload)
+- Added new unit tests to StorageInfoHelpBox
+- Added IsGridLevelErrorOrMessage boolean to ErrorOrMessageHandlingData
+- Harmonize helpBox UI style
+- Moved ActionHelpBox under the Page tab
+- ActionHelpBox messaging is now specific to the Active page
+- Harmonize PageManager and ProjectOrganizationProvider error events
+- Improved StorageInfoHelpBox message and level
+- StorageInfoHelpBox info and warning level are dismissible
+- Upload operation now recovers from a ServiceException by removing any new temporary assets created in project
+- Upload operations intercept ServiceException and display a customized error message based on the returned detailed error from service
+- Retry button in the error is now doing a Refresh
+- Internal cleanup with the Services class.
+- Don't remove Refresh menu option when losing network connection
+
+[Fixed]
+- Disabled transformations during import to prevent "Pending" version.
+- Changed the foldout's style to prevent project selection issues when resizing
+- Improved loading of projects and collections
+- Refreshing the icon and other metadata from cloud when multiselecting
+- Fixed failed downloads for certain files; primarily from uvcs.
+- Fixed a bug that caused nested collections to not be displayed properly
+- Progress not displaying right after starting an Import
+- Upload button is disable when all upload asset already exist in the cloud
+- File count in detail page counting system files too
+- Show In Project is now pinging the primary file
+- Timeout error causing the AM4U to be blocked on "It seems there was an error while trying to retrieve organization info."
+- Help box error showing only in the In Project tab
+- Successful upload not taking back to the Assets page
+- Loading page not showing up during a Refresh
+- Initial connection status being forced to false
+- Removed nested scrollviews in multi select page
+- Fix cancel import
+
+[Removed]
+- UserEntitlement class and all related methods to fetch UserEntitlement from internal Cloud Services endpoints.
+
 ## [0.8.0] - 2024-06-14
 
 [Added]
@@ -21,9 +72,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed project selection not working after an domain reload
 - Thumbnails are downloaded in memory before being saved on disk for later use (previously it was saved on disk, then loaded on memory)
 - The number of thumbnails loaded per frame has been set to avoid causing stutters during scrolling
-- Fixed the overlay of the single and multi selection detail page.
+- Fixed the overlay of the single and multi selection detail page
 - Unresponsive project list after a domain reload
-- Popup maximum size is constrained in function of window size and filter selection popups have now scrollbar.
+- Popup maximum size is constrained in function of window size and filter selection popups have now scrollbar
 - Removing am4u_guid files usage (re-upload requires an import first)
 - Fixed Show In Project regression pointing on parent folder instead of first file
 - Preventing free organization from being blocked from upload
@@ -46,6 +97,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Known Issues
 * Failing assertion on import settings path on Mac
 * Asset uploaded and tracked without being frozen properly because of transformation will most likely display the "out of date" status right after uploading is finished. This is due to transformation and preview modifying the date of the asset.
+
 
 ## [0.7.0] - 2024-05-17
 

@@ -20,6 +20,8 @@ namespace Unity.AssetManager.Editor
         public const string UploadTabLabel = "Upload";
 
         // Upload
+        public const string IgnoreAll = "Ignore All";
+        public const string IncludeAll = "Include All";
         public const string IgnoreAsset = "Ignore Asset";
         public const string IncludeAsset = "Include Asset";
         public const string IgnoreAssetToolTip = "This asset is ignored and will not\nbe uploaded to the Asset Manager.";
@@ -34,6 +36,14 @@ namespace Unity.AssetManager.Editor
         public const string UploadActionText = "Upload Assets";
         public const string UploadingText = "Uploading...";
         public const string UploadNoEntitlementMessage = "You can't upload this asset without an assigned seat. \nContact your Organization Owner to assign you a seat.";
+        public const string UploadNoPermissionTooltip = "You don’t have permissions to upload this asset. \nSee your role from the project settings page on \nthe Asset Manager dashboard.";
+        public const string UploadCloudServicesNotReachableTooltip = "Cloud services are not reachable";
+        public const string UploadAllIgnoredTooltip = "All assets are ignored";
+        public const string UploadNoProjectSelectedTooltip = "Select a project to upload assets";
+        public const string UploadNoAssetsTooltip = "No assets to upload";
+        public const string UploadWaitStatusTooltip = "Waiting for assets status...";
+        public const string UploadAssetsTooltip = "Upload assets to cloud";
+        public const string UploadAssetsExistsTooltip = "All assets already exist in the cloud";
 
         // Preview Status
         public const string ImportedText = "Asset is imported";
@@ -79,6 +89,11 @@ namespace Unity.AssetManager.Editor
 
         // AssetDetailsView Asset status
         public const string AssetDraftStatus = "Draft";
+        public const string AssetInReviewStatus = "InReview";
+        public const string AssetApprovedStatus = "Approved";
+        public const string AssetRejectedStatus = "Rejected";
+        public const string AssetPublishedStatus = "Published";
+        public const string AssetWithdrawnStatus = "Withdrawn";
 
         // AssetDetailsView Import action text
         public const string ImportActionText = "Import";

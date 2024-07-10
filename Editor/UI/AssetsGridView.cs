@@ -17,7 +17,7 @@ namespace Unity.AssetManager.Editor
     class AssetsGridView : VisualElement
     {
         readonly GridView m_Gridview;
-        readonly GridErrorOrMessageView m_GridErrorOrMessageView;
+        readonly GridMessageView m_GridMessageView;
         readonly LoadingBar m_LoadingBar;
 
         readonly IUnityConnectProxy m_UnityConnect;
@@ -27,6 +27,7 @@ namespace Unity.AssetManager.Editor
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IUploadManager m_UploadManager;
         readonly IAssetImporter m_AssetImporter;
+        readonly IAssetsProvider m_AssetsProvider;
 
         public AssetsGridView(IProjectOrganizationProvider projectOrganizationProvider,
             IUnityConnectProxy unityConnect,
@@ -35,7 +36,8 @@ namespace Unity.AssetManager.Editor
             IAssetOperationManager assetOperationManager,
             ILinksProxy linksProxy,
             IUploadManager uploadManager,
-            IAssetImporter assetImporter)
+            IAssetImporter assetImporter, 
+            IAssetsProvider assetsProvider)
         {
             m_UnityConnect = unityConnect;
             m_PageManager = pageManager;
@@ -44,12 +46,13 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_UploadManager = uploadManager;
             m_AssetImporter = assetImporter;
+            m_AssetsProvider = assetsProvider;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
             Add(m_Gridview);
 
-            m_GridErrorOrMessageView = new GridErrorOrMessageView(pageManager, projectOrganizationProvider, linksProxy);
-            Add(m_GridErrorOrMessageView);
+            m_GridMessageView = new GridMessageView(pageManager, projectOrganizationProvider, linksProxy);
+            Add(m_GridMessageView);
 
             style.height = Length.Percent(100);
 
@@ -65,30 +68,30 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
             m_Gridview.GridViewLastItemVisible += OnLastGridViewItemVisible;
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.LoadingStatusChanged += OnLoadingStatusChanged;
-            m_PageManager.ErrorOrMessageThrown += OnErrorOrMessageThrown;
+            m_PageManager.MessageThrown += OnMessageThrown;
 
             Refresh();
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            Services.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
             m_Gridview.GridViewLastItemVisible -= OnLastGridViewItemVisible;
 
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_PageManager.LoadingStatusChanged -= OnLoadingStatusChanged;
-            m_PageManager.ErrorOrMessageThrown -= OnErrorOrMessageThrown;
+            m_PageManager.MessageThrown -= OnMessageThrown;
         }
 
-        void OnAuthenticationStateChanged()
+        void OnAuthenticationStateChanged(AuthenticationState _)
         {
             Refresh();
         }
@@ -213,7 +216,7 @@ namespace Unity.AssetManager.Editor
             var page = m_PageManager.ActivePage;
 
             // The order matters since page is null if there is a Project Level error
-            if (m_GridErrorOrMessageView.Refresh() || page == null)
+            if (m_GridMessageView.Refresh() || page == null)
             {
                 ClearGrid();
                 return;
@@ -262,7 +265,7 @@ namespace Unity.AssetManager.Editor
             page.LoadMore();
         }
 
-        void OnErrorOrMessageThrown(IPage page, ErrorOrMessageHandlingData _)
+        void OnMessageThrown(IPage page, MessageData _)
         {
             if (!m_PageManager.IsActivePage(page))
                 return;

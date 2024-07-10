@@ -19,12 +19,9 @@
     flex-grow: 1;
 }
 
-.warning-icon {
-    height: 13px;
-    width: 13px;
-    margin: 2px 2px 2px 2px;
+.incomplete-file-icon {
     background-image: resource("Images/Icons/Warning");
-    -unity-background-image-tint-color: var(--icon-tint-color);
+    -unity-background-image-tint-color: #FF554A;
 }
 
 .flex-row {
@@ -247,12 +244,20 @@ TwoPaneSplitView {
     background-image: resource("uipackageresources/images/d_in_foldout.png");
 }
 
+.unity-foldout {
+    margin-left: 5px;
+}
+
+.unity-foldout__toggle {
+    margin-left: 0;
+}
+
 .unity-collection-view__item {
     margin-left: 5px;
 }
 
 .removed-arrow {
-    padding-left: 17px;
+    margin-left: 22px;
 }
 
 .allAssetsFolder Toggle{
@@ -260,7 +265,7 @@ TwoPaneSplitView {
 }
 
 .allAssetsFolder {
-    padding-left: 0;
+    margin-left: 5px;
 }
 
 .collections-top-level-folder > Toggle{
@@ -934,7 +939,7 @@ AssetsGridView {
     -unity-background-image-tint-color: rgba(255, 255, 255, 0);
 }
 
-.grid-view--item:hover .asset-preview--upload .no-thumbnail .asset-preview-asset-type-icon {
+.grid-view--item:hover .asset-preview--upload.no-thumbnail .asset-preview-asset-type-icon {
     -unity-background-image-tint-color: rgba(255, 255, 255, 255);
 }
 
@@ -985,11 +990,12 @@ AssetsGridView {
 
 .grid-view--item-linked {
     background-image: resource('Images/Common/Link');
+    position: absolute;
+    top: 3px;
+    right: 5px;
     width: 24px;
     height: 24px;
     border-radius: 0;
-    align-self: center;
-    top: 45%;
 }
 
 .grid-view--item-imported_status-imported {
@@ -1073,7 +1079,7 @@ AssetsGridView {
     margin: 2.5px 6px;
 }
 
-GridErrorOrMessageView {
+GridMessageView {
     top: 50%;
     left: 50%;
     translate: -50%;
@@ -1081,7 +1087,7 @@ GridErrorOrMessageView {
     padding-right: 10px;
 }
 
-GridErrorOrMessageView > .unity-label {
+GridMessageView > .unity-label {
     -unity-text-align: middle-center;
     font-size: 22px;
     white-space: normal;
@@ -1092,17 +1098,17 @@ GridErrorOrMessageView > .unity-label {
     margin-bottom: 10px;
 }
 
-.errorOrMessageView-button {
+.messageView-button {
     -unity-text-align: middle-center;
     white-space: normal;
     overflow: hidden;
-    font-size: 14px;
+    font-size: 12px;
     text-overflow: Ellipsis;
     align-self: center;
     flex-shrink: 1;
 }
 
-.unity-button.errorOrMessageView-action-button-link {
+.unity-button.messageView-action-button-link {
     align-self: center;
     font-size: 14px;
     background-image: none;
@@ -1187,7 +1193,7 @@ GridErrorOrMessageView > .unity-label {
 * Error View
 ************************************************/
 
-ActionHelpBox {
+HelpBox {
     min-height: 60px;
     border-width: 0.5px;
     margin: 5px;
@@ -1197,14 +1203,18 @@ ActionHelpBox {
     border-bottom-width: 1px;
 }
 
-ActionHelpBox > Label {
+HelpBox > Label {
     margin-right: 4px;
     margin-left: 4px;
     font-size: 12px;
     min-width: 90px;
 }
 
-.ActionHelpBoxContainer {
+HelpBox > Button {
+    align-self: flex-end;
+}
+
+.HelpBoxContainer {
     flex-shrink: 0;
 }
 
@@ -1241,23 +1251,16 @@ ActionHelpBox > Label {
     flex-shrink: 0;
 }
 
-#inspector-page-scrollview {
+.inspector-page-scrollview {
     align-self: flex-start;
     flex-grow: 1;
+    flex-shrink: 1;
     width: 100%;
-    height: 100%;
 }
 
-.inspector-page-scrollview {
-    flex-shrink: 1;
-}
-
-#inspector-page-content-container {
-    flex-shrink: 1;
-    flex-grow: 1;
-    height: 100%;
-    min-height: 430px;
-    max-height: 100%;
+.inspector-page-content-container {
+    flex-grow: 0;
+    flex-shrink: 0;
     padding: 10px;
 }
 
@@ -1270,12 +1273,15 @@ ActionHelpBox > Label {
 }
 
 .inspector-page-top {
+    flex-direction: row;
+    flex-shrink: 0;
+    justify-content: space-between;
     align-content: center;
+    margin: 10px;
 }
 
 .inspector-page-scrollview > #unity-content-and-vertical-scroll-container > #unity-content-viewport > #unity-content-container {
-    flex-shrink: 1;
-    flex-grow: 1;
+    flex-shrink: 0;
 }
 
 .inspector-page-footer {
@@ -1286,8 +1292,8 @@ ActionHelpBox > Label {
 }
 
 .inspector-page-footer-container {
-    flex-direction: column-reverse;
-    height: 100%;
+    flex-direction: column;
+    flex-shrink: 0;
     width: 100%;
     align-items: center;
 }
@@ -1306,64 +1312,27 @@ MultiAssetDetailsPage {
     overflow: scroll;
 }
 
-.multi-selection-unimported-foldout {
+.multi-selection-unimported-foldout, .multi-selection-imported-foldout, .multi-selection-upload-ignored-foldout, .multi-selection-upload-included-foldout {
     -unity-font-style: bold;
-    margin-bottom: 20px;
-    min-height: 50px;
-    max-height: 400px;
-    width: 100%;
+    margin-top: 20px;
+    flex-grow: 1;
 }
 
-.multi-selection-unimported-foldout > Toggle{
+.multi-selection-unimported-foldout > Toggle, .multi-selection-imported-foldout > Toggle, .multi-selection-upload-ignored-foldout > Toggle, .multi-selection-upload-included-foldout > Toggle{
     padding: 8px 10px 8px 10px;
     margin: 0 0 5px 0;
 }
 
-.multi-selection-unimported-foldout > Toggle > VisualElement{
+.multi-selection-unimported-foldout > Toggle > VisualElement, .multi-selection-imported-foldout > Toggle > VisualElement, .multi-selection-upload-ignored-foldout > Toggle > VisualElement, .multi-selection-upload-included-foldout > Toggle > VisualElement{
     flex-direction: row-reverse;
 }
 
-.multi-selection-unimported-foldout > Toggle > VisualElement > Label{
+.multi-selection-unimported-foldout > Toggle > VisualElement > Label, .multi-selection-imported-foldout > Toggle > VisualElement > Label, .multi-selection-upload-ignored-foldout > Toggle > VisualElement > Label, .multi-selection-upload-included-foldout > Toggle > VisualElement > Label{
     position: absolute;
     left: 5px;
 }
 
-.multi-selection-unimpoted-foldout-expanded {
-    min-height: 120px;
-    max-height: 100%;
-}
-
-.multi-selection-unimported-foldout > .* > .unity-foldout__content {
-    margin-left: 0px;
-}
-
-.multi-selection-imported-foldout {
-    -unity-font-style: bold;
-    min-height: 50px;
-    max-height: 400px;
-    width: 100%;
-}
-
-.multi-selection-imported-foldout > Toggle{
-    padding: 8px 10px 8px 10px;
-    margin: 0 0 5px 0;
-}
-
-.multi-selection-imported-foldout > Toggle > VisualElement{
-    flex-direction: row-reverse;
-}
-
-.multi-selection-imported-foldout > Toggle > VisualElement > Label{
-    position: absolute;
-    left: 5px;
-}
-
-.multi-selection-imported-foldout-expanded {
-    min-height: 120px;
-    max-height: 100%;
-}
-
-.multi-selection-imported-foldout > .* > .unity-foldout__content {
+.multi-selection-unimported-foldout > .* > .unity-foldout__content, .multi-selection-imported-foldout > .* > .unity-foldout__content, .multi-selection-upload-ignored-foldout > .* > .unity-foldout__content, .multi-selection-upload-included-foldout > .* > .unity-foldout__content {
     margin-left: 0px;
 }
 
@@ -1454,8 +1423,39 @@ AssetDetailsPage {
     -unity-text-overflow-position: end;
 }
 
+.asset-status-chip
+{
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    margin: 5px;
+    align-self: center;
+    flex-shrink: 0;
+    background-color: rgba(255, 255, 255, 255);
+}
+
 .asset-version--draft {
-    border-color: #FFCB47;
+    background-color: rgba(243,204,96,255);
+}
+
+.asset-version--in-review {
+    background-color: rgba(77,143,247,255);
+}
+
+.asset-version--approved {
+    background-color: rgba(92,162,112,255);
+}
+
+.asset-version--rejected {
+    background-color: rgba(206,83,82,255);
+}
+
+.asset-version--published {
+    background-color: rgba(86,163,148,255);
+}
+
+.asset-version--withdrawn {
+    background-color: rgba(224,112,45,255);
 }
 
 .details-page-close-button {
@@ -1576,6 +1576,10 @@ AssetDetailsPage {
     background-color: #902020;
 }
 
+.download-progress-bar-success {
+    background-color: #14A859;
+}
+
 .details-page-download-progress-bar * {
     height: 4px;
     flex-grow: 1;
@@ -1656,10 +1660,6 @@ AssetDetailsPage {
     -unity-text-align: middle-left;
     overflow: visible;
     white-space: normal;
-}
-
-.details-foldout-expanded {
-
 }
 
 .asset-details-page-container {

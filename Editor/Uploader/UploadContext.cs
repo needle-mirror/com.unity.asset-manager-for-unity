@@ -11,10 +11,7 @@ namespace Unity.AssetManager.Editor
     {
         [SerializeField]
         UploadSettings m_Settings;
-
-        [SerializeField]
-        List<UserEntitlement> m_UserEntitlements;
-
+        
         [SerializeReference]
         List<IUploadAssetEntry> m_UploadAssetEntries = new();
 
@@ -79,26 +76,10 @@ namespace Unity.AssetManager.Editor
 
         public void SetOrganizationInfo(OrganizationInfo organizationInfo)
         {
-            m_Settings.OrganizationId = organizationInfo.Id;
-        }
-
-        public void SetUserEntitlements(IEnumerable<UserEntitlement> userEntitlements)
-        {
-            m_UserEntitlements = userEntitlements.ToList();
-        }
-
-        public bool HasAssignedSeatInOrganization()
-        {
-            // AMECO-2593 Ignoring this condition until we can differentiate a free from pro organization
-            // Free organizations don't need a seat assigned, but they're being restricted from upload if the user has no pro seat assigned.
-            return true;
-
-            if (m_UserEntitlements == null)
+            if (organizationInfo != null)
             {
-                return false;
+                m_Settings.OrganizationId = organizationInfo.Id;
             }
-
-            return m_UserEntitlements.Exists(h => h.AssignFrom != null && h.AssignFrom.Equals(m_Settings.OrganizationId) && h.Tag.Equals("UnityPro"));
         }
 
         public void SetProjectId(string id)
