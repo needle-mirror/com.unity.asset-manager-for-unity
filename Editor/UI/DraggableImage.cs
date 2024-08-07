@@ -16,7 +16,7 @@ namespace Unity.AssetManager.Editor
 
         public DraggableImage()
         {
-            m_DragManipulator = new ClickOrDragStartManipulator(this, null, null);
+            m_DragManipulator = new ClickOrDragStartManipulator(this, null, null, null);
         }
 
         public DraggableImage(Texture2D image, Action startDrag) : this()

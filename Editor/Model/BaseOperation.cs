@@ -10,7 +10,8 @@ namespace Unity.AssetManager.Editor
         InProgress,
         Success,
         Cancelled,
-        Error
+        Error,
+        Paused
     }
 
     [Serializable]
@@ -65,12 +66,24 @@ namespace Unity.AssetManager.Editor
             ProgressChanged?.Invoke(progress);
         }
 
-        public virtual void Finish(OperationStatus status)
+        public void Finish(OperationStatus status)
         {
             Status = status;
             UnityEditor.Progress.Finish(m_ProgressId, FromOperationStatus(status));
 
             Finished?.Invoke(status);
+        }
+
+        public void Pause()
+        {
+            Status = OperationStatus.Paused;
+            ProgressChanged?.Invoke(0.0f);
+        }
+
+        public void Resume()
+        {
+            Status = OperationStatus.InProgress;
+            Report();
         }
 
         static Progress.Status FromOperationStatus(OperationStatus status)
@@ -82,6 +95,7 @@ namespace Unity.AssetManager.Editor
                 OperationStatus.Cancelled => UnityEditor.Progress.Status.Canceled,
                 OperationStatus.Error => UnityEditor.Progress.Status.Failed,
                 OperationStatus.None => UnityEditor.Progress.Status.Succeeded,
+                OperationStatus.Paused => UnityEditor.Progress.Status.Paused,
                 _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
             };
         }

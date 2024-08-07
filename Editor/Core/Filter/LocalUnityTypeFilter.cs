@@ -57,7 +57,7 @@ namespace Unity.AssetManager.Editor
             }
 
             await assetData.ResolvePrimaryExtensionAsync(null);
-            var type = AssetDataTypeHelper.GetUnityAssetType(assetData.PrimaryExtension);
+            var type = AssetDataTypeHelper.GetUnityAssetType(assetData.PrimarySourceFile?.Extension);
 
             if (m_AssetTypeMap.TryGetValue(SelectedFilter, out var assetType))
             {

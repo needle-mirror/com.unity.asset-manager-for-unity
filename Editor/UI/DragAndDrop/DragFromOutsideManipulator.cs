@@ -11,6 +11,8 @@ namespace Unity.AssetManager.Editor
     {
         [SerializeReference]
         IPageManager m_PageManager;
+
+        bool m_DragSelectionContainsValidAsset;
         
         public DragFromOutsideManipulator(VisualElement rootTarget, IPageManager pageManager)
         {
@@ -20,19 +22,16 @@ namespace Unity.AssetManager.Editor
 
         protected override void RegisterCallbacksOnTarget()
         {
-            target.RegisterCallback<DragUpdatedEvent>(OnDragUpdate);
             target.RegisterCallback<DragPerformEvent>(OnDragPerform);
+            target.RegisterCallback<DragUpdatedEvent>(OnDragUpdate);
+            target.RegisterCallback<DragEnterEvent>(OnDragEnter);
         }
 
         protected override void UnregisterCallbacksFromTarget()
         {
-            target.UnregisterCallback<DragUpdatedEvent>(OnDragUpdate);
             target.UnregisterCallback<DragPerformEvent>(OnDragPerform);
-        }
-        
-        void OnDragUpdate(DragUpdatedEvent _)
-        {
-            DragAndDrop.visualMode = DragAndDropVisualMode.Generic;
+            target.UnregisterCallback<DragUpdatedEvent>(OnDragUpdate);
+            target.UnregisterCallback<DragEnterEvent>(OnDragEnter);
         }
 
         void OnDragPerform(DragPerformEvent _)
@@ -48,7 +47,21 @@ namespace Unity.AssetManager.Editor
             }
             
             var uploadPage = m_PageManager.ActivePage as UploadPage;
-            uploadPage?.AddAssets(DragAndDrop.objectReferences.ToList());
+            uploadPage?.AddAssets(DragAndDrop.objectReferences.Where(o => 
+                !string.IsNullOrEmpty(AssetDatabase.GetAssetPath(o))).ToList());
+        }
+
+        void OnDragUpdate(DragUpdatedEvent _)
+        {
+            DragAndDrop.visualMode = m_DragSelectionContainsValidAsset
+                ? DragAndDropVisualMode.Generic
+                : DragAndDropVisualMode.Rejected;
+        }
+
+        void OnDragEnter(DragEnterEvent _)
+        {
+            m_DragSelectionContainsValidAsset = !Array.TrueForAll(DragAndDrop.objectReferences,
+                o => string.IsNullOrEmpty(AssetDatabase.GetAssetPath(o)));
         }
     }
 }

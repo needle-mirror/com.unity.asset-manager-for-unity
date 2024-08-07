@@ -10,7 +10,7 @@ namespace Unity.AssetManager.Editor
 
         public TagChip(string text)
         {
-            _ = new ClickOrDragStartManipulator(this, OnPointerUp, null);
+            _ = new ClickOrDragStartManipulator(this, OnPointerUp, null, null);
 
             var treeAsset = UIElementsUtils.LoadUXML(nameof(TagChip));
             treeAsset.CloneTree(this);

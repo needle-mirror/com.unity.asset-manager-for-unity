@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -62,14 +63,16 @@ namespace Unity.AssetManager.Editor
 
         public void OnSelection(IAssetData assetData, bool isLoading)
         {
-            if (assetData.Identifier is LocalAssetIdentifier)
+            if (!String.IsNullOrEmpty(assetData.Identifier.AssetId) 
+                && String.IsNullOrEmpty(assetData.Identifier.PrimarySourceFileGuid))
             {
-                SetActiveTab(TabType.Details);
-                UIElementsUtils.Hide(m_TabsContainer);
+                // This is not a local asset, you can show the tabs
+                UIElementsUtils.Show(m_TabsContainer);
             }
             else
             {
-                UIElementsUtils.Show(m_TabsContainer);
+                SetActiveTab(TabType.Details);
+                UIElementsUtils.Hide(m_TabsContainer);
             }
         }
 

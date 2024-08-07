@@ -1,5 +1,6 @@
 using System;
 using UnityEditor;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -16,6 +17,7 @@ namespace Unity.AssetManager.Editor
         MessageData m_MessageData;
         
         static readonly string k_NoConnectionMessage = L10n.Tr("You are offline.");
+        static readonly string k_ServiceNotReachableMessage = L10n.Tr("Cannot reach Unity Cloud Services.");
         static readonly string k_NoConnectionUploadPageMessage = L10n.Tr("Connect to the internet to upload your assets.");
 
         public ActionHelpBox(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
@@ -35,14 +37,20 @@ namespace Unity.AssetManager.Editor
 
         public void Refresh()
         {
-            messageType = HelpBoxMessageType.Info;
             m_MessageActionButton.visible = false;
             
             if (!m_UnityConnectProxy.AreCloudServicesReachable)
             {
                 UIElementsUtils.Show(this);
                 messageType = HelpBoxMessageType.Warning;
-                text = m_PageManager.ActivePage is UploadPage ? $"{k_NoConnectionMessage} {k_NoConnectionUploadPageMessage}" : k_NoConnectionMessage;
+                if (Application.internetReachability == NetworkReachability.NotReachable)
+                {
+                    text = m_PageManager.ActivePage is UploadPage ? $"{k_NoConnectionMessage} {k_NoConnectionUploadPageMessage}" : k_NoConnectionMessage;
+                }
+                else
+                {
+                    text = k_ServiceNotReachableMessage;
+                }
                 return;
             }
 
@@ -52,6 +60,7 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
+            messageType = m_MessageData.MessageType;
             var hasErrorMessage = !string.IsNullOrEmpty(m_MessageData.Message);
             var isPageScope = m_MessageData.IsPageScope;
             

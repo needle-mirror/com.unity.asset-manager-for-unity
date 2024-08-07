@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -28,9 +27,9 @@ namespace Unity.AssetManager.Editor
         public List<string> SearchFilters => m_SearchFilters;
         public List<BaseFilter> SelectedFilters => m_SelectedFilters;
         public IEnumerable<LocalFilter> SelectedLocalFilters => m_SelectedFilters.OfType<LocalFilter>();
-        public AssetSearchFilter AssetFilter => m_AssetSearchFilter ?? InitializeAssetSearchFilter();
+        public AssetSearchFilter AssetSearchFilter => m_AssetSearchFilter ?? InitializeAssetSearchFilter();
 
-        public event Action<IEnumerable<string>> SearchFiltersChanged;
+        public event Action<IReadOnlyCollection<string>> SearchFiltersChanged;
         public event Action<bool> EnableStatusChanged;
         public event Action<BaseFilter, bool> FilterAdded;
         public event Action<BaseFilter> FilterApplied;
@@ -180,7 +179,7 @@ namespace Unity.AssetManager.Editor
         AssetSearchFilter InitializeAssetSearchFilter()
         {
             m_AssetSearchFilter = new AssetSearchFilter();
-
+            
             if (m_SelectedFilters != null && m_SelectedFilters.Any())
             {
                 var cloudFilter = m_SelectedFilters.OfType<CloudFilter>();

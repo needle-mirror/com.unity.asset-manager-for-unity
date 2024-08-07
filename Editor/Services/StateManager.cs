@@ -2,13 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Editor
 {
     interface IStateManager : IService
     {
-        string LastSceneName { get; set; }
         float SideBarScrollValue { get; set; }
         bool CollectionsTopFolderFoldoutValue { get; set; }
         HashSet<string> CollapsedCollections { get; }
@@ -16,10 +14,7 @@ namespace Unity.AssetManager.Editor
         bool DetailsSourceFilesFoldoutValue { get; set; }
         bool DetailsUVCSFilesFoldoutValue { get; set; }
         bool DependenciesFoldoutValue { get; set; }
-        bool MultiSelectionUnimportedFoldoutValue { get; set; }
-        bool MultiSelectionImportedFoldoutValue { get; set; }
-        bool MultiSelectionUploadIgnoredFoldoutValue { get; set; }
-        bool MultiSelectionUploadIncludedFoldoutValue { get; set; }
+        bool[] MultiSelectionFoldoutsValues { get; set;}
     }
 
     [Serializable]
@@ -27,9 +22,6 @@ namespace Unity.AssetManager.Editor
     {
         [SerializeField]
         string[] m_SerializedCollapsedCollections = Array.Empty<string>();
-
-        [SerializeField]
-        string m_LastSceneName;
 
         [SerializeField]
         float m_SideBarScrollValue;
@@ -50,24 +42,9 @@ namespace Unity.AssetManager.Editor
         bool m_DependenciesFoldoutValue;
 
         [SerializeField]
-        bool m_MultiSelectionUnimportedFoldoutValue;
-        
-        [SerializeField]
-        bool m_MultiSelectionImportedFoldoutValue;
-        
-        [SerializeField]
-        bool m_MultiSelectionUploadIgnoredFoldoutValue;
-        
-        [SerializeField]
-        bool m_MultiSelectionUploadIncludedFoldoutValue;
+        bool[] m_MultiSelectionFoldoutsValues = new bool[Enum.GetValues(typeof(MultiAssetDetailsPage.FoldoutName)).Cast<MultiAssetDetailsPage.FoldoutName>().Distinct().Count()];
 
         HashSet<string> m_CollapsedCollections = new();
-
-        public string LastSceneName
-        {
-            get => m_LastSceneName;
-            set => m_LastSceneName = value;
-        }
 
         public float SideBarScrollValue
         {
@@ -123,28 +100,10 @@ namespace Unity.AssetManager.Editor
             set => m_DependenciesFoldoutValue = value;
         }
 
-        public bool MultiSelectionUnimportedFoldoutValue
+        public bool[] MultiSelectionFoldoutsValues
         {
-            get => m_MultiSelectionUnimportedFoldoutValue;
-            set => m_MultiSelectionUnimportedFoldoutValue = value;
-        }
-        
-        public bool MultiSelectionImportedFoldoutValue
-        {
-            get => m_MultiSelectionImportedFoldoutValue;
-            set => m_MultiSelectionImportedFoldoutValue = value;
-        }
-        
-        public bool MultiSelectionUploadIgnoredFoldoutValue
-        {
-            get => m_MultiSelectionUploadIgnoredFoldoutValue;
-            set => m_MultiSelectionUploadIgnoredFoldoutValue = value;
-        }
-        
-        public bool MultiSelectionUploadIncludedFoldoutValue
-        {
-            get => m_MultiSelectionUploadIncludedFoldoutValue;
-            set => m_MultiSelectionUploadIncludedFoldoutValue = value;
+            get => m_MultiSelectionFoldoutsValues;
+            set => m_MultiSelectionFoldoutsValues = value;
         }
 
         public void OnBeforeSerialize()

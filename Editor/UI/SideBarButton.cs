@@ -15,9 +15,7 @@ namespace Unity.AssetManager.Editor
         public SideBarButton(IPageManager pageManager, string label, string icon)
         {
             m_PageManager = pageManager;
-
             focusable = true;
-            clickable.clicked += () => m_PageManager.SetActivePage<T>();
 
             AddToClassList(k_UnityListViewItem);
             RemoveFromClassList("unity-button");
@@ -42,12 +40,19 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            clickable.clicked += OnClick;
             m_PageManager.ActivePageChanged += Refresh;
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            clickable.clicked -= OnClick;
             m_PageManager.ActivePageChanged -= Refresh;
+        }
+
+        void OnClick()
+        {
+            m_PageManager.SetActivePage<T>();
         }
 
         void Refresh(IPage page)

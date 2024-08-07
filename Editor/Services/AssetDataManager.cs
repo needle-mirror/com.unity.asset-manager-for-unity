@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.Common;
-using Unity.Cloud.Identity;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -51,10 +50,10 @@ namespace Unity.AssetManager.Editor
 
         [SerializeReference]
         IAssetsProvider m_AssetsProvider;
-        
+
         public event Action<AssetChangeArgs> ImportedAssetInfoChanged = delegate { };
         public event Action<AssetChangeArgs> AssetDataChanged = delegate { };
-        
+
         public IReadOnlyCollection<ImportedAssetInfo> ImportedAssetInfos => m_TrackedIdentifierToImportedAssetInfoLookup.Values;
 
         [ServiceInjection]
@@ -62,7 +61,7 @@ namespace Unity.AssetManager.Editor
         {
             m_AssetsProvider = assetsProvider;
         }
-        
+
         public override void OnEnable()
         {
             m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
@@ -213,7 +212,7 @@ namespace Unity.AssetManager.Editor
 
         public ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier assetIdentifier)
         {
-            return assetIdentifier?.IsIdValid() == true && m_TrackedIdentifierToImportedAssetInfoLookup.TryGetValue(new TrackedAssetIdentifier(assetIdentifier), out var result)
+            return assetIdentifier?.IsAnyIdValid() == true && m_TrackedIdentifierToImportedAssetInfoLookup.TryGetValue(new TrackedAssetIdentifier(assetIdentifier), out var result)
                 ? result
                 : null;
         }
@@ -233,7 +232,7 @@ namespace Unity.AssetManager.Editor
 
         public IAssetData GetAssetData(AssetIdentifier assetIdentifier)
         {
-            if (assetIdentifier?.IsIdValid() != true)
+            if (assetIdentifier?.IsAnyIdValid() != true)
             {
                 return null;
             }
@@ -272,11 +271,11 @@ namespace Unity.AssetManager.Editor
             {
                 return assetData;
             }
-            
+
             try
             {
                 var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-                assetData = await assetProvider.GetAssetAsync(assetIdentifier.ToAssetDescriptor(), token);
+                assetData = await assetProvider.GetAssetAsync(assetIdentifier, token);
             }
             catch (ForbiddenException)
             {

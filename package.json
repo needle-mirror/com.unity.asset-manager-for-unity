@@ -1,32 +1,32 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "0.9.0",
-  "unity": "2021.3",
-  "description": "An in-Editor tool that allows you to import assets directly into your project.",
+  "version": "1.0.0-exp.1",
+  "unity": "2022.3",
+  "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.",
   "keywords": [
     "asset",
     "packages",
     "preview"
   ],
   "dependencies": {
-    "com.unity.settings-manager": "1.0.2",
+    "com.unity.settings-manager": "2.0.1",
     "com.unity.cloud.assets": "1.2.0",
     "com.unity.cloud.identity": "1.2.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "0.9.0"
+    "com.unity.asset-manager-for-unity.tests": "1.0.0-exp.1"
   },
   "_upm": {
-    "changelog": "[Added]\n- Incomplete and failed files will be marked as such\n- Speedtree .st assets are now displaying proper icon\n- Multi selection in upload tab show the ignored/included file in the selection\n\n[Changed]\n- Upgraded Asset SDK dependency to 1.2.0\n- Changed version label color to white and added colored dot next to it\n- Uploaded assets will be Published instead of Draft\n- Limiting upload to 5 concurrent tasks at a time\n- Asset Type is now different than Other when it makes sense\n- Better support for bulk import operation (when importing 20 items +)\n- Finished import will display a green progress bar (similar to upload)\n- Added new unit tests to StorageInfoHelpBox\n- Added IsGridLevelErrorOrMessage boolean to ErrorOrMessageHandlingData\n- Harmonize helpBox UI style\n- Moved ActionHelpBox under the Page tab\n- ActionHelpBox messaging is now specific to the Active page\n- Harmonize PageManager and ProjectOrganizationProvider error events\n- Improved StorageInfoHelpBox message and level\n- StorageInfoHelpBox info and warning level are dismissible\n- Upload operation now recovers from a ServiceException by removing any new temporary assets created in project\n- Upload operations intercept ServiceException and display a customized error message based on the returned detailed error from service\n- Retry button in the error is now doing a Refresh\n- Internal cleanup with the Services class.\n- Don't remove Refresh menu option when losing network connection\n\n[Fixed]\n- Disabled transformations during import to prevent \"Pending\" version.\n- Changed the foldout's style to prevent project selection issues when resizing\n- Improved loading of projects and collections\n- Refreshing the icon and other metadata from cloud when multiselecting\n- Fixed failed downloads for certain files; primarily from uvcs.\n- Fixed a bug that caused nested collections to not be displayed properly\n- Progress not displaying right after starting an Import\n- Upload button is disable when all upload asset already exist in the cloud\n- File count in detail page counting system files too\n- Show In Project is now pinging the primary file\n- Timeout error causing the AM4U to be blocked on \"It seems there was an error while trying to retrieve organization info.\"\n- Help box error showing only in the In Project tab\n- Successful upload not taking back to the Assets page\n- Loading page not showing up during a Refresh\n- Initial connection status being forced to false\n- Removed nested scrollviews in multi select page\n- Fix cancel import\n\n[Removed]\n- UserEntitlement class and all related methods to fetch UserEntitlement from internal Cloud Services endpoints."
+    "changelog": "[Added]\n- Added a pause state to the progression bar\n- Added confidence threshold slider in settings\n- New settings toggle to allow user to deactivate the auto generation of tags on upload\n- Asset tag generation based on the thumbnail\n\n[Changed]\n- GridItem and Tag chips are now selected on PointerDown to match other elements of the package and editor\n- Renamed GetVersionsAsync method to GetAssetDataInDescendingVersionNumberOrder\n- Changed old OnGui event for UIToolkit event system\n- Internal refactor to AssetDescriptor\n- Disable the cancel button of the progress bar when the progression is completed\n- Update settings manager package version from 1.0.2 to 2.0.1\n\n[Fixed]\n- Addressed warnings coming from packages\n- Public  method GetAssetDataInDescendingVersionNumberOrder does not return an IAsset anymore (to limit Asset SDK access)\n- Fixed issue with non-frozen asset upload.\n- Only refreshing the extension when data not already gathered before selection\n- When removing an item to the selection, do not refresh all the other items\n- Cleaner foldouts implementation\n- We now prevent the user from trying to upload an asset from the active scene\n- Removed the speed check when dragging a grid item\n- Added MessageType field to MessageData to better customize help boxes and display the right icon\n- When re-uploading an asset, we now check if the associated asset was an embedded dependency before overriding the \"parent\" asset\n- UVCS files now show up in the details panel when asset is imported"
   },
   "upmCi": {
-    "footprint": "2cc457e2e40f1e5b3d58c4a0a9005342ee48824e"
+    "footprint": "a61dec1989206c520f4b9109aac58e856bcd7943"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@0.9/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "f92e0739172293b0258efe41abb81c72d39305d0"
+    "revision": "79454970484f5e6c8de1f3dde29137d9f4efc311"
   }
 }

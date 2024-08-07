@@ -1,12 +1,12 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True" class="px-2">
     <ui:VisualElement name="assetManagerSettingsContainer">
         <ui:VisualElement name="titleContainer">
-            <ui:Label text="Asset Manager" name="titleLabel"/>
+            <ui:Label name="titleLabel"/>
         </ui:VisualElement>
-        <ui:Foldout text="Import settings" class="settings-foldout">
+        <ui:Foldout name="importSettingsFoldout" class="settings-foldout">
             <ui:VisualElement class="import-settings-container">
                 <ui:VisualElement class="flex-row">
-                    <ui:Label text="Default import location" class="import-setting-name"/>
+                    <ui:Label name="importSettingsDefaultLocationLabel" class="import-setting-name"/>
                     <ui:VisualElement class="label-toolbar-combo">
                         <ui:Label name="importLocationPath" class="asset-manager-path"/>
                         <ui:VisualElement class="toolbar-menu">
@@ -16,21 +16,21 @@
                     </ui:VisualElement>
                 </ui:VisualElement>
                 <ui:VisualElement class="flex-row">
-                    <ui:Label text="Create subfolder on import" class="import-setting-name" tooltip="Enabling this option will automatically generate a folder named after the cloud asset and import files within it"/>
+                    <ui:Label name="importSettingsCreateSubfolderLabel" class="import-setting-name" />
                     <ui:Toggle name="subfolderCreationToggle"/>
                 </ui:VisualElement>
         </ui:VisualElement>
         </ui:Foldout>
-        <ui:Foldout text="Cache settings" class="settings-foldout">
+        <ui:Foldout name="cacheSettingsFoldout" class="settings-foldout">
             <ui:HelpBox message-type="Error" name="disabledErrorBox"/>
-            <ui:VisualElement name="cacheManagementContainer">
+            <ui:VisualElement name="cacheManagementContainer" class="cache-settings-container">
                 <ui:VisualElement>
-                    <ui:Label text="Cache location" class="cache-settings-label"/>
-                    <ui:Label text="Maximum cache size (GB)" class="cache-settings-label"/>
-                    <ui:Label text="Cache size is " class="cache-settings-label"/>
+                    <ui:Label name="cacheManagementLocationLabel" class="cache-settings-label"/>
+                    <ui:Label name="cacheManagementMaxSizeLabel" class="cache-settings-label"/>
+                    <ui:Label name="cacheManagementSizeLabel" class="cache-settings-label"/>
                     <ui:VisualElement name="cacheSizeOnDiskContainer">
-                        <ui:Button name="cleanCache" text="Clean cache"/>
-                        <ui:Button text="Clear extra cache" name="clearExtraCache"/>
+                        <ui:Button name="cleanCache"/>
+                        <ui:Button name="clearExtraCache"/>
                     </ui:VisualElement>
                 </ui:VisualElement>
                 <ui:VisualElement class="cache-settings-element">
@@ -44,8 +44,20 @@
                     <ui:SliderInt name="maxCacheSize" show-input-field="true" class="max-cache-size"/>
                     <ui:VisualElement name="cacheSizeOnDiskContainer">
                         <ui:Label name="cacheSizeOnDisk" class="settings"/>
-                        <ui:Button text="Refresh" name="refresh"/>
+                        <ui:Button name="refresh"/>
                     </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:Foldout>
+        <ui:Foldout name="uploadSettingsFoldout" class="settings-foldout">
+            <ui:VisualElement class="upload-settings-container">
+                <ui:VisualElement class="flex-row">
+                    <ui:Label name="tagsCreationUploadLabel" class="upload-settings-label"/>
+                    <ui:Toggle name="tagsCreationUploadToggle" class="upload-settings-toggle"/>
+                </ui:VisualElement>
+                <ui:VisualElement class="confidence-threshold-container">
+                    <ui:Label name="tagsCreationUploadConfidenceLabel" class="upload-settings-label"/>
+                    <ui:SliderInt name="tagsCreationUploadConfidenceValue" show-input-field="true" high-value="100" class="confidence-threshold"/>
                 </ui:VisualElement>
             </ui:VisualElement>
         </ui:Foldout>

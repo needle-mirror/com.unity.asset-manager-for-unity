@@ -39,15 +39,10 @@ namespace Unity.AssetManager.Editor
             m_SearchTextField = m_ToolbarSearchField.Q<TextField>();
             m_SearchTextField.isDelayed = true;
 
-            m_SearchTextField.RegisterCallback<KeyDownEvent>(OnKeyDown);
-            m_SearchTextField.RegisterCallback<FocusOutEvent>(OnFocusOut);
-            m_SearchTextField.RegisterCallback<FocusInEvent>(OnFocusIn);
-
             m_ClearAllButton = m_ToolbarSearchField.Q<Button>("unity-cancel");
             if (m_ClearAllButton != null)
             {
                 m_ClearAllButton.name = k_SearchCancelUssName;
-                m_ClearAllButton.clicked += OnSearchCancelClick;
             }
 
             m_SearchChipsContainer = new VisualElement();
@@ -65,6 +60,15 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            m_SearchTextField.RegisterCallback<KeyDownEvent>(OnKeyDown);
+            m_SearchTextField.RegisterCallback<FocusOutEvent>(OnFocusOut);
+            m_SearchTextField.RegisterCallback<FocusInEvent>(OnFocusIn);
+            
+            if (m_ClearAllButton != null)
+            {
+                m_ClearAllButton.clicked += OnSearchCancelClick;
+            }
+            
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.SearchFiltersChanged += OnPageSearchFiltersChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
@@ -73,6 +77,15 @@ namespace Unity.AssetManager.Editor
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            m_SearchTextField.UnregisterCallback<KeyDownEvent>(OnKeyDown);
+            m_SearchTextField.UnregisterCallback<FocusOutEvent>(OnFocusOut);
+            m_SearchTextField.UnregisterCallback<FocusInEvent>(OnFocusIn);
+            
+            if (m_ClearAllButton != null)
+            {
+                m_ClearAllButton.clicked -= OnSearchCancelClick;
+            }
+            
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_PageManager.SearchFiltersChanged -= OnPageSearchFiltersChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;

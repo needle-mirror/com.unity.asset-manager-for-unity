@@ -34,7 +34,17 @@ namespace Unity.AssetManager.Editor
                 return string.Empty;
             }
 
-            return L10n.Tr(enabled.HasFlag(UIEnabledStates.HasPermissions) ? Constants.ImportButtonDisabledToolTip : Constants.ImportNoPermissionMessage);
+            if (!enabled.HasFlag(UIEnabledStates.ServicesReachable))
+            {
+                return L10n.Tr(Constants.UploadCloudServicesNotReachableTooltip);
+            }
+
+            if (!enabled.HasFlag(UIEnabledStates.HasPermissions))
+            {
+                return L10n.Tr(Constants.ImportNoPermissionMessage);
+            }
+
+            return enabled.HasFlag(UIEnabledStates.IsImporting) ? string.Empty : L10n.Tr(Constants.ImportButtonDisabledToolTip);
         }
 
         public static void AddProjectChip(this CreateProjectChip createProjectChip, VisualElement container, params string[] projectIds)

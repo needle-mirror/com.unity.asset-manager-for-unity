@@ -2,9 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 
@@ -141,7 +141,7 @@ namespace Unity.AssetManager.Editor
                 return true;
             }
 
-            if (baseList == null || extendedList == null || baseList.Count > extendedList.Count)
+            if (baseList == null || extendedList == null || baseList.Count > extendedList.Count || baseList.Count == 0)
             {
                 return false;
             }
@@ -181,6 +181,11 @@ namespace Unity.AssetManager.Editor
             return Path.Combine("Assets", str);
         }
 
+        public static bool ComparePaths(string path1, string path2)
+        {
+            return string.Equals(NormalizePathSeparators(path1), NormalizePathSeparators(path2), StringComparison.OrdinalIgnoreCase);
+        }
+
         public static string NormalizePathSeparators(string path)
         {
             if (string.IsNullOrEmpty(path))
@@ -195,25 +200,16 @@ namespace Unity.AssetManager.Editor
             return Regex.Replace(str, pattern, Path.DirectorySeparatorChar.ToString());
         }
 
-        public static string OpenFolderPanelInProject(string title, string currentLocation)
+        public static string OpenFolderPanelInProject(string title, string defaultLocation)
         {
             var validPath = false;
             string importLocation = null;
 
-            try
-            {
-                currentLocation = IsPathInProject(currentLocation) && Directory.Exists(currentLocation) ? currentLocation : Application.dataPath;
-            }
-            catch
-            {
-                currentLocation = Application.dataPath;
-            }
-
             do
             {
-                importLocation = EditorUtility.OpenFolderPanel(title, currentLocation, string.Empty);
+                importLocation = EditorUtility.OpenFolderPanel(title, defaultLocation, string.Empty);
 
-                validPath = IsPathInProject(importLocation) || string.IsNullOrEmpty(importLocation);
+                validPath = importLocation.Contains(Application.dataPath) || string.IsNullOrEmpty(importLocation);
 
                 if (!validPath)
                 {
@@ -225,9 +221,97 @@ namespace Unity.AssetManager.Editor
             return importLocation;
         }
 
-        public static bool IsPathInProject(string path)
+        public static string GetUniqueFilename(ICollection<string> allFilenames, string filename)
         {
-            return NormalizePathSeparators(path).StartsWith(NormalizePathSeparators(Application.dataPath));
+            var uniqueFilename = filename;
+            var counter = 1;
+
+            while (allFilenames.Contains(uniqueFilename))
+            {
+                var extension = Path.GetExtension(filename);
+                var fileWithoutExtension = string.IsNullOrEmpty(extension) ? filename : filename[..^extension.Length];
+
+                uniqueFilename = $"{fileWithoutExtension} ({counter}){extension}";
+                ++counter;
+            }
+
+            return uniqueFilename;
+        }
+
+        public static string ExtractCommonFolder(ICollection<string> filePaths)
+        {
+            if (filePaths.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var sanitizedPaths = filePaths.Select(NormalizePathSeparators).ToList();
+
+            var reference = sanitizedPaths[0]; // We can optimize this by selecting the shortest path
+
+            if (filePaths.Count == 1)
+            {
+                return reference[..^Path.GetFileName(reference).Length];
+            }
+
+            var folders = reference.Split(Path.DirectorySeparatorChar);
+
+            if (folders.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            var result = string.Empty;
+
+            foreach (var folder in folders)
+            {
+                var attempt = result + folder + Path.DirectorySeparatorChar;
+
+                if (sanitizedPaths.TrueForAll(p => p.StartsWith(attempt, StringComparison.OrdinalIgnoreCase)))
+                {
+                    result = attempt;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (result.Length < 2) // Avoid returning empty folders
+            {
+                return string.Empty;
+            }
+
+            return NormalizePathSeparators(result);
+        }
+
+        public static IEnumerable<string> GetValidAssetDependencyGuids(string assetGuid, bool recursive)
+        {
+            var assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
+
+            foreach (var dependencyPath in AssetDatabase.GetDependencies(assetPath, recursive))
+            {
+                if (!IsPathInsideAssetsFolder(dependencyPath))
+                    continue;
+
+                var dependencyGuid = AssetDatabase.AssetPathToGUID(dependencyPath);
+
+                if (dependencyGuid == assetGuid)
+                    continue;
+
+                yield return dependencyGuid;
+            }
+        }
+
+        public static bool IsGuidInsideAssetsFolder(string assetGuid)
+        {
+            var assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
+            return IsPathInsideAssetsFolder(assetPath);
+        }
+
+        public static bool IsPathInsideAssetsFolder(string assetPath)
+        {
+            return assetPath.Replace('\\', '/').ToLower().StartsWith("assets/");
         }
     }
 }

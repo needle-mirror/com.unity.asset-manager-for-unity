@@ -24,19 +24,24 @@ namespace Unity.AssetManager.Editor
             public string[] FileExtensions;
 
             /// <summary>
-            /// If embeded dependency option is used
+            /// Upload mode.
             /// </summary>
-            public bool EmbedDependencies;
+            public string UploadMode;
+
+            /// <summary>
+            /// Dependency mode.
+            /// </summary>
+            public string DependencyMode;
+
+            /// <summary>
+            /// File Paths mode.
+            /// </summary>
+            public string FilePathMode;
 
             /// <summary>
             /// If the upload is done into a collection
             /// </summary>
             public bool UseCollection;
-
-            /// <summary>
-            /// Upload mode.
-            /// </summary>
-            public string UploadMode;
         }
 
         const string k_EventName = AnalyticsSender.EventPrefix + "Upload";
@@ -47,16 +52,16 @@ namespace Unity.AssetManager.Editor
 
         UploadEventData m_Data;
 
-        internal UploadEvent(int fileCount, string[] fileExtensions, bool embedDependency, bool useCollection,
-            AssetUploadMode uploadMode)
+        internal UploadEvent(int fileCount, string[] fileExtensions, bool useCollection, UploadSettings uploadSettings)
         {
             m_Data = new UploadEventData
             {
                 FileCount = fileCount,
                 FileExtensions = fileExtensions,
-                EmbedDependencies = embedDependency,
-                UseCollection = useCollection,
-                UploadMode = uploadMode.ToString()
+                UploadMode = uploadSettings.UploadMode.ToString(),
+                DependencyMode = uploadSettings.DependencyMode.ToString(),
+                FilePathMode = uploadSettings.FilePathMode.ToString(),
+                UseCollection = useCollection
             };
         }
 

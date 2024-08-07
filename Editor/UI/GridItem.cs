@@ -46,7 +46,7 @@ namespace Unity.AssetManager.Editor
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
 
-            _ = new ClickOrDragStartManipulator(this, OnPointerUp, OnDragStart);
+            _ = new ClickOrDragStartManipulator(this, OnPointerUp, OnPointerDown, OnDragStart);
 
             m_AssetPreview = new AssetPreview();
 
@@ -166,6 +166,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        public event Action<PointerDownEvent> PointerDownAction;
         public event Action<PointerUpEvent> PointerUpAction;
         public event Action DragStartedAction;
 
@@ -206,7 +207,7 @@ namespace Unity.AssetManager.Editor
 
         void RefreshOperationProgress(AssetDataOperation operation)
         {
-            if (!operation.Identifier.Equals(m_AssetData?.Identifier))
+            if (!operation.Identifier.IsSameAsset(m_AssetData?.Identifier))
                 return;
 
             m_OperationProgressBar.Refresh(operation);
@@ -228,7 +229,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        void OnSelectedAssetChanged(IPage page, List<AssetIdentifier> assets)
+        void OnSelectedAssetChanged(IPage page, IEnumerable<AssetIdentifier> assets)
         {
             RefreshHighlight();
         }
@@ -254,7 +255,7 @@ namespace Unity.AssetManager.Editor
             if (m_AssetData == null)
                 return;
 
-            var isSelected = m_PageManager.ActivePage.SelectedAssets.Contains(m_AssetData.Identifier);
+            var isSelected = m_PageManager.ActivePage.SelectedAssets.Any(i => i.IsSameAsset(m_AssetData.Identifier));
             if (isSelected)
             {
                 AddToClassList(UssStyles.ItemHighlight);
@@ -265,6 +266,11 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        void OnPointerDown(PointerDownEvent e)
+        {
+            PointerDownAction?.Invoke(e);
+        }
+        
         void OnPointerUp(PointerUpEvent e)
         {
             PointerUpAction?.Invoke(e);

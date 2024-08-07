@@ -26,10 +26,9 @@ namespace Unity.AssetManager.Editor
 
             m_Label = new Label();
             m_Label.pickingMode = PickingMode.Ignore;
-            m_Label.text =string.Empty;
+            m_Label.text = string.Empty;
             Add(m_Label);
-
-            RegisterCallback<ClickEvent>(OnClicked);
+            
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
@@ -41,6 +40,8 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            RegisterCallback<ClickEvent>(OnClicked);
+            
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
 
@@ -49,6 +50,8 @@ namespace Unity.AssetManager.Editor
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            UnregisterCallback<ClickEvent>(OnClicked);
+            
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= OnProjectSelectionChanged;
         }

@@ -2,10 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using Unity.Cloud.Common;
 using UnityEditor;
 using UnityEngine;
@@ -16,21 +14,21 @@ namespace Unity.AssetManager.Editor
     class UploadOperation : AssetDataOperation, IProgress<HttpProgress>
     {
         readonly HashSet<HttpProgress> m_HttpProgresses = new();
-        readonly IUploadAssetEntry m_UploadEntry;
+        readonly IUploadAsset m_UploadAsset;
 
         string m_Description;
         float m_Progress;
 
-        public override AssetIdentifier Identifier => UploadAssetData.LocalAssetIdentifier(m_UploadEntry.Guid);
+        public override AssetIdentifier Identifier => new(m_UploadAsset.Guid);
         public override float Progress => m_Progress;
-        public override string OperationName => $"Uploading {Path.GetFileName(m_UploadEntry.Name)}";
+        public override string OperationName => $"Uploading {Path.GetFileName(m_UploadAsset.Name)}";
         public override string Description => m_Description;
         public override bool StartIndefinite => true;
         public override bool IsSticky => true;
 
-        public UploadOperation(IUploadAssetEntry uploadEntry)
+        public UploadOperation(IUploadAsset uploadAsset)
         {
-            m_UploadEntry = uploadEntry;
+            m_UploadAsset = uploadAsset;
         }
 
         public void Report(HttpProgress value)
@@ -45,7 +43,7 @@ namespace Unity.AssetManager.Editor
 
             totalProgress /= m_HttpProgresses.Count;
 
-            ReportStep($"Uploading {m_UploadEntry.Files.Count} file(s)", totalProgress);
+            ReportStep($"Uploading {m_UploadAsset.Files.Count} file(s)", totalProgress);
         }
 
         public async Task PrepareUploadAsync(AssetData asset, IDictionary<string, AssetData> guidToAssetLookup,
@@ -53,19 +51,16 @@ namespace Unity.AssetManager.Editor
         {
             var tasks = new List<Task>();
 
-            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-            var sourceDataset = await assetsProvider.GetSourceDatasetAsync(asset, token);
-
             // Dependency manifest
-            if (m_UploadEntry.Dependencies.Any())
+            if (m_UploadAsset.Dependencies.Any())
             {
                 ReportStep("Preparing manifest...");
 
-                foreach (var depGuid in m_UploadEntry.Dependencies)
+                foreach (var depGuid in m_UploadAsset.Dependencies)
                 {
                     if (guidToAssetLookup.TryGetValue(depGuid, out var depAsset))
                     {
-                        tasks.Add(UploadDependencySystemFileAsync(sourceDataset, depAsset, token));
+                        tasks.Add(UploadDependencySystemFileAsync(asset, depAsset, token));
                     }
                 }
             }
@@ -77,51 +72,53 @@ namespace Unity.AssetManager.Editor
         {
             ReportStep("Preparing for upload");
 
-            var assetPath = AssetDatabase.GUIDToAssetPath(m_UploadEntry.Guid);
+            var assetPath = AssetDatabase.GUIDToAssetPath(m_UploadAsset.Guid);
             var assetInstance = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-            var sourceDataset = await assetsProvider.GetSourceDatasetAsync(asset, default);
 
-            // Upload files
-            var tasks = new List<Task>();
+            // Upload files tasks
+            var uploadTasks = new List<Task>();
+            var uploadThumbnailTask = Task.FromResult<AssetDataFile>(null);
 
             // Files inside the asset entry
-            foreach (var file in m_UploadEntry.Files)
+            foreach (var file in m_UploadAsset.Files)
             {
-                var relativePath = Utilities.GetPathRelativeToAssetsFolder(file);
+                if (string.IsNullOrEmpty(file.SourcePath))
+                {
+                    continue;
+                }
 
-                ReportStep($"Preparing file {Path.GetFileName(file)}");
-                tasks.Add(UploadFile(file, relativePath, sourceDataset, token));
+                ReportStep($"Preparing file {Path.GetFileName(file.SourcePath)}");
+
+                uploadTasks.Add(assetsProvider.UploadFile(asset, file.DestinationPath, file.SourcePath, this, token));
             }
 
             // Thumbnail
-
-            string previewFile = null;
-
             if (RequiresThumbnail(assetInstance, assetPath))
             {
                 ReportStep("Preparing thumbnail");
 
                 var texture = await GetThumbnailAsync(assetInstance, assetPath);
-
                 if (texture != null)
                 {
-                    var previewDataset = await assetsProvider.GetPreviewDatasetAsync(asset, default);
-                    previewFile = Constants.ThumbnailFilename;
-                    tasks.Add(UploadFile(texture.EncodeToPNG(), previewFile, previewDataset, token));
+                    uploadThumbnailTask = assetsProvider.UploadThumbnail(asset, texture, this, token);
                 }
             }
 
-            await Task.WhenAll(tasks);
+            await Task.WhenAll(uploadTasks);
+            var thumbnailFile = await uploadThumbnailTask;
 
-            if (!string.IsNullOrEmpty(previewFile))
+            if (thumbnailFile != null && !string.IsNullOrEmpty(thumbnailFile.Path))
             {
                 ReportStep("Applying thumbnail");
+                
+                var existingTags = asset.Tags ?? new List<string>();
                 var assetUpdate = new AssetUpdate
                 {
-                    Type = m_UploadEntry.AssetType.ConvertAssetTypeToCloudAssetType(),
-                    PreviewFile = previewFile
+                    Type = m_UploadAsset.AssetType,
+                    Tags = existingTags.Union(thumbnailFile.Tags ?? Array.Empty<string>()).ToList(),
+                    PreviewFile = thumbnailFile.Path
                 };
 
                 await assetsProvider.UpdateAsync(asset, assetUpdate, token);
@@ -149,7 +146,10 @@ namespace Unity.AssetManager.Editor
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"Unable to commit asset version for asset {asset.Identifier.AssetId}. Asset will stay in Pending status.");
+                if (asset != null)
+                    Debug.LogWarning(
+                        $"Unable to commit asset version for asset {asset.Identifier.AssetId}. Asset will stay in Pending status.");
+                
                 Utilities.DevLog(e.ToString());
             }
 
@@ -171,54 +171,24 @@ namespace Unity.AssetManager.Editor
             return AssetManagerPreviewer.GenerateAdvancedPreview(asset, assetPath, 512);
         }
 
-        async Task UploadFile(string sourcePath, string destPath, IDataset targetDataset, CancellationToken token)
+        async Task UploadDependencySystemFileAsync(AssetData assetData, AssetData dependencyAsset,
+            CancellationToken token)
         {
-            await using (var stream = File.OpenRead(sourcePath))
-            {
-                await UploadFile(stream, destPath, targetDataset, token);
-            }
-        }
+            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
 
-        async Task UploadFile(byte[] bytes, string destPath, IDataset targetDataset, CancellationToken token)
-        {
-            await using (var stream = new MemoryStream(bytes))
-            {
-                await UploadFile(stream, destPath, targetDataset, token);
-            }
-        }
+            var dependencyAssetId = dependencyAsset.Identifier.AssetId;
+            var dependencyAssetVersion = dependencyAsset.Identifier.Version;
+            var dependencyFilePath =
+                AssetDataDependencyHelper.EncodeDependencySystemFilename(dependencyAssetId, dependencyAssetVersion);
 
-        async Task UploadFile(Stream stream, string destPath, IDataset targetDataset, CancellationToken token)
-        {
-            var fileCreation = new FileCreation(destPath.Replace('\\', '/')); // Backend doesn't support backslashes AMECO-2616
-            // Preview transformation prevents us from freezing the asset or cause unwanted modification in the asset. Remove this line when Preview will not affect the asset anymore AMECO-2759
-            fileCreation.DisableAutomaticTransformations = true;
-            
-            try
-            {
-                await targetDataset.UploadFileAsync(fileCreation, stream, this, token);
-            }
-            catch (ServiceException e)
-            {
-                if (e.StatusCode != HttpStatusCode.Conflict)
-                {
-                    Debug.LogError($"Unable to upload file {destPath} to dataset {targetDataset?.Name}");
-                    throw;
-                }
-            }
-        }
-
-        async Task UploadDependencySystemFileAsync(IDataset sourceDataset, IAssetData asset, CancellationToken token)
-        {
-            var assetId = asset.Identifier.AssetId;
-            var assetVersion = asset.Identifier.Version;
-            var depFile = AssetDataDependencyHelper.EncodeDependencySystemFilename(assetId, assetVersion);
-
-            await UploadFile(new byte[] { }, depFile, sourceDataset, token);
+            using var stream = new MemoryStream(new byte[] { });
+            await assetsProvider.UploadFile(assetData, dependencyFilePath, stream, this, token);
         }
 
         static bool RequiresThumbnail(Object assetInstance, string assetPath)
         {
-            return assetInstance is not Texture2D || assetPath.EndsWith(".tif", StringComparison.OrdinalIgnoreCase);
+            return assetInstance is not Texture2D ||
+                   !AssetDataTypeHelper.IsSupportingPreviewGeneration(Path.GetExtension(assetPath));
         }
     }
 }

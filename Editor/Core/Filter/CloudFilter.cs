@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -16,7 +15,7 @@ namespace Unity.AssetManager.Editor
         List<string> m_CachedSelections = new();
         CancellationTokenSource m_TokenSource;
 
-        protected abstract GroupableField GroupBy { get; }
+        protected abstract AssetSearchGroupBy GroupBy { get; }
 
         public abstract void ResetSelectedFilter(AssetSearchFilter assetSearchFilter);
         protected abstract void ClearFilter();
@@ -24,7 +23,7 @@ namespace Unity.AssetManager.Editor
 
         void ResetSelectedFilter()
         {
-            ResetSelectedFilter(m_Page.PageFilters.AssetFilter);
+            ResetSelectedFilter(m_Page.PageFilters.AssetSearchFilter);
         }
 
         internal CloudFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)

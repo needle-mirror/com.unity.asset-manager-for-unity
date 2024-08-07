@@ -81,7 +81,7 @@ namespace Unity.AssetManager.Editor
                 m_FetchingTask = null;
             }
 
-            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(assetData?.PrimaryExtension);
+            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(assetData?.PrimarySourceFile?.Extension);
 
             m_AssetIdentifier = assetData?.Identifier;
 
@@ -107,7 +107,7 @@ namespace Unity.AssetManager.Editor
                 return null;
             }
 
-            if (assetData != null && string.IsNullOrEmpty(assetData.PrimaryExtension))
+            if (assetData != null && string.IsNullOrEmpty(assetData.PrimarySourceFile?.Extension))
             {
                 await assetData.ResolvePrimaryExtensionAsync(null, token);
             }

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 
 namespace Unity.AssetManager.Editor
 {
@@ -14,21 +13,21 @@ namespace Unity.AssetManager.Editor
         AssetIdentifier LastSelectedAssetId { get; }
         IReadOnlyCollection<IAssetData> AssetList { get; }
         MessageData MessageData { get; }
-        List<AssetIdentifier> SelectedAssets { get; }
+        IReadOnlyCollection<AssetIdentifier> SelectedAssets { get; }
 
         event Action<bool> LoadingStatusChanged;
-        event Action<List<AssetIdentifier>> SelectedAssetsChanged;
-        event Action<IEnumerable<string>> SearchFiltersChanged;
+        event Action<IReadOnlyCollection<AssetIdentifier>> SelectedAssetsChanged;
+        event Action<IReadOnlyCollection<string>> SearchFiltersChanged;
         event Action<MessageData> MessageThrown;
 
         Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
-            GroupableField groupBy, CancellationToken token);
+            AssetSearchGroupBy groupBy, CancellationToken token);
 
         void SelectAsset(AssetIdentifier asset, bool additive);
         void SelectAssets(IEnumerable<AssetIdentifier> assets);
         public void ToggleAsset(IAssetData assetData, bool checkState);
         void LoadMore();
-        void Clear(bool reloadImmediately, bool keepSelection = false);
+        void Clear(bool reloadImmediately, bool clearSelection = true);
         void ClearSelection();
 
         // Called after the page is created, and after a domain reload

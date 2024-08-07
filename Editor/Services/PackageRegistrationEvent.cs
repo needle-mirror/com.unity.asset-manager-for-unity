@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using UnityEditor;
 using UnityEditor.PackageManager;
 
@@ -26,11 +27,26 @@ namespace Unity.AssetManager.Editor
                     }
                 }
             }
+            
+            void RefreshAssetManagerWindow(PackageRegistrationEventArgs args)
+            {
+                foreach (var info in args.changedTo)
+                {
+                    if (info.name == Constants.PackageName && EditorWindow.HasOpenInstances<AssetManagerWindow>())
+                    {
+                        var window = EditorWindow.GetWindow<AssetManagerWindow>();
+                        window.RefreshAll();
+                    }
+                }
+            }
 
             //Event raised before applying changes to the registered packages list.
             //Occurs before the asset database begins refreshing.Packages about to be modified or
             //removed are still present and functional, because the package registration process has not yet begun.
             Events.registeringPackages += Handle;
+
+            //Event raised before applying changes to the registered packages list.
+            Events.registeredPackages += RefreshAssetManagerWindow;
         }
     }
 }

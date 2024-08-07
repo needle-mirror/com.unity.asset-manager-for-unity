@@ -12,8 +12,6 @@ namespace Unity.AssetManager.Editor
 
         public const int DefaultPageSize = 50;
 
-        public const string ThumbnailFilename = "unity_thumbnail.png";
-
         // Tabs
         public const string AssetsTabLabel = "Assets";
         public const string InProjectTabLabel = "In Project";
@@ -99,7 +97,7 @@ namespace Unity.AssetManager.Editor
         public const string ImportActionText = "Import";
         public const string ImportToActionText = "Import To";
         public const string UpdateToLatestActionText = "Update To Latest";
-        public const string ReimportActionText = "Re-import";
+        public const string ReimportActionText = "Reimport";
         public const string ImportLocationTitle = "Choose import location";
         public const string RemoveFromProjectActionText = "Remove From Project";
         public const string RemoveAllFromProjectActionText = "Remove All From Local Project";
@@ -137,6 +135,45 @@ namespace Unity.AssetManager.Editor
         // Permissions
         public const string ImportPermission = "amc.assets.download";
         public const string UploadPermission = "amc.assets.create";
+
+        // Reimport Window
+        public const string ReimportWindowConflictsTitle = "Some files have conflicts. To complete import, choose how to resolve them.";
+        public const string ReimportWindowConflictsWarning = "Warning: replacing files will overwrite local copies.";
+        public const string ReimportWindowDependentsTitle = "The following dependent assets have updates:";
+        public const string ReimportWindowUpwardDependenciesTitle = "The following assets have dependencies on updated assets. They might also be affected:";
+        public const string ReimportWindowCancel = "Cancel";
+        public const string ReimportWindowImport = "Import";
+        public const string ReimportWindowSkip = "Skip";
+        public const string ReimportWindowUpdate = "Update";
+        public const string ReimportWindowReimport = "Reimport";
+
+        // Asset Manager Settings
+        public const string AssetManagerTitle = "Asset Manager";
+
+        public const string ImportSettingsTitle = "Import Settings";
+        public const string ImportDefaultLocation = "Default import location";
+        public const string ImportCreateSubfolders = "Create subfolder on import";
+        public const string ImportCreateSubfoldersTooltip = "Enabling this option will automatically generate a folder named after the cloud asset and import files within it";
+
+        public const string CacheSettingsTitle = "Cache Settings";
+        public const string CacheLocationTitle = "Cache location";
+        public const string AccessError = "Some folders or files could not be accessed.";
+        public const string DirectoryDoesNotExistError = "This directory does not exist";
+        public const string RevealInFinder = "Reveal in Finder";
+        public const string ShowInExplorerLabel = "Show in Explorer";
+        public const string ChangeLocationLabel = "Change Location";
+        public const string ResetDefaultLocation = "Reset to Default Location";
+        public const string CacheLocation = "Cache Location";
+        public const string CacheMaxSize = "Maximum cache size (GB)";
+        public const string CacheSize = "Cache size is ";
+        public const string CacheRefresh = "Refresh";
+        public const string CleanCache = "Clean cache";
+        public const string ClearExtraCache = "Clear extra cache";
+
+        public const string UploadSettingsTitle = "Upload Settings";
+        public const string TagsCreation = "Generate tags automatically based on preview image";
+        public const string TagsCreationConfidenceLevel = "Confidence level for automatic tags generation";
+        public const string TagsCreationConfidenceLevelTooltip = "The higher the value, the more accurate the tags will be.";
 
         // This exists here for compatibility with 2020.x versions
         public static DateTime UnixEpoch = new(1970, 1, 1, 0, 0, 0);

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -12,7 +11,7 @@ namespace Unity.AssetManager.Editor
         List<UserInfo> m_UserInfos;
 
         public override string DisplayName => "Created by";
-        protected override GroupableField GroupBy => GroupableField.CreatedBy;
+        protected override AssetSearchGroupBy GroupBy => AssetSearchGroupBy.CreatedBy;
 
         public CreatedByFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
             : base(page, projectOrganizationProvider) { }
@@ -20,19 +19,19 @@ namespace Unity.AssetManager.Editor
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
             var userInfo = m_UserInfos?.FirstOrDefault(u => u.Name == SelectedFilter);
-            assetSearchFilter.Include().AuthoringInfo.CreatedBy.WithValue(userInfo?.UserId);
+            assetSearchFilter.CreatedBy = userInfo?.UserId;
         }
 
         protected override void IncludeFilter(string selection)
         {
             var userInfo = m_UserInfos?.FirstOrDefault(u => u.Name == selection);
-            m_Page.PageFilters.AssetFilter.Include().AuthoringInfo.CreatedBy.WithValue(userInfo?.UserId);
+            m_Page.PageFilters.AssetSearchFilter.CreatedBy = userInfo?.UserId;
         }
 
         protected override void ClearFilter()
         {
             m_UserInfos = null;
-            m_Page.PageFilters.AssetFilter.Include().AuthoringInfo.CreatedBy.Clear();
+            m_Page.PageFilters.AssetSearchFilter.CreatedBy = null;
         }
 
         protected override async Task<List<string>> GetSelectionsAsync()

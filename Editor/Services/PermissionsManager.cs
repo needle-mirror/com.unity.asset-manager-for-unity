@@ -118,6 +118,12 @@ namespace Unity.AssetManager.Editor
         readonly Dictionary<OrganizationProjectPair, Permission[]> m_CachedPermissions = new();
         readonly Dictionary<string, IOrganization> m_Organizations = new();
 
+        static readonly string k_AssetManagerAdmin = "asset manager admin";
+        static readonly string k_Manager = "manager";
+        static readonly string k_Owner = "owner";
+        static readonly string k_AssetManagerContributor = "asset manager contributor";
+        static readonly string k_AssetManagerConsumer = "asset manager consumer";
+
         [ServiceInjection]
         public void Inject(IAssetsProvider assetsProvider)
         {
@@ -147,7 +153,7 @@ namespace Unity.AssetManager.Editor
 
             return CheckPermission(await FetchPermissionsAsync(key), permission);
         }
-        
+
         public void Reset()
         {
             m_Organizations.Clear();
@@ -185,7 +191,7 @@ namespace Unity.AssetManager.Editor
             var orgRoles = results.Select(r => r.ToString().ToLower()).ToHashSet();
 
             // Asset Manager Admin, Manager, and Owner roles have by default all the permissions
-            if (orgRoles.Contains("asset manager admin") || orgRoles.Contains("manager") || orgRoles.Contains("owner"))
+            if (orgRoles.Contains(k_AssetManagerAdmin) || orgRoles.Contains(k_Manager) || orgRoles.Contains(k_Owner))
             {
                 return Role.Contributor;
             }
@@ -197,12 +203,13 @@ namespace Unity.AssetManager.Editor
 
                 var res = await project.ListRolesAsync();
                 var projectRoles = res.Select(r => r.ToString().ToLower()).ToHashSet();
-                if (projectRoles.Contains("asset manager contributor"))
+
+                if (projectRoles.Contains(k_AssetManagerContributor) || projectRoles.Contains(k_Manager) || projectRoles.Contains(k_Owner))
                 {
                     return Role.Contributor;
                 }
 
-                if (projectRoles.Contains("asset manager consumer"))
+                if (projectRoles.Contains(k_AssetManagerConsumer))
                 {
                     return Role.Consumer;
                 }

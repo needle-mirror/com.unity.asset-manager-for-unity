@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEditor;
 
 namespace Unity.AssetManager.Editor
@@ -10,7 +9,7 @@ namespace Unity.AssetManager.Editor
     class UpdatedByFilter : CloudFilter
     {
         public override string DisplayName => "Updated by";
-        protected override GroupableField GroupBy => GroupableField.UpdateBy;
+        protected override AssetSearchGroupBy GroupBy => AssetSearchGroupBy.UpdatedBy;
 
         List<UserInfo> m_UserInfos;
 
@@ -20,21 +19,22 @@ namespace Unity.AssetManager.Editor
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
             var userInfo = m_UserInfos?.FirstOrDefault(u => u.Name == SelectedFilter);
-            assetSearchFilter.Include().AuthoringInfo.UpdatedBy.WithValue(userInfo?.UserId ??
-                (SelectedFilter == L10n.Tr("Service Account") ? "System" : SelectedFilter));
+            
+            assetSearchFilter.UpdatedBy = userInfo?.UserId ??
+                (SelectedFilter == L10n.Tr("Service Account") ? "System" : SelectedFilter);
         }
-
+        
         protected override void IncludeFilter(string selection)
         {
             var userInfo = m_UserInfos?.FirstOrDefault(u => u.Name == selection);
-            m_Page.PageFilters.AssetFilter.Include().AuthoringInfo.UpdatedBy.WithValue(userInfo?.UserId ??
-                (selection == L10n.Tr("Service Account") ? "System" : selection));
+            m_Page.PageFilters.AssetSearchFilter.UpdatedBy = userInfo?.UserId ?? 
+                (selection == L10n.Tr("Service Account") ? "System" : selection);
         }
 
         protected override void ClearFilter()
         {
             m_UserInfos = null;
-            m_Page.PageFilters.AssetFilter.Include().AuthoringInfo.UpdatedBy.Clear();
+            m_Page.PageFilters.AssetSearchFilter.UpdatedBy = null;
         }
 
         protected override async Task<List<string>> GetSelectionsAsync()

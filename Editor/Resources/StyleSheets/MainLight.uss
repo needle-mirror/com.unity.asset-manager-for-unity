@@ -339,3 +339,32 @@ PopupContainer {
     background-color: #C8C8C8;
     border-color: #7E7E7E;
 }
+
+/************************************************
+* Reimport Window
+************************************************/
+
+.reimport-window-footer {
+    background-color: #A5A5A5;
+}
+
+.reimport-window-warning-container {
+    background-color: #A5A5A5;
+    border-color: #232323;
+}
+
+.conflicts-foldout-header-dropdown
+{
+    background-color: #7E7E7E;
+    border-color: #232323;
+}
+
+.conflicts-foldout-content
+{
+    border-color: #232323;
+}
+
+.reimport-item-resolve-dropdown {
+    background-color: #7E7E7E;
+    border-color: #232323;
+}

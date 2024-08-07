@@ -34,10 +34,15 @@ namespace Unity.AssetManager.Editor
         static readonly string k_InspectorFooterContainerName = "footer-container";
 
         List<IAssetData> m_SelectedAssetsData = new();
-        MultiSelectionFoldout m_UnimportedFoldout;
-        MultiSelectionFoldout m_ImportedFoldout;
-        MultiSelectionFoldout m_UploadIgnoredFoldout;
-        MultiSelectionFoldout m_UploadIncludedFoldout;
+        public enum FoldoutName
+        {
+            Unimported = 0,
+            Imported = 1,
+            UploadIgnored = 2,
+            UploadIncluded = 3
+        }
+        readonly Dictionary<FoldoutName, MultiSelectionFoldout> m_Foldouts = new();
+        
         Button m_RemoveImportButton;
         VisualElement m_FooterContainer;
         OperationProgressBar m_OperationProgressBar;
@@ -64,53 +69,32 @@ namespace Unity.AssetManager.Editor
             base.BuildUxmlDocument();
 
             var container = m_ScrollView.Q<VisualElement>(k_InspectorScrollviewContainerClassName);
-            m_UnimportedFoldout = new MultiSelectionFoldout(container, k_UnimportedFoldoutClassName,
+            
+            m_Foldouts[FoldoutName.Unimported] = new MultiSelectionFoldout(container, k_UnimportedFoldoutClassName,
                 k_UnimportedListViewClassName, Constants.ImportActionText,
                 ImportUnimportedAssetsAsync, k_UnimportedFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
             
-            m_ImportedFoldout = new MultiSelectionFoldout(container, k_ImportedFoldoutClassName,
+            m_Foldouts[FoldoutName.Imported] = new MultiSelectionFoldout(container, k_ImportedFoldoutClassName,
                 k_ImportedListViewClassName, Constants.ReimportActionText,
                 ReImportAssetsAsync,k_ImportedFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
             
-            m_UploadIgnoredFoldout = new MultiSelectionFoldout(container, k_UploadIgnoredFoldoutClassName,
+            m_Foldouts[FoldoutName.UploadIgnored] = new MultiSelectionFoldout(container, k_UploadIgnoredFoldoutClassName,
                 k_UploadIgnoredListViewClassName, Constants.IncludeAll,
                 IncludeUploadAssets, k_UploadIgnoredFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
             
-            m_UploadIncludedFoldout = new MultiSelectionFoldout(container, k_UploadIncludedFoldoutClassName,
+            m_Foldouts[FoldoutName.UploadIncluded] = new MultiSelectionFoldout(container, k_UploadIncludedFoldoutClassName,
                 k_UploadIncludedListViewClassName, Constants.IgnoreAll,
                 IgnoreUploadAssets, k_UploadIncludedFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
-
-            // Foldout for non imported assets
-            m_UnimportedFoldout.RegisterValueChangedCallback(_ =>
-            {
-                m_StateManager.MultiSelectionUnimportedFoldoutValue = m_UnimportedFoldout.Expanded;
-                RefreshScrollView();
-            });
-            m_UnimportedFoldout.Expanded = m_StateManager.MultiSelectionUnimportedFoldoutValue;
-
-            // Foldout for imported assets
-            m_ImportedFoldout.RegisterValueChangedCallback(_ =>
-            {
-                m_StateManager.MultiSelectionImportedFoldoutValue = m_ImportedFoldout.Expanded;
-                RefreshScrollView();
-            });
-            m_ImportedFoldout.Expanded = m_StateManager.MultiSelectionImportedFoldoutValue;
             
-            // Foldout for upload ignored assets
-            m_UploadIgnoredFoldout.RegisterValueChangedCallback(_ =>
+            foreach (var foldout in m_Foldouts)
             {
-                m_StateManager.MultiSelectionUploadIgnoredFoldoutValue = m_UploadIgnoredFoldout.Expanded;
-                RefreshScrollView();
-            });
-            m_UploadIgnoredFoldout.Expanded = m_StateManager.MultiSelectionUploadIgnoredFoldoutValue;
-            
-            // Foldout for upload included assets
-            m_UploadIncludedFoldout.RegisterValueChangedCallback(_ =>
-            {
-                m_StateManager.MultiSelectionUploadIncludedFoldoutValue = m_UploadIncludedFoldout.Expanded;
-                RefreshScrollView();
-            });
-            m_UploadIncludedFoldout.Expanded = m_StateManager.MultiSelectionUploadIncludedFoldoutValue;
+                foldout.Value.RegisterValueChangedCallback(_ =>
+                {
+                    m_StateManager.MultiSelectionFoldoutsValues[(int)foldout.Key] = foldout.Value.Expanded;
+                    RefreshScrollView();
+                });
+                foldout.Value.Expanded = m_StateManager.MultiSelectionFoldoutsValues[(int)foldout.Key];
+            }
 
             m_FooterContainer = this.Q<VisualElement>(k_InspectorFooterContainerName);
             m_OperationProgressBar = new OperationProgressBar(() =>
@@ -137,29 +121,23 @@ namespace Unity.AssetManager.Editor
             RefreshUI();
         }
 
-        protected override async Task SelectAssetDataAsync(List<IAssetData> assetData)
+        protected override Task SelectAssetDataAsync(List<IAssetData> assetData)
         {
-            m_SelectedAssetsData = assetData;
-
-            var unimportedAssets = m_SelectedAssetsData.Where(x => !m_AssetDataManager.IsInProject(x.Identifier)).ToList();
-            
-            RefreshUI();
-            RefreshScrollView();
-            
-            var tasks = new List<Task>();
-            foreach (var asset in unimportedAssets)
+            // Check if assetData is a subset of m_SelectedAssetsData
+            if (assetData.Count < m_SelectedAssetsData.Count && !assetData.Except(m_SelectedAssetsData).Any())
             {
-                tasks.Add(asset.SyncWithCloudAsync(identifier =>
-                {
-                    if (!identifier.Equals(asset.Identifier))
-                        return;
-
-                    RefreshUI();
-                    RefreshScrollView();
-                }));
+                RemoveItemsFromFoldouts(m_SelectedAssetsData.Except(assetData));
+                m_SelectedAssetsData = assetData;
+                RefreshTitleAndButtons();
+            }
+            else
+            {
+                m_SelectedAssetsData = assetData;
+                RefreshUI();
             }
             
-            await TaskUtils.WaitForTasksWithHandleExceptions(tasks);
+            RefreshScrollView();
+            return Task.CompletedTask;
         }
 
         protected override void OnOperationProgress(AssetDataOperation operation)
@@ -216,14 +194,17 @@ namespace Unity.AssetManager.Editor
             RefreshUI();
         }
 
-        void RefreshUI()
+        void RefreshTitleAndButtons()
         {
-            if ( !IsVisible(m_SelectedAssetsData.Count))
-                return;
-
+            // Refresh Title
             m_TitleLabel.text = L10n.Tr(m_SelectedAssetsData.Count + " " + Constants.AssetsSelectedTitle);
-            RefreshFoldoutUI();
-
+            
+            // Refresh RemoveImportButton
+            var removable = m_SelectedAssetsData.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
+            m_RemoveImportButton.SetEnabled(removable.Count > 0);
+            m_RemoveImportButton.text = $"{L10n.Tr(Constants.RemoveAllFromProjectActionText)} ({removable.Count})";
+            
+            // Refresh ProgressBar
             bool atLeastOneProcess = false;
             foreach (var assetData in m_SelectedAssetsData)
             {
@@ -234,15 +215,19 @@ namespace Unity.AssetManager.Editor
                     m_OperationProgressBar.Refresh(operation);
                 }
             }
-
             if (!atLeastOneProcess)
             {
                 UIElementsUtils.Hide(m_OperationProgressBar);
             }
+        }
 
-            var removable = m_SelectedAssetsData.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
-            m_RemoveImportButton.SetEnabled(removable.Count > 0);
-            m_RemoveImportButton.text = $"{L10n.Tr(Constants.RemoveAllFromProjectActionText)} ({removable.Count})";
+        void RefreshUI()
+        {
+            if ( !IsVisible(m_SelectedAssetsData.Count))
+                return;
+            
+            RefreshFoldoutUI();
+            RefreshTitleAndButtons();
         }
 
         void RefreshFoldoutUI()
@@ -258,62 +243,55 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        void ClearFoldout(FoldoutName foldoutName)
+        {
+            m_Foldouts[foldoutName].StartPopulating();
+            m_Foldouts[foldoutName].Clear();
+            m_Foldouts[foldoutName].StopPopulating();
+            m_Foldouts[foldoutName].RefreshFoldoutStyleBasedOnExpansionStatus();
+        }
+
+        void PopulateFoldout(FoldoutName foldoutName, IEnumerable<IAssetData> items)
+        {
+            m_Foldouts[foldoutName].StartPopulating();
+            var assetDatas = items.ToList();
+            if (assetDatas.Any())
+            {
+                m_Foldouts[foldoutName].Populate(null, assetDatas);
+            }
+            else
+            {
+                m_Foldouts[foldoutName].Clear();
+            }
+            m_Foldouts[foldoutName].StopPopulating();
+            m_Foldouts[foldoutName].RefreshFoldoutStyleBasedOnExpansionStatus();
+        }
+        
+        void RemoveItemsFromFoldouts(IEnumerable<IAssetData> items)
+        {
+            foreach (var foldout in m_Foldouts)
+            {
+                m_Foldouts[foldout.Key].RemoveItems(items);
+            }
+        }
+        
         void RefreshAssetPageFoldoutUI()
         {
             UIElementsUtils.SetDisplay(m_RemoveImportButton, true);
                 
-            m_UploadIgnoredFoldout.StartPopulating();
-            m_UploadIgnoredFoldout.Clear();
-            m_UploadIgnoredFoldout.StopPopulating();
-            m_UploadIgnoredFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
-                
-            m_UploadIncludedFoldout.StartPopulating();
-            m_UploadIncludedFoldout.Clear();
-            m_UploadIncludedFoldout.StopPopulating();
-            m_UploadIncludedFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
-                
-            m_UnimportedFoldout.StartPopulating();
-            var unimportedAssets = m_SelectedAssetsData.Where(x => !m_AssetDataManager.IsInProject(x.Identifier)).ToList();
-
-            if (unimportedAssets.Any())
-            {
-                m_UnimportedFoldout.Populate(null, unimportedAssets);
-            }
-            else
-            {
-                m_UnimportedFoldout.Clear();
-            }
-            m_UnimportedFoldout.StopPopulating();
-            m_UnimportedFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
-
-            m_ImportedFoldout.StartPopulating();
-            var importedAssets = m_SelectedAssetsData.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
-
-            if (importedAssets.Any())
-            {
-                m_ImportedFoldout.Populate(null, importedAssets);
-            }
-            else
-            {
-                m_ImportedFoldout.Clear();
-            }
-            m_ImportedFoldout.StopPopulating();
-            m_ImportedFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
+            ClearFoldout(FoldoutName.UploadIgnored);
+            ClearFoldout(FoldoutName.UploadIncluded);
+            
+            PopulateFoldout(FoldoutName.Unimported, m_SelectedAssetsData.Where(x => !m_AssetDataManager.IsInProject(x.Identifier)));
+            PopulateFoldout(FoldoutName.Imported, m_SelectedAssetsData.Where(x => m_AssetDataManager.IsInProject(x.Identifier)));
         }
 
         void RefreshUploadPageFoldoutUI()
         {
             UIElementsUtils.SetDisplay(m_RemoveImportButton, false);
                 
-            m_UnimportedFoldout.StartPopulating();
-            m_UnimportedFoldout.Clear();
-            m_UnimportedFoldout.StopPopulating();
-            m_UnimportedFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
-                
-            m_ImportedFoldout.StartPopulating();
-            m_ImportedFoldout.Clear();
-            m_ImportedFoldout.StopPopulating();
-            m_ImportedFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
+            ClearFoldout(FoldoutName.Unimported);
+            ClearFoldout(FoldoutName.Imported);
 
             var uploadAssetDatas = new List<UploadAssetData>();
             if(m_SelectedAssetsData.Exists(x => x is UploadAssetData))
@@ -321,33 +299,8 @@ namespace Unity.AssetManager.Editor
                 uploadAssetDatas = m_SelectedAssetsData.Cast<UploadAssetData>().ToList();
             }
 
-            m_UploadIgnoredFoldout.StartPopulating();
-            var ignoredAssets = uploadAssetDatas.Where(x => x.IsIgnored).ToList();
-                
-            if (ignoredAssets.Any())
-            {
-                m_UploadIgnoredFoldout.Populate(null, ignoredAssets);
-            }
-            else
-            {
-                m_UploadIgnoredFoldout.Clear();
-            }
-            m_UploadIgnoredFoldout.StopPopulating();
-            m_UploadIgnoredFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
-                
-            m_UploadIncludedFoldout.StartPopulating();
-            var includedAssets = uploadAssetDatas.Where(x => !x.IsIgnored).ToList();
-                
-            if (includedAssets.Any())
-            {
-                m_UploadIncludedFoldout.Populate(null, includedAssets);
-            }
-            else
-            {
-                m_UploadIncludedFoldout.Clear();
-            }
-            m_UploadIncludedFoldout.StopPopulating();
-            m_UploadIncludedFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
+            PopulateFoldout(FoldoutName.UploadIgnored, uploadAssetDatas.Where(x => x.IsIgnored));
+            PopulateFoldout(FoldoutName.UploadIncluded,  uploadAssetDatas.Where(x => !x.IsIgnored));
         }
 
         void IgnoreUploadAssets()

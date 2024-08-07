@@ -59,16 +59,13 @@ namespace Unity.AssetManager.Editor
 
             m_ScrollView = this.Q<ScrollView>(k_InspectorPageScrollviewClassName);
             m_ScrollView.viewDataKey = k_InspectorPageScrollviewClassName;
-
             m_CloseButton = this.Q<Button>(k_InspectorPageCloseButtonClassName);
-            m_CloseButton.clicked += () => m_PageManager.ActivePage.ClearSelection();
-
             m_TitleLabel = this.Q<Label>(k_InspectorPageTitleClassName);
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
-
+        
         protected void RefreshScrollView()
         {
             // Bug in UI Toolkit where the scrollview does not update its size when the foldout is expanded/collapsed.
@@ -100,6 +97,7 @@ namespace Unity.AssetManager.Editor
             m_AssetOperationManager.OperationFinished += OnOperationFinished;
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
             m_AssetDataManager.AssetDataChanged += OnAssetDataChanged;
+            m_CloseButton.clicked += OnCloseButton;
         }
 
         protected virtual void OnDetachFromPanel(DetachFromPanelEvent evt)
@@ -109,8 +107,13 @@ namespace Unity.AssetManager.Editor
             m_AssetOperationManager.OperationFinished -= OnOperationFinished;
             m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
             m_AssetDataManager.AssetDataChanged -= OnAssetDataChanged;
+            m_CloseButton.clicked -= OnCloseButton;
         }
 
+        protected void OnCloseButton()
+        {
+            m_PageManager.ActivePage.ClearSelection();
+        }
         protected abstract void OnOperationProgress(AssetDataOperation operation);
         protected abstract void OnOperationFinished(AssetDataOperation operation);
         protected abstract void OnImportedAssetInfoChanged(AssetChangeArgs args);

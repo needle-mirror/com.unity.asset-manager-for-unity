@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -24,10 +26,26 @@ namespace Unity.AssetManager.Editor
             Add(m_FileName);
         }
 
-        public void Refresh(IAssetData fileItem)
+        public async Task Refresh(IAssetData fileItem)
         {
-            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(fileItem.PrimaryExtension);
             m_FileName.text = fileItem.Name;
+            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(fileItem.PrimarySourceFile?.Extension);
+            
+            if (fileItem.PrimarySourceFile != null)
+                return;
+            
+            var tasks = new List<Task>
+            {
+                fileItem.ResolvePrimaryExtensionAsync((identifier, extension) =>
+                {
+                    if (!identifier.Equals(fileItem.Identifier))
+                        return;
+
+                    m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(extension);
+                })
+            };
+
+            await TaskUtils.WaitForTasksWithHandleExceptions(tasks);
         }
     }
 }

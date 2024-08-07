@@ -34,7 +34,7 @@ namespace Unity.AssetManager.Editor
         public bool AreCloudServicesReachable => m_AreCloudServicesReachable != CloudServiceReachability.NotReachable;
 
         static readonly string k_NoValue = "none";
-        static readonly string k_CloudServiceHealhCheckUrl = "https://services.api.unity.com";
+        static readonly string k_CloudServiceHealthCheckUrl = "https://services.api.unity.com";
 
         [SerializeField]
         string m_ConnectedOrganizationId = k_NoValue;
@@ -58,6 +58,7 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         bool m_IsInternetReachable;
 
+        [SerializeField]
         bool m_IsCouldServicesReachableRequestComplete;
 
         public override void OnEnable()
@@ -109,17 +110,22 @@ namespace Unity.AssetManager.Editor
         void CheckCloudServicesReachability()
         {
             var internetReachable = Application.internetReachability != NetworkReachability.NotReachable;
-            if (internetReachable != m_IsInternetReachable)
+            if (m_IsInternetReachable && !internetReachable)
             {
-                m_IsInternetReachable = internetReachable;
-                if (m_IsInternetReachable)
+                m_IsInternetReachable = false;
+                m_AreCloudServicesReachable = CloudServiceReachability.NotReachable;
+                OnCloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
+            }
+            else if (internetReachable)
+            {
+                if (!m_IsInternetReachable)
                 {
+                    m_IsInternetReachable = true;
                     CheckCloudServicesHealth();
                 }
-                else
+                else if (!AreCloudServicesReachable)
                 {
-                    m_AreCloudServicesReachable = CloudServiceReachability.NotReachable;
-                    OnCloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
+                    CheckCloudServicesHealth();
                 }
             }
         }
@@ -127,7 +133,7 @@ namespace Unity.AssetManager.Editor
         void CheckCloudServicesHealth()
         {
             m_IsCouldServicesReachableRequestComplete = false;
-            var request = UnityWebRequest.Head(k_CloudServiceHealhCheckUrl);
+            var request = UnityWebRequest.Head(k_CloudServiceHealthCheckUrl);
             var asyncOperation = request.SendWebRequest();
             try
             {

@@ -27,6 +27,7 @@ namespace Unity.AssetManager.Editor
         FilesFoldout m_UVCSFilesFoldout;
         DependenciesFoldout m_DependenciesFoldout;
         IAssetData m_SelectedAssetData;
+        IAssetData m_PreviouslySelectedAssetData;
 
         int m_TotalFilesCount;
         int m_IncompleteFilesCount;
@@ -150,8 +151,6 @@ namespace Unity.AssetManager.Editor
 
             m_DependenciesFoldout.Expanded = m_StateManager.DependenciesFoldoutValue;
 
-            m_CloseButton.clicked += () => m_PageManager.ActivePage.ClearSelection();
-
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
 
@@ -163,12 +162,16 @@ namespace Unity.AssetManager.Editor
         {
             base.OnAttachToPanel(evt);
 
+            m_CloseButton.clicked += OnCloseButton;
+
             ApplyFilter += OnFilterModified;
         }
 
         protected override void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             base.OnDetachFromPanel(evt);
+            
+            m_CloseButton.clicked -= OnCloseButton;
 
             ApplyFilter -= OnFilterModified;
         }
@@ -187,13 +190,18 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnOperationFinished(AssetDataOperation operation)
         {
-            if (operation is not ImportOperation and not IndefiniteOperation) // Only import operation are displayed in the details page
+            if (operation is not ImportOperation)
                 return;
 
             if (!UIElementsUtils.IsDisplayed(this)
                 || !operation.Identifier.Equals(m_SelectedAssetData?.Identifier)
                 || operation.Status == OperationStatus.None)
                 return;
+
+            if (operation.Status is OperationStatus.Cancelled or OperationStatus.Error)
+            {
+                m_SelectedAssetData = m_PreviouslySelectedAssetData;
+            }
 
             RefreshUI();
         }
@@ -230,11 +238,10 @@ namespace Unity.AssetManager.Editor
 
         async void ImportAssetAsync(string importDestination, IEnumerable<IAssetData> assetsToImport = null)
         {
+            m_PreviouslySelectedAssetData = m_SelectedAssetData;
             try
             {
                 var importType = assetsToImport == null ? ImportOperation.ImportType.UpdateToLatest : ImportOperation.ImportType.Import;
-
-                var previouslySelectedAssetData = m_SelectedAssetData;
 
                 // If assets have been targeted for import, we use the first asset as the selected asset
                 m_SelectedAssetData = assetsToImport?.FirstOrDefault() ?? m_SelectedAssetData;
@@ -242,19 +249,18 @@ namespace Unity.AssetManager.Editor
                 // If no assets have been targeted for import, we use the selected asset from the details page
                 assetsToImport ??= m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x));
 
-                var isImporting = await m_AssetImporter.StartImportAsync(assetsToImport.ToList(), importType, importDestination);
+                var importedAssets = await m_AssetImporter.StartImportAsync(assetsToImport.ToList(), importType, importDestination);
+                m_SelectedAssetData = importedAssets?.FirstOrDefault() ?? m_PreviouslySelectedAssetData;
 
-                if (!isImporting)
+                if (importedAssets == null)
                 {
-                    m_SelectedAssetData = previouslySelectedAssetData;
-                    RefreshButtons(m_SelectedAssetData,
-                        m_AssetOperationManager.GetAssetOperation(m_SelectedAssetData?.Identifier));
+                    RefreshUI();
                 }
             }
             catch (Exception)
             {
-                RefreshButtons(m_SelectedAssetData,
-                    m_AssetOperationManager.GetAssetOperation(m_SelectedAssetData?.Identifier));
+                m_SelectedAssetData = m_PreviouslySelectedAssetData;
+                RefreshUI();
                 throw;
             }
         }

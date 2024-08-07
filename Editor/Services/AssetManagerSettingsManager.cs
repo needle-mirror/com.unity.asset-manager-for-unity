@@ -14,10 +14,15 @@ namespace Unity.AssetManager.Editor
         string ThumbnailsCacheLocation { get; }
         int MaxCacheSizeGb { get; }
         int MaxCacheSizeMb { get; }
+        bool IsTagsCreationUploadEnabled { get; }
+        int TagsConfidenceThresholdPercent { get; }
+        float TagsConfidenceThreshold { get; }
 
         void SetIsSubfolderCreationEnabled(bool value);
         void SetCacheLocation(string cacheLocation);
         void SetMaxCacheSize(int cacheSize);
+        void SetIsTagsCreationUploadEnabled(bool value);
+        void SetTagsCreationConfidenceThresholdPercent(int value);
 
         string ResetCacheLocation();
         string ResetImportLocation();
@@ -30,11 +35,14 @@ namespace Unity.AssetManager.Editor
 
         const string k_DefaultImportLocationKey = "AM4U.defaultImportLocation";
         const string k_IsSubfolderCreationEnabledKey = "AM4U.isSubfolderCreationEnabled";
+        const string k_IsTagsCreationUploadEnabledKey = "AM4U.isTagsCreationUploadEnabled";
         const string k_CacheLocationKey = "AM4U.cacheLocation";
         const string k_MaxCacheSizeKey = "AM4U.cacheSize";
         const string k_TexturesCacheLocationKey = "AM4U.texturesCacheLocation";
         const string k_ThumbnailsCacheLocationKey = "AM4U.thumbnailsCaheLocation";
         const string k_AssetManagerCacheLocationKey = "AM4U.assetManagerCacheLocation";
+        const string k_TagsCreationConfidenceThreshold = "AM4U.tagsCreationConfidenceThreshold";
+        const int k_DefaultConfidenceLevel = 80;
 
         Settings m_Settings;
 
@@ -67,6 +75,11 @@ namespace Unity.AssetManager.Editor
         }
 
         public bool IsSubfolderCreationEnabled => Instance.Get(k_IsSubfolderCreationEnabledKey, SettingsScope.User, false);
+
+        public bool IsTagsCreationUploadEnabled => Instance.Get(k_IsTagsCreationUploadEnabledKey, SettingsScope.User, false);
+
+        public int TagsConfidenceThresholdPercent => Instance.Get(k_TagsCreationConfidenceThreshold, SettingsScope.User, k_DefaultConfidenceLevel);
+        public float TagsConfidenceThreshold => TagsConfidenceThresholdPercent / 100f;
 
         public string BaseCacheLocation
         {
@@ -113,6 +126,16 @@ namespace Unity.AssetManager.Editor
         public void SetIsSubfolderCreationEnabled(bool value)
         {
             Instance.Set(k_IsSubfolderCreationEnabledKey, value, SettingsScope.User);
+        }
+
+        public void SetIsTagsCreationUploadEnabled(bool value)
+        {
+            Instance.Set(k_IsTagsCreationUploadEnabledKey, value, SettingsScope.User);
+        }
+
+        public void SetTagsCreationConfidenceThresholdPercent(int value)
+        {
+            Instance.Set(k_TagsCreationConfidenceThreshold, value, SettingsScope.User);
         }
 
         public void SetCacheLocation(string cacheLocation)

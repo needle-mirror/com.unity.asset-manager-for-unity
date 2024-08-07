@@ -10,18 +10,22 @@ namespace Unity.AssetManager.Editor
     /// </summary>
     class ClickOrDragStartManipulator : PointerManipulator
     {
-        Action<PointerUpEvent> m_ButtonClicked;
+        Action<PointerUpEvent> m_OnButtonUp;
+        Action<PointerDownEvent> m_OnButtonDown;
         Action m_DragStart;
         bool m_CanStartDrag;
 
-        internal ClickOrDragStartManipulator(VisualElement root, Action<PointerUpEvent> onButtonClicked, Action onDragStart)
+        internal ClickOrDragStartManipulator(VisualElement root, Action<PointerUpEvent> onButtonUp,
+            Action<PointerDownEvent> onButtonDown, Action onDragStart)
         {
             activators.Add(new ManipulatorActivationFilter { button = MouseButton.LeftMouse });
             activators.Add(new ManipulatorActivationFilter{ modifiers = EventModifiers.Shift });
             activators.Add(new ManipulatorActivationFilter{ modifiers = EventModifiers.Control });
             activators.Add(new ManipulatorActivationFilter{ modifiers = EventModifiers.Command });
+            
             target = root;
-            m_ButtonClicked = onButtonClicked;
+            m_OnButtonUp = onButtonUp;
+            m_OnButtonDown = onButtonDown;
             m_DragStart = onDragStart;
         }
 
@@ -41,6 +45,8 @@ namespace Unity.AssetManager.Editor
 
         void OnPointerDown(PointerDownEvent e)
         {
+            m_OnButtonDown?.Invoke(e);
+            
             if (m_CanStartDrag)
             {
                 e.StopImmediatePropagation();
@@ -60,11 +66,12 @@ namespace Unity.AssetManager.Editor
                 return;
 
             CompleteInteraction(e);
-            m_ButtonClicked?.Invoke(e);
+            m_OnButtonUp?.Invoke(e);
         }
+        
         void OnPointerMove(PointerMoveEvent e)
         {
-            if (CannotCompleteInteraction(e) || e.deltaPosition.sqrMagnitude < 5f)
+            if (CannotCompleteInteraction(e))
                 return;
 
             CompleteInteraction(e);
@@ -88,9 +95,9 @@ namespace Unity.AssetManager.Editor
             m_DragStart = newOnDragStart;
         }
 
-        internal void SetOnButtonClicked(Action<PointerUpEvent> newOnButtonClicked)
+        internal void SetOnButtonClicked(Action<PointerDownEvent> newOnButtonClicked)
         {
-            m_ButtonClicked = newOnButtonClicked;
+            m_OnButtonDown = newOnButtonClicked;
         }
     }
 }

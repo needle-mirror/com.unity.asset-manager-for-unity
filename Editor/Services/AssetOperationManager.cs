@@ -11,6 +11,8 @@ namespace Unity.AssetManager.Editor
         event Action<AssetDataOperation> OperationFinished;
 
         AssetDataOperation GetAssetOperation(AssetIdentifier identifier);
+        void PauseAllOperations();
+        void ResumeAllOperations();
         void RegisterOperation(AssetDataOperation operation);
         void ClearFinishedOperations();
     }
@@ -45,6 +47,22 @@ namespace Unity.AssetManager.Editor
         public AssetDataOperation GetAssetOperation(AssetIdentifier identifier)
         {
             return m_Operations.GetValueOrDefault(new TrackedAssetIdentifier(identifier));
+        }
+
+        public void PauseAllOperations()
+        {
+            foreach (var assetOperation in m_Operations.Values)
+            {
+                assetOperation.Pause();
+            }
+        }
+
+        public void ResumeAllOperations()
+        {
+            foreach (var assetOperation in m_Operations.Values)
+            {
+                assetOperation.Resume();
+            }
         }
 
         public void RegisterOperation(AssetDataOperation operation)

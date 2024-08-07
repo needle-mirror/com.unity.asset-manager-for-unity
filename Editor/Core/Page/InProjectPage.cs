@@ -44,8 +44,8 @@ namespace Unity.AssetManager.Editor
             if (!m_PageManager.IsActivePage(this))
                 return;
 
-            var keepSelection = !args.Removed.Any(a => a.Equals(LastSelectedAssetId));
-            Clear(true, keepSelection);
+            var clearSelection = args.Removed.Any(a => a.Equals(LastSelectedAssetId));
+            Clear(true, clearSelection);
         }
 
         protected internal override async IAsyncEnumerable<IAssetData> LoadMoreAssets(

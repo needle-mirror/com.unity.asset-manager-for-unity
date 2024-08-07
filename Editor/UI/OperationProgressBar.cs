@@ -12,8 +12,9 @@ namespace Unity.AssetManager.Editor
             public static readonly string k_ProgressBarContainer = "download-progress-bar-container";
             public static readonly string k_ProgressBarBackground = "download-progress-bar-background";
             public static readonly string k_ProgressBarColor = "download-progress-bar";
-            public static readonly string k_ProgressBarError = "download-progress-bar-error";
-            public static readonly string k_ProgressBarSuccess = "download-progress-bar-success";
+            public static readonly string k_ProgressBarError = "download-progress-bar--error";
+            public static readonly string k_ProgressBarSuccess = "download-progress-bar--success";
+            public static readonly string k_ProgressBarWarning = "download-progress-bar--warning";
             public static readonly string k_ProgressBarGridItem = "grid-view--item-download_progress_bar";
             public static readonly string k_ProgressBarDetailsPage = "details-page-download-progress-bar";
             public static readonly string k_ProgressBarDetailsPageContainer = "details-page-download-progress-container";
@@ -22,6 +23,7 @@ namespace Unity.AssetManager.Editor
 
         readonly IVisualElementScheduledItem m_AnimationUpdate;
         readonly VisualElement m_ProgressBar;
+        readonly Button m_CancelButton;
 
         float m_AnimationLeftOffset;
         bool m_IsIndefinite;
@@ -70,17 +72,17 @@ namespace Unity.AssetManager.Editor
             }
             else
             {
-                var cancelButton = new Button();
-                Add(cancelButton);
+                m_CancelButton = new Button();
+                Add(m_CancelButton);
 
                 AddToClassList(UssStyles.k_ProgressBarDetailsPageContainer);
                 AddToClassList(UssStyles.k_ProgressBarContainer);
                 AddToClassList(UssStyles.k_ProgressBarDetailsPage);
 
-                cancelButton.AddToClassList(UssStyles.k_ProgressBarDetailsPageCancelButton);
-                cancelButton.RemoveFromClassList("unity-button");
-                cancelButton.tooltip = L10n.Tr(Constants.CancelImportActionText);
-                cancelButton.clicked += cancelCallback.Invoke;
+                m_CancelButton.AddToClassList(UssStyles.k_ProgressBarDetailsPageCancelButton);
+                m_CancelButton.RemoveFromClassList("unity-button");
+                m_CancelButton.tooltip = L10n.Tr(Constants.CancelImportActionText);
+                m_CancelButton.clicked += cancelCallback.Invoke;
             }
 
             m_AnimationUpdate = schedule.Execute(UpdateProgressBar).Every(30);
@@ -110,13 +112,22 @@ namespace Unity.AssetManager.Editor
             switch (operation.Status)
             {
                 case OperationStatus.Success:
+                    m_CancelButton?.SetEnabled(false);
                     m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarSuccess);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarError);
                     break;
 
                 case OperationStatus.Error:
+                    m_CancelButton?.SetEnabled(false);
                     m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarError);
+                    m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
+                    m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarSuccess);
+                    break;
+
+                case OperationStatus.Paused:
+                    m_CancelButton?.SetEnabled(false);
+                    m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarWarning);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarSuccess);
                     break;
@@ -125,11 +136,13 @@ namespace Unity.AssetManager.Editor
                     m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarColor);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarError);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarSuccess);
+                    m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarWarning);
                     break;
             }
 
             if (operation.Status == OperationStatus.InProgress)
             {
+                m_CancelButton?.SetEnabled(true);
                 SetProgress(operation.Progress);
             }
             else
@@ -137,6 +150,13 @@ namespace Unity.AssetManager.Editor
                 if (operation.IsSticky || operation.Status == OperationStatus.Error)
                 {
                     SetProgress(1.0f);
+                }
+                else if(operation.Status == OperationStatus.Paused)
+                {
+                    if (m_IsIndefinite)
+                    {
+                        SetProgress(1.0f);
+                    }
                 }
                 else
                 {

@@ -41,14 +41,16 @@ namespace Unity.AssetManager.Editor
 
             AddToClassList(k_UssClassName);
 
+            InitializeUI();
+            
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
-
-            InitializeUI();
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            m_FilterButton.clicked += OnFilterButtonClicked;
+            
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             if (PageFilters != null)
             {
@@ -61,6 +63,8 @@ namespace Unity.AssetManager.Editor
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            m_FilterButton.clicked -= OnFilterButtonClicked;
+            
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
 
             if (PageFilters != null)
@@ -85,8 +89,13 @@ namespace Unity.AssetManager.Editor
             Clear();
             PageFilters?.ClearFilters();
             m_FilterPerChip?.Clear();
-
+            
+            // The first call of InitializeUI is made into the constructor 
             InitializeUI();
+            // We don't want the m_FilterButton.clicked event to be registered during the constructor
+            // m_FilterButton.clicked is also registered in the OnAttachToPanel method
+            // m_FilterButton had been erased inside InitializeUI, so we need to register again
+            m_FilterButton.clicked += OnFilterButtonClicked;
         }
 
         void InitializeUI()
@@ -96,7 +105,6 @@ namespace Unity.AssetManager.Editor
 
             m_FilterButton = new Button();
             m_FilterButton.AddToClassList(k_ItemButtonClassName);
-            m_FilterButton.clicked += OnFilterButtonClicked;
             Add(m_FilterButton);
 
             var label = new TextElement();

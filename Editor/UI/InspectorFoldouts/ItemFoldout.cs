@@ -27,6 +27,8 @@ namespace Unity.AssetManager.Editor
         protected abstract TBinding MakeItem();
         protected abstract void BindItem(TBinding element, int index);
 
+        protected event Action<IEnumerable<object>> SelectionChanged;
+        
         protected ItemFoldout(VisualElement parent, string foldoutName, string listViewName, string foldoutTitle = null,
             string foldoutExpandedClassName = null)
         {
@@ -72,6 +74,7 @@ namespace Unity.AssetManager.Editor
 
             m_Foldout.viewDataKey = foldoutName;
             m_ListView.viewDataKey = listViewName;
+            m_ListView.selectionChanged += RaiseSelectionChangedEvent;
         }
 
         public void RegisterValueChangedCallback(Action<object> action)
@@ -119,6 +122,25 @@ namespace Unity.AssetManager.Editor
             m_ListView.itemsSource = null;
         }
 
+        public virtual void RemoveItems(IEnumerable<TData> items)
+        {
+            var itemsToRemove = items.ToList();
+            var itemsSource = m_ListView.itemsSource as List<TData>;
+            
+            if (itemsSource == null)
+                return;
+            
+            foreach (var item in itemsToRemove)
+            {
+                itemsSource.Remove(item);
+            }
+
+            m_ListView.itemsSource = itemsSource;
+            m_Foldout.text = $"{L10n.Tr(m_FoldoutTitle)} ({m_ListView.itemsSource.Count})";
+            m_ListView.RefreshItems();
+            StopPopulating();
+        }
+
         public void Populate(IAssetData assetData, IEnumerable<TData> items)
         {
             m_ListView.itemsSource = PrepareListItem(assetData, items);
@@ -127,6 +149,11 @@ namespace Unity.AssetManager.Editor
             m_ListView.fixedItemHeight = 30;
 
             m_Foldout.text = $"{L10n.Tr(m_FoldoutTitle)} ({m_ListView.itemsSource.Count})";
+        }
+
+        void RaiseSelectionChangedEvent(IEnumerable<object> items)
+        {
+            SelectionChanged?.Invoke(items);
         }
     }
 }

@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Unity.Cloud.Common;
 using Unity.Cloud.Identity;
-using Unity.Cloud.Identity.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -24,7 +22,7 @@ namespace Unity.AssetManager.Editor
         readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly IPageManager m_PageManager;
         
-        ICloudStorageUsage m_CloudStorageUsage;
+        StorageUsage m_CloudStorageUsage;
         IOrganization m_Organization;
 
         readonly Button m_DismissButton;
@@ -100,7 +98,7 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
-        async Task<ICloudStorageUsage> GetCloudStorageUsageAsync()
+        async Task<StorageUsage> GetCloudStorageUsageAsync()
         {
             if (m_Organization == null || !m_UnityConnectProxy.AreCloudServicesReachable || string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedOrganization?.Id))
                 return null;
@@ -110,7 +108,7 @@ namespace Unity.AssetManager.Editor
 
         void Refresh()
         {
-            if (m_CloudStorageUsage == null)
+            if (m_CloudStorageUsage == null || !m_CloudStorageUsage.IsUsageBytesKnown || !m_CloudStorageUsage.IsTotalStorageQuotaBytesKnown)
             {
                 UIElementsUtils.Hide(this);
                 return;

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -13,7 +12,14 @@ namespace Unity.AssetManager.Editor
         List<string> m_Selections = new();
 
         public override string DisplayName => "Type";
-        protected override GroupableField GroupBy => GroupableField.Name;
+        protected override AssetSearchGroupBy GroupBy
+        {
+            get
+            {
+                Utilities.DevAssert(false, "Property not used. Filter selection are static. See \"GetSelectionAsync\"");
+                throw new InvalidOperationException();
+            }
+        }
 
         public UnityTypeFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
             : base(page, projectOrganizationProvider)
@@ -31,8 +37,7 @@ namespace Unity.AssetManager.Editor
         {
             if (m_AssetTypeMap.TryGetValue(SelectedFilter, out var assetType))
             {
-                var regex = AssetDataTypeHelper.GetRegexForExtensions(assetType);
-                assetSearchFilter.Include().Files.Path.WithValue(regex);
+                assetSearchFilter.UnityType = assetType;
             }
         }
 
@@ -40,14 +45,13 @@ namespace Unity.AssetManager.Editor
         {
             if (m_AssetTypeMap.TryGetValue(selection, out var assetType))
             {
-                var regex = AssetDataTypeHelper.GetRegexForExtensions(assetType);
-                m_Page.PageFilters.AssetFilter.Include().Files.Path.WithValue(regex);
+                m_Page.PageFilters.AssetSearchFilter.UnityType = assetType;
             }
         }
 
         protected override void ClearFilter()
         {
-            m_Page.PageFilters.AssetFilter.Include().Files.Path.Clear();
+            m_Page.PageFilters.AssetSearchFilter.UnityType = null;
         }
 
         protected override Task<List<string>> GetSelectionsAsync()

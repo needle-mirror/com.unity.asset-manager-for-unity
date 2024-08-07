@@ -5,28 +5,6 @@ using UnityEngine.Networking;
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    class TextureDownloadOperation : DownloadOperation
-    {
-        public Texture2D Texture;
-        public override string Description => "{Texture}";
-
-        protected override DownloadHandler GetDownloadHandler()
-        {
-            return new DownloadHandlerTexture();
-        }
-
-        public override void Finish(OperationStatus status)
-        {
-            if (status == OperationStatus.Success)
-            {
-                Texture = DownloadHandlerTexture.GetContent(UnityWebRequest);
-            }
-
-            base.Finish(status);
-        }
-    }
-
-    [Serializable]
     class FileDownloadOperation : DownloadOperation
     {
         public string Path;

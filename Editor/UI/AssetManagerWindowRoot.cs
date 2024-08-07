@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
-using Unity.Cloud.Identity;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -156,7 +154,7 @@ namespace Unity.AssetManager.Editor
             m_ActionHelpBox = new ActionHelpBox(m_UnityConnect, m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy);
             actionHelpBoxContainer.Add(m_ActionHelpBox);
             m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
-            
+
             var storageInfoHelpBoxContainer = new VisualElement();
             storageInfoHelpBoxContainer.AddToClassList("HelpBoxContainer");
             var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
@@ -252,7 +250,7 @@ namespace Unity.AssetManager.Editor
             }
             else
             {
-                SetInspectorVisibility(m_PageManager.ActivePage?.SelectedAssets); 
+                SetInspectorVisibility(m_PageManager.ActivePage?.SelectedAssets);
             }
 
             content.Add(m_AssetsGridView);
@@ -303,7 +301,7 @@ namespace Unity.AssetManager.Editor
 
         void OnOrganizationChanged(OrganizationInfo organizationInfo) => Refresh();
 
-        void OnSelectedAssetChanged(IPage page, List<AssetIdentifier> assets)
+        void OnSelectedAssetChanged(IPage page, IEnumerable<AssetIdentifier> assets)
         {
             SetInspectorVisibility(assets);
         }
@@ -313,9 +311,9 @@ namespace Unity.AssetManager.Editor
             m_LoadingScreen.SetVisible(isLoading);
         }
 
-        void SetInspectorVisibility(List<AssetIdentifier> assets)
+        void SetInspectorVisibility(IEnumerable<AssetIdentifier> assets)
         {
-            List<AssetIdentifier> validAssets = assets?.Where(asset => asset.IsIdValid()).ToList();
+            var validAssets = assets?.Where(asset => asset.IsAnyIdValid()).ToList();
 
             if (validAssets is { Count: > 0 })
             {
@@ -412,35 +410,6 @@ namespace Unity.AssetManager.Editor
                 UIElementsUtils.Show(m_AssetManagerContainer);
 
                 m_ActionHelpBox.Refresh();
-            }
-        }
-
-        public void OnGUI()
-        {
-            var e = Event.current;
-            switch (e.type)
-            {
-                case EventType.KeyDown:
-                {
-                    if (e.keyCode == KeyCode.Escape && e.modifiers == EventModifiers.None)
-                    {
-                        m_PageManager.ActivePage.Clear(true);
-                        e.Use();
-                    }
-
-                    break;
-                }
-                case EventType.Layout:
-                {
-                    var currentSceneName = SceneManager.GetActiveScene().name;
-                    if (currentSceneName != m_StateManager.LastSceneName)
-                    {
-                        m_StateManager.LastSceneName = currentSceneName;
-                        Refresh();
-                    }
-
-                    break;
-                }
             }
         }
 

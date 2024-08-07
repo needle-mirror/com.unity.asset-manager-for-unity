@@ -38,6 +38,17 @@ namespace Unity.AssetManager.Editor
             base.Clear();
             m_FilesList.Clear();
         }
+
+        public override void RemoveItems(IEnumerable<IAssetData> items)
+        {
+            var list = items.ToList();
+            base.RemoveItems(list);
+            
+            foreach (var item in list)
+            {
+                m_FilesList.Remove(item);
+            }
+        }
         
         public void SetButtonDisplayed(bool displayed)
         {

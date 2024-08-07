@@ -11,12 +11,12 @@ namespace Unity.AssetManager.Editor
         public const string DetailsPageThumbnailContainer = "details-page-thumbnail-container";
         public const string ImageContainer = "image-container";
     }
-    
+
     class AssetDetailsTab : AssetTab
     {
         const string k_FileSizeName = "file-size";
         const string k_FileCountName = "file-count";
-        
+
         readonly AssetPreview m_AssetPreview;
 
         readonly VisualElement m_EntriesContainer;
@@ -54,7 +54,7 @@ namespace Unity.AssetManager.Editor
 
             AddText(m_EntriesContainer, null, assetData.Description);
 
-            m_AssetPreview.SetAssetType(assetData.PrimaryExtension);
+            m_AssetPreview.SetAssetType(assetData.PrimarySourceFile?.Extension);
             UpdatePreviewStatus(assetData.PreviewStatus);
             m_EntriesContainer.Add(m_AssetPreview);
 
@@ -90,12 +90,12 @@ namespace Unity.AssetManager.Editor
         {
             m_AssetPreview.SetThumbnail(texture);
         }
-        
+
         public void SetFileCount(string fileCount)
         {
             m_EntriesContainer.Q<DetailsPageEntry>(k_FileCountName)?.SetText(fileCount);
         }
-        
+
         public void SetFileSize(string fileSize)
         {
             m_EntriesContainer.Q<DetailsPageEntry>(k_FileSizeName)?.SetText(fileSize);

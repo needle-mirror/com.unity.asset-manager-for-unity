@@ -29,6 +29,8 @@ namespace Unity.AssetManager.Editor
         readonly IAssetImporter m_AssetImporter;
         readonly IAssetsProvider m_AssetsProvider;
 
+        bool m_IsClickedItemAlreadySelected;
+
         public AssetsGridView(IProjectOrganizationProvider projectOrganizationProvider,
             IUnityConnectProxy unityConnect,
             IPageManager pageManager,
@@ -62,12 +64,12 @@ namespace Unity.AssetManager.Editor
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
-
-            ServicesContainer.instance.Resolve<IDragAndDropProjectBrowserProxy>().RegisterProjectBrowserHandler(OnProjectBrowserDrop);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            ServicesContainer.instance.Resolve<IDragAndDropProjectBrowserProxy>().RegisterProjectBrowserHandler(OnProjectBrowserDrop);
+            
             m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
@@ -81,6 +83,8 @@ namespace Unity.AssetManager.Editor
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            ServicesContainer.instance.Resolve<IDragAndDropProjectBrowserProxy>().UnRegisterProjectBrowserHandler(OnProjectBrowserDrop);
+            
             m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
@@ -106,6 +110,7 @@ namespace Unity.AssetManager.Editor
         {
             var item = new GridItem(m_UnityConnect, m_AssetOperationManager, m_PageManager, m_AssetDataManager, m_UploadManager);
 
+            item.PointerDownAction += GridItemOnPointerDown(item);
             item.PointerUpAction += GridItemOnPointerUp(item);
             item.DragStartedAction += GridItemOnDragStarted(item);
 
@@ -169,12 +174,15 @@ namespace Unity.AssetManager.Editor
             };
         }
 
-        Action<PointerUpEvent> GridItemOnPointerUp(GridItem item)
+        Action<PointerDownEvent> GridItemOnPointerDown(GridItem item)
         {
             return e =>
             {
                 if(e.target is Toggle)
                     return;
+
+                m_IsClickedItemAlreadySelected =
+                    m_PageManager.ActivePage.SelectedAssets.Contains(item.AssetData.Identifier);
 
                 if ((e.modifiers & EventModifiers.Shift) != 0)
                 {
@@ -189,7 +197,19 @@ namespace Unity.AssetManager.Editor
 
                     m_PageManager.ActivePage.SelectAssets(selectedAssets.Select(x => x.Identifier).ToList());
                 }
-                else
+                else if (!m_IsClickedItemAlreadySelected)
+                {
+                    m_PageManager.ActivePage.SelectAsset(item.AssetData.Identifier,
+                        (e.modifiers & (EventModifiers.Command | EventModifiers.Control)) != 0);
+                }
+            };
+        }
+
+        Action<PointerUpEvent> GridItemOnPointerUp(GridItem item)
+        {
+            return e =>
+            {
+                if ((e.modifiers & EventModifiers.Shift) == 0 && m_IsClickedItemAlreadySelected)
                 {
                     m_PageManager.ActivePage.SelectAsset(item.AssetData.Identifier,
                         (e.modifiers & (EventModifiers.Command | EventModifiers.Control)) != 0);

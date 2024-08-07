@@ -16,7 +16,7 @@ namespace Unity.AssetManager.Editor
     {
         ImportOperation GetImportOperation(AssetIdentifier identifier);
         bool IsImporting(AssetIdentifier identifier);
-        Task<bool> StartImportAsync(List<IAssetData> assetData, ImportOperation.ImportType importType, string importDestination = null);
+        Task<IEnumerable<IAssetData>> StartImportAsync(List<IAssetData> assets, ImportOperation.ImportType importType, string importDestination = null);
         bool RemoveImport(AssetIdentifier identifier, bool showConfirmationDialog = false);
         bool RemoveBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false);
         void ShowInProject(AssetIdentifier identifier);
@@ -78,9 +78,14 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         IIOProxy m_IOProxy;
 
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
+
         readonly Dictionary<string, ImportOperation> m_ImportOperations = new();
         readonly Dictionary<Uri, DownloadOperation> m_UriToDownloadOperationMap = new();
         readonly Dictionary<string, string> m_ResolvedDestinationPaths = new();
+
+        readonly IAssetImportResolver m_Resolver = new AssetImportResolver();
 
         const int k_MaxConcurrentDownloads = 10;
         static readonly SemaphoreSlim k_DownloadFileSemaphore = new(k_MaxConcurrentDownloads);
@@ -91,7 +96,7 @@ namespace Unity.AssetManager.Editor
         public void Inject(IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy,
             IEditorUtilityProxy editorUtilityProxy, IImportedAssetsTracker importedAssetsTracker,
             IAssetDataManager assetDataManager, IAssetOperationManager assetOperationManager,
-            ISettingsManager settingsManager)
+            ISettingsManager settingsManager, IAssetsProvider assetsProvider)
         {
             m_IOProxy = ioProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
@@ -100,6 +105,7 @@ namespace Unity.AssetManager.Editor
             m_AssetDataManager = assetDataManager;
             m_AssetOperationManager = assetOperationManager;
             m_SettingsManager = settingsManager;
+            m_AssetsProvider = assetsProvider;
         }
 
         public ImportOperation GetImportOperation(AssetIdentifier identifier)
@@ -113,50 +119,58 @@ namespace Unity.AssetManager.Editor
             return importOperation is { Status: OperationStatus.InProgress };
         }
 
-        public async Task<bool> StartImportAsync(List<IAssetData> assetData, ImportOperation.ImportType importType, string importDestination = null)
+        public async Task<IEnumerable<IAssetData>> StartImportAsync(List<IAssetData> assets, ImportOperation.ImportType importType, string importDestination = null)
         {
-            SendImportAnalytics(assetData);
+            SendImportAnalytics(assets);
 
-            m_TokenSource = new CancellationTokenSource();
-
-            // Create a temporary operation to track the (long) dependency loading
-            var syncWithCloudOperations = new List<IndefiniteOperation>();
-            foreach (var asset in assetData)
+            try
             {
-                var operation = new IndefiniteOperation(asset);
-                m_AssetOperationManager.RegisterOperation(operation);
-                operation.Start();
-                syncWithCloudOperations.Add(operation);
-            }
-
-            var tasks = new List<Task<List<IAssetData>>>();
-            foreach (var asset in assetData)
-            {
-                if (m_ImportOperations.ContainsKey(asset.Identifier.AssetId))
-                    continue;
-
-                if (m_AssetDataManager.IsInProject(asset.Identifier) && !m_EditorUtilityProxy.DisplayDialog(
-                        L10n.Tr("Overwrite Imported Files"),
-                        L10n.Tr(
-                            "All the files previously imported will be overwritten and changes to those files will be lost. Are you sure you want to continue?"),
-                        L10n.Tr("Yes"), L10n.Tr("No")))
+                // Create a temporary operation to track the (long) dependency loading
+                var syncWithCloudOperations = new List<IndefiniteOperation>();
+                foreach (var asset in assets)
                 {
-                    continue;
+                    var operation = new IndefiniteOperation(asset);
+                    m_AssetOperationManager.RegisterOperation(operation);
+                    operation.Start();
+                    syncWithCloudOperations.Add(operation);
                 }
 
-                tasks.Add(SyncWithCloudAndGatherDependencies(asset, importType, m_TokenSource.Token));
+                m_TokenSource = new CancellationTokenSource();
+
+                var copiedAssets = new List<IAssetData>();
+                foreach (var asset in assets)
+                {
+                    var copy = await m_AssetsProvider.GetAssetAsync(asset.Identifier, m_TokenSource.Token);
+                    copiedAssets.Add(copy);
+                }
+
+                var resolutions = await m_Resolver.Resolve(copiedAssets,
+                    importType,
+                    importDestination ?? m_SettingsManager.DefaultImportLocation,
+                    m_TokenSource.Token);
+
+                foreach (var operation in syncWithCloudOperations)
+                {
+                    operation.Finish(OperationStatus.Success);
+                }
+
+                if (resolutions != null && resolutions.Any())
+                {
+                    if (Import(resolutions, importDestination ?? m_SettingsManager.DefaultImportLocation,
+                            m_TokenSource.Token))
+                    {
+                        return copiedAssets;
+                    }
+
+                    return null;
+                }
+
+                return null;
             }
-
-            await Task.WhenAll(tasks);
-
-            foreach (var operation in syncWithCloudOperations)
+            catch
             {
-                operation.Finish(OperationStatus.Success);
+                return null;
             }
-
-            var allAssetData = tasks.SelectMany(x => x.Result).ToHashSet();
-
-            return Import(allAssetData, importDestination ?? m_SettingsManager.DefaultImportLocation, m_TokenSource.Token);
         }
 
         public void ShowInProject(AssetIdentifier identifier)
@@ -164,26 +178,13 @@ namespace Unity.AssetManager.Editor
             try
             {
                 var importedInfo = m_AssetDataManager.GetImportedAssetInfo(identifier);
+                var primarySourceFile = importedInfo.AssetData.PrimarySourceFile;
 
-                ImportedFileInfo fileInfo = null;
-
-                // AMECO-2689 Let's try to ping the file associated with the primary extension
-                // If the cloud asset has multiple files with that extension, we will try to ping the first one,
-                // which is not necessarily the one associated with the primary extension, but still better than pointing to the first one in the list
-                var ext = importedInfo.AssetData.PrimaryExtension;
-
-                if (!string.IsNullOrEmpty(ext))
+                if (primarySourceFile != null)
                 {
-                    fileInfo = importedInfo.FileInfos.Find(f =>
-                        f.OriginalPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
+                    var fileInfo = importedInfo.FileInfos.Find(f => Utilities.ComparePaths(f.OriginalPath, primarySourceFile.Path));
+                    m_AssetDatabaseProxy.PingAssetByGuid(fileInfo.Guid);
                 }
-
-                if (fileInfo == null)
-                {
-                    fileInfo = importedInfo.FileInfos[0];
-                }
-
-                m_AssetDatabaseProxy.PingAssetByGuid(fileInfo.Guid);
             }
             catch (Exception)
             {
@@ -197,15 +198,14 @@ namespace Unity.AssetManager.Editor
                     L10n.Tr("Are you sure you want to cancel?"), L10n.Tr("Yes"), L10n.Tr("No")))
                 return;
 
+            m_TokenSource?.Cancel();
+            m_TokenSource?.Dispose();
+            m_TokenSource = null;
+
             if (!m_ImportOperations.TryGetValue(identifier.AssetId, out var importOperation))
                 return;
 
-            m_TokenSource?.Cancel();
-
             FinalizeImport(importOperation, OperationStatus.Cancelled);
-
-            m_TokenSource?.Dispose();
-            m_TokenSource = null;
         }
 
         public void CancelBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false)
@@ -624,45 +624,7 @@ namespace Unity.AssetManager.Editor
             return request.SendWebRequest();
         }
 
-        async Task<List<IAssetData>> SyncWithCloudAndGatherDependencies(IAssetData asset, ImportOperation.ImportType importType, CancellationToken token)
-        {
-            // Sync before fetching dependencies to ensure you have the latest dependencies
-            switch (importType)
-            {
-                case ImportOperation.ImportType.Import:
-                    await asset.SyncWithCloudAsync(null, token);
-                    break;
-
-                default:
-                    await asset.SyncWithCloudLatestAsync(null, token);
-                    break;
-            }
-
-            // Fetch dependencies
-            return await GetDependenciesAsync(asset);
-        }
-
-        async Task<List<IAssetData>> GetDependenciesAsync(IAssetData asset)
-        {
-            var allAssetData = new List<IAssetData> { asset };
-
-            await foreach (var dependencyAssetData in AssetDataDependencyHelper.LoadDependenciesAsync(asset,
-                               true, CancellationToken.None))
-            {
-                if (dependencyAssetData.AssetData != null)
-                {
-                    allAssetData.Add(dependencyAssetData.AssetData);
-                }
-                else
-                {
-                    Debug.LogError($"Failed to import asset dependency '{dependencyAssetData.Identifier}'");
-                }
-            }
-
-            return allAssetData;
-        }
-
-        bool Import(IReadOnlyCollection<IAssetData> assetDataList, string importDestination, CancellationToken token)
+        bool Import(IEnumerable<IAssetData> assetDataList, string importDestination, CancellationToken token)
         {
             if (!assetDataList.Any())
             {

@@ -1,5 +1,3 @@
-using System;
-using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -17,14 +15,12 @@ namespace Unity.AssetManager.Editor
 
         void ShowInProjectEntry(ContextualMenuPopulateEvent evt)
         {
-            var localAssetIdentifier = TargetAssetData.Identifier as LocalAssetIdentifier;
-
-            AddMenuEntry(evt, Constants.ShowInProjectActionText, localAssetIdentifier != null,
+            AddMenuEntry(evt, Constants.ShowInProjectActionText, TargetAssetData != null,
                 (_) =>
                 {
-                    if (localAssetIdentifier != null && localAssetIdentifier.IsIdValid())
+                    if (TargetAssetData is { PrimarySourceFile: not null } && !string.IsNullOrEmpty(TargetAssetData.PrimarySourceFile.Guid))
                     {
-                        m_AssetDatabaseProxy.PingAssetByGuid(localAssetIdentifier.Guid);
+                        m_AssetDatabaseProxy.PingAssetByGuid(TargetAssetData.PrimarySourceFile.Guid);
                     }
 
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent.ContextMenuItemType.ShowInProject));

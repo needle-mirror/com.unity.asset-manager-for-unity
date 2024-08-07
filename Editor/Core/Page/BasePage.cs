@@ -4,7 +4,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -30,7 +29,7 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         List<AssetIdentifier> m_SelectedAssets = new();
 
-        [FormerlySerializedAs("m_ErrorOrMessageHandling")] [SerializeField]
+        [SerializeField]
         MessageData m_MessageData = new();
 
         [SerializeField]
@@ -58,14 +57,15 @@ namespace Unity.AssetManager.Editor
         public virtual bool DisplaySettings => false;
 
         public event Action<bool> LoadingStatusChanged;
-        public event Action<List<AssetIdentifier>> SelectedAssetsChanged;
-        public event Action<IEnumerable<string>> SearchFiltersChanged;
+        public event Action<IReadOnlyCollection<AssetIdentifier>> SelectedAssetsChanged;
+        public event Action<IReadOnlyCollection<string>> SearchFiltersChanged;
         public event Action<MessageData> MessageThrown;
 
         public bool IsLoading => m_LoadMoreAssetsOperations.Exists(op => op.IsLoading);
         public bool CanLoadMoreItems => m_CanLoadMoreItems;
         public PageFilters PageFilters => m_PageFilters;
-        public List<AssetIdentifier> SelectedAssets => m_SelectedAssets;
+        public IReadOnlyCollection<AssetIdentifier> SelectedAssets => m_SelectedAssets;
+        public bool IsAssetSelected(AssetIdentifier asset) => m_SelectedAssets.Contains(asset);
         public AssetIdentifier LastSelectedAssetId => m_SelectedAssets.LastOrDefault();
         public IReadOnlyCollection<IAssetData> AssetList => m_AssetList;
         public MessageData MessageData => m_MessageData;
@@ -137,7 +137,7 @@ namespace Unity.AssetManager.Editor
 
         public void SelectAsset(AssetIdentifier asset, bool additive)
         {
-            if (LastSelectedAssetId?.IsIdValid() != true && !asset.IsIdValid())
+            if (LastSelectedAssetId?.IsAnyIdValid() != true && !asset.IsAnyIdValid())
                 return;
 
             if (!additive)
@@ -154,20 +154,20 @@ namespace Unity.AssetManager.Editor
                 m_SelectedAssets.Add(asset);
             }
 
-            SelectedAssetsChanged?.Invoke(SelectedAssets);
+            SelectedAssetsChanged?.Invoke(m_SelectedAssets);
         }
 
         public void ClearSelection()
         {
             m_SelectedAssets.Clear();
-            SelectedAssetsChanged?.Invoke(SelectedAssets);
+            SelectedAssetsChanged?.Invoke(m_SelectedAssets);
         }
 
         public void SelectAssets(IEnumerable<AssetIdentifier> assets)
         {
-            SelectedAssets.AddRange(assets);
-            m_SelectedAssets = SelectedAssets.Distinct().ToList();
-            SelectedAssetsChanged?.Invoke(SelectedAssets);
+            m_SelectedAssets.AddRange(assets);
+            m_SelectedAssets = m_SelectedAssets.Distinct().ToList();
+            SelectedAssetsChanged?.Invoke(m_SelectedAssets);
         }
 
         public virtual void ToggleAsset(IAssetData assetData, bool checkState)
@@ -176,10 +176,10 @@ namespace Unity.AssetManager.Editor
         }
 
         public async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
-            GroupableField groupBy, CancellationToken token)
+            AssetSearchGroupBy groupBy, CancellationToken token)
         {
             return await m_AssetsProvider.GetFilterSelectionsAsync(organizationId, projectIds,
-                m_PageFilters.AssetFilter,
+                m_PageFilters.AssetSearchFilter,
                 groupBy, token);
         }
 
@@ -231,7 +231,7 @@ namespace Unity.AssetManager.Editor
             );
         }
 
-        public void Clear(bool reloadImmediately, bool keepSelection = false)
+        public void Clear(bool reloadImmediately, bool clearSelection = true)
         {
             CancelAndClearLoadMoreOperations();
 
@@ -240,7 +240,7 @@ namespace Unity.AssetManager.Editor
             m_NextStartIndex = 0;
             SetMessageData(string.Empty, RecommendedAction.None);
 
-            if (!keepSelection)
+            if (clearSelection)
             {
                 ClearSelection();
             }
@@ -262,11 +262,14 @@ namespace Unity.AssetManager.Editor
             }.OrderBy(f => f.DisplayName).ToList();
         }
 
-        protected void SetMessageData(string errorMessage, RecommendedAction actionType = RecommendedAction.Retry, bool isPageScope = true)
+        protected void SetMessageData(string errorMessage, RecommendedAction actionType = RecommendedAction.Retry,
+            bool isPageScope = true, HelpBoxMessageType messageType = HelpBoxMessageType.Info)
         {
             MessageData.Message = errorMessage;
             MessageData.RecommendedAction = actionType;
             MessageData.IsPageScope = isPageScope;
+            MessageData.MessageType = messageType;
+            
             // Only invoke MessageThrown if not default message
             if (errorMessage != default)
             {
@@ -315,7 +318,7 @@ namespace Unity.AssetManager.Editor
         async IAsyncEnumerable<IAssetData> LoadMoreAssets(string organizationId, IEnumerable<string> projectIds,
             string collectionPath, [EnumeratorCancellation] CancellationToken token)
         {
-            var assetSearchFilter = m_PageFilters.AssetFilter;
+            var assetSearchFilter = m_PageFilters.AssetSearchFilter;
             UpdateSearchFilter(assetSearchFilter, collectionPath, m_PageFilters.SearchFilters);
 
             var count = 0;
@@ -338,36 +341,30 @@ namespace Unity.AssetManager.Editor
             m_NextStartIndex += count;
         }
 
-        void OnSearchFiltersChanged(IEnumerable<string> searchFilters)
+        void OnSearchFiltersChanged(IReadOnlyCollection<string> searchFilters)
         {
             Clear(true);
             SearchFiltersChanged?.Invoke(searchFilters);
         }
 
-        void UpdateSearchFilter(AssetSearchFilter assetFilter, string collectionPath, IEnumerable<string> searchStrings)
+        void UpdateSearchFilter(AssetSearchFilter assetSearchFilter, string collectionPath, IEnumerable<string> searchStrings)
         {
             if (!string.IsNullOrEmpty(collectionPath))
             {
-                assetFilter.Collections.WhereContains(new CollectionPath(collectionPath));
+                assetSearchFilter.Collection = collectionPath;
             }
             else
             {
-                assetFilter.Collections.WhereContains(new List<CollectionPath>());
+                assetSearchFilter.Collection = null;
             }
 
             if (searchStrings != null && searchStrings.Any())
             {
-                var searchFilterString = string.Concat("*", string.Join('*', searchStrings), "*");
-
-                assetFilter.Any().Name.WithValue(searchFilterString);
-                assetFilter.Any().Description.WithValue(searchFilterString);
-                assetFilter.Any().Tags.WithValue(searchFilterString);
+                assetSearchFilter.Searches = searchStrings.ToList();
             }
             else
             {
-                assetFilter.Any().Name.Clear();
-                assetFilter.Any().Description.Clear();
-                assetFilter.Any().Tags.Clear();
+                assetSearchFilter.Searches = null;
             }
         }
 

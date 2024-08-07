@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Policy;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace Unity.AssetManager.Editor
 {
@@ -38,7 +40,7 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         ISettingsManager m_SettingsManager;
 
-        readonly Dictionary<ulong, AssetIdentifier> m_DownloadIdToAssetIdMap = new();
+        readonly Dictionary<string, AssetIdentifier> m_DownloadIdToAssetIdMap = new();
         readonly Dictionary<string, List<Action<AssetIdentifier, Texture2D>>> m_ThumbnailDownloadCallbacks = new();
         readonly Dictionary<string, Texture2D> m_Thumbnails = new();
 
@@ -92,9 +94,16 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            var download = m_DownloadManager.CreateDownloadOperation<TextureDownloadOperation>(thumbnailUrl);
-            m_DownloadIdToAssetIdMap[download.Id] = identifier;
-            m_DownloadManager.StartDownload(download);
+            m_DownloadIdToAssetIdMap[thumbnailUrl] = identifier;
+            
+            var unityWebRequest = new UnityWebRequest(thumbnailUrl, UnityWebRequest.kHttpVerbGET) { disposeDownloadHandlerOnDispose = true };
+            unityWebRequest.downloadHandler = new DownloadHandlerTexture();
+
+            var webRequestAsyncOperation = unityWebRequest.SendWebRequest();
+            webRequestAsyncOperation.completed += asyncOp =>
+            {
+                OnRequestCompletion((UnityWebRequestAsyncOperation)asyncOp, thumbnailUrl);
+            };
 
             var newCallbacks = new List<Action<AssetIdentifier, Texture2D>>();
             if (doneCallbackAction != null)
@@ -110,47 +119,34 @@ namespace Unity.AssetManager.Editor
             return m_Thumbnails.TryGetValue(thumbnailUrl, out var result) ? result : null;
         }
 
-        public override void OnEnable()
+        void OnRequestCompletion(UnityWebRequestAsyncOperation asyncOperation, string thumbnailUrl)
         {
-            m_DownloadManager.DownloadFinalized += OnDownloadFinalized;
-        }
-
-        public override void OnDisable()
-        {
-            m_DownloadManager.DownloadFinalized -= OnDownloadFinalized;
-        }
-
-        void OnDownloadFinalized(DownloadOperation operation)
-        {
-            if (!m_DownloadIdToAssetIdMap.TryGetValue(operation.Id, out var assetId))
+            if (!m_DownloadIdToAssetIdMap.TryGetValue(thumbnailUrl, out var assetId))
                 return;
 
-            m_DownloadIdToAssetIdMap.Remove(operation.Id);
-            if (!m_ThumbnailDownloadCallbacks.TryGetValue(operation.Url, out var callbacks) || callbacks.Count == 0)
+            m_DownloadIdToAssetIdMap.Remove(thumbnailUrl);
+            if (!m_ThumbnailDownloadCallbacks.TryGetValue(thumbnailUrl, out var callbacks) || callbacks.Count == 0)
                 return;
 
-            m_ThumbnailDownloadCallbacks.Remove(operation.Url);
+            m_ThumbnailDownloadCallbacks.Remove(thumbnailUrl);
 
-            if (operation is not TextureDownloadOperation textureDownloadOperation)
-                return;
-
-            var thumbnail = textureDownloadOperation.Texture;
+            var thumbnail = DownloadHandlerTexture.GetContent(asyncOperation.webRequest);
             foreach (var callback in callbacks)
             {
                 callback?.Invoke(assetId, thumbnail);
             }
 
-            SaveThumbnailInCache(textureDownloadOperation);
+            SaveThumbnailInCache(thumbnail, thumbnailUrl);
         }
 
-        void SaveThumbnailInCache(TextureDownloadOperation operation)
+        void SaveThumbnailInCache(Texture2D texture, string url)
         {
-            if (operation.Texture == null)
+            if (texture == null)
                 return;
 
-            var thumbnailFileName = Hash128.Compute(operation.Url).ToString();
+            var thumbnailFileName = Hash128.Compute(url).ToString();
             var finalPath = Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName);
-            var bytes = operation.Texture.EncodeToPNG();
+            var bytes = texture.EncodeToPNG();
             Task.Run(() => File.WriteAllBytes(finalPath, bytes));
         }
 

@@ -1,5 +1,4 @@
 using System;
-using Unity.Cloud.Common;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -8,41 +7,77 @@ namespace Unity.AssetManager.Editor
     class AssetIdentifier : IEquatable<AssetIdentifier>
     {
         [SerializeField]
-        string m_AssetId;
+        ProjectIdentifier m_ProjectIdentifier = new();
 
         [SerializeField]
-        string m_Version;
+        string m_AssetId = string.Empty;
 
         [SerializeField]
-        string m_OrganizationId;
+        string m_Version = string.Empty;
 
         [SerializeField]
-        string m_ProjectId;
+        string m_PrimarySourceFileGuid = string.Empty;
 
-        public string AssetId => m_AssetId ?? string.Empty;
-        public string Version => m_Version ?? string.Empty;
-        public string OrganizationId => m_OrganizationId ?? string.Empty;
-        public string ProjectId => m_ProjectId ?? string.Empty;
+        public string AssetId => m_AssetId;
+        public string Version => m_Version;
+        public string OrganizationId => m_ProjectIdentifier.OrganizationId;
+        public string ProjectId => m_ProjectIdentifier.ProjectId;
+        public string PrimarySourceFileGuid => m_PrimarySourceFileGuid;
+        public ProjectIdentifier ProjectIdentifier => m_ProjectIdentifier;
 
         public AssetIdentifier() { }
 
-        public AssetIdentifier(AssetDescriptor descriptor)
-        {
-            m_AssetId = descriptor.AssetId.ToString();
-            m_Version = descriptor.AssetVersion.ToString();
-            m_OrganizationId = descriptor.OrganizationId.ToString();
-            m_ProjectId = descriptor.ProjectId.ToString();
-        }
+        public AssetIdentifier(string primarySourceFileGuid)
+            : this(null, null, null, "1", primarySourceFileGuid) { }
 
         public AssetIdentifier(string organizationId, string projectId, string assetId, string version)
+            : this(organizationId, projectId, assetId, version, null) { }
+
+        AssetIdentifier(string organizationId, string projectId, string assetId, string version, string primarySourceFileGuid)
         {
-            m_AssetId = assetId;
-            m_Version = version;
-            m_OrganizationId = organizationId;
-            m_ProjectId = projectId;
+            m_ProjectIdentifier = new ProjectIdentifier(organizationId, projectId);
+            m_AssetId = assetId ?? string.Empty;
+            m_Version = version ?? string.Empty;
+            m_PrimarySourceFileGuid = primarySourceFileGuid ?? string.Empty;
         }
 
-        public virtual bool Equals(AssetIdentifier other)
+        public override string ToString()
+        {
+            return $"[Org:{OrganizationId}, Proj:{ProjectId}, Id:{AssetId}, Ver:{Version}, PrimFileGuid:{PrimarySourceFileGuid}]";
+        }
+
+        public AssetIdentifier WithAssetId(string assetId)
+        {
+            return new AssetIdentifier(m_ProjectIdentifier.OrganizationId, m_ProjectIdentifier.ProjectId, assetId, m_Version, m_PrimarySourceFileGuid);
+        }
+
+        public AssetIdentifier WithVersion(string version)
+        {
+            return new AssetIdentifier(m_ProjectIdentifier.OrganizationId, m_ProjectIdentifier.ProjectId, m_AssetId, version, m_PrimarySourceFileGuid);
+        }
+
+        // Compare AssetIdentifier without taking version into account
+        public bool IsSameAsset(AssetIdentifier other)
+        {
+            return m_AssetId == other.m_AssetId && m_ProjectIdentifier == other.m_ProjectIdentifier;
+        }
+
+        bool IsIdValid()
+        {
+            return !string.IsNullOrEmpty(m_AssetId);
+        }
+
+        bool IsPrimGuidValid()
+        {
+            return !string.IsNullOrEmpty(m_PrimarySourceFileGuid);
+        }
+
+        public bool IsAnyIdValid()
+        {
+            return IsIdValid() || IsPrimGuidValid();
+        }
+
+        public bool Equals(AssetIdentifier other)
         {
             if (ReferenceEquals(null, other))
             {
@@ -54,20 +89,10 @@ namespace Unity.AssetManager.Editor
                 return true;
             }
 
-            return IsSameId(m_OrganizationId, other.m_OrganizationId)
-                   && IsSameId(m_ProjectId, other.m_ProjectId)
-                   && IsSameId(m_AssetId, other.m_AssetId)
-                   && IsSameId(m_Version, other.m_Version);
-        }
-
-        public virtual bool IsIdValid()
-        {
-            return !string.IsNullOrEmpty(m_AssetId);
-        }
-
-        static bool IsSameId(string str1, string str2)
-        {
-            return (str1 ?? string.Empty) == (str2 ?? string.Empty);
+            return Equals(m_ProjectIdentifier, other.m_ProjectIdentifier) &&
+                m_AssetId == other.m_AssetId &&
+                m_Version == other.m_Version &&
+                m_PrimarySourceFileGuid == other.m_PrimarySourceFileGuid;
         }
 
         public override bool Equals(object obj)
@@ -82,7 +107,7 @@ namespace Unity.AssetManager.Editor
                 return true;
             }
 
-            if (obj.GetType() != GetType())
+            if (obj.GetType() != this.GetType())
             {
                 return false;
             }
@@ -90,42 +115,19 @@ namespace Unity.AssetManager.Editor
             return Equals((AssetIdentifier)obj);
         }
 
-        public static bool operator ==(AssetIdentifier obj1, AssetIdentifier obj2)
-        {
-            if (ReferenceEquals(obj1, obj2))
-            {
-                return true;
-            }
-
-            if (ReferenceEquals(obj1, null))
-            {
-                return false;
-            }
-
-            return obj1.Equals(obj2);
-        }
-
-        public static bool operator !=(AssetIdentifier obj1, AssetIdentifier obj2) => !(obj1 == obj2);
-        
         public override int GetHashCode()
         {
-            var orgIdHash = (OrganizationId ?? string.Empty).GetHashCode();
-            var projIdHash = (ProjectId ?? string.Empty).GetHashCode();
-            var assetIdHash = (AssetId ?? string.Empty).GetHashCode();
-            var versionHash = (Version ?? string.Empty).GetHashCode();
-
-            return HashCode.Combine(orgIdHash, projIdHash, assetIdHash, versionHash);
+            return HashCode.Combine(m_ProjectIdentifier, m_AssetId, m_Version, m_PrimarySourceFileGuid);
         }
 
-        public override string ToString()
+        public static bool operator ==(AssetIdentifier left, AssetIdentifier right)
         {
-            return $"[Org:{OrganizationId}, Proj:{m_ProjectId}, Id:{m_AssetId}, Ver:{m_Version}]";
+            return Equals(left, right);
         }
 
-        public AssetDescriptor ToAssetDescriptor()
+        public static bool operator !=(AssetIdentifier left, AssetIdentifier right)
         {
-            return new AssetDescriptor(new ProjectDescriptor(new OrganizationId(m_OrganizationId),
-                new ProjectId(m_ProjectId)), new AssetId(m_AssetId), new AssetVersion(m_Version));
+            return !Equals(left, right);
         }
     }
 }

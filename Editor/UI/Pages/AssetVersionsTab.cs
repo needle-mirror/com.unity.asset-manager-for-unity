@@ -128,7 +128,7 @@ namespace Unity.AssetManager.Editor
                 if (isLatest)
                 {
                     AddText(foldout.parent.Q(k_FoldoutLabelsContainer), null, Constants.LatestTagText,
-                        new[] {UssStyle.AssetVersionLabel, UssStyle.AssetVersionLabel_Latest});
+                        new[] { UssStyle.AssetVersionLabel, UssStyle.AssetVersionLabel_Latest });
                     isLatest = false;
                 }
 
@@ -163,12 +163,20 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
+            if (operationInProgress is { Status: OperationStatus.Paused })
+            {
+                return;
+            }
+
             var assetOperation = operationInProgress as AssetDataOperation;
             var isEnabled = AssetDetailsPageExtensions.IsImportAvailable(enabled);
 
             foreach (var identifier in assetData.Versions.Select(x => x.Identifier))
             {
                 var foldoutContainer = Root.Q(identifier.Version);
+
+                if (foldoutContainer == null)
+                    continue;
 
                 var versionOperation = assetOperation?.Identifier.Version == identifier.Version ? operationInProgress : null;
                 var inProject = enabled.HasFlag(UIEnabledStates.InProject) && assetData.Identifier.Equals(identifier);

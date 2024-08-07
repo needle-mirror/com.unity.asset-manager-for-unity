@@ -34,6 +34,7 @@ namespace Unity.AssetManager.Editor
         {
             m_AssetDataManager = assetDataManager;
             m_AssetDatabaseProxy = assetDatabaseProxy;
+            SelectionChanged += TryPingItem;
         }
 
         public override void Clear()
@@ -83,10 +84,20 @@ namespace Unity.AssetManager.Editor
                 return null;
 
             var importedInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.Identifier);
-            var normalizedFilename = Utilities.NormalizePathSeparators(filename);
-            var importedFileInfo = importedInfo?.FileInfos?.Find(f => Utilities.NormalizePathSeparators(f.OriginalPath).Equals(normalizedFilename));
+            var importedFileInfo = importedInfo?.FileInfos?.Find(f => Utilities.ComparePaths(f.OriginalPath, filename));
 
             return importedFileInfo?.Guid;
+        }
+        
+        void TryPingItem(IEnumerable<object> items)
+        {
+            var fileItems = items.OfType<FileItem>();
+            var firstPingableItem = fileItems.FirstOrDefault(fileItem => fileItem.Guid != null);
+
+            if (firstPingableItem != null)
+            {
+                m_AssetDatabaseProxy.PingAssetByGuid(firstPingableItem.Guid);
+            }
         }
     }
 }

@@ -1,5 +1,5 @@
 using System;
-using UnityEngine.Serialization;
+using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
@@ -19,5 +19,6 @@ namespace Unity.AssetManager.Editor
         public string Message { get; set; }
         public RecommendedAction RecommendedAction { get; set; }
         public bool IsPageScope { get; set; }
+        public HelpBoxMessageType MessageType { get; set; }
     }
 }

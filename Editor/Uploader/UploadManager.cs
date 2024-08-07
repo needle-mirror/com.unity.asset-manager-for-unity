@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
 using Unity.Cloud.Common;
 using UnityEngine;
 
@@ -18,15 +16,28 @@ namespace Unity.AssetManager.Editor
         bool IsUploading { get; }
 
         void CancelUpload();
-        Task UploadAsync(IReadOnlyCollection<IUploadAssetEntry> uploadEntries, UploadSettings settings);
+        Task UploadAsync(IReadOnlyCollection<IUploadAsset> uploadEntries, UploadSettings settings);
     }
 
-    enum AssetUploadMode
+    enum UploadAssetMode
     {
-        Ignore, // Skips the upload if an asset with the same ID already exists on the cloud
+        SkipExisting, // Skips the upload if an asset with the same ID already exists on the cloud
         Override, // Replaces and overrides any existing asset with the same ID on the cloud
         Duplicate, // Uploads new assets and potentially duplicates without checking for existing matches
-        None, // Not assigned
+    }
+
+    enum UploadDependencyMode
+    {
+        Ignore, // Do not add any dependencies
+        Separate, // Add dependencies as separate assets
+        Embedded, // Add dependencies as files in the parent asset
+    }
+
+    enum UploadFilePathMode
+    {
+        Full, // Keep the path relative to the project Assets folder
+        Compact, // Reduce files nesting by removing common path parts
+        Flatten, // Flatten all files to the root of the asset and rename them in case of collision
     }
 
     [Serializable]
@@ -34,19 +45,17 @@ namespace Unity.AssetManager.Editor
     {
         class AssetUploadInfo
         {
-            public AssetUploadInfo(IUploadAssetEntry uploadEntry, AssetData assetData, bool assetRecycled, ProjectDescriptor targetProject, bool skip)
+            public AssetUploadInfo(IUploadAsset uploadAsset, AssetData assetData, bool assetRecycled, bool skip)
             {
-                UploadEntry = uploadEntry;
+                UploadAsset = uploadAsset;
                 AssetData = assetData;
                 AssetRecycled = assetRecycled;
-                TargetProject = targetProject;
                 Skip = skip;
             }
 
-            public IUploadAssetEntry UploadEntry { get; }
+            public IUploadAsset UploadAsset { get; }
             public AssetData AssetData { get; }
             public bool AssetRecycled { get; }
-            public ProjectDescriptor TargetProject { get; }
             public bool Skip { get; }
         }
 
@@ -80,7 +89,7 @@ namespace Unity.AssetManager.Editor
             m_AssetsProvider = assetsProvider;
         }
 
-        public async Task UploadAsync(IReadOnlyCollection<IUploadAssetEntry> uploadEntries, UploadSettings settings)
+        public async Task UploadAsync(IReadOnlyCollection<IUploadAsset> uploadEntries, UploadSettings settings)
         {
             if (m_Uploading)
                 return;
@@ -88,8 +97,8 @@ namespace Unity.AssetManager.Editor
             m_Uploading = true;
             UploadBegan?.Invoke();
 
-            var uploadEntryToAssetUploadInfoLookup = new Dictionary<IUploadAssetEntry, AssetUploadInfo>();
-            var uploadEntryToOperationLookup = new Dictionary<IUploadAssetEntry, UploadOperation>();
+            var uploadEntryToAssetUploadInfoLookup = new Dictionary<IUploadAsset, AssetUploadInfo>();
+            var uploadEntryToOperationLookup = new Dictionary<IUploadAsset, UploadOperation>();
             var guidToAssetLookup = new Dictionary<string, AssetData>();
 
             m_TokenSource = new CancellationTokenSource();
@@ -97,10 +106,9 @@ namespace Unity.AssetManager.Editor
 
             try
             {
-                var assetEntriesWithAllDependencies = new List<IUploadAssetEntry>();
+                var assetEntriesWithAllDependencies = new List<IUploadAsset>();
 
-                var targetProject = new ProjectDescriptor(new OrganizationId(settings.OrganizationId),
-                    new ProjectId(settings.ProjectId));
+                var targetProject = new ProjectIdentifier(settings.OrganizationId, settings.ProjectId);
                 var targetCollection = settings.CollectionPath;
 
                 var database = uploadEntries.ToDictionary(entry => entry.Guid);
@@ -118,7 +126,7 @@ namespace Unity.AssetManager.Editor
                         var operation = StartNewOperation(uploadEntry);
                         uploadEntryToOperationLookup[uploadEntry] = operation;
 
-                        return CreateOrRecycleAsset(operation, uploadEntry, settings.AssetUploadMode, targetProject,
+                        return CreateOrRecycleAsset(operation, uploadEntry, settings.UploadMode, targetProject,
                             targetCollection, token);
                     }, k_MaxConcurrentTasks);
 
@@ -129,7 +137,7 @@ namespace Unity.AssetManager.Editor
                     if (assetUploadInfo == null) // Something went wrong during asset creation and the error was already reported
                         continue;
 
-                    var uploadEntry = assetUploadInfo.UploadEntry;
+                    var uploadEntry = assetUploadInfo.UploadAsset;
 
                     if (!assetUploadInfo.Skip)
                     {
@@ -186,22 +194,22 @@ namespace Unity.AssetManager.Editor
             m_TokenSource?.Cancel();
         }
 
-        async Task TrackAsset(IUploadAssetEntry uploadEntry, IAssetData asset, CancellationToken token)
+        async Task TrackAsset(IUploadAsset uploadAsset, IAssetData asset, CancellationToken token)
         {
             try
             {
                 IEnumerable<(string originalPath, string finalPath)> assetPaths = new List<(string, string)>();
 
-                foreach (var file in uploadEntry.Files)
+                foreach (var sourcePath in uploadAsset.Files.Select(f => f.SourcePath))
                 {
-                    var originalFile = Utilities.GetPathRelativeToAssetsFolder(file);
-                    assetPaths = assetPaths.Append((originalPath: originalFile, file));
+                    var originalFile = Utilities.GetPathRelativeToAssetsFolder(sourcePath);
+                    assetPaths = assetPaths.Append((originalPath: originalFile, sourcePath));
                 }
 
                 IAssetData assetData;
                 try
                 {
-                    var cloudAsset = await m_AssetsProvider.GetAssetAsync(asset.Identifier.ToAssetDescriptor(), token);
+                    var cloudAsset = await m_AssetsProvider.GetAssetAsync(asset.Identifier, token);
                     assetData = cloudAsset;
                 }
                 catch (OperationCanceledException)
@@ -230,13 +238,13 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        async Task<AssetUploadInfo> CreateOrRecycleAsset(BaseOperation operation, IUploadAssetEntry uploadEntry,
-            AssetUploadMode uploadMode, ProjectDescriptor targetProject, CollectionPath targetCollection,
+        async Task<AssetUploadInfo> CreateOrRecycleAsset(BaseOperation operation, IUploadAsset uploadAsset,
+            UploadAssetMode uploadMode, ProjectIdentifier targetProject, string targetCollection,
             CancellationToken token)
         {
             try
             {
-                return await CreateOrRecycleAsset(uploadEntry, uploadMode, targetProject,
+                return await CreateOrRecycleAsset(uploadAsset, uploadMode, targetProject,
                     targetCollection, token);
             }
             catch (OperationCanceledException)
@@ -253,22 +261,22 @@ namespace Unity.AssetManager.Editor
             return null;
         }
 
-        async Task<AssetUploadInfo> CreateOrRecycleAsset(IUploadAssetEntry uploadEntry, AssetUploadMode uploadMode,
-            ProjectDescriptor targetProject, CollectionPath targetCollection, CancellationToken token)
+        async Task<AssetUploadInfo> CreateOrRecycleAsset(IUploadAsset uploadAsset, UploadAssetMode uploadMode,
+            ProjectIdentifier targetProject, string targetCollection, CancellationToken token)
         {
             AssetData existingAsset = null;
 
-            if (uploadMode != AssetUploadMode.Duplicate)
+            if (uploadMode != UploadAssetMode.Duplicate)
             {
                 try
                 {
-                    existingAsset = await AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(uploadEntry.Guid,
+                    existingAsset = await AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(uploadAsset.Guid,
                         targetProject.OrganizationId.ToString(), targetProject.ProjectId.ToString(), token);
 
-                    if (existingAsset != null && uploadMode == AssetUploadMode.Ignore)
+                    if (existingAsset != null && uploadMode == UploadAssetMode.SkipExisting)
                     {
                         Utilities.DevLog($"Asset is already on the cloud: {existingAsset.Name}. Skipping...");
-                        return new AssetUploadInfo(uploadEntry, existingAsset, true, targetProject, true);
+                        return new AssetUploadInfo(uploadAsset, existingAsset, true, true);
                     }
                 }
                 catch (OperationCanceledException)
@@ -283,23 +291,23 @@ namespace Unity.AssetManager.Editor
             }
 
             AssetData asset;
-            var canRecycleAsset = existingAsset != null && uploadMode == AssetUploadMode.Override;
+            var canRecycleAsset = existingAsset != null && uploadMode == UploadAssetMode.Override;
             if (canRecycleAsset)
             {
-                asset = await RecycleAsset(uploadEntry, existingAsset, token);
+                asset = await RecycleAsset(uploadAsset, existingAsset, token);
             }
             else
             {
-                var createdAssetData = await CreateNewAsset(uploadEntry, targetProject, targetCollection, token);
+                var createdAssetData = await CreateNewAsset(uploadAsset, targetProject, targetCollection, token);
                 asset = createdAssetData;
             }
 
-            return new AssetUploadInfo(uploadEntry, asset, canRecycleAsset, targetProject, false);
+            return new AssetUploadInfo(uploadAsset, asset, canRecycleAsset, false);
         }
 
-        UploadOperation StartNewOperation(IUploadAssetEntry assetEntry)
+        UploadOperation StartNewOperation(IUploadAsset uploadAsset)
         {
-            var operation = new UploadOperation(assetEntry);
+            var operation = new UploadOperation(uploadAsset);
             m_AssetOperationManager.RegisterOperation(operation);
 
             operation.Start();
@@ -349,7 +357,7 @@ namespace Unity.AssetManager.Editor
                 // On upload failure, unlink any non recycled asset
                 if (!assetUploadInfo.AssetRecycled)
                 {
-                    await assetUploadInfo.AssetData.Asset.UnlinkFromProjectAsync(assetUploadInfo.TargetProject, token);
+                    await m_AssetsProvider.RemoveAsset(assetUploadInfo.AssetData.Identifier, token);
                 }
 
                 operation.Finish(OperationStatus.Error);
@@ -358,14 +366,14 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        void AddDependencies(IUploadAssetEntry assetEntry, ICollection<IUploadAssetEntry> assetEntries,
-            IReadOnlyDictionary<string, IUploadAssetEntry> database)
+        void AddDependencies(IUploadAsset uploadAsset, ICollection<IUploadAsset> assetEntries,
+            IReadOnlyDictionary<string, IUploadAsset> database)
         {
-            if (assetEntries.Contains(assetEntry))
+            if (assetEntries.Contains(uploadAsset))
                 return;
 
-            assetEntries.Add(assetEntry);
-            foreach (var id in assetEntry.Dependencies)
+            assetEntries.Add(uploadAsset);
+            foreach (var id in uploadAsset.Dependencies)
             {
                 if (database.TryGetValue(id, out var child))
                 {
@@ -374,20 +382,21 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        async Task<AssetData> CreateNewAsset(IUploadAssetEntry uploadAssetEntry, ProjectDescriptor targetProject,
-            CollectionPath targetCollection, CancellationToken token)
+        async Task<AssetData> CreateNewAsset(IUploadAsset uploadAsset, ProjectIdentifier targetProject,
+            string targetCollection, CancellationToken token)
         {
-            var assetCreation = new AssetCreation(uploadAssetEntry.Name)
+            var assetCreation = new AssetCreation
             {
-                Collections = string.IsNullOrEmpty(targetCollection) ? null : new List<CollectionPath> { new(targetCollection) },
-                Type = uploadAssetEntry.AssetType.ConvertAssetTypeToCloudAssetType(),
-                Tags = uploadAssetEntry.Tags.ToList()
+                Name = uploadAsset.Name,
+                Collections = string.IsNullOrEmpty(targetCollection) ? null : new List<string> { new ( targetCollection ) },
+                Type = uploadAsset.AssetType,
+                Tags = uploadAsset.Tags.ToList()
             };
 
             return await m_AssetsProvider.CreateAssetAsync(targetProject, assetCreation, token);
         }
 
-        async Task<AssetData> RecycleAsset(IUploadAssetEntry uploadAssetEntry, AssetData asset, CancellationToken token)
+        async Task<AssetData> RecycleAsset(IUploadAsset uploadAsset, AssetData asset, CancellationToken token)
         {
             if (asset.IsFrozen)
             {
@@ -396,55 +405,21 @@ namespace Unity.AssetManager.Editor
 
             var assetUpdate = new AssetUpdate
             {
-                Name = uploadAssetEntry.Name,
-                Type = uploadAssetEntry.AssetType.ConvertAssetTypeToCloudAssetType(),
-                Tags = uploadAssetEntry.Tags.ToList()
+                Name = uploadAsset.Name,
+                Type = uploadAsset.AssetType,
+                Tags = uploadAsset.Tags.ToList()
             };
-
-            var sourceDataset = await m_AssetsProvider.GetSourceDatasetAsync(asset, default);
-            var previewDataset = await m_AssetsProvider.GetPreviewDatasetAsync(asset, default);
 
             var tasks = new List<Task>
             {
                 m_AssetsProvider.UpdateAsync(asset, assetUpdate, token),
-                WipeDataset(sourceDataset, token),
-                RemoveFileIfExistsAsync(previewDataset, Constants.ThumbnailFilename, token)
+                m_AssetsProvider.RemoveAllFiles(asset, token),
+                m_AssetsProvider.RemoveThumbnail(asset, token)
             };
 
             await Task.WhenAll(tasks);
 
             return asset;
-        }
-
-        static async Task RemoveFileIfExistsAsync(IDataset dataset, string path, CancellationToken token)
-        {
-            try
-            {
-                await dataset.RemoveFileAsync(path, token);
-            }
-            catch (ServiceException e)
-            {
-                if (e.StatusCode != HttpStatusCode.NotFound)
-                    throw;
-            }
-        }
-
-        static async Task WipeDataset(IDataset dataset, CancellationToken token)
-        {
-            var filesToWipe = new List<IFile>();
-            await foreach (var file in dataset.ListFilesAsync(Range.All, token))
-            {
-                filesToWipe.Add(file);
-            }
-
-            var deleteTasks = new List<Task>();
-
-            foreach (var file in filesToWipe)
-            {
-                deleteTasks.Add(dataset.RemoveFileAsync(file.Descriptor.Path, token));
-            }
-
-            await Task.WhenAll(deleteTasks);
         }
     }
 }

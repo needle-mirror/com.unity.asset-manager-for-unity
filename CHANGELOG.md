@@ -4,6 +4,35 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-exp.1] - 2024-08-07
+[Added]
+- Added a pause state to the progression bar
+- Added confidence threshold slider in settings
+- New settings toggle to allow user to deactivate the auto generation of tags on upload
+- Asset tag generation based on the thumbnail
+
+[Changed]
+- GridItem and Tag chips are now selected on PointerDown to match other elements of the package and editor
+- Renamed GetVersionsAsync method to GetAssetDataInDescendingVersionNumberOrder
+- Changed old OnGui event for UIToolkit event system
+- Internal refactor to AssetDescriptor
+- Disable the cancel button of the progress bar when the progression is completed
+- Update settings manager package version from 1.0.2 to 2.0.1
+
+[Fixed]
+- Addressed warnings coming from packages
+- Public  method GetAssetDataInDescendingVersionNumberOrder does not return an IAsset anymore (to limit Asset SDK access)
+- Fixed issue with non-frozen asset upload.
+- Only refreshing the extension when data not already gathered before selection
+- When removing an item to the selection, do not refresh all the other items
+- Cleaner foldouts implementation
+- We now prevent the user from trying to upload an asset from the active scene
+- Removed the speed check when dragging a grid item
+- Added MessageType field to MessageData to better customize help boxes and display the right icon
+- When re-uploading an asset, we now check if the associated asset was an embedded dependency before overriding the "parent" asset
+- UVCS files now show up in the details panel when asset is imported
+
+
 ## [0.9.0] - 2024-07-10
 
 [Added]

@@ -30,18 +30,6 @@ namespace Unity.AssetManager.Editor
             var iconParent = this.Q(className: inputUssClassName);
             m_Icon = iconParent.Q<Image>();
 
-            RegisterEventForIconChange();
-
-            RegisterCallback<PointerDownEvent>(e =>
-            {
-                // We skip the user's click if they aimed the check mark of the foldout
-                // to only select foldouts when they click on it's title/label
-                if (e.target != this)
-                    return;
-
-                m_ProjectOrganizationProvider.SelectProject(m_ProjectInfo, m_CollectionPath);
-            }, TrickleDown.TrickleDown);
-
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
         }
@@ -53,14 +41,30 @@ namespace Unity.AssetManager.Editor
         
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            RegisterEventForIconChange();
+            RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
+            
             m_UploadManager.UploadBegan += OnUploadBegan;
             m_UploadManager.UploadEnded += OnUploadEnded;
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
+            UnRegisterEventForIconChange();
+            UnregisterCallback<PointerDownEvent>(OnPointerDown);
+            
             m_UploadManager.UploadBegan -= OnUploadBegan;
             m_UploadManager.UploadEnded -= OnUploadEnded;
+        }
+        
+        void OnPointerDown(PointerDownEvent evt)
+        {
+            // We skip the user's click if they aimed the check mark of the foldout
+            // to only select foldouts when they click on it's title/label
+            if (evt.target != this)
+                return;
+            
+            m_ProjectOrganizationProvider.SelectProject(m_ProjectInfo, m_CollectionPath);
         }
 
         void OnUploadBegan()
@@ -118,22 +122,29 @@ namespace Unity.AssetManager.Editor
 
         void RegisterEventForIconChange()
         {
-            this.RegisterValueChangedCallback(e =>
+            this.RegisterValueChangedCallback(OnIconChanged);
+        }
+
+        void UnRegisterEventForIconChange()
+        {
+            this.UnregisterValueChangedCallback(OnIconChanged);
+        }
+
+        void OnIconChanged(ChangeEvent<bool> evt)
+        {
+            SetIcon();
+
+            if (!m_HasChild)
+                return;
+
+            if (!value)
             {
-                SetIcon();
-
-                if (!m_HasChild)
-                    return;
-
-                if (!value)
-                {
-                    m_StateManager.CollapsedCollections.Add(name);
-                }
-                else
-                {
-                    m_StateManager.CollapsedCollections.Remove(name);
-                }
-            });
+                m_StateManager.CollapsedCollections.Add(name);
+            }
+            else
+            {
+                m_StateManager.CollapsedCollections.Remove(name);
+            }
         }
 
         void SetIcon()

@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -24,6 +26,7 @@ namespace Unity.AssetManager.Editor
 
         string m_Guid;
         GenericMenu m_ThreeDotsMenu;
+        Dictionary<string, bool> m_ThreeDotsMenuItems;
 
         public DetailsPageFileItem(IAssetDatabaseProxy assetDatabaseProxy)
         {
@@ -48,8 +51,8 @@ namespace Unity.AssetManager.Editor
             m_InProjectIcon.AddToClassList(k_DetailsPageInProjectItemUssStyle);
             m_InProjectIcon.tooltip = L10n.Tr("Imported");
 
-            m_ThreeDotsMenu = new GenericMenu();
-            m_ThreeDots.clicked += ShowAsContext;
+            InitializeThreeDotsMenu();
+            m_ThreeDots.clicked += () => m_ThreeDotsMenu.ShowAsContext();
 
             Add(m_Icon);
             Add(m_ErrorIcon);
@@ -79,27 +82,32 @@ namespace Unity.AssetManager.Editor
             m_FileName.text = fileName;
             m_Guid = guid;
 
+            InitializeThreeDotsMenu();
+            
             m_InProjectIcon.visible = IsShowInProjectEnabled();
-            m_ThreeDots.visible = !MetafilesHelper.IsMetafile(fileName);
+            m_ThreeDots.visible = !MetafilesHelper.IsMetafile(fileName) && IsAnyMenuItemEnabled();
 
             SetEnabled(enabled);
         }
 
-        void ShowAsContext()
+        void InitializeThreeDotsMenu()
         {
             m_ThreeDotsMenu = new GenericMenu();
-            var guiContent = new GUIContent(Constants.ShowInProjectActionText);
+            m_ThreeDotsMenuItems = new Dictionary<string, bool>();
+
+            var text = Constants.ShowInProjectActionText;
+            var guiContent = new GUIContent(text);
 
             if (IsShowInProjectEnabled())
             {
                 m_ThreeDotsMenu.AddItem(guiContent, false, ShowInProjectBrowser);
+                m_ThreeDotsMenuItems.Add(text, true);
             }
             else
             {
                 m_ThreeDotsMenu.AddDisabledItem(guiContent);
+                m_ThreeDotsMenuItems.Add(text, false);
             }
-
-            m_ThreeDotsMenu.ShowAsContext();
         }
 
         bool IsShowInProjectEnabled()
@@ -110,6 +118,11 @@ namespace Unity.AssetManager.Editor
         void ShowInProjectBrowser()
         {
             m_AssetDatabaseProxy.PingAssetByGuid(m_Guid);
+        }
+
+        bool IsAnyMenuItemEnabled()
+        {
+            return m_ThreeDotsMenuItems.Any(x => x.Value);
         }
     }
 }

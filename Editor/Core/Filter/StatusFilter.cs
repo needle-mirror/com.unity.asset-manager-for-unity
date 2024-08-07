@@ -1,5 +1,4 @@
 using System;
-using Unity.Cloud.Assets;
 
 namespace Unity.AssetManager.Editor
 {
@@ -9,21 +8,21 @@ namespace Unity.AssetManager.Editor
             : base(page, projectOrganizationProvider) { }
 
         public override string DisplayName => "Status";
-        protected override GroupableField GroupBy => GroupableField.Status;
+        protected override AssetSearchGroupBy GroupBy => AssetSearchGroupBy.Status;
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
-            assetSearchFilter.Include().Status.WithValue(SelectedFilter);
+            assetSearchFilter.Status = SelectedFilter;
         }
 
         protected override void IncludeFilter(string selection)
         {
-            m_Page.PageFilters.AssetFilter.Include().Status.WithValue(selection);
+            m_Page.PageFilters.AssetSearchFilter.Status = selection;
         }
 
         protected override void ClearFilter()
         {
-            m_Page.PageFilters.AssetFilter.Include().Status.Clear();
+            m_Page.PageFilters.AssetSearchFilter.Status = null;
         }
     }
 }

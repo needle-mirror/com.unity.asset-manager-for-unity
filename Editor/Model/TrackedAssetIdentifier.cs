@@ -1,11 +1,10 @@
 using System;
-using Unity.Cloud.Common;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
     [Serializable]
-    class TrackedAssetIdentifier : IEquatable<TrackedAssetIdentifier>, IEquatable<AssetIdentifier>, IEquatable<LocalAssetIdentifier>
+    class TrackedAssetIdentifier : IEquatable<TrackedAssetIdentifier>, IEquatable<AssetIdentifier>
     {
         [SerializeField]
         string m_Guid;
@@ -27,12 +26,8 @@ namespace Unity.AssetManager.Editor
         public TrackedAssetIdentifier() { }
 
         public TrackedAssetIdentifier(AssetIdentifier identifier)
-            : this(identifier.OrganizationId, identifier.ProjectId, identifier.AssetId, string.Empty)
+            : this(identifier.OrganizationId, identifier.ProjectId, identifier.AssetId, identifier.PrimarySourceFileGuid ?? string.Empty)
         {
-            if (identifier is LocalAssetIdentifier localIdentifier)
-            {
-                m_Guid = localIdentifier.Guid;
-            }
         }
 
         public TrackedAssetIdentifier(string organizationId, string projectId, string assetId, string guid)
@@ -78,27 +73,9 @@ namespace Unity.AssetManager.Editor
                 return false;
             }
 
-            if (other is LocalAssetIdentifier localIdentifier)
-            {
-                return Equals(localIdentifier);
-            }
-
             return IsSameId(m_OrganizationId, other.OrganizationId)
                    && IsSameId(m_ProjectId, other.ProjectId)
                    && IsSameId(m_AssetId, other.AssetId);
-        }
-
-        public virtual bool Equals(LocalAssetIdentifier other)
-        {
-            if (ReferenceEquals(null, other))
-            {
-                return false;
-            }
-
-            return IsSameId(m_OrganizationId, other.OrganizationId)
-                   && IsSameId(m_ProjectId, other.ProjectId)
-                   && IsSameId(m_AssetId, other.AssetId)
-                   && IsSameId(m_Guid, other.Guid);
         }
 
         public override bool Equals(object obj)
@@ -115,7 +92,6 @@ namespace Unity.AssetManager.Editor
 
             return obj switch
             {
-                LocalAssetIdentifier identifier => Equals(identifier),
                 AssetIdentifier identifier => Equals(identifier),
                 TrackedAssetIdentifier identifier => Equals(identifier),
                 _ => false

@@ -1,6 +1,8 @@
 using System;
 using UnityEngine;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -64,7 +66,11 @@ namespace Unity.AssetManager.Editor
             m_Root.StretchToParentSize();
             rootVisualElement.Add(m_Root);
 
-            m_Manipulator = new DragFromOutsideManipulator(rootVisualElement, ServicesContainer.instance.Resolve<IPageManager>());
+            // Manipulators and Inputs
+            m_Manipulator = new DragFromOutsideManipulator(rootVisualElement, container.Resolve<IPageManager>());
+            rootVisualElement.RegisterCallback<KeyDownEvent>(OnKeyDown);
+            // This line is needed in order to receive the KeyDownEvent
+            rootVisualElement.focusable = true;
 
             AnalyticsSender.SendEvent(new ServicesInitializationCompletedEvent(position.size));
             if (docked)
@@ -89,6 +95,7 @@ namespace Unity.AssetManager.Editor
                 return;
 
             m_Manipulator?.target.RemoveManipulator(m_Manipulator);
+            rootVisualElement.UnregisterCallback<KeyDownEvent>(OnKeyDown);
 
             m_Root?.UnregisterCallback<GeometryChangedEvent>(OnResized);
             m_Root?.OnDisable();
@@ -105,11 +112,6 @@ namespace Unity.AssetManager.Editor
             }
 
             s_Instance = null;
-        }
-
-        void OnGUI()
-        {
-            m_Root?.OnGUI();
         }
 
         void OnFocus()
@@ -129,6 +131,9 @@ namespace Unity.AssetManager.Editor
         }
 
         public static event Action Enabled;
+        
+        // This event is used for the Tests
+        internal static event Action Refreshed;
 
         internal static void Open()
         {
@@ -139,6 +144,8 @@ namespace Unity.AssetManager.Editor
 
         internal void RefreshAll()
         {
+            Refreshed?.Invoke();
+            
             // Calling a manual Refresh should force a brand new initialization of the services and UI
             OnDisable();
             OnDestroy();
@@ -162,6 +169,19 @@ namespace Unity.AssetManager.Editor
 
             m_IsDocked = docked;
             AnalyticsSender.SendEvent(new WindowDockedEvent(docked));
+        }
+        
+        void OnKeyDown(KeyDownEvent evt)
+        {
+            switch (evt.keyCode)
+            {
+                case KeyCode.Escape:
+                    if (evt.modifiers == EventModifiers.None)
+                    {
+                        ServicesContainer.instance.Resolve<IPageManager>().ActivePage.Clear(true);
+                    }
+                    break;
+            }
         }
     }
 }

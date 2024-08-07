@@ -1,5 +1,4 @@
 ﻿using System;
-using Unity.Cloud.Assets;
 
 namespace Unity.AssetManager.Editor
 {
@@ -18,37 +17,24 @@ namespace Unity.AssetManager.Editor
     {
         internal static string DisplayValue(this AssetType assetType)
         {
-            return assetType.ConvertAssetTypeToCloudAssetType().GetValueAsString();
+            return assetType.GetValueAsString();
         }
-
-        internal static Cloud.Assets.AssetType ConvertAssetTypeToCloudAssetType(this AssetType assetType)
+        
+        static string GetValueAsString(this AssetType assetType)
         {
             return assetType switch
             {
-                AssetType.Asset2D => Cloud.Assets.AssetType.Asset_2D,
-                AssetType.Model3D => Cloud.Assets.AssetType.Model_3D,
-                AssetType.Audio => Cloud.Assets.AssetType.Audio,
-                AssetType.Material => Cloud.Assets.AssetType.Material,
-                AssetType.Script => Cloud.Assets.AssetType.Script,
-                AssetType.Video => Cloud.Assets.AssetType.Video,
-                _ => Cloud.Assets.AssetType.Other
+                AssetType.Asset2D => "2D Asset",
+                AssetType.Model3D => "3D Model",
+                AssetType.Audio => "Audio",
+                AssetType.Material => "Material",
+                AssetType.Other => "Other",
+                AssetType.Script => "Script",
+                AssetType.Video => "Video",
+                _ => string.Empty
             };
         }
-
-        internal static AssetType ConvertCloudAssetTypeToAssetType(this Cloud.Assets.AssetType assetType)
-        {
-            return assetType switch
-            {
-                Cloud.Assets.AssetType.Asset_2D => AssetType.Asset2D,
-                Cloud.Assets.AssetType.Model_3D => AssetType.Model3D,
-                Cloud.Assets.AssetType.Audio => AssetType.Audio,
-                Cloud.Assets.AssetType.Material => AssetType.Material,
-                Cloud.Assets.AssetType.Script => AssetType.Script,
-                Cloud.Assets.AssetType.Video => AssetType.Video,
-                _ => AssetType.Other
-            };
-        }
-
+        
         internal static AssetType ConvertUnityAssetTypeToAssetType(this UnityAssetType unityAssetType)
         {
             return unityAssetType switch

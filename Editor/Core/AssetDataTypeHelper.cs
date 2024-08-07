@@ -103,10 +103,11 @@ namespace Unity.AssetManager.Editor
                 "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_graph_icon.png", ".shadergraph"),
             new UnityTypeDescriptor(UnityAssetType.Shader, IconSource.Resource,
                 "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_subgraph_icon.png", ".shadersubgraph"),
-            new UnityTypeDescriptor(UnityAssetType.Texture, ".ai", ".apng", ".bmp", ".cdr", ".dib", ".eps",
-                ".exif", ".exr", ".gif", ".hdr", ".ico", ".icon", ".j", ".j2c", ".j2k", ".jas", ".jiff", ".jng", ".jp2",
-                ".jpc", ".jpe", ".jpeg", ".jpf", ".jpg", ".jpw", ".jpx", ".jtf", ".mac", ".omf", ".png", ".psd", ".qif",
-                ".qti", ".qtif", ".tex", ".tfw", ".tga", ".tif", ".tiff", ".wmf"),
+            new UnityTypeDescriptor(UnityAssetType.Texture, ".ai", ".apng", ".avif", ".bmp", ".cdr",
+                ".cur", ".dib", ".eps", ".exif", ".exr", ".gif", ".hdr", ".ico", ".icon", ".j", ".j2c", ".j2k",
+                ".jas", ".jiff", ".jfif", ".jng", ".jp2", ".jpc", ".jpe", ".jpeg", ".jpf", ".jpg", ".jpw", ".jpx",
+                ".jtf", ".mac", ".omf", ".pjp", ".pjpeg", ".png", ".psd", ".qif", ".qti", ".qtif", ".svg", ".tex",
+                ".tfw", ".tga", ".tif", ".tiff", ".webp", ".wmf"),
             new UnityTypeDescriptor(UnityAssetType.VisualEffect, IconSource.Typename,
                 "UnityEngine.VFX.VisualEffectAsset", ".vfx"),
             new UnityTypeDescriptor(UnityAssetType.Other, IconSource.Typename, "UnityEngine.Timeline.TimelineAsset",
@@ -116,10 +117,16 @@ namespace Unity.AssetManager.Editor
             new UnityTypeDescriptor(UnityAssetType.Other, IconSource.TextureName, "d_SceneAsset Icon", ".unitypackage")
         };
 
-        static Dictionary<string, UnityTypeDescriptor> s_ExtensionToUnityTypeDescriptor;
+        private static readonly List<string> k_ImageFormatsSupportingPreviewGeneration = new()
+        {
+            ".apng", ".avif", ".bmp", ".cur", ".gif", ".ico", ".jfif", ".jpg", ".jpeg", ".pjp", ".pjpeg", ".png",
+            ".svg", ".webp"
+        };
+
+        static Dictionary<string, (UnityTypeDescriptor descriptor, int priority)> s_ExtensionToUnityTypeDescriptor;
 
         static Texture2D DefaultIcon => InternalEditorUtility.GetIconForFile(string.Empty);
-
+        
         public static string GetAssetPrimaryExtension(IEnumerable<string> extensions)
         {
             var assetExtensions = new HashSet<string>();
@@ -158,6 +165,14 @@ namespace Unity.AssetManager.Editor
 
             return assetExtensions.FirstOrDefault();
         }
+        
+        public static IEnumerable<IAssetDataFile> FilterUsableFilesAsPrimaryExtensions(this IEnumerable<IAssetDataFile> rawList)
+        {
+            return rawList.Where(x =>
+                !string.IsNullOrEmpty(x.Extension) &&
+                x.Extension != MetafilesHelper.MetaFileExtension &&
+                !AssetDataDependencyHelper.IsASystemFile(x.Extension));
+        }
 
         public static Texture2D GetIconForExtension(string extension)
         {
@@ -168,9 +183,9 @@ namespace Unity.AssetManager.Editor
 
             InitializeExtensionToUnityTypeDescriptor();
 
-            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var descriptor))
+            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var value))
             {
-                return descriptor.GetIcon();
+                return value.descriptor.GetIcon();
             }
 
             return InternalEditorUtility.GetIconForFile(extension);
@@ -185,14 +200,31 @@ namespace Unity.AssetManager.Editor
 
             InitializeExtensionToUnityTypeDescriptor();
 
-            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var descriptor))
+            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var value))
             {
-                return descriptor.Type;
+                return value.descriptor.Type;
             }
 
             return UnityAssetType.Other;
         }
 
+        public static int GetPriority(string extension)
+        {
+            if (string.IsNullOrEmpty(extension))
+            {
+                return 0;
+            }
+            
+            InitializeExtensionToUnityTypeDescriptor();
+            
+            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var value))
+            {
+                return value.priority;
+            }
+            
+            return 0; // lowest priority
+        }
+        
         public static Regex GetRegexForExtensions(UnityAssetType type)
         {
             var pattern = string.Empty;
@@ -211,17 +243,24 @@ namespace Unity.AssetManager.Editor
             return new Regex($".*({pattern})", RegexOptions.IgnoreCase);
         }
 
+        public static bool IsSupportingPreviewGeneration(string extension)
+        {
+            return k_ImageFormatsSupportingPreviewGeneration.Contains(extension);
+        }
+
         static void InitializeExtensionToUnityTypeDescriptor()
         {
             if (s_ExtensionToUnityTypeDescriptor != null)
                 return;
 
-            s_ExtensionToUnityTypeDescriptor = new Dictionary<string, UnityTypeDescriptor>();
-            foreach (var unityTypeDescriptor in k_UnityTypeDescriptors)
+            s_ExtensionToUnityTypeDescriptor = new Dictionary<string, (UnityTypeDescriptor, int)>();
+            for (int i = 0; i < k_UnityTypeDescriptors.Count; ++i)
             {
+                var unityTypeDescriptor = k_UnityTypeDescriptors[i];
+                var priority = k_UnityTypeDescriptors.Count - i; // k_UnityTypeDescriptors has higher priority first, and we want higher number for higher priority
                 foreach (var ext in unityTypeDescriptor.Extensions)
                 {
-                    s_ExtensionToUnityTypeDescriptor[ext] = unityTypeDescriptor;
+                    s_ExtensionToUnityTypeDescriptor[ext] = (unityTypeDescriptor, priority);
                 }
             }
         }
