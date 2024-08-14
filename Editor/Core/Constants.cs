@@ -42,6 +42,7 @@ namespace Unity.AssetManager.Editor
         public const string UploadWaitStatusTooltip = "Waiting for assets status...";
         public const string UploadAssetsTooltip = "Upload assets to cloud";
         public const string UploadAssetsExistsTooltip = "All assets already exist in the cloud";
+        public const string UploadOutsideProjectTooltip = "One of more assets contain files outside the Assets folder";
 
         // Preview Status
         public const string ImportedText = "Asset is imported";
@@ -55,6 +56,7 @@ namespace Unity.AssetManager.Editor
         public const string UploadSkipText = "This asset already exists on the cloud and will not be uploaded";
         public const string UploadOverrideText = "This asset will override its cloud version";
         public const string UploadDuplicateText = "This asset already exists on the cloud but a new cloud asset will be uploaded";
+        public const string UploadOutsideText = "This asset is outside the Assets folder and cannot be uploaded";
 
         // AssetDetailsView Asset info
         public const string AssetIdText = "Asset Id";
@@ -79,6 +81,7 @@ namespace Unity.AssetManager.Editor
         public const string SourceFilesText = "Source Files";
         public const string UVCSFilesText = "UVCS Files";
         public const string NoFilesText = "No files were found in this asset.";
+        public const string SameFileNamesText = "Files of the same name were found in this asset. Unity does not support files with the same name.";
         public const string DependenciesText = "Dependencies";
         public const string NoDependenciesText = "This asset has no dependencies";
         public const string ServiceAccountText = "Service Account";
@@ -96,20 +99,24 @@ namespace Unity.AssetManager.Editor
         // AssetDetailsView Import action text
         public const string ImportActionText = "Import";
         public const string ImportToActionText = "Import To";
+        public const string ImportButtonTooltip = "Imports all associated files of the Cloud Asset into your Unity project";
         public const string UpdateToLatestActionText = "Update To Latest";
         public const string ReimportActionText = "Reimport";
+        public const string ReimportButtonTooltip = "Reimports all associated files of the Cloud Asset into your Unity project";
         public const string ImportLocationTitle = "Choose import location";
         public const string RemoveFromProjectActionText = "Remove From Project";
         public const string RemoveAllFromProjectActionText = "Remove All From Local Project";
         public const string CancelImportActionText = "Cancel Import";
         public const string ShowInProjectActionText = "Show In Project";
+        public const string ShowInProjectButtonToolTip = "Pings the Asset in an active Project window";
+        public const string ShowInProjectButtonDisabledToolTip = "This Asset has not yet been imported";
         public const string ShowInDashboardActionText = "Show In Dashboard";
         public const string AssetsSelectedTitle = "Assets Selected";
 
         public const string ImportingText = "Importing";
         public const string ImportAllSelectedActionText = "Import All Selected";
         public const string RemoveFromProjectAllSelectedActionText = "Remove All Selected From Project";
-
+        public const string RemoveFromProjectButtonToolTip = "Removes the asset from your Unity project";
         public const string RemoveFromProjectButtonDisabledToolTip = "There is nothing to remove from the project.";
         public const string ImportButtonDisabledToolTip = "There is nothing to import.";
         public const string ImportNoPermissionMessage = "You don’t have permissions to import this asset. \nSee your role from the project settings page on \nthe Asset Manager dashboard.";

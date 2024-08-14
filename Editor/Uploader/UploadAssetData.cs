@@ -198,6 +198,10 @@ namespace Unity.AssetManager.Editor
                     _ => AssetDataStatus.Imported
                 };
             }
+            else if (m_AssetPath.StartsWith("Packages") || m_AssetPath.StartsWith("../"))
+            {
+                m_ExistingStatus = AssetDataStatus.UploadOutside;
+            }
             else
             {
                 m_ExistingStatus = AssetDataStatus.UploadAdd;

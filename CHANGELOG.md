@@ -4,6 +4,22 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-exp.2] - 2024-08-14
+[Added]
+- Add an error status on asset prepared to upload that is contained file from outside the Assets folder.
+
+[Changed]
+- Made button tooltips clearer
+- Scrollbar now resets to the top on search event
+
+[Fixed]
+- Disabled importing files with the same name
+- Disabled importing assets with no files
+- Fixed poor visibility of checked sidebar arrows
+- Fixed poor visibility of tabs in Light mode
+- Window not opening when no UDAM project is available
+- Fixed status on deleted assets on the cloud that were imported
+
 ## [1.0.0-exp.1] - 2024-08-07
 [Added]
 - Added a pause state to the progression bar

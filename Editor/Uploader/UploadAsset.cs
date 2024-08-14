@@ -10,6 +10,7 @@ namespace Unity.AssetManager.Editor
     {
         string SourcePath { get; }
         string DestinationPath { get; }
+        bool IsDestinationOutsideProject { get; }
     }
 
     interface IUploadAsset
@@ -33,6 +34,8 @@ namespace Unity.AssetManager.Editor
 
         public string SourcePath => m_SourcePath;
         public string DestinationPath => m_DestinationPath;
+
+        public bool IsDestinationOutsideProject => m_SourcePath.StartsWith("Packages") || m_SourcePath.StartsWith("..");
 
         public UploadFile(string sourcePath, string destinationPath)
         {

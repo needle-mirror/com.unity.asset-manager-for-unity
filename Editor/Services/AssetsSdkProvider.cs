@@ -464,11 +464,18 @@ namespace Unity.AssetManager.Editor
                 }
                 catch (NotFoundException)
                 {
-                    if (assetData is AssetData typedAssetData)
+                    try
                     {
-                        await using var enumerator = typedAssetData.GetAssetDataInDescendingVersionNumberOrder(token).GetAsyncEnumerator(token);
-                        var latestVersion = await enumerator.MoveNextAsync() ? enumerator.Current : default;
-                        cloudAsset = latestVersion;
+                        if (assetData is AssetData typedAssetData)
+                        {
+                            await using var enumerator = typedAssetData.GetAssetDataInDescendingVersionNumberOrder(token).GetAsyncEnumerator(token);
+                            var latestVersion = await enumerator.MoveNextAsync() ? enumerator.Current : default;
+                            cloudAsset = latestVersion;
+                        }
+                    }
+                    catch (NotFoundException)
+                    {
+                        cloudAsset = null;
                     }
                 }
 

@@ -1072,6 +1072,16 @@ AssetsGridView {
     right: 0;
 }
 
+.grid-view--item-upload-outside {
+    background-image: resource('Images/AssetStatus/Warning@2x');
+    width: 16px;
+    height: 16px;
+    position: absolute;
+    margin: 4px;
+    bottom: 0;
+    right: 0;
+}
+
 .grid-view--row {
     flex-direction: row;
     flex-shrink: 0;
@@ -1634,6 +1644,18 @@ AssetDetailsPage {
     overflow: hidden;
 }
 
+.same-files-warning-box {
+    width: auto;
+    height: 55px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    border-width: 1px;
+    flex-direction: row;
+    overflow: hidden;
+}
+
 .no-dependencies-label {
     align-self: center;
     -unity-font-style: bold;
@@ -1654,6 +1676,29 @@ AssetDetailsPage {
 }
 
 .no-files-warning-box > Label {
+    height: 25px;
+    margin-top: auto;
+    margin-bottom: auto;
+    padding-left: 10px;
+    margin-right: 10px;
+    color: white;
+    flex-shrink: 1;
+    -unity-text-align: middle-left;
+    overflow: visible;
+    white-space: normal;
+}
+
+.same-files-warning-box > Image {
+    width: 25px;
+    height: 25px;
+    margin-top: auto;
+    margin-bottom: auto;
+    margin-left: 10px;
+    flex-shrink: 0;
+    background-image: resource("Images/Common/Warning");
+}
+
+.same-files-warning-box > Label {
     height: 25px;
     margin-top: auto;
     margin-bottom: auto;

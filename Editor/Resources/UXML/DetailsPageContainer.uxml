@@ -16,6 +16,10 @@
                     <ui:Image name="no-files-warning-icon" />
                     <ui:Label name="no-files-warning-label" class="text-bold" />
                 </ui:VisualElement>
+                <ui:VisualElement name="same-files-warning-box" class="same-files-warning-box">
+                    <ui:Image name="same-files-warning-icon" />
+                    <ui:Label name="same-files-warning-label" class="text-bold" />
+                </ui:VisualElement>
                 <ui:Foldout text="Source Files" name="details-source-files-foldout" class="details-files-foldout">
                     <ui:ListView name="details-source-files-listview" />
                 </ui:Foldout>

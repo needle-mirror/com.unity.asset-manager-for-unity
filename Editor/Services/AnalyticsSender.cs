@@ -31,7 +31,10 @@ namespace Unity.AssetManager.Editor
 
         internal static AnalyticsResult SendEvent(IBaseEvent aEvent)
         {
-#if !UNITY_2023_2_OR_NEWER
+#if AM4U_DEV
+            return AnalyticsResult.AnalyticsDisabled;
+#else
+    #if !UNITY_2023_2_OR_NEWER
             var register = EditorAnalytics.RegisterEventWithLimit(aEvent.EventName, k_MaxEventsPerHour,
                 k_MaxNumberOfElements, VendorKey, aEvent.EventVersion);
 
@@ -40,9 +43,10 @@ namespace Unity.AssetManager.Editor
                 return register;
 
             return EditorAnalytics.SendEventWithLimit(aEvent.EventName, aEvent.EventData, aEvent.EventVersion);
-#else
+    #else
             var analytic = aEvent.GetAnalytic();
             return EditorAnalytics.SendAnalytic(analytic);
+    #endif
 #endif
         }
     }

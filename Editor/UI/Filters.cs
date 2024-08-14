@@ -33,7 +33,8 @@ namespace Unity.AssetManager.Editor
         PageFilters PageFilters => m_PageManager?.ActivePage?.PageFilters;
         List<BaseFilter> SelectedFilters => PageFilters?.SelectedFilters ?? new List<BaseFilter>();
 
-        public Filters(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider, IPopupManager popupManager)
+        public Filters(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            IPopupManager popupManager)
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -42,15 +43,13 @@ namespace Unity.AssetManager.Editor
             AddToClassList(k_UssClassName);
 
             InitializeUI();
-            
+
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_FilterButton.clicked += OnFilterButtonClicked;
-            
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             if (PageFilters != null)
             {
@@ -58,13 +57,12 @@ namespace Unity.AssetManager.Editor
                 PageFilters.FilterApplied += OnFilterApplied;
                 PageFilters.FilterAdded += OnFilterAdded;
             }
+
             m_PopupManager.Container.RegisterCallback<FocusOutEvent>(DeleteEmptyChip);
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_FilterButton.clicked -= OnFilterButtonClicked;
-            
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
 
             if (PageFilters != null)
@@ -73,6 +71,7 @@ namespace Unity.AssetManager.Editor
                 PageFilters.FilterApplied -= OnFilterApplied;
                 PageFilters.FilterAdded -= OnFilterAdded;
             }
+
             m_PopupManager.Container.UnregisterCallback<FocusOutEvent>(DeleteEmptyChip);
         }
 
@@ -89,13 +88,9 @@ namespace Unity.AssetManager.Editor
             Clear();
             PageFilters?.ClearFilters();
             m_FilterPerChip?.Clear();
-            
+
             // The first call of InitializeUI is made into the constructor 
             InitializeUI();
-            // We don't want the m_FilterButton.clicked event to be registered during the constructor
-            // m_FilterButton.clicked is also registered in the OnAttachToPanel method
-            // m_FilterButton had been erased inside InitializeUI, so we need to register again
-            m_FilterButton.clicked += OnFilterButtonClicked;
         }
 
         void InitializeUI()
@@ -126,6 +121,7 @@ namespace Unity.AssetManager.Editor
             }
 
             m_FilterButton.SetEnabled(PageFilters?.IsAvailableFilters() ?? false);
+            m_FilterButton.clicked += OnFilterButtonClicked;
         }
 
         void OnFilterButtonClicked()
@@ -285,7 +281,8 @@ namespace Unity.AssetManager.Editor
 
         void DeleteEmptyChip(FocusOutEvent evt)
         {
-            if(evt.relatedTarget != null && (evt.relatedTarget == m_PopupManager.Container || m_PopupManager.Container.Contains((VisualElement)evt.relatedTarget)))
+            if (evt.relatedTarget != null && (evt.relatedTarget == m_PopupManager.Container ||
+                    m_PopupManager.Container.Contains((VisualElement)evt.relatedTarget)))
                 return;
 
             if (m_CurrentChip != null)

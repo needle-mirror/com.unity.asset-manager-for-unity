@@ -61,6 +61,26 @@
     background-color: #c2c2c2;
 }
 
+.unity-foldout__toggle>.unity-toggle__input>.unity-folder__checkmark {
+    background-image: resource("uipackageresources/images/in_foldout.png");
+}
+
+.unity-foldout__toggle>.unity-toggle__input:focus>.unity-toggle__checkmark {
+    background-image: resource("uipackageresources/images/in_foldout.png");
+}
+
+.unity-foldout__toggle>.unity-toggle__input:focus:checked>.unity-toggle__checkmark {
+    background-image: resource("uipackageresources/images/in_foldout_on.png");
+}
+
+.unity-foldout__toggle>.unity-toggle__input:hover:enabled:checked>.unity-toggle__checkmark {
+    background-image: resource("uipackageresources/images/in_foldout_on.png");
+}
+
+.unity-foldout__toggle>.unity-toggle__input:checked>.unity-toggle__checkmark {
+    background-image: resource("uipackageresources/images/in_foldout_on.png");
+}
+
 /************************************************
 * Tab View
 ************************************************/
@@ -258,6 +278,21 @@ TagChip:hover {
     background-color: #A5A5A5;
 }
 
+.details-page-tabs Button:focus{
+    color: #090909;
+    border-bottom-color: #090909;
+}
+
+.details-page-tabs > Button{
+    color: #090909;
+    border-bottom-color: #090909;
+}
+
+.details-page-tabs Button.unity-disabled{
+    color: #090909;
+    border-bottom-color: #090909;
+}
+
 .asset-details-page-container {
     background-color: rgba(170, 170, 170, 0.98);
 }
@@ -279,6 +314,14 @@ TagChip:hover {
  }
 
 .no-files-warning-box > Label{
+    color: #090909;
+}
+
+.same-files-warning-box {
+    background-color: rgba(198, 198, 198, 1);
+}
+
+.same-files-warning-box > Label{
     color: black;
 }
 

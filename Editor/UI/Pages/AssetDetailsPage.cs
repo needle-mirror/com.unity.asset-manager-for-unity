@@ -22,6 +22,7 @@ namespace Unity.AssetManager.Editor
         readonly IEnumerable<IPageComponent> m_PageComponents;
 
         VisualElement m_NoFilesWarningBox;
+        VisualElement m_SameFileNamesWarningBox;
         VisualElement m_NoDependenciesBox;
         FilesFoldout m_SourceFilesFoldout;
         FilesFoldout m_UVCSFilesFoldout;
@@ -121,6 +122,9 @@ namespace Unity.AssetManager.Editor
 
             m_NoFilesWarningBox = this.Q<VisualElement>("no-files-warning-box");
             m_NoFilesWarningBox.Q<Label>().text = L10n.Tr(Constants.NoFilesText);
+            
+            m_SameFileNamesWarningBox = this.Q<VisualElement>("same-files-warning-box");
+            m_SameFileNamesWarningBox.Q<Label>().text = L10n.Tr(Constants.SameFileNamesText);
 
             m_NoDependenciesBox = this.Q<Label>("no-dependencies-label");
             m_NoDependenciesBox.Q<Label>().text = L10n.Tr(Constants.NoDependenciesText);
@@ -336,6 +340,7 @@ namespace Unity.AssetManager.Editor
             }
 
             UIElementsUtils.SetDisplay(m_NoFilesWarningBox, !hasFiles);
+            UIElementsUtils.SetDisplay(m_SameFileNamesWarningBox, HasCaseInsensitiveMatch(m_SelectedAssetData.SourceFiles.Select(f => f.Path)));
         }
 
         protected override async Task SelectAssetDataAsync(List<IAssetData> assetData)
@@ -365,6 +370,7 @@ namespace Unity.AssetManager.Editor
             if (requiresLoading)
             {
                 UIElementsUtils.Hide(m_NoFilesWarningBox);
+                UIElementsUtils.Hide(m_SameFileNamesWarningBox);
                 UIElementsUtils.Hide(m_NoDependenciesBox);
 
                 m_SourceFilesFoldout.StartPopulating();
@@ -536,11 +542,22 @@ namespace Unity.AssetManager.Editor
             enabled |= UIEnabledStates.IsImporting.GetFlag(importOperation?.Status == OperationStatus.InProgress);
             enabled |= UIEnabledStates.HasPermissions.GetFlag(false);
 
+            var files = assetData?.SourceFiles?.ToList();
+            var hasFilesAndUniqueNames = files != null && files.Any() && !HasCaseInsensitiveMatch(files.Select(f => f.Path));
+            if (hasFilesAndUniqueNames)
+            {
+                enabled |= UIEnabledStates.CanImport;
+            }
+            else
+            {
+                enabled &= ~UIEnabledStates.CanImport;
+            }
+
             foreach (var component in m_PageComponents)
             {
                 component.RefreshButtons(enabled, assetData, importOperation);
-            }
-
+            }   
+            
             TaskUtils.TrackException(RefreshButtonsAsync(assetData, importOperation, enabled));
         }
 
@@ -553,6 +570,12 @@ namespace Unity.AssetManager.Editor
             {
                 component.RefreshButtons(enabled, assetData, importOperation);
             }
+        }
+
+        static bool HasCaseInsensitiveMatch(IEnumerable<string> files)
+        {
+            var seenFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return files.Any(file => !seenFiles.Add(file));
         }
     }
 }

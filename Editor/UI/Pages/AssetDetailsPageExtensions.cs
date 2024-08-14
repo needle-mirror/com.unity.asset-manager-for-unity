@@ -31,7 +31,11 @@ namespace Unity.AssetManager.Editor
 
             if (isEnabled)
             {
-                return string.Empty;
+                if ( enabled.HasFlag(UIEnabledStates.InProject) )
+                {
+                    return L10n.Tr(Constants.ReimportButtonTooltip);
+                }
+                return L10n.Tr(Constants.ImportButtonTooltip);
             }
 
             if (!enabled.HasFlag(UIEnabledStates.ServicesReachable))

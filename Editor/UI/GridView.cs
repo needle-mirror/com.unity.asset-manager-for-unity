@@ -417,6 +417,7 @@ namespace Unity.AssetManager.Editor
             m_RowPool.Clear();
             m_ScrollView.Clear();
             m_VisibleRowCount = 0;
+            ResetScrollBarTop();
         }
 
         /// <summary>

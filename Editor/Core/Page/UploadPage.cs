@@ -225,7 +225,6 @@ namespace Unity.AssetManager.Editor
                 uploadAssetData.Add(assetData);
             }
 
-
             // Sort the result before displaying it
             foreach (var assetData in uploadAssetData.OrderBy(a => a.IsDependency)
                          .ThenByDescending(a => a.PrimaryExtension))
@@ -476,6 +475,7 @@ namespace Unity.AssetManager.Editor
             var permissionsManager = ServicesContainer.instance.Resolve<IPermissionsManager>();
             var hasUploadPermission = await permissionsManager.CheckPermissionAsync(m_UploadContext.Settings.OrganizationId, m_UploadContext.ProjectId, Constants.UploadPermission);
             var allAssetsIgnored = m_UploadContext.UploadAssets.Count > 0 && m_UploadContext.UploadAssets.All(uae => m_UploadContext.IgnoredAssetGuids.Contains(uae.Guid));
+            var anyOutsideProject = m_UploadContext.UploadAssets.Any(uae =>m_UploadContext.UploadAssets.Any(ua => ua.Files.Any(f => f.IsDestinationOutsideProject) && !m_UploadContext.IgnoredAssetGuids.Contains(ua.Guid)));
 
             if (!hasUploadPermission)
             {
@@ -497,6 +497,10 @@ namespace Unity.AssetManager.Editor
             {
                 tooltip = L10n.Tr(Constants.UploadWaitStatusTooltip);
                 TaskUtils.TrackException(UpdateUploadButtonIgnoreModeAsync());
+            }
+            else if (anyOutsideProject)
+            {
+                tooltip = L10n.Tr(Constants.UploadOutsideProjectTooltip);
             }
             else
             {
