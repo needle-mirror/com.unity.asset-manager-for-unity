@@ -269,7 +269,7 @@ namespace Unity.AssetManager.Editor
             MessageData.RecommendedAction = actionType;
             MessageData.IsPageScope = isPageScope;
             MessageData.MessageType = messageType;
-            
+
             // Only invoke MessageThrown if not default message
             if (errorMessage != default)
             {

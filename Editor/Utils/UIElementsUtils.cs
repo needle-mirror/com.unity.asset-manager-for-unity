@@ -12,7 +12,7 @@ namespace Unity.AssetManager.Editor
     /// </summary>
     static class UIElementsUtils
     {
-        static readonly string s_UIResourcesLocation = $"Packages/{Constants.PackageName}/Editor/Resources/";
+        static readonly string s_UIResourcesLocation = $"Packages/{Constants.PackageName}/Editor/EditorResources/";
 
         internal static Texture GetPackageIcon()
         {

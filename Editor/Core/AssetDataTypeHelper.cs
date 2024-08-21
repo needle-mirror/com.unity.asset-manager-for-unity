@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -10,7 +9,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    public enum UnityAssetType
+    enum UnityAssetType
     {
         AnimationClip,
         AudioClip,
@@ -126,7 +125,7 @@ namespace Unity.AssetManager.Editor
         static Dictionary<string, (UnityTypeDescriptor descriptor, int priority)> s_ExtensionToUnityTypeDescriptor;
 
         static Texture2D DefaultIcon => InternalEditorUtility.GetIconForFile(string.Empty);
-        
+
         public static string GetAssetPrimaryExtension(IEnumerable<string> extensions)
         {
             var assetExtensions = new HashSet<string>();
@@ -165,7 +164,7 @@ namespace Unity.AssetManager.Editor
 
             return assetExtensions.FirstOrDefault();
         }
-        
+
         public static IEnumerable<IAssetDataFile> FilterUsableFilesAsPrimaryExtensions(this IEnumerable<IAssetDataFile> rawList)
         {
             return rawList.Where(x =>
@@ -214,17 +213,17 @@ namespace Unity.AssetManager.Editor
             {
                 return 0;
             }
-            
+
             InitializeExtensionToUnityTypeDescriptor();
-            
+
             if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var value))
             {
                 return value.priority;
             }
-            
+
             return 0; // lowest priority
         }
-        
+
         public static Regex GetRegexForExtensions(UnityAssetType type)
         {
             var pattern = string.Empty;

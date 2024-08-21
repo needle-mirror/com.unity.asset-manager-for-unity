@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -57,12 +57,12 @@ namespace Unity.AssetManager.Editor
     {
         [SerializeField]
         List<CollectionInfo> m_CollectionInfos;
-        
+
         public string Id;
         public string Name;
         public IEnumerable<CollectionInfo> CollectionInfos => m_CollectionInfos;
         public event Action<ProjectInfo> OnCollectionsUpdated;
-        
+
         public void SetCollections(IEnumerable<CollectionInfo> collections)
         {
             m_CollectionInfos = collections?.ToList();
@@ -182,7 +182,7 @@ namespace Unity.AssetManager.Editor
                 };
             }
         }
-        
+
         [ServiceInjection]
         public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider)
         {
@@ -248,7 +248,7 @@ namespace Unity.AssetManager.Editor
 
             ProjectSelectionChanged?.Invoke(SelectedProject, SelectedCollection);
         }
-        
+
         public async void EnableProjectForAssetManager()
         {
             await m_AssetsProvider.EnableProjectAsync();
@@ -330,7 +330,6 @@ namespace Unity.AssetManager.Editor
                     m_OrganizationInfo = result;
                     if (m_OrganizationInfo?.ProjectInfos.Any() == false)
                     {
-                        SelectProject(string.Empty);
                         m_MessageData.Message = k_CurrentProjectNotEnabledMessage;
                         m_MessageData.RecommendedAction = RecommendedAction.EnableProject;
                         m_MessageData.IsPageScope = true;

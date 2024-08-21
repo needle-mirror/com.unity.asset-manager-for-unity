@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Unity.AssetManager.Editor
 {
@@ -19,7 +19,7 @@ namespace Unity.AssetManager.Editor
         {
             return assetType.GetValueAsString();
         }
-        
+
         static string GetValueAsString(this AssetType assetType)
         {
             return assetType switch
@@ -34,7 +34,7 @@ namespace Unity.AssetManager.Editor
                 _ => string.Empty
             };
         }
-        
+
         internal static AssetType ConvertUnityAssetTypeToAssetType(this UnityAssetType unityAssetType)
         {
             return unityAssetType switch

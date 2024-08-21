@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -112,7 +112,7 @@ namespace Unity.AssetManager.Editor
             if (thumbnailFile != null && !string.IsNullOrEmpty(thumbnailFile.Path))
             {
                 ReportStep("Applying thumbnail");
-                
+
                 var existingTags = asset.Tags ?? new List<string>();
                 var assetUpdate = new AssetUpdate
                 {
@@ -149,7 +149,7 @@ namespace Unity.AssetManager.Editor
                 if (asset != null)
                     Debug.LogWarning(
                         $"Unable to commit asset version for asset {asset.Identifier.AssetId}. Asset will stay in Pending status.");
-                
+
                 Utilities.DevLog(e.ToString());
             }
 

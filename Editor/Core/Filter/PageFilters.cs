@@ -179,7 +179,7 @@ namespace Unity.AssetManager.Editor
         AssetSearchFilter InitializeAssetSearchFilter()
         {
             m_AssetSearchFilter = new AssetSearchFilter();
-            
+
             if (m_SelectedFilters != null && m_SelectedFilters.Any())
             {
                 var cloudFilter = m_SelectedFilters.OfType<CloudFilter>();

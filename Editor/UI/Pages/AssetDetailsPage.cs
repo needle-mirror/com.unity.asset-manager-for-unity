@@ -122,7 +122,7 @@ namespace Unity.AssetManager.Editor
 
             m_NoFilesWarningBox = this.Q<VisualElement>("no-files-warning-box");
             m_NoFilesWarningBox.Q<Label>().text = L10n.Tr(Constants.NoFilesText);
-            
+
             m_SameFileNamesWarningBox = this.Q<VisualElement>("same-files-warning-box");
             m_SameFileNamesWarningBox.Q<Label>().text = L10n.Tr(Constants.SameFileNamesText);
 
@@ -174,7 +174,7 @@ namespace Unity.AssetManager.Editor
         protected override void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             base.OnDetachFromPanel(evt);
-            
+
             m_CloseButton.clicked -= OnCloseButton;
 
             ApplyFilter -= OnFilterModified;
@@ -556,8 +556,8 @@ namespace Unity.AssetManager.Editor
             foreach (var component in m_PageComponents)
             {
                 component.RefreshButtons(enabled, assetData, importOperation);
-            }   
-            
+            }
+
             TaskUtils.TrackException(RefreshButtonsAsync(assetData, importOperation, enabled));
         }
 

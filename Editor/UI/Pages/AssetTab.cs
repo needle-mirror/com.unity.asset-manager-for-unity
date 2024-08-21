@@ -10,13 +10,13 @@ namespace Unity.AssetManager.Editor
     {
         public const string LoadingLabel = "details-page-loading-label";
     }
-    
+
     abstract class AssetTab : IPageComponent
     {
         public event CreateProjectChip CreateProjectChip;
         public event CreateUserChip CreateUserChip;
         public event Action<IEnumerable<string>> ApplyFilter;
-        
+
         public abstract AssetDetailsPageTabs.TabType Type { get; }
         public abstract bool IsFooterVisible { get; }
         public abstract VisualElement Root { get; }
@@ -28,7 +28,7 @@ namespace Unity.AssetManager.Editor
                 text = L10n.Tr(Constants.LoadingText)
             };
             loadingLabel.AddToClassList(UssStyle.LoadingLabel);
-            
+
             container.Add(loadingLabel);
         }
 
@@ -47,7 +47,7 @@ namespace Unity.AssetManager.Editor
             {
                 return;
             }
-            
+
             var entry = new DetailsPageEntry(title, details)
             {
                 name = name
@@ -89,7 +89,7 @@ namespace Unity.AssetManager.Editor
             var chipContainer = entry.AddChipContainer();
             CreateUserChip?.AddUserChip(chipContainer, details, searchFilterType);
         }
-        
+
         protected void AddProject(VisualElement container, string title, string projectId, string name = null)
         {
             var entry = new DetailsPageEntry(title)
@@ -97,7 +97,7 @@ namespace Unity.AssetManager.Editor
                 name = name
             };
             container.Add(entry);
-            
+
             var chipContainer = entry.AddChipContainer();
             CreateProjectChip?.AddProjectChip(chipContainer, projectId);
         }
@@ -109,13 +109,13 @@ namespace Unity.AssetManager.Editor
             {
                 return;
             }
-            
+
             var entry = new DetailsPageEntry(title)
             {
                 name = name
             };
             container.Add(entry);
-            
+
             var tagsContainer = entry.AddChipContainer();
             tagsContainer.AddToClassList(UssStyle.FlexWrap);
 

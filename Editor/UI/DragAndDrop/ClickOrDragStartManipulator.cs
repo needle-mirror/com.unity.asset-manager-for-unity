@@ -22,7 +22,7 @@ namespace Unity.AssetManager.Editor
             activators.Add(new ManipulatorActivationFilter{ modifiers = EventModifiers.Shift });
             activators.Add(new ManipulatorActivationFilter{ modifiers = EventModifiers.Control });
             activators.Add(new ManipulatorActivationFilter{ modifiers = EventModifiers.Command });
-            
+
             target = root;
             m_OnButtonUp = onButtonUp;
             m_OnButtonDown = onButtonDown;
@@ -46,7 +46,7 @@ namespace Unity.AssetManager.Editor
         void OnPointerDown(PointerDownEvent e)
         {
             m_OnButtonDown?.Invoke(e);
-            
+
             if (m_CanStartDrag)
             {
                 e.StopImmediatePropagation();
@@ -68,7 +68,7 @@ namespace Unity.AssetManager.Editor
             CompleteInteraction(e);
             m_OnButtonUp?.Invoke(e);
         }
-        
+
         void OnPointerMove(PointerMoveEvent e)
         {
             if (CannotCompleteInteraction(e))

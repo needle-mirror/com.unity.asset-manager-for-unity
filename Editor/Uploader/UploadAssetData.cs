@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,40 +14,40 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class UploadAssetData : IAssetData
     {
-        [SerializeField] 
+        [SerializeField]
         List<DependencyAsset> m_Dependencies = new();
 
-        [SerializeField] 
+        [SerializeField]
         AssetIdentifier m_Identifier;
 
-        [SerializeField] 
+        [SerializeField]
         string m_AssetGuid;
 
-        [SerializeField] 
+        [SerializeField]
         string m_AssetPath;
 
-        [SerializeField] 
+        [SerializeField]
         UploadSettings m_Settings;
 
-        [SerializeReference] 
+        [SerializeReference]
         IUploadAsset m_UploadAsset;
 
-        [SerializeReference] 
+        [SerializeReference]
         List<IAssetDataFile> m_Files = new();
 
-        [SerializeReference] 
+        [SerializeReference]
         IAssetDataFile m_PrimaryFile;
 
-        [SerializeField] 
+        [SerializeField]
         string m_PrimaryExtension;
 
-        [SerializeField] 
+        [SerializeField]
         bool m_IsFolder;
 
-        [SerializeField] 
+        [SerializeField]
         bool m_Ignored;
 
-        [SerializeField] 
+        [SerializeField]
         bool m_IsDependency;
 
         Task<Texture2D> m_GetThumbnailTask;

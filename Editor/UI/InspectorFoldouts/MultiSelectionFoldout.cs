@@ -10,7 +10,7 @@ namespace Unity.AssetManager.Editor
     class MultiSelectionFoldout : ItemFoldout<IAssetData, MultiSelectionItem>
     {
         protected const string k_CheckMarkName = "unity-checkmark";
-        
+
         List<IAssetData> m_FilesList = new();
         readonly Button m_Button;
 
@@ -43,13 +43,13 @@ namespace Unity.AssetManager.Editor
         {
             var list = items.ToList();
             base.RemoveItems(list);
-            
+
             foreach (var item in list)
             {
                 m_FilesList.Remove(item);
             }
         }
-        
+
         public void SetButtonDisplayed(bool displayed)
         {
             UIElementsUtils.SetDisplay(m_Button, displayed);

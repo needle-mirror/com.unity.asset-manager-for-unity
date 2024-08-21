@@ -88,7 +88,7 @@ namespace Unity.AssetManager.Editor
 
             return importedFileInfo?.Guid;
         }
-        
+
         void TryPingItem(IEnumerable<object> items)
         {
             var fileItems = items.OfType<FileItem>();

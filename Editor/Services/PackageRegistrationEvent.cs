@@ -27,7 +27,7 @@ namespace Unity.AssetManager.Editor
                     }
                 }
             }
-            
+
             void RefreshAssetManagerWindow(PackageRegistrationEventArgs args)
             {
                 foreach (var info in args.changedTo)

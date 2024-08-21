@@ -178,7 +178,7 @@ SearchBar {
     border-radius: 3px;
 }
 
-.unity-filters-button:hover {
+.unity-filters-button:enabled:hover {
     background-color: #676767;
     color: #EEEEEE;
 }

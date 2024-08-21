@@ -16,7 +16,7 @@ namespace Unity.AssetManager.Editor
         void Remove(string key);
         void RemoveAll(string partialKey);
     }
-    
+
     [Serializable]
     class UIPreferences : BaseService<IUIPreferences>, IUIPreferences, ISerializationCallbackReceiver
     {
@@ -25,13 +25,13 @@ namespace Unity.AssetManager.Editor
         {
             [SerializeField]
             string m_Type;
-            
+
             [SerializeField]
             bool m_BoolValue;
 
             [SerializeField]
             int m_IntValue;
-            
+
             [SerializeField]
             string m_StringValue;
 
@@ -71,15 +71,15 @@ namespace Unity.AssetManager.Editor
                 };
             }
         }
-        
+
         readonly Dictionary<string, object> m_Preferences = new();
-        
+
         [SerializeField]
         List<string> m_Keys = new();
-        
+
         [SerializeField]
         List<PreferenceValue> m_Values = new();
-        
+
         public int GetInt(string key, int defaultValue)
         {
             if (m_Preferences.TryGetValue(key, out var value))
@@ -121,17 +121,17 @@ namespace Unity.AssetManager.Editor
         {
             m_Preferences[key] = value;
         }
-        
+
         public bool Contains(string key)
         {
             return m_Preferences.ContainsKey(key);
         }
-        
+
         public void Remove(string key)
         {
             m_Preferences.Remove(key);
         }
-        
+
         public void RemoveAll(string partialKey)
         {
             var keys = new List<string>(m_Preferences.Keys);

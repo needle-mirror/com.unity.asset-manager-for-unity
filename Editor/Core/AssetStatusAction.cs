@@ -1,6 +1,6 @@
 namespace Unity.AssetManager.Editor
 {
-    public enum AssetStatusAction
+    enum AssetStatusAction
     {
         SendForReview,
         Approve,

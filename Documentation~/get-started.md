@@ -3,7 +3,7 @@
 <!-- Notes from product:
 
 * Install this package
-* Log in 
+* Log in
 * Connect my organization in the Editor
 * Connect Asset Manager Project to Unity Project
 * Open Asset Manager Integration
@@ -19,5 +19,5 @@ After the package is installed, a new option will appear in the `Window` menu ca
 
 ## Verifying project settings
 
-Your Unity project will need to be linked to a Unity Cloud organization that has access to the [Asset Manager service](https://dashboard.unity3d.com/asset-manager).  
+Your Unity project will need to be linked to a Unity Cloud organization that has access to the [Asset Manager service](https://dashboard.unity3d.com/asset-manager).
 To do this, open the `Project Settings`, `Services` tab and either create a new Cloud Project ID or select an existing one.

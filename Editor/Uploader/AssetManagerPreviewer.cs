@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -8,7 +8,7 @@ using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Editor
 {
-    public static class AssetManagerPreviewer
+    static class AssetManagerPreviewer
     {
         static bool s_UseCustomPreview = false;
         static bool s_UseStaticCustomPreview = false;

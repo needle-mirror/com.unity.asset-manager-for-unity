@@ -13,14 +13,14 @@ namespace Unity.AssetManager.Editor
         public const string AssetVersion_Published = "asset-version--published";
         public const string AssetVersion_Withdrawn = "asset-version--withdrawn";
     }
-    
+
     class AssetDetailsHeader : IPageComponent
     {
         readonly Label m_AssetName;
         readonly Label m_AssetVersion;
         readonly VisualElement m_AssetStatusChip;
         readonly Image m_AssetDashboardLink;
-        
+
         string m_CurrentStatusChipStyle;
 
         public event Action OpenDashboard;
@@ -80,10 +80,10 @@ namespace Unity.AssetManager.Editor
         {
             if (newStyle == m_CurrentStatusChipStyle)
                 return;
-            
+
             if(!string.IsNullOrEmpty(m_CurrentStatusChipStyle))
                 m_AssetStatusChip.RemoveFromClassList(m_CurrentStatusChipStyle);
-                    
+
             m_AssetStatusChip.AddToClassList(newStyle);
             m_CurrentStatusChipStyle = newStyle;
         }

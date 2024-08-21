@@ -2,7 +2,7 @@
 
 The Asset Manager is an In-Editor tool that allows you to browse and import individual assets directly into your project. This package will add a new dockable window where assets are displayed and interacted with.
 
-This package is available as an experimental package, so it is not ready for production use. 
+This package is available as an experimental package, so it is not ready for production use.
 
 ## Known Limitations
 

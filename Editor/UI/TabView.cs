@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -21,15 +20,13 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager = pageManager;
             m_UnityConnectProxy = unityConnectProxy;
-            
-            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
-            RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
         }
 
         public void AddPage<T>(string tabLabel) where T : IPage
         {
             var button = new VisualElement();
             button.AddToClassList(k_TabButtonUssClassName);
+            button.RegisterCallback<ClickEvent>( _ => m_PageManager.SetActivePage<T>() );
 
             var label = new Label(tabLabel);
             label.AddToClassList(k_TabButtonLabelUssClassName);
@@ -41,6 +38,9 @@ namespace Unity.AssetManager.Editor
 
             Add(button);
             m_TabButtons.Add(typeof(T), button);
+
+            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+            RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
         }
 
         public void MergePage<T, U>() where T : IPage where U : IPage
@@ -56,12 +56,6 @@ namespace Unity.AssetManager.Editor
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
 
-            foreach (var pair in m_TabButtons)
-            {
-                var type = pair.Key;
-                pair.Value.RegisterCallback(OnClick(type));
-            }
-
             var activePage = m_PageManager.ActivePage;
             if (activePage != null)
             {
@@ -75,30 +69,10 @@ namespace Unity.AssetManager.Editor
             OnCloudServicesReachabilityChanged(m_UnityConnectProxy.AreCloudServicesReachable);
         }
 
-        private EventCallback<ClickEvent> OnClick(Type type)
-        {
-            return _ =>
-            {
-                var methodName = nameof(m_PageManager.SetActivePage);
-                var method = m_PageManager.GetType().GetMethod(methodName);
-                if (method != null)
-                {
-                    var genericMethod = method.MakeGenericMethod(type);
-                    genericMethod.Invoke(m_PageManager, new object[] { false });
-                }
-            };
-        }
-
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
-            
-            foreach (var pair in m_TabButtons)
-            {
-                var type = pair.Key;
-                pair.Value.UnregisterCallback(OnClick(type));
-            }
         }
 
         void OnActivePageChanged(IPage page)

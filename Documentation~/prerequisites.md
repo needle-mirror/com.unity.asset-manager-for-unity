@@ -7,7 +7,7 @@
 
 ## Compatibility
 
-The Asset Manager for Unity package is compatible with Unity version of 2022.3 or later. 
+The Asset Manager for Unity package is compatible with Unity version of 2022.3 or later.
 
 ## Troubleshooting
 

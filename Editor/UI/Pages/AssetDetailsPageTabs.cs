@@ -63,7 +63,7 @@ namespace Unity.AssetManager.Editor
 
         public void OnSelection(IAssetData assetData, bool isLoading)
         {
-            if (!String.IsNullOrEmpty(assetData.Identifier.AssetId) 
+            if (!String.IsNullOrEmpty(assetData.Identifier.AssetId)
                 && String.IsNullOrEmpty(assetData.Identifier.PrimarySourceFileGuid))
             {
                 // This is not a local asset, you can show the tabs

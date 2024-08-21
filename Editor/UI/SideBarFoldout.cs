@@ -70,13 +70,14 @@ namespace Unity.AssetManager.Editor
 
         protected virtual void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo) { }
 
-        public virtual void AddFoldout(SideBarFoldout child)
+        public virtual void AddFoldout(SideBarCollectionFoldout child)
         {
             Add(child);
-
+            child.RefreshSelectionStatus();
+            
             ChangeIntoParentFolder();
         }
-        
+
         void ChangeIntoParentFolder()
         {
             if (m_HasChild)

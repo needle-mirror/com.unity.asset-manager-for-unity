@@ -95,7 +95,7 @@ namespace Unity.AssetManager.Editor
             }
 
             m_DownloadIdToAssetIdMap[thumbnailUrl] = identifier;
-            
+
             var unityWebRequest = new UnityWebRequest(thumbnailUrl, UnityWebRequest.kHttpVerbGET) { disposeDownloadHandlerOnDispose = true };
             unityWebRequest.downloadHandler = new DownloadHandlerTexture();
 

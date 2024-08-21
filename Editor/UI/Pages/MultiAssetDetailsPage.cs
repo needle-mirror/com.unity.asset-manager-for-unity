@@ -16,17 +16,17 @@ namespace Unity.AssetManager.Editor
         static readonly string k_ImportedFoldoutClassName = "multi-selection-imported-foldout";
         static readonly string k_UploadIgnoredFoldoutClassName = "multi-selection-upload-ignored-foldout";
         static readonly string k_UploadIncludedFoldoutClassName = "multi-selection-upload-included-foldout";
-        
+
         static readonly string k_UnimportedListViewClassName = "multi-selection-unimported-listview";
         static readonly string k_ImportedListViewClassName = "multi-selection-imported-listview";
         static readonly string k_UploadIgnoredListViewClassName = "multi-selection-upload-ignored-listview";
         static readonly string k_UploadIncludedListViewClassName = "multi-selection-upload-included-listview";
-        
+
         static readonly string k_UnimportedFoldoutTitle = "Unimported";
         static readonly string k_ImportedFoldoutTitle = "Imported";
         static readonly string k_UploadIgnoredFoldoutTitle = "Ignored";
         static readonly string k_UploadIncludedFoldoutTitle = "Included";
-        
+
         static readonly string k_MultiSelectionFoldoutExpandedClassName = "multi-selection-foldout-expanded";
 
         static readonly string k_BigButtonClassName = "big-button";
@@ -42,7 +42,7 @@ namespace Unity.AssetManager.Editor
             UploadIncluded = 3
         }
         readonly Dictionary<FoldoutName, MultiSelectionFoldout> m_Foldouts = new();
-        
+
         Button m_RemoveImportButton;
         VisualElement m_FooterContainer;
         OperationProgressBar m_OperationProgressBar;
@@ -69,23 +69,23 @@ namespace Unity.AssetManager.Editor
             base.BuildUxmlDocument();
 
             var container = m_ScrollView.Q<VisualElement>(k_InspectorScrollviewContainerClassName);
-            
+
             m_Foldouts[FoldoutName.Unimported] = new MultiSelectionFoldout(container, k_UnimportedFoldoutClassName,
                 k_UnimportedListViewClassName, Constants.ImportActionText,
                 ImportUnimportedAssetsAsync, k_UnimportedFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
-            
+
             m_Foldouts[FoldoutName.Imported] = new MultiSelectionFoldout(container, k_ImportedFoldoutClassName,
                 k_ImportedListViewClassName, Constants.ReimportActionText,
                 ReImportAssetsAsync,k_ImportedFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
-            
+
             m_Foldouts[FoldoutName.UploadIgnored] = new MultiSelectionFoldout(container, k_UploadIgnoredFoldoutClassName,
                 k_UploadIgnoredListViewClassName, Constants.IncludeAll,
                 IncludeUploadAssets, k_UploadIgnoredFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
-            
+
             m_Foldouts[FoldoutName.UploadIncluded] = new MultiSelectionFoldout(container, k_UploadIncludedFoldoutClassName,
                 k_UploadIncludedListViewClassName, Constants.IgnoreAll,
                 IgnoreUploadAssets, k_UploadIncludedFoldoutTitle, k_MultiSelectionFoldoutExpandedClassName);
-            
+
             foreach (var foldout in m_Foldouts)
             {
                 foldout.Value.RegisterValueChangedCallback(_ =>
@@ -135,7 +135,7 @@ namespace Unity.AssetManager.Editor
                 m_SelectedAssetsData = assetData;
                 RefreshUI();
             }
-            
+
             RefreshScrollView();
             return Task.CompletedTask;
         }
@@ -198,12 +198,12 @@ namespace Unity.AssetManager.Editor
         {
             // Refresh Title
             m_TitleLabel.text = L10n.Tr(m_SelectedAssetsData.Count + " " + Constants.AssetsSelectedTitle);
-            
+
             // Refresh RemoveImportButton
             var removable = m_SelectedAssetsData.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
             m_RemoveImportButton.SetEnabled(removable.Count > 0);
             m_RemoveImportButton.text = $"{L10n.Tr(Constants.RemoveAllFromProjectActionText)} ({removable.Count})";
-            
+
             // Refresh ProgressBar
             bool atLeastOneProcess = false;
             foreach (var assetData in m_SelectedAssetsData)
@@ -225,7 +225,7 @@ namespace Unity.AssetManager.Editor
         {
             if ( !IsVisible(m_SelectedAssetsData.Count))
                 return;
-            
+
             RefreshFoldoutUI();
             RefreshTitleAndButtons();
         }
@@ -266,7 +266,7 @@ namespace Unity.AssetManager.Editor
             m_Foldouts[foldoutName].StopPopulating();
             m_Foldouts[foldoutName].RefreshFoldoutStyleBasedOnExpansionStatus();
         }
-        
+
         void RemoveItemsFromFoldouts(IEnumerable<IAssetData> items)
         {
             foreach (var foldout in m_Foldouts)
@@ -274,14 +274,14 @@ namespace Unity.AssetManager.Editor
                 m_Foldouts[foldout.Key].RemoveItems(items);
             }
         }
-        
+
         void RefreshAssetPageFoldoutUI()
         {
             UIElementsUtils.SetDisplay(m_RemoveImportButton, true);
-                
+
             ClearFoldout(FoldoutName.UploadIgnored);
             ClearFoldout(FoldoutName.UploadIncluded);
-            
+
             PopulateFoldout(FoldoutName.Unimported, m_SelectedAssetsData.Where(x => !m_AssetDataManager.IsInProject(x.Identifier)));
             PopulateFoldout(FoldoutName.Imported, m_SelectedAssetsData.Where(x => m_AssetDataManager.IsInProject(x.Identifier)));
         }
@@ -289,7 +289,7 @@ namespace Unity.AssetManager.Editor
         void RefreshUploadPageFoldoutUI()
         {
             UIElementsUtils.SetDisplay(m_RemoveImportButton, false);
-                
+
             ClearFoldout(FoldoutName.Unimported);
             ClearFoldout(FoldoutName.Imported);
 
@@ -310,7 +310,7 @@ namespace Unity.AssetManager.Editor
                 m_PageManager.ActivePage.ToggleAsset(assetData, assetData.IsIgnored);
             }
         }
-        
+
         void IncludeUploadAssets()
         {
             foreach (var assetData in m_SelectedAssetsData.Cast<UploadAssetData>().Where(x => x.IsIgnored).ToList())

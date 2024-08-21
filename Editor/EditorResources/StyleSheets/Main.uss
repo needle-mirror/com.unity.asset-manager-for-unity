@@ -20,7 +20,7 @@
 }
 
 .incomplete-file-icon {
-    background-image: resource("Images/Icons/Warning");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Warning.png');
     -unity-background-image-tint-color: #FF554A;
 }
 
@@ -68,7 +68,7 @@
     height: 32px;
     width: 32px;
     justify-content: center;
-    background-image: resource("Images/Icons/Left-Arrow");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Left-Arrow.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
     background-size: 24px 24px;
     background-position-x: left;
@@ -78,7 +78,7 @@
     height: 32px;
     width: 32px;
     justify-content: center;
-    background-image: resource("Images/Icons/Right-Arrow");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Right-Arrow.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
     background-size: 24px 24px;
 }
@@ -131,19 +131,19 @@ SideBarFoldout Toggle {
 SideBarAllAssetsFoldout Image {
     width: 16px;
     height: 16px;
-    background-image: resource("Images/Icons/All-Assets");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/All-Assets.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 SideBarCollectionFoldout Image.icon-folder-open {
-    background-image: resource("Images/Icons/Folder-Open");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Folder-Open.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
     width: 16px;
     height: 16px;
 }
 
 SideBarCollectionFoldout Image.icon-folder-close {
-    background-image: resource("Images/Icons/Folder-Close");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Folder-Close.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
     width: 16px;
     height: 16px;
@@ -348,7 +348,7 @@ is not intended properly and we need this to fix that issue*/
     width: 16px;
     min-width: 16px;
     height: 16px;
-    background-image: resource('Images/Icons/Caret-Right');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Caret-Right.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -379,7 +379,7 @@ is not intended properly and we need this to fix that issue*/
     padding: 0;
     margin-top: 8px;
     margin-right: 8px;
-    background-image: resource('Images/Icons/Gear');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Gear.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -430,7 +430,7 @@ is not intended properly and we need this to fix that issue*/
     width: 12px;
     height: 12px;
     margin-left: 12px;
-    background-image: resource('Images/Icons/Caret-Down');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Caret-Down.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -463,7 +463,7 @@ is not intended properly and we need this to fix that issue*/
     margin-right: 4px;
     width: 16px;
     height: 16px;
-    background-image: resource('Images/Icons/Check');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Check.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -485,7 +485,7 @@ is not intended properly and we need this to fix that issue*/
     margin-right: 4px;
     width: 12px;
     height: 12px;
-    background-image: resource('Images/Icons/Close');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Close.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -668,12 +668,12 @@ SearchBar {
 }
 
 #unity-search {
-    background-image: resource('Images/Icons/Search');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Search.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
 #search-clear {
-    background-image: resource('Images/Icons/Close');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Close.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -966,7 +966,7 @@ AssetsGridView {
 }
 
 .grid-view--item-download_cancel_button {
-    background-image: resource('Images/Icons/Close');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Close.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -989,7 +989,7 @@ AssetsGridView {
 }
 
 .grid-view--item-linked {
-    background-image: resource('Images/Common/Link');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Common/Link.png');
     position: absolute;
     top: 3px;
     right: 5px;
@@ -999,7 +999,7 @@ AssetsGridView {
 }
 
 .grid-view--item-imported_status-imported {
-    background-image: resource('Images/AssetStatus/OfflineCheck@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/OfflineCheck@2x.png');
     width: 24px;
     height: 24px;
     position: absolute;
@@ -1008,7 +1008,7 @@ AssetsGridView {
 }
 
 .grid-view--item-imported_status-up_to_date {
-    background-image: resource('Images/AssetStatus/Checkmark@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/Checkmark@2x.png');
     width: 24px;
     height: 24px;
     position: absolute;
@@ -1017,7 +1017,7 @@ AssetsGridView {
 }
 
 .grid-view--item-imported_status-out_of_date {
-    background-image: resource('Images/AssetStatus/ArrowDown@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/ArrowDown@2x.png');
     width: 24px;
     height: 24px;
     position: absolute;
@@ -1026,7 +1026,7 @@ AssetsGridView {
 }
 
 .grid-view--item-imported_status-error {
-    background-image: resource('Images/AssetStatus/Warning@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/Warning@2x.png');
     width: 24px;
     height: 24px;
     position: absolute;
@@ -1035,7 +1035,7 @@ AssetsGridView {
 }
 
 .grid-view--item-upload-add {
-    background-image: resource('Images/AssetStatus/Plus@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/Plus@2x.png');
     width: 16px;
     height: 16px;
     position: absolute;
@@ -1045,7 +1045,7 @@ AssetsGridView {
 }
 
 .grid-view--item-upload-skip {
-    background-image: resource('Images/AssetStatus/Checkmark@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/Checkmark@2x.png');
     width: 24px;
     height: 24px;
     position: absolute;
@@ -1054,7 +1054,7 @@ AssetsGridView {
 }
 
 .grid-view--item-upload-override {
-    background-image: resource('Images/AssetStatus/ArrowUp@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/ArrowUp@2x.png');
     width: 24px;
     height: 24px;
     position: absolute;
@@ -1063,7 +1063,7 @@ AssetsGridView {
 }
 
 .grid-view--item-upload-duplicate {
-    background-image: resource('Images/AssetStatus/Plus@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/Plus@2x.png');
     width: 16px;
     height: 16px;
     position: absolute;
@@ -1073,7 +1073,7 @@ AssetsGridView {
 }
 
 .grid-view--item-upload-outside {
-    background-image: resource('Images/AssetStatus/Warning@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/Warning@2x.png');
     width: 16px;
     height: 16px;
     position: absolute;
@@ -1380,7 +1380,7 @@ AssetDetailsPage {
     height: 16px;
     flex-shrink: 0;
     align-self: center;
-    background-image: resource('Images/Icons/External-Link');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/External-Link.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -1476,7 +1476,7 @@ AssetDetailsPage {
     background-color: rgba(0, 0, 0, 0);
     align-self: center;
     flex-shrink: 0;
-    background-image: resource('Images/Icons/Close');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Close.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -1608,7 +1608,7 @@ AssetDetailsPage {
     width: 12px;
     cursor: link;
     margin-left: 4px;
-    background-image: resource("Images/Icons/Close");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Close.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -1672,7 +1672,7 @@ AssetDetailsPage {
     margin-bottom: auto;
     margin-left: 10px;
     flex-shrink: 0;
-    background-image: resource("Images/Common/Warning");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Common/Warning.png');
 }
 
 .no-files-warning-box > Label {
@@ -1695,7 +1695,7 @@ AssetDetailsPage {
     margin-bottom: auto;
     margin-left: 10px;
     flex-shrink: 0;
-    background-image: resource("Images/Common/Warning");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Common/Warning.png');
 }
 
 .same-files-warning-box > Label {
@@ -1827,7 +1827,7 @@ AssetDetailsPage {
 .import-to-button-caret {
     width: 12px;
     height: 12px;
-    background-image: resource('Images/Icons/Caret-Down');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Caret-Down.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -1924,7 +1924,7 @@ AssetDetailsPage {
     background-size : 16px 16px;
     width: 20px;
     flex-shrink: 0;
-    background-image: resource("Images/Icons/Folder-Close");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Folder-Close.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -1932,7 +1932,7 @@ AssetDetailsPage {
     background-size : 16px 16px;
     width: 25px;
     flex-shrink: 0;
-    background-image: resource("Images/Icons/Settings");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Settings.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -1978,6 +1978,12 @@ AssetDetailsPage {
     text-overflow: ellipsis;
     overflow: hidden;
     flex-shrink: 1;
+
+}
+
+.details-page-entry-value-text{
+    white-space: normal;
+    max-height: 150px;
 }
 
 .details-page-loading-label{
@@ -1997,7 +2003,7 @@ AssetDetailsPage {
     height: 20px;
     width: 20px;
     flex-shrink: 0;
-    background-image: resource('Images/Icons/Loading');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Loading.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -2124,7 +2130,7 @@ AssetDetailsPage {
 }
 
 .folder-image {
-    background-image: resource("Images/Common/Folder-Opened");
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Common/Folder-Opened.png');
     width: 20px;
 }
 
@@ -2192,29 +2198,29 @@ AssetDetailsPage {
 ************************************************/
 
 .default-asset-icon {
-    background-image: resource('Images/Common/Default-Asset');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Common/Default-Asset.png');
 }
 
 .status-icon-account {
-    background-image: resource('Images/Common/Icon-Account');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Common/Icon-Account.png');
 }
 
 .icon-all-assets {
-    background-image: resource('Images/Icons/All-Assets');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/All-Assets.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
     width: 16px;
     height: 16px;
 }
 
 .icon-in-project {
-    background-image: resource('Images/Icons/In-Project');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/In-Project.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
     width: 16px;
     height: 16px;
 }
 
 .icon-default-project {
-    background-image: resource('Images/Icons/Project-Icon');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Project-Icon.png');
     background-size: 12px 12px;
     background-position: center;
 }
@@ -2326,7 +2332,7 @@ PopupContainer {
     height: 30px;
     flex-shrink: 0;
     margin: 4px;
-    background-image: resource('Images/Common/Warning');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Common/Warning.png');
 }
 
 .reimport-window-gap {
@@ -2347,7 +2353,7 @@ PopupContainer {
 {
     flex-direction: row;
     justify-content: space-between;
-    align-items: center;    
+    align-items: center;
     flex-grow: 1;
     flex-shrink: 0;
 }
@@ -2374,7 +2380,7 @@ PopupContainer {
     flex-grow: 0;
 }
 
-.conflicts-foldout-content 
+.conflicts-foldout-content
 {
     margin-left: 6px;
     border-width: 1px;
@@ -2402,7 +2408,7 @@ PopupContainer {
     flex-shrink: 0;
     width: 16px;
     height: 16px;
-    background-image: resource('Images/Common/Warning');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Common/Warning.png');
 }
 
 .conflicts-foldout-content-entry-status--import
@@ -2410,7 +2416,7 @@ PopupContainer {
     flex-shrink: 0;
     width: 16px;
     height: 16px;
-    background-image: resource('Images/AssetStatus/Plus@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/AssetStatus/Plus@2x.png');
 }
 
 .conflicts-foldout-content-entry-status--update
@@ -2418,7 +2424,7 @@ PopupContainer {
     flex-shrink: 0;
     width: 16px;
     height: 16px;
-    background-image: resource('Images/Common/ArrowDown@2x');
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Common/ArrowDown@2x.png');
 }
 
 .reimport-item {

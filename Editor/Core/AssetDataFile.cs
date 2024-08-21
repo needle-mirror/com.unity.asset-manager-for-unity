@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Cloud.Assets;
@@ -22,7 +22,7 @@ namespace Unity.AssetManager.Editor
     {
         [SerializeField]
         string m_Path;
-        
+
         [SerializeField]
         string m_Extension;
 
@@ -51,7 +51,7 @@ namespace Unity.AssetManager.Editor
 
         public AssetDataFile(IFile file)
         {
-            if (string.IsNullOrEmpty(file.Descriptor.Path)) 
+            if (string.IsNullOrEmpty(file.Descriptor.Path))
                 return;
 
             m_Path = file.Descriptor.Path;

@@ -67,16 +67,16 @@ namespace Unity.AssetManager.Editor
             }
 
             return assetData.Name == other.Name
-                   && assetData.Identifier.Equals(other.Identifier)
-                   && assetData.AssetType == other.AssetType
-                   && assetData.Status == other.Status
-                   && assetData.Updated == other.Updated
-                   && assetData.Created == other.Created
-                   && assetData.Tags.SequenceEqual(other.Tags)
-                   && assetData.Description == other.Description
-                   && assetData.CreatedBy == other.CreatedBy
-                   && assetData.UpdatedBy == other.UpdatedBy
-                   && assetData.SourceFiles.SequenceEqual(other.SourceFiles);
+                && assetData.Identifier.Equals(other.Identifier)
+                && assetData.AssetType == other.AssetType
+                && assetData.Status == other.Status
+                && assetData.Updated == other.Updated
+                && assetData.Created == other.Created
+                && assetData.Tags.SequenceEqual(other.Tags)
+                && assetData.Description == other.Description
+                && assetData.CreatedBy == other.CreatedBy
+                && assetData.UpdatedBy == other.UpdatedBy
+                && assetData.SourceFiles.SequenceEqual(other.SourceFiles);
         }
     }
 
@@ -86,28 +86,28 @@ namespace Unity.AssetManager.Editor
         public static readonly string NoPrimaryExtension = "unknown";
         static readonly string k_UVCSTag = "SourceControl";
 
-        [SerializeField] 
+        [SerializeField]
         List<DependencyAsset> m_DependencyAssets = new();
 
-        [SerializeField] 
+        [SerializeField]
         string m_JsonAssetSerialized;
 
-        [SerializeField] 
+        [SerializeField]
         AssetComparisonResult m_AssetComparisonResult = AssetComparisonResult.None;
 
-        [SerializeField] 
+        [SerializeField]
         string m_ThumbnailUrl;
 
-        [SerializeReference] 
+        [SerializeReference]
         List<IAssetDataFile> m_SourceFiles = new();
 
-        [SerializeReference] 
+        [SerializeReference]
         IAssetDataFile m_PrimarySourceFile;
 
-        [SerializeReference] 
+        [SerializeReference]
         List<IAssetDataFile> m_UVCSFiles = new();
 
-        [SerializeReference] 
+        [SerializeReference]
         List<IAssetData> m_Versions = new();
 
         IAsset m_Asset;
@@ -135,8 +135,9 @@ namespace Unity.AssetManager.Editor
 
                 return m_Asset;
             }
+
             // Only AssetsSdkProvider should be setting this value
-            set { m_Asset = value; }
+            set => m_Asset = value;
         }
 
         // Only AssetsSdkProvider should be getting this value
@@ -364,7 +365,7 @@ namespace Unity.AssetManager.Editor
                 await using var enumerator = GetAssetsInDescendingVersionNumberOrder(token).GetAsyncEnumerator(token);
                 m_Asset = await enumerator.MoveNextAsync() ? enumerator.Current : default;
             }
-            
+
             m_Identifier = Map(m_Asset.Descriptor);
 
             var tasks = new List<Task>
@@ -387,9 +388,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void OnAfterDeserialize()
-        {
-        }
+        public void OnAfterDeserialize() { }
 
         void CleanCachedData()
         {
@@ -403,7 +402,37 @@ namespace Unity.AssetManager.Editor
 
         async Task GetThumbnailUrlAsync(CancellationToken token)
         {
-            m_GetPreviewStatusTask ??= Asset.GetPreviewUrlAsync(token);
+            IAsset latestVersion;
+
+            if(m_Versions is { Count: > 0 })
+            {
+                latestVersion = ((AssetData)m_Versions.FirstOrDefault())?.Asset;
+            }
+            else
+            {
+                try
+                {
+                    latestVersion = await Asset.WithLatestVersionAsync(token);
+                }
+                catch (NotFoundException)
+                {
+                    await using var enumerator = GetAssetsInDescendingVersionNumberOrder(token).GetAsyncEnumerator(token);
+                    latestVersion = await enumerator.MoveNextAsync() ? enumerator.Current : default;
+                }
+                catch(Exception)
+                {
+                    latestVersion = null;
+                }
+            }
+
+            if (latestVersion != null)
+            {
+                m_GetPreviewStatusTask ??= latestVersion.GetPreviewUrlAsync(token);
+            }
+            else
+            {
+                m_GetPreviewStatusTask ??= Asset.GetPreviewUrlAsync(token);
+            }
 
             Uri previewFileUrl = null;
 
@@ -567,7 +596,7 @@ namespace Unity.AssetManager.Editor
                 yield return version == null ? null : new AssetData(version);
             }
         }
-        
+
         async IAsyncEnumerable<IAsset> GetAssetsInDescendingVersionNumberOrder(
             [EnumeratorCancellation] CancellationToken token = default)
         {

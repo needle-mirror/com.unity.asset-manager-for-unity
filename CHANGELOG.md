@@ -4,6 +4,28 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-exp.3] - 2024-08-21
+[Changed]
+- Change visibility of some types to make them private
+- Updated resource path
+- For now on, all preview images shown in thumbnail (grid and detail panel) will be the one from the latest version of the asset instead of the current imported version.
+- Side bar width is now persistent
+- Created the LoadDependencies operation to track the progress of the loading of dependencies
+
+[Fixed]
+- Fixed Grid Item selection bug
+- Fixed Upload Page selection bug where all assets were always selected.
+- Only hover highlight Filter button when enabled
+- Drags can only be started from MouseDown or MouseDrag events error
+- Fixed Collections always open on Refresh
+- Fix description only showed first line
+- Hide the All Assets button if one or zero project in the organization
+- Hide the filter button if no organization is linked or there is no project
+- Hide the role chip if no organization is linked or there is no project
+- Reverted previous changes into the TabView registration
+- Fixed the PageManager selection to create an AllAssetsPage when no Project selected
+- Uncollapsed Collection and Project in the side bar not staying uncollapsed after assembly reload
+
 ## [1.0.0-exp.2] - 2024-08-14
 [Added]
 - Add an error status on asset prepared to upload that is contained file from outside the Assets folder.
@@ -210,7 +232,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.5.2] - 2024-04-26
 
-### Fixed 
+### Fixed
 * Fixed for Versioning API breaking uploads
 
 ## [0.5.1] - 2024-04-03
@@ -218,7 +240,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 * Displaying subshader graph icons
 
-### Fixed 
+### Fixed
 * Fixed Details Page Scrollview issues
 * Fix detail panel close button overlapping
 * Filter visibility when window is too tight
@@ -242,7 +264,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 * Context menu for Assets
 * Icons for state of Assets
 
-### Fixed 
+### Fixed
 * Window code optimization improvements
 * Loading more than 100 assets may result in unexpected behaviour
 * Slow HTTP connections
@@ -270,7 +292,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 * Fixed import status not updating after a re-import
 * Removed Project dashboard link
 
-### Fixed 
+### Fixed
 * Window code improvements
 * Multiple tags in detail view were stacked in column instead of row
 * "Open the Asset Manager Dashboard" not correctly linking to current empty project
@@ -295,7 +317,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 * Display Unity Type instead of Dashboard Asset Type
 * Display extension when hovering on the Type icon
 
-### Fixed 
+### Fixed
 * GridItem highlight now behaves properly
 * Unintended window refreshing
 * Cases where a GridItem shows the wrong Asset Type
@@ -312,7 +334,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.4.2] - 2024-02-09
 
-### Fixed 
+### Fixed
 * Fixed parallel downloads
 * Projects are now sorted by name
 * Preview files are now ignored
@@ -335,7 +357,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.4.0] - 2024-01-22
 
-### Fixed 
+### Fixed
 
 * Vertically centered the listed file items in the details page
 

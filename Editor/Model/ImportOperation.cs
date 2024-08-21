@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -90,11 +90,11 @@ namespace Unity.AssetManager.Editor
 
             var fetchDownloadUrlsOperation = new FetchDownloadUrlsOperation();
             fetchDownloadUrlsOperation.Start();
-            
+
             var downloadUrls = await assetsProvider.GetAssetDownloadUrlsAsync(TypedAssetData, fetchDownloadUrlsOperation, token);
-            
+
             fetchDownloadUrlsOperation.Finish(OperationStatus.Success);
-            
+
             foreach (var (filePath, url) in downloadUrls)
             {
                 var tempPath = Path.Combine(TempDownloadPath, filePath);

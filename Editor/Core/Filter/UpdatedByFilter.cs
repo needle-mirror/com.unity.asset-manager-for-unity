@@ -19,15 +19,15 @@ namespace Unity.AssetManager.Editor
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
             var userInfo = m_UserInfos?.FirstOrDefault(u => u.Name == SelectedFilter);
-            
+
             assetSearchFilter.UpdatedBy = userInfo?.UserId ??
                 (SelectedFilter == L10n.Tr("Service Account") ? "System" : SelectedFilter);
         }
-        
+
         protected override void IncludeFilter(string selection)
         {
             var userInfo = m_UserInfos?.FirstOrDefault(u => u.Name == selection);
-            m_Page.PageFilters.AssetSearchFilter.UpdatedBy = userInfo?.UserId ?? 
+            m_Page.PageFilters.AssetSearchFilter.UpdatedBy = userInfo?.UserId ??
                 (selection == L10n.Tr("Service Account") ? "System" : selection);
         }
 

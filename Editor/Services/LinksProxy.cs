@@ -78,7 +78,7 @@ namespace Unity.AssetManager.Editor
                 OpenAssetManagerDashboard();
             }
         }
-        
+
         public void OpenCloudStorageUpgradePlan()
         {
             Application.OpenURL($"{k_HttpsUriScheme}{k_UnityDomain}{k_CloudStorageUpgradePlanRoute}");

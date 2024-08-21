@@ -9,7 +9,7 @@ namespace Unity.AssetManager.Editor
     {
         bool Refresh();
     }
-    
+
     class GridMessageView : ScrollView, IGridMessageView
     {
         readonly IPageManager m_PageManager;
@@ -30,7 +30,7 @@ namespace Unity.AssetManager.Editor
 
             Add(m_MessageLabel);
             Add(m_MessageActionButton);
-            
+
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
@@ -41,7 +41,7 @@ namespace Unity.AssetManager.Editor
             // Prioritize ProjectOrganizationProvider message, if any
             var hasProjectOrganizationProviderMessage =
                 m_ProjectOrganizationProvider.MessageData?.IsPageScope;
-           
+
             if (!string.IsNullOrEmpty(m_ProjectOrganizationProvider.MessageData?.Message) &&
                 hasProjectOrganizationProviderMessage != null &&
                 (bool)hasProjectOrganizationProviderMessage)
@@ -49,11 +49,11 @@ namespace Unity.AssetManager.Editor
                 DisplayMessage(m_ProjectOrganizationProvider.MessageData);
                 return true;
             }
-            
+
             // Then show PageManager message, if any
             var hasPageManagerMessage =
                 m_PageManager.ActivePage?.MessageData.IsPageScope;
-            
+
             if (!string.IsNullOrEmpty(m_PageManager.ActivePage?.MessageData.Message) &&
                 hasPageManagerMessage != null &&
                 (bool)hasPageManagerMessage)
@@ -74,13 +74,13 @@ namespace Unity.AssetManager.Editor
             m_MessageLabel.text = L10n.Tr(messageData.Message);
             m_MessageActionButton.SetRecommendedAction(messageData.RecommendedAction);
         }
-        
+
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_PageManager.MessageThrown += OnPageManagerMessageThrown;
             m_ProjectOrganizationProvider.MessageThrown += OnProjectOrganizationProviderMessageThrown;
         }
-        
+
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_PageManager.MessageThrown -= OnPageManagerMessageThrown;
@@ -91,15 +91,15 @@ namespace Unity.AssetManager.Editor
         {
             if (messageData.IsPageScope)
             {
-                DisplayMessage(messageData);                
+                DisplayMessage(messageData);
             }
         }
-        
+
         void OnProjectOrganizationProviderMessageThrown(MessageData messageData)
         {
             if (messageData.IsPageScope)
             {
-                DisplayMessage(messageData);                
+                DisplayMessage(messageData);
             }
         }
 

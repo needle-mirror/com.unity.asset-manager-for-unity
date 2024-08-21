@@ -56,16 +56,23 @@ namespace Unity.AssetManager.Editor
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_PageManager.ActivePageChanged += OnActivePageChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
         }
 
         void OnActivePageChanged(IPage page)
         {
             UpdateCollapseBarButtons(page);
+        }
+
+        void OnOrganizationChanged(OrganizationInfo organization)
+        {
+            RefreshAllAssetsButton(organization);
         }
 
         VisualElement CreateSidebar()
@@ -111,6 +118,7 @@ namespace Unity.AssetManager.Editor
             {
                 collapsedSidebar.Add(new HorizontalSeparator());
                 m_AllAssetsButton = new SideBarButton<AllAssetsPage>(m_PageManager, null, "icon-all-assets");
+                UIElementsUtils.Hide(m_AllAssetsButton);
                 collapsedSidebar.Add(m_AllAssetsButton);
             }
 
@@ -157,6 +165,8 @@ namespace Unity.AssetManager.Editor
                 UIElementsUtils.Show(m_CollapsedSidebar);
             }
 
+            RefreshAllAssetsButton(m_ProjectOrganizationProvider.SelectedOrganization);
+
             UIElementsUtils.Hide(m_Sidebar);
             UIElementsUtils.Hide(m_DraglineAnchor);
 
@@ -169,6 +179,11 @@ namespace Unity.AssetManager.Editor
         void UpdateCollapseBarButtons(IPage page)
         {
             m_AllAssetsButton?.SetEnabled(page is not UploadPage);
+        }
+
+        void RefreshAllAssetsButton(OrganizationInfo organization)
+        {
+            UIElementsUtils.SetDisplay(m_AllAssetsButton, organization?.ProjectInfos?.Count > 1);
         }
     }
 }

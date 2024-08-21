@@ -166,6 +166,12 @@ namespace Unity.AssetManager.Editor
 
         static async Task<List<IAssetData>> GetDependenciesAsync(IAssetData asset)
         {
+            var totalDependencies = asset.Dependencies.Count();
+            int loadedDependencies = 0;
+            
+            var loadDependenciesOperation = new LoadDependenciesOperation();
+            loadDependenciesOperation.Start();
+            
             var dependencies = new List<IAssetData>();
 
             await foreach (var dependencyAssetData in AssetDataDependencyHelper.LoadDependenciesAsync(asset,
@@ -179,7 +185,20 @@ namespace Unity.AssetManager.Editor
                 {
                     Debug.LogError($"Failed to import asset dependency '{dependencyAssetData.Identifier}'");
                 }
+
+                if (asset.Dependencies.Any(x => x.Identifier.Equals(dependencyAssetData.Identifier)))
+                {
+                    loadedDependencies++;
+                }
+
+                if (totalDependencies > 0)
+                {
+                    loadDependenciesOperation.Report(new LoadDependenciesProgress(string.Empty,
+                        (float)loadedDependencies / totalDependencies));
+                }
             }
+            
+            loadDependenciesOperation.Finish(OperationStatus.Success);
 
             return dependencies;
         }

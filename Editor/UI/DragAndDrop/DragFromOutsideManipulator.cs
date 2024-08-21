@@ -13,7 +13,7 @@ namespace Unity.AssetManager.Editor
         IPageManager m_PageManager;
 
         bool m_DragSelectionContainsValidAsset;
-        
+
         public DragFromOutsideManipulator(VisualElement rootTarget, IPageManager pageManager)
         {
             target = rootTarget;
@@ -38,16 +38,16 @@ namespace Unity.AssetManager.Editor
         {
             if(DragAndDrop.objectReferences.Length == 0 || Array.TrueForAll(DragAndDrop.objectReferences, o => o is DraggableObjectToImport))
                 return;
-            
+
             DragAndDrop.AcceptDrag();
 
             if (!(m_PageManager.ActivePage is UploadPage))
             {
                 m_PageManager.SetActivePage<UploadPage>();
             }
-            
+
             var uploadPage = m_PageManager.ActivePage as UploadPage;
-            uploadPage?.AddAssets(DragAndDrop.objectReferences.Where(o => 
+            uploadPage?.AddAssets(DragAndDrop.objectReferences.Where(o =>
                 !string.IsNullOrEmpty(AssetDatabase.GetAssetPath(o))).ToList());
         }
 

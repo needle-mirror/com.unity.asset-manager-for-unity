@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
@@ -59,11 +60,13 @@ namespace Unity.AssetManager.Editor
             }
 
             m_PopupManager.Container.RegisterCallback<FocusOutEvent>(DeleteEmptyChip);
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
             if (PageFilters != null)
             {
@@ -83,13 +86,18 @@ namespace Unity.AssetManager.Editor
             Refresh();
         }
 
+        void OnOrganizationChanged(OrganizationInfo organization)
+        {
+            UIElementsUtils.SetDisplay(m_FilterButton, organization != null && organization.ProjectInfos.Any());
+        }
+
         void Refresh()
         {
             Clear();
             PageFilters?.ClearFilters();
             m_FilterPerChip?.Clear();
 
-            // The first call of InitializeUI is made into the constructor 
+            // The first call of InitializeUI is made into the constructor
             InitializeUI();
         }
 
@@ -100,6 +108,7 @@ namespace Unity.AssetManager.Editor
 
             m_FilterButton = new Button();
             m_FilterButton.AddToClassList(k_ItemButtonClassName);
+
             Add(m_FilterButton);
 
             var label = new TextElement();

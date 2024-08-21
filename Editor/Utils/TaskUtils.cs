@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
-    public static class TaskUtils
+    static class TaskUtils
     {
         public static void TrackException(Task task)
         {

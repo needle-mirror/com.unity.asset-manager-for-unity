@@ -82,12 +82,17 @@ namespace Unity.AssetManager.Editor
             if (!forceChange && m_ActivePage is T)
                 return;
 
-            var page = CreatePage<T>();
-
             m_ActivePage?.OnDeactivated();
             m_ActivePage?.OnDisable();
 
-            m_ActivePage = page;
+            if (typeof(T) == typeof(CollectionPage) && string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProject?.Id))
+            {
+                m_ActivePage = CreatePage<AllAssetsPage>();
+            }
+            else
+            {
+                m_ActivePage = CreatePage<T>();
+            }
 
             m_ActivePage?.OnEnable();
             m_ActivePage?.OnActivated();

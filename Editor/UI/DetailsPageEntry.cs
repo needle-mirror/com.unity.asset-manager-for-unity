@@ -11,12 +11,13 @@ namespace Unity.AssetManager.Editor
         public const string DetailsPageEntryLabel = "details-page-entry-label";
         public const string DetailsPageEntryValue = "details-page-entry-value";
         public const string DetailsPageChipContainer = "details-page-chip-container";
+        public const string DetailsPageEntryValueText = "details-page-entry-value-text";
     }
-    
+
     class DetailsPageEntry : VisualElement
     {
         readonly Label m_Text;
-        
+
         public DetailsPageEntry(string title)
         {
             AddToClassList(UssStyle.DetailsPageEntry);
@@ -40,6 +41,10 @@ namespace Unity.AssetManager.Editor
                 name = "entry-value"
             };
             m_Text.AddToClassList(UssStyle.DetailsPageEntryValue);
+            if (string.IsNullOrEmpty(title))
+            {
+                m_Text.AddToClassList(UssStyle.DetailsPageEntryValueText);
+            }
             hierarchy.Add(m_Text);
         }
 

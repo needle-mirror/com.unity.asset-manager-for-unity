@@ -166,7 +166,7 @@ namespace Unity.AssetManager.Editor
         }
 
         void CreateFoldoutForParentsThenItself(CollectionInfo collectionInfo, ProjectInfo projectInfo,
-            SideBarCollectionFoldout projectFoldout)
+            SideBarFoldout projectFoldout)
         {
             if (GetCollectionFoldout(projectInfo, collectionInfo.GetFullPath()) != null)
                 return;
@@ -188,7 +188,7 @@ namespace Unity.AssetManager.Editor
             immediateParent.AddFoldout(collectionFoldout);
         }
 
-        SideBarFoldout CreateSideBarCollectionFoldout(string foldoutName, ProjectInfo projectInfo,
+        SideBarCollectionFoldout CreateSideBarCollectionFoldout(string foldoutName, ProjectInfo projectInfo,
             string collectionPath)
         {
             return new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager, m_ProjectOrganizationProvider,

@@ -69,7 +69,7 @@ namespace Unity.AssetManager.Editor
             m_ShowInProjectBrowserButton.tooltip = enabled.HasFlag(UIEnabledStates.InProject)
                 ? L10n.Tr(Constants.ShowInProjectButtonToolTip)
                 : L10n.Tr(Constants.ShowInProjectButtonDisabledToolTip);
-            
+
             m_RemoveImportButton.SetEnabled(enabled.HasFlag(UIEnabledStates.InProject) && !enabled.HasFlag(UIEnabledStates.IsImporting));
             m_RemoveImportButton.tooltip = enabled.HasFlag(UIEnabledStates.InProject)
                 ? L10n.Tr(Constants.RemoveFromProjectButtonToolTip)

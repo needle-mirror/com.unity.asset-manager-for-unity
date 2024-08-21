@@ -83,7 +83,7 @@ namespace Unity.AssetManager.Editor
             m_Guid = guid;
 
             InitializeThreeDotsMenu();
-            
+
             m_InProjectIcon.visible = IsShowInProjectEnabled();
             m_ThreeDots.visible = !MetafilesHelper.IsMetafile(fileName) && IsAnyMenuItemEnabled();
 

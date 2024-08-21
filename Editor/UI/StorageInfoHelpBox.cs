@@ -21,7 +21,7 @@ namespace Unity.AssetManager.Editor
 
         readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly IPageManager m_PageManager;
-        
+
         StorageUsage m_CloudStorageUsage;
         IOrganization m_Organization;
 
@@ -37,9 +37,9 @@ namespace Unity.AssetManager.Editor
         static readonly int? k_StoragePercentUsageInfoThreshold = 75;
         static readonly int? k_StoragePercentUsageWarningThreshold = 90;
         static readonly int? k_StoragePercentUsageErrorThreshold = 100;
-        
+
         static List<string> m_DismissedOrganizationInfoLevelMessage = new();
-        
+
         public StorageInfoHelpBox(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy, IAssetsProvider assetsProvider, IUnityConnectProxy unityConnectProxy)
         {
@@ -55,7 +55,7 @@ namespace Unity.AssetManager.Editor
                 text = k_Dismiss
             };
             Add(m_DismissButton);
-            
+
             var cloudStorageUpgradeButton = new Button(linksProxy.OpenCloudStorageUpgradePlan)
             {
                 text = k_Upgrade
@@ -80,9 +80,9 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
         }
-        
+
         void OnActivePageChanged(IPage page) => Refresh();
-        
+
         void DismissOrganizationInfoLevelMessage()
         {
             if (!string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedOrganization?.Id) &&
@@ -113,7 +113,7 @@ namespace Unity.AssetManager.Editor
                 UIElementsUtils.Hide(this);
                 return;
             }
-            
+
             var percentUsage = FormatUsage(m_CloudStorageUsage.UsageBytes * 1.0 / m_CloudStorageUsage.TotalStorageQuotaBytes * 1.0);
             if (percentUsage < k_StoragePercentUsageInfoThreshold)
             {
@@ -136,23 +136,23 @@ namespace Unity.AssetManager.Editor
         void DisplayUsageMessage(int percentUsage)
         {
             text = $"{string.Format(k_StorageUsageWarningMessage, m_Organization.Name,  percentUsage)}";
-            
+
             // Hide dismiss button if usage reached the warning level
             if (percentUsage >= k_StoragePercentUsageWarningThreshold)
             {
                 messageType = HelpBoxMessageType.Warning;
                 UIElementsUtils.Hide(m_DismissButton);
             }
-            
+
             if (percentUsage >= k_StoragePercentUsageErrorThreshold)
             {
                 messageType = HelpBoxMessageType.Error;
                 if (m_PageManager.ActivePage is UploadPage)
                 {
-                    text = $"{text} {k_UploadPageErrorLevelMessage}";                    
+                    text = $"{text} {k_UploadPageErrorLevelMessage}";
                 }
             }
-            
+
             UIElementsUtils.Show(this);
         }
 

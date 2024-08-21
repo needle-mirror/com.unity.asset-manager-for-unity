@@ -63,12 +63,12 @@ namespace Unity.AssetManager.Editor
             m_SearchTextField.RegisterCallback<KeyDownEvent>(OnKeyDown);
             m_SearchTextField.RegisterCallback<FocusOutEvent>(OnFocusOut);
             m_SearchTextField.RegisterCallback<FocusInEvent>(OnFocusIn);
-            
+
             if (m_ClearAllButton != null)
             {
                 m_ClearAllButton.clicked += OnSearchCancelClick;
             }
-            
+
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.SearchFiltersChanged += OnPageSearchFiltersChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
@@ -80,12 +80,12 @@ namespace Unity.AssetManager.Editor
             m_SearchTextField.UnregisterCallback<KeyDownEvent>(OnKeyDown);
             m_SearchTextField.UnregisterCallback<FocusOutEvent>(OnFocusOut);
             m_SearchTextField.UnregisterCallback<FocusInEvent>(OnFocusIn);
-            
+
             if (m_ClearAllButton != null)
             {
                 m_ClearAllButton.clicked -= OnSearchCancelClick;
             }
-            
+
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_PageManager.SearchFiltersChanged -= OnPageSearchFiltersChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;

@@ -11,7 +11,7 @@ namespace Unity.AssetManager.Editor
             IsUsageBytesKnown = false;
             IsTotalStorageQuotaBytesKnown = false;
         }
-        
+
         public StorageUsage(ulong usageBytes, ulong totalStorageQuotaBytes)
         {
             IsUsageBytesKnown = true;
@@ -19,10 +19,10 @@ namespace Unity.AssetManager.Editor
             IsTotalStorageQuotaBytesKnown = true;
             TotalStorageQuotaBytes = totalStorageQuotaBytes;
         }
-        
+
         public bool IsUsageBytesKnown { get; }
         public ulong UsageBytes { get; }
-       
+
         public bool IsTotalStorageQuotaBytesKnown { get;  }
         public ulong TotalStorageQuotaBytes { get; }
     }

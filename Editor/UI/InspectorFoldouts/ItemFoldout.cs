@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,7 +28,7 @@ namespace Unity.AssetManager.Editor
         protected abstract void BindItem(TBinding element, int index);
 
         protected event Action<IEnumerable<object>> SelectionChanged;
-        
+
         protected ItemFoldout(VisualElement parent, string foldoutName, string listViewName, string foldoutTitle = null,
             string foldoutExpandedClassName = null)
         {
@@ -126,10 +126,10 @@ namespace Unity.AssetManager.Editor
         {
             var itemsToRemove = items.ToList();
             var itemsSource = m_ListView.itemsSource as List<TData>;
-            
+
             if (itemsSource == null)
                 return;
-            
+
             foreach (var item in itemsToRemove)
             {
                 itemsSource.Remove(item);

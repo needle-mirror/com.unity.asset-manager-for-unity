@@ -65,7 +65,7 @@ namespace Unity.AssetManager.Editor
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
-        
+
         protected void RefreshScrollView()
         {
             // Bug in UI Toolkit where the scrollview does not update its size when the foldout is expanded/collapsed.

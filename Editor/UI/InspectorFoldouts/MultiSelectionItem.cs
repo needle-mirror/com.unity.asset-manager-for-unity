@@ -30,10 +30,10 @@ namespace Unity.AssetManager.Editor
         {
             m_FileName.text = fileItem.Name;
             m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(fileItem.PrimarySourceFile?.Extension);
-            
+
             if (fileItem.PrimarySourceFile != null)
                 return;
-            
+
             var tasks = new List<Task>
             {
                 fileItem.ResolvePrimaryExtensionAsync((identifier, extension) =>

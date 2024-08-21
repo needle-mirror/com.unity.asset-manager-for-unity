@@ -56,12 +56,6 @@ namespace Unity.AssetManager.Editor
             return new AssetIdentifier(m_ProjectIdentifier.OrganizationId, m_ProjectIdentifier.ProjectId, m_AssetId, version, m_PrimarySourceFileGuid);
         }
 
-        // Compare AssetIdentifier without taking version into account
-        public bool IsSameAsset(AssetIdentifier other)
-        {
-            return m_AssetId == other.m_AssetId && m_ProjectIdentifier == other.m_ProjectIdentifier;
-        }
-
         bool IsIdValid()
         {
             return !string.IsNullOrEmpty(m_AssetId);

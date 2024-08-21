@@ -38,7 +38,7 @@ namespace Unity.AssetManager.Editor
             IAssetOperationManager assetOperationManager,
             ILinksProxy linksProxy,
             IUploadManager uploadManager,
-            IAssetImporter assetImporter, 
+            IAssetImporter assetImporter,
             IAssetsProvider assetsProvider)
         {
             m_UnityConnect = unityConnect;
@@ -69,7 +69,7 @@ namespace Unity.AssetManager.Editor
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             ServicesContainer.instance.Resolve<IDragAndDropProjectBrowserProxy>().RegisterProjectBrowserHandler(OnProjectBrowserDrop);
-            
+
             m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
@@ -84,7 +84,7 @@ namespace Unity.AssetManager.Editor
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             ServicesContainer.instance.Resolve<IDragAndDropProjectBrowserProxy>().UnRegisterProjectBrowserHandler(OnProjectBrowserDrop);
-            
+
             m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
@@ -146,6 +146,12 @@ namespace Unity.AssetManager.Editor
         {
             return () =>
             {
+                // We need to be sure we can process this operation for the current event type
+                var id = GUIUtility.GetControlID(FocusType.Passive);
+                var evt = Event.current.GetTypeForControl(id);
+                if (evt != EventType.MouseDrag && evt != EventType.MouseDown)
+                    return;
+                
                 // We don't want to be able to drag items when we are on the UploadPage.
                 if (m_PageManager.ActivePage is UploadPage)
                     return;

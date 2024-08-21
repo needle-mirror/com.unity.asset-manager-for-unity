@@ -7,7 +7,7 @@ using Unity.Cloud.Common;
 
 namespace Unity.AssetManager.Editor
 {
-    public class ProjectEnabler
+    class ProjectEnabler
     {
         const string k_EnableProjectEndpoint = "/assets/v1/projects/{0}/enable";
 
@@ -24,7 +24,7 @@ namespace Unity.AssetManager.Editor
         {
             var requestUri = m_ServiceHostResolver.GetResolvedRequestUri(string.Format(k_EnableProjectEndpoint, projectId));
 
-            await m_ServiceHttpClient.PostAsync(requestUri, new StringContent("", Encoding.UTF8, "application/json"), 
+            await m_ServiceHttpClient.PostAsync(requestUri, new StringContent("", Encoding.UTF8, "application/json"),
                 ServiceHttpClientOptions.Default(),  cancellationToken);
         }
     }

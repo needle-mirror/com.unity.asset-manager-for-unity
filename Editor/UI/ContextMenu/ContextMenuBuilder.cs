@@ -28,7 +28,7 @@ namespace Unity.AssetManager.Editor
 
         [SerializeReference]
         IUnityConnectProxy m_UnityConnectProxy;
-        
+
         [SerializeReference]
         IAssetDatabaseProxy m_AssetDatabaseProxy;
 

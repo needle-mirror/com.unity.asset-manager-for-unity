@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    public class PopupContainer : VisualElement
+    class PopupContainer : VisualElement
     {
         public enum PopupAlignment
         {

@@ -16,7 +16,7 @@ namespace Unity.AssetManager.Editor
         {
             DragAndDrop.AddDropHandler(projectHandlerDelegate);
         }
-        
+
         public void UnRegisterProjectBrowserHandler(DragAndDrop.ProjectBrowserDropHandler projectHandlerDelegate)
         {
             DragAndDrop.RemoveDropHandler(projectHandlerDelegate);

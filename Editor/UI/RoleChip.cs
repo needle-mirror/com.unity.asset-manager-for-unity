@@ -1,19 +1,22 @@
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    public class RoleChip : VisualElement
+    class RoleChip : VisualElement
     {
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IPermissionsManager m_PermissionsManager;
 
         Label m_Label;
+        bool m_IsShown;
 
         static readonly string k_UssClassName = "unity-role-chip";
-        static readonly string k_DocumentationUrl = "https://docs.unity.com/cloud/en-us/asset-manager/org-project-roles";
+        static readonly string k_DocumentationUrl =
+            "https://docs.unity.com/cloud/en-us/asset-manager/org-project-roles";
 
         internal RoleChip(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
             IPermissionsManager permissionsManager)
@@ -28,7 +31,7 @@ namespace Unity.AssetManager.Editor
             m_Label.pickingMode = PickingMode.Ignore;
             m_Label.text = string.Empty;
             Add(m_Label);
-            
+
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
@@ -41,19 +44,22 @@ namespace Unity.AssetManager.Editor
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             RegisterCallback<ClickEvent>(OnClicked);
-            
+
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
-            TaskUtils.TrackException(SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id, m_ProjectOrganizationProvider.SelectedProject?.Id));
+            TaskUtils.TrackException(SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id,
+                m_ProjectOrganizationProvider.SelectedProject?.Id));
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             UnregisterCallback<ClickEvent>(OnClicked);
-            
+
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= OnProjectSelectionChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
         }
 
         async void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo _)
@@ -64,13 +70,20 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        void OnOrganizationChanged(OrganizationInfo organization)
+        {
+            UIElementsUtils.SetDisplay(this, m_IsShown && organization != null && organization.ProjectInfos.Any());
+        }
+
         void OnActivePageChanged(IPage page)
         {
-            TaskUtils.TrackException(SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id, m_ProjectOrganizationProvider.SelectedProject?.Id));
+            TaskUtils.TrackException(SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id,
+                m_ProjectOrganizationProvider.SelectedProject?.Id));
         }
 
         async Task SetProjectRole(string organizationId, string projectId)
         {
+            m_IsShown = false;
             UIElementsUtils.Hide(this);
             if (string.IsNullOrEmpty(projectId))
                 return;
@@ -79,7 +92,8 @@ namespace Unity.AssetManager.Editor
             m_Label.text = role.ToString();
 
             var isVisible = m_PageManager.ActivePage is CollectionPage or UploadPage;
-            UIElementsUtils.SetDisplay(this, isVisible && role != Role.None);
+            m_IsShown = isVisible && role != Role.None;
+            UIElementsUtils.SetDisplay(this, m_IsShown);
         }
     }
 }

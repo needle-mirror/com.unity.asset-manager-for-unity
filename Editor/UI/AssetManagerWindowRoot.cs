@@ -398,9 +398,9 @@ namespace Unity.AssetManager.Editor
             {
                 UIElementsUtils.Show(m_LoginPage);
                 UIElementsUtils.Hide(m_AssetManagerContainer);
-                
+
                 m_PermissionsManager.Reset();
-                
+
                 return;
             }
 

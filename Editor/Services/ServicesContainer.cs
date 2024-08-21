@@ -51,7 +51,7 @@ namespace Unity.AssetManager.Editor
     }
 
     [AttributeUsage(AttributeTargets.Method)]
-    public class ServiceInjectionAttribute : Attribute { }
+    class ServiceInjectionAttribute : Attribute { }
 
     [Serializable]
     class SerializedService

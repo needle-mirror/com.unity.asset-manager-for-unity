@@ -15,7 +15,7 @@ namespace Unity.AssetManager.Editor
         ValidStatus = 16,
         IsImporting = 32,
     }
-    
+
     /*
      * This class is used to debug the UIEnabledStates enum.
      * It will print the enum value, its binary representation and the flags that are set.

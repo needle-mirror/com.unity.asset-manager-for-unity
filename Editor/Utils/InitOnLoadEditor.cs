@@ -69,7 +69,7 @@ namespace Unity.AssetManager.Editor
     }
 
     [InitializeOnLoad]
-    public class UnityEditorApplicationFocusUtils
+    class UnityEditorApplicationFocusUtils
     {
         static bool s_HasFocus;
 

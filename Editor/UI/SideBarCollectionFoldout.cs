@@ -38,12 +38,12 @@ namespace Unity.AssetManager.Editor
         {
             return string.IsNullOrEmpty(collectionPath) ? projectInfo.Id : $"{projectInfo.Id}::{collectionPath}";
         }
-        
+
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             RegisterEventForIconChange();
             RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
-            
+
             m_UploadManager.UploadBegan += OnUploadBegan;
             m_UploadManager.UploadEnded += OnUploadEnded;
         }
@@ -52,18 +52,18 @@ namespace Unity.AssetManager.Editor
         {
             UnRegisterEventForIconChange();
             UnregisterCallback<PointerDownEvent>(OnPointerDown);
-            
+
             m_UploadManager.UploadBegan -= OnUploadBegan;
             m_UploadManager.UploadEnded -= OnUploadEnded;
         }
-        
+
         void OnPointerDown(PointerDownEvent evt)
         {
             // We skip the user's click if they aimed the check mark of the foldout
             // to only select foldouts when they click on it's title/label
             if (evt.target != this)
                 return;
-            
+
             m_ProjectOrganizationProvider.SelectProject(m_ProjectInfo, m_CollectionPath);
         }
 
@@ -84,39 +84,57 @@ namespace Unity.AssetManager.Editor
                 SetEnabled(page is not UploadPage);
             }
 
-            if (page is CollectionPage or UploadPage)
-            {
-                var selected = m_ProjectOrganizationProvider.SelectedProject?.Id == m_ProjectInfo.Id
-                    && m_ProjectOrganizationProvider.SelectedCollection?.GetFullPath() ==
-                    (m_CollectionPath ?? string.Empty);
-
-                m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
-            }
-            else
-            {
-                m_Toggle.EnableInClassList(k_UnityListViewItemSelected, false);
-            }
+            RefreshSelectionStatus();
         }
 
         protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
         {
-            if (m_PageManager.ActivePage is CollectionPage or UploadPage)
+            if (m_PageManager.ActivePage is not (CollectionPage or UploadPage))
             {
-                var selected = projectInfo?.Id == m_ProjectInfo.Id
-                    && collectionInfo?.GetFullPath() == (m_CollectionPath ?? string.Empty);
+                SetSelected(false);
+                return;
+            }
 
-                m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
+            var selected = projectInfo?.Id == m_ProjectInfo.Id &&
+                           collectionInfo?.GetFullPath() == (m_CollectionPath ?? string.Empty);
+
+            SetSelected(selected);
+        }
+
+        protected internal void RefreshSelectionStatus()
+        {
+            OnProjectSelectionChanged(m_ProjectOrganizationProvider.SelectedProject, m_ProjectOrganizationProvider.SelectedCollection);
+        }
+
+        void SetSelected(bool selected)
+        {
+            m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
+
+            if (selected)
+            {
+                UncollapseHierarchy();
             }
         }
-        
-        public override void AddFoldout(SideBarFoldout child)
+
+        void UncollapseHierarchy()
         {
+            var p = parent;
+            while (p is SideBarCollectionFoldout foldout)
+            {
+                foldout.value = true;
+                p = foldout.parent;
+            }
+        }
+
+        public override void AddFoldout(SideBarCollectionFoldout child)
+        {
+            value = m_StateManager.UncollapsedCollections.Contains(name); // Do not force the foldout to close if something else (like auto selection) is forcing it to open
+
             base.AddFoldout(child);
 
             if (string.IsNullOrEmpty(m_CollectionPath))
                 return;
 
-            value = !m_StateManager.CollapsedCollections.Contains(name);
             SetIcon();
         }
 
@@ -137,13 +155,13 @@ namespace Unity.AssetManager.Editor
             if (!m_HasChild)
                 return;
 
-            if (!value)
+            if (value)
             {
-                m_StateManager.CollapsedCollections.Add(name);
+                m_StateManager.UncollapsedCollections.Add(name);
             }
             else
             {
-                m_StateManager.CollapsedCollections.Remove(name);
+                m_StateManager.UncollapsedCollections.Remove(name);
             }
         }
 

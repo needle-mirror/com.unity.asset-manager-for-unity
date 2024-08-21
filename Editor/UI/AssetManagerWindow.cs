@@ -131,7 +131,7 @@ namespace Unity.AssetManager.Editor
         }
 
         public static event Action Enabled;
-        
+
         // This event is used for the Tests
         internal static event Action Refreshed;
 
@@ -145,7 +145,7 @@ namespace Unity.AssetManager.Editor
         internal void RefreshAll()
         {
             Refreshed?.Invoke();
-            
+
             // Calling a manual Refresh should force a brand new initialization of the services and UI
             OnDisable();
             OnDestroy();
@@ -170,7 +170,7 @@ namespace Unity.AssetManager.Editor
             m_IsDocked = docked;
             AnalyticsSender.SendEvent(new WindowDockedEvent(docked));
         }
-        
+
         void OnKeyDown(KeyDownEvent evt)
         {
             switch (evt.keyCode)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -105,14 +105,14 @@ namespace Unity.AssetManager.Editor
                 var assetIdentifier = assetData.Identifier
                     .WithAssetId(assetId)
                     .WithVersion(assetVersion);
-                
+
                 // This should never happen, but if the version fails to parse, try to fetch the latest version from the cloud
                 if (string.IsNullOrEmpty(assetVersion))
                 {
                     assetVersion = await GetLatestVersionAsync(assetIdentifier, token);
                     assetIdentifier = assetIdentifier.WithVersion(assetVersion);
                 }
-                
+
                 // IN CASE no version is found, skip the dependency
                 if (string.IsNullOrEmpty(assetVersion))
                 {
@@ -169,7 +169,7 @@ namespace Unity.AssetManager.Editor
                 {
                     continue;
                 }
-                
+
                 assetData = importedAssetInfo.AssetData as AssetData;
                 break;
             }

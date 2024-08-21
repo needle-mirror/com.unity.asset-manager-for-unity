@@ -11,7 +11,7 @@ namespace Unity.AssetManager.Editor
 
         [SerializeField]
         string m_ProjectId = string.Empty;
-        
+
         public string OrganizationId => m_OrganizationId ?? string.Empty;
         public string ProjectId => m_ProjectId ?? string.Empty;
 
@@ -39,8 +39,8 @@ namespace Unity.AssetManager.Editor
             {
                 return true;
             }
-            
-            return m_OrganizationId == other.m_OrganizationId && 
+
+            return m_OrganizationId == other.m_OrganizationId &&
                 m_ProjectId == other.m_ProjectId;
         }
 
@@ -60,7 +60,7 @@ namespace Unity.AssetManager.Editor
             {
                 return false;
             }
-            
+
             return Equals((ProjectIdentifier)obj);
         }
 
