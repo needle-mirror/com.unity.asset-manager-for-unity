@@ -4,7 +4,44 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-exp.5] - 2024-09-10
+- Fixed deserialization issue
+- Fixed dependency fetching performance
+- Fixed successful upload not clearing the upload page
+
+## [1.0.0-exp.4] - 2024-09-09
+
+[Added]
+- Ability to sort grid items by name, modified/uploaded date, description, asset type and status
+- Added UnityEditor AssetType
+
+[Changed]
+- Grid items are now left aligned to avoid jumping items when resizing
+- Can now clear grid item selection by clicking in the grid background
+- Improved upload error messaging
+- Improved upload by preventing too many files from being uploaded at the same time
+- Improved re-upload by preventing too many files from being replaced at the same time
+- In the selected asset panel info, we are now disabling tabs that are not accessible when we are disconnected from the Cloud server
+- When an import or an upload is finished, with or without success, clicking on the cancel button remove the progress bar
+- Modify the format of tracked assets
+- Removed Status Chip from AssetDetailsPage
+
+[Fixed]
+- Fixed error during upload not displaying in the Console
+- Fixed the Upload Assets button being grayed out after assembly reload
+- Fixed Background Tasks stucked in not responding state
+- Fixed a bug where the number of column would be incorrect if the available width for a grid item was inferior to the actual width of the item
+- Support dependencies outside asset's project
+- Long period of inactiveness causes loss of interactivity and Unauthorized Error
+- Remove NotFoundException on the console and avoid unfinished state
+- Now checking for invalid ".." in default import location path
+- If there are no assets filters are disabled
+- Import buttons are now hidden in Asset Details Page when under Upload Tab
+- Selection is deselected and no Asset Details pane is shown when unlinking project
+
+
 ## [1.0.0-exp.3] - 2024-08-21
+
 [Changed]
 - Change visibility of some types to make them private
 - Updated resource path
@@ -26,7 +63,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed the PageManager selection to create an AllAssetsPage when no Project selected
 - Uncollapsed Collection and Project in the side bar not staying uncollapsed after assembly reload
 
+
 ## [1.0.0-exp.2] - 2024-08-14
+
 [Added]
 - Add an error status on asset prepared to upload that is contained file from outside the Assets folder.
 
@@ -42,7 +81,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Window not opening when no UDAM project is available
 - Fixed status on deleted assets on the cloud that were imported
 
+
 ## [1.0.0-exp.1] - 2024-08-07
+
 [Added]
 - Added a pause state to the progression bar
 - Added confidence threshold slider in settings

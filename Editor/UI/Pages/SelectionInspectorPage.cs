@@ -80,7 +80,10 @@ namespace Unity.AssetManager.Editor
             foreach (var asset in assets)
             {
                 var assetData = await m_AssetDataManager.GetOrSearchAssetData(asset, default);
-                data.Add(assetData);
+                if (assetData != null)
+                {
+                    data.Add(assetData);
+                }
             }
 
             await SelectAssetDataAsync(data);
@@ -92,7 +95,7 @@ namespace Unity.AssetManager.Editor
 
         protected virtual void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_AssetOperationManager.OperationProgressChanged += OnOperationProgress;
             m_AssetOperationManager.OperationFinished += OnOperationFinished;
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
@@ -102,7 +105,7 @@ namespace Unity.AssetManager.Editor
 
         protected virtual void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_AssetOperationManager.OperationProgressChanged -= OnOperationProgress;
             m_AssetOperationManager.OperationFinished -= OnOperationFinished;
             m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;

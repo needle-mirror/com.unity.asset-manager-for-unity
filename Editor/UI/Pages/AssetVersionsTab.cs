@@ -53,6 +53,7 @@ namespace Unity.AssetManager.Editor
 
         public override AssetDetailsPageTabs.TabType Type => AssetDetailsPageTabs.TabType.Versions;
         public override bool IsFooterVisible => false;
+        public override bool EnabledWhenDisconnected => false;
         public override VisualElement Root { get; }
 
         public event Action<string, IEnumerable<IAssetData>> ImportAsset;

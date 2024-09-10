@@ -167,15 +167,14 @@ namespace Unity.AssetManager.Editor
         static async Task<List<IAssetData>> GetDependenciesAsync(IAssetData asset)
         {
             var totalDependencies = asset.Dependencies.Count();
-            int loadedDependencies = 0;
-            
+            var loadedDependencies = 0;
+
             var loadDependenciesOperation = new LoadDependenciesOperation();
             loadDependenciesOperation.Start();
-            
+
             var dependencies = new List<IAssetData>();
 
-            await foreach (var dependencyAssetData in AssetDataDependencyHelper.LoadDependenciesAsync(asset,
-                               true, CancellationToken.None))
+            await foreach (var dependencyAssetData in AssetDataDependencyHelper.LoadDependenciesRecursivelyAsync(asset, CancellationToken.None))
             {
                 if (dependencyAssetData.AssetData != null)
                 {
@@ -197,7 +196,7 @@ namespace Unity.AssetManager.Editor
                         (float)loadedDependencies / totalDependencies));
                 }
             }
-            
+
             loadDependenciesOperation.Finish(OperationStatus.Success);
 
             return dependencies;

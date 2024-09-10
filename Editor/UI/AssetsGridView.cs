@@ -74,6 +74,7 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
             m_Gridview.GridViewLastItemVisible += OnLastGridViewItemVisible;
+            m_Gridview.BackgroundClicked += OnGridViewBackgroundClicked;
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.LoadingStatusChanged += OnLoadingStatusChanged;
             m_PageManager.MessageThrown += OnMessageThrown;
@@ -89,10 +90,16 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
             m_Gridview.GridViewLastItemVisible -= OnLastGridViewItemVisible;
+            m_Gridview.BackgroundClicked -= OnGridViewBackgroundClicked;
 
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_PageManager.LoadingStatusChanged -= OnLoadingStatusChanged;
             m_PageManager.MessageThrown -= OnMessageThrown;
+        }
+
+        void OnGridViewBackgroundClicked()
+        {
+            m_PageManager.ActivePage.ClearSelection();
         }
 
         void OnAuthenticationStateChanged(AuthenticationState _)
@@ -151,7 +158,7 @@ namespace Unity.AssetManager.Editor
                 var evt = Event.current.GetTypeForControl(id);
                 if (evt != EventType.MouseDrag && evt != EventType.MouseDown)
                     return;
-                
+
                 // We don't want to be able to drag items when we are on the UploadPage.
                 if (m_PageManager.ActivePage is UploadPage)
                     return;

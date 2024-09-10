@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Common;
+using Unity.Cloud.CommonEmbedded;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -280,6 +280,10 @@ namespace Unity.AssetManager.Editor
             catch (ForbiddenException)
             {
                 // Unavailable
+            }
+            catch (NotFoundException)
+            {
+                // Not found
             }
             catch (Exception e)
             {

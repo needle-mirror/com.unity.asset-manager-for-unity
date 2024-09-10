@@ -38,20 +38,22 @@ namespace Unity.AssetManager.Editor
             Identifier = identifier;
             AssetData = assetData;
         }
+
+        public DependencyAssetResult(IAssetData asset)
+        {
+            Identifier = asset.Identifier;
+            AssetData = asset;
+        }
     }
 
     static class AssetDataDependencyHelper
     {
         const char k_AssetIdAssetVersionSeparator = '_';
 
-        static readonly string k_DependencyExtension = ".am4u_dep";
-        static readonly string k_GuidExtension = ".am4u_guid";
+        const string k_DependencyExtension = ".am4u_dep";
+        const string k_GuidExtension = ".am4u_guid";
 
-        public static string EncodeDependencySystemFilename(string assetId, string assetVersion)
-        {
-            return $"{assetId}{k_AssetIdAssetVersionSeparator}{assetVersion}{k_DependencyExtension}";
-        }
-
+        [Obsolete("Only used for backwards compatibility with system file references.")]
         static void DecodeDependencySystemFilename(string filename, out string assetId, out string assetVersion)
         {
             assetId = string.Empty;
@@ -84,7 +86,96 @@ namespace Unity.AssetManager.Editor
         }
 
         public static async IAsyncEnumerable<DependencyAssetResult> LoadDependenciesAsync(IAssetData assetData,
-            bool recursive, [EnumeratorCancellation] CancellationToken token)
+            [EnumeratorCancellation] CancellationToken token)
+        {
+            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+
+            // Flag for backwards compatibility - if the asset has no dependencies, check for system file dependencies
+            var hasDependencies = false;
+
+            await foreach (var dependency in
+                           assetsProvider.GetDependenciesAsync(assetData.Identifier, Range.All, token))
+            {
+                hasDependencies = true;
+
+                var result = new DependencyAssetResult(dependency);
+                yield return result;
+            }
+
+            if (!hasDependencies)
+            {
+#pragma warning disable 618 // Maintain for backwards compatibility with old assets that have dependencies stored in the asset itself
+                var systemFileDependencies = LoadSystemFileDependenciesAsync(assetsProvider, assetData, token);
+                await foreach (var dependency in systemFileDependencies)
+                {
+                    yield return dependency;
+                }
+#pragma warning restore 618
+            }
+        }
+
+        public static IAsyncEnumerable<DependencyAssetResult> LoadDependenciesRecursivelyAsync(IAssetData assetData,
+            CancellationToken token)
+        {
+            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            return LoadDependenciesRecursivelyAsync(assetsProvider, assetData, new HashSet<AssetIdentifier>(), token);
+        }
+
+        static async IAsyncEnumerable<DependencyAssetResult> LoadDependenciesRecursivelyAsync(
+            IAssetsProvider assetsProvider, IAssetData assetData, HashSet<AssetIdentifier> addedDependencies,
+            [EnumeratorCancellation] CancellationToken token)
+        {
+            // Flag for backwards compatibility - if the asset has no dependencies, check for system file dependencies
+            var hasDependencies = false;
+
+            await foreach (var dependency in
+                           assetsProvider.GetDependenciesAsync(assetData.Identifier, Range.All, token))
+            {
+                hasDependencies = true;
+
+                // Avoid circular dependencies
+                if (!addedDependencies.Add(dependency.Identifier))
+                {
+                    continue;
+                }
+
+                var result = new DependencyAssetResult(dependency);
+                yield return result;
+
+                await foreach (var childDependency in LoadDependenciesRecursivelyAsync(assetsProvider, dependency,
+                                   addedDependencies, token))
+                {
+                    yield return childDependency;
+                }
+            }
+
+            if (!hasDependencies)
+            {
+#pragma warning disable 618 // Maintain for backwards compatibility with old assets that have dependencies stored in the asset itself
+                var systemFileDependencies = LoadSystemFileDependenciesAsync(assetsProvider, assetData, token);
+                await foreach (var dependency in systemFileDependencies)
+                {
+                    // Avoid circular dependencies
+                    if (!addedDependencies.Add(dependency.Identifier))
+                    {
+                        continue;
+                    }
+
+                    yield return dependency;
+
+                    await foreach (var childDependency in LoadDependenciesRecursivelyAsync(assetsProvider,
+                                       dependency.AssetData, addedDependencies, token))
+                    {
+                        yield return childDependency;
+                    }
+                }
+#pragma warning restore 618
+            }
+        }
+
+        [Obsolete("Only used for backwards compatibility with system file references.")]
+        static async IAsyncEnumerable<DependencyAssetResult> LoadSystemFileDependenciesAsync(
+            IAssetsProvider assetsProvider, IAssetData assetData, [EnumeratorCancellation] CancellationToken token)
         {
             // Update AssetData with the latest cloud data
             var files = await GetFilesAsync(assetData, token);
@@ -122,30 +213,24 @@ namespace Unity.AssetManager.Editor
 
                 var dependencyAssetData = await assetDataManager.GetOrSearchAssetData(assetIdentifier, token);
 
-                if (dependencyAssetData != null)
+                if (dependencyAssetData == null)
                 {
-                    if (dependencyAssetData.Identifier.Version != assetVersion)
-                    {
-                        var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-                        dependencyAssetData = await assetProvider.GetAssetAsync(assetIdentifier, token);
-                        await dependencyAssetData.RefreshVersionsAsync(token);
-                    }
-
-                    var result = new DependencyAssetResult(assetIdentifier, dependencyAssetData);
-                    yield return result;
+                    continue;
                 }
 
-                if (recursive)
+                if (dependencyAssetData.Identifier.Version != assetIdentifier.Version)
                 {
-                    await foreach (var childDependency in LoadDependenciesAsync(dependencyAssetData, true, token))
-                    {
-                        yield return childDependency;
-                    }
+                    dependencyAssetData = await assetsProvider.GetAssetAsync(assetIdentifier, token);
+                    await dependencyAssetData.RefreshVersionsAsync(token);
                 }
+
+                var result = new DependencyAssetResult(assetIdentifier, dependencyAssetData);
+                yield return result;
             }
         }
 
-        public static async Task<AssetData> GetAssetAssociatedWithGuidAsync(string assetGuid, string organizationId, string projectId, CancellationToken token)
+        public static async Task<AssetData> GetAssetAssociatedWithGuidAsync(string assetGuid, string organizationId,
+            string projectId, CancellationToken token)
         {
             Utilities.DevAssert(!string.IsNullOrEmpty(assetGuid));
             Utilities.DevAssert(!string.IsNullOrEmpty(organizationId));
@@ -175,7 +260,8 @@ namespace Unity.AssetManager.Editor
             }
 
             // Imported asset must match current project and still exists on the cloud for it to be recycled
-            if (assetData != null && assetData.Identifier.OrganizationId == organizationId && assetData.Identifier.ProjectId == projectId)
+            if (assetData != null && assetData.Identifier.OrganizationId == organizationId &&
+                assetData.Identifier.ProjectId == projectId)
             {
                 var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
                 var status = await assetsProvider.CompareAssetWithCloudAsync(assetData, token);
@@ -189,7 +275,7 @@ namespace Unity.AssetManager.Editor
             return existingAsset;
         }
 
-        static async Task<string> GetLatestVersionAsync(AssetIdentifier assetIdentifier,  CancellationToken token)
+        static async Task<string> GetLatestVersionAsync(AssetIdentifier assetIdentifier, CancellationToken token)
         {
             try
             {

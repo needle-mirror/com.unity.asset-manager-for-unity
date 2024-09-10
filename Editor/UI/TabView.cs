@@ -54,7 +54,7 @@ namespace Unity.AssetManager.Editor
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_PageManager.ActivePageChanged += OnActivePageChanged;
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
 
             var activePage = m_PageManager.ActivePage;
             if (activePage != null)
@@ -72,7 +72,7 @@ namespace Unity.AssetManager.Editor
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
         }
 
         void OnActivePageChanged(IPage page)

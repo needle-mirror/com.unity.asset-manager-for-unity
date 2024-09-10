@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Common;
+using Unity.Cloud.CommonEmbedded;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -120,7 +120,7 @@ namespace Unity.AssetManager.Editor
                 }
 
                 // Prepare the IAssets
-                var createAssetTasks = await TaskUtils.RunWithMaxConcurrentTasks(assetEntriesWithAllDependencies, token,
+                var createAssetTasks = await TaskUtils.RunWithMaxConcurrentTasksAsync(assetEntriesWithAllDependencies, token,
                     (uploadEntry) =>
                     {
                         var operation = StartNewOperation(uploadEntry);
@@ -153,7 +153,7 @@ namespace Unity.AssetManager.Editor
                 }
 
                 // Prepare a cloud asset for every asset entry that we want to upload
-                await TaskUtils.RunWithMaxConcurrentTasks(uploadEntryToAssetUploadInfoLookup, token,
+                await TaskUtils.RunWithMaxConcurrentTasksAsync(uploadEntryToAssetUploadInfoLookup, token,
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
@@ -161,7 +161,7 @@ namespace Unity.AssetManager.Editor
                     }, k_MaxConcurrentTasks);
 
                 // Upload the assets
-                await TaskUtils.RunWithMaxConcurrentTasks(uploadEntryToAssetUploadInfoLookup, token,
+                await TaskUtils.RunWithMaxConcurrentTasksAsync(uploadEntryToAssetUploadInfoLookup, token,
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
@@ -169,7 +169,7 @@ namespace Unity.AssetManager.Editor
                     }, k_MaxConcurrentTasks);
 
                 // Track upload asset as imported
-                await TaskUtils.RunWithMaxConcurrentTasks(uploadEntryToAssetUploadInfoLookup, token,
+                await TaskUtils.RunWithMaxConcurrentTasksAsync(uploadEntryToAssetUploadInfoLookup, token,
                     (entry) => TrackAsset(entry.Key, entry.Value.AssetData, token)
                     , k_MaxConcurrentTasks);
             }
@@ -349,10 +349,7 @@ namespace Unity.AssetManager.Editor
             }
             catch (Exception e)
             {
-                if (e is not ServiceException)
-                {
-                    Debug.LogException(e);
-                }
+                Debug.LogException(e);
 
                 // On upload failure, unlink any non recycled asset
                 if (!assetUploadInfo.AssetRecycled)

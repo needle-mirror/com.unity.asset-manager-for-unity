@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -91,9 +90,7 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            var filename = identifier.AssetId;
-            var importInfoFilePath = Path.Combine(m_ImportedAssetInfoFolderPath, filename);
-            m_IOProxy.DeleteFileIfExists(importInfoFilePath);
+            Persistence.RemoveEntry(m_IOProxy, identifier.AssetId);
         }
 
         void OnImportedAssetInfoChanged(AssetChangeArgs assetChangeArgs)
@@ -114,78 +111,30 @@ namespace Unity.AssetManager.Editor
         {
             try
             {
-                if (!m_IOProxy.DirectoryExists(m_ImportedAssetInfoFolderPath))
-                {
-                    return Array.Empty<ImportedAssetInfo>();
-                }
-
                 var result = new Dictionary<AssetIdentifier, ImportedAssetInfo>();
-                var filesToCleanup = new List<string>();
-                foreach (var filePath in m_IOProxy.EnumerateFiles(m_ImportedAssetInfoFolderPath, "*",
-                             SearchOption.AllDirectories))
+                var importedAssetInfos = Persistence.ReadAllEntries(m_IOProxy);
+                foreach (var importedAssetInfo in importedAssetInfos)
                 {
-                    var importedAssetInfo = ImportedAssetInfo.Parse(m_IOProxy.FileReadAllText(filePath));
                     var assetData = importedAssetInfo?.AssetData;
 
-                    if (assetData == null)
-                    {
-                        filesToCleanup.Add(filePath);
-                    }
-                    else
+                    if (assetData != null)
                     {
                         result[assetData.Identifier] = importedAssetInfo;
                     }
                 }
 
-                // The edge case where we tracked an imported asset in project settings folder but we can't actually found the asset in the AssetDatabase.
-                // This could happen if the user deletes some files from their project when the UnityEditor is not running
-                foreach (var file in filesToCleanup)
-                {
-                    m_IOProxy.DeleteFileIfExists(file);
-                }
-
                 return result.Values;
             }
-            catch (IOException e)
+            catch (Exception e)
             {
                 Debug.Log($"Couldn't load imported asset infos from disk:\n{e}.");
                 return Array.Empty<ImportedAssetInfo>();
             }
         }
 
-        bool WriteToDisk(IAssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
+        void WriteToDisk(IAssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
         {
-            var filename = assetData.Identifier.AssetId;
-            var importInfoFilePath = Path.Combine(m_ImportedAssetInfoFolderPath, filename);
-            try
-            {
-                var directoryPath = Path.GetDirectoryName(importInfoFilePath);
-                if (!m_IOProxy.DirectoryExists(directoryPath))
-                {
-                    m_IOProxy.CreateDirectory(directoryPath);
-                }
-
-                m_IOProxy.FileWriteAllText(importInfoFilePath, ImportedAssetInfo.ToJson(assetData, fileInfos));
-
-                return true;
-            }
-            catch (IOException e)
-            {
-                Debug.Log($"Couldn't write imported asset info to {importInfoFilePath} :\n{e}.");
-                return false;
-            }
-        }
-
-        public static string GetSafeFilename(string input, int maxSize = 20)
-        {
-            var safeFilename = Regex.Replace(input, "[^a-zA-Z0-9_\\-\\.]", "");
-
-            if (safeFilename.Length > maxSize)
-            {
-                safeFilename = safeFilename[..maxSize];
-            }
-
-            return safeFilename;
+            Persistence.WriteEntry(m_IOProxy, assetData as AssetData, fileInfos);
         }
 
         bool RemoveFromDisk(string assetGuid)

@@ -8,14 +8,21 @@ namespace Unity.AssetManager.Editor
 {
     static class TaskUtils
     {
-        public static void TrackException(Task task)
+        public static void TrackException(Task task, Action<Exception> exceptionCallback = null)
         {
             var awaiter = task.GetAwaiter();
             awaiter.OnCompleted(() =>
             {
                 if (task.Exception != null)
                 {
-                    throw task.Exception;
+                    if (exceptionCallback != null)
+                    {
+                        exceptionCallback.Invoke(task.Exception);
+                    }
+                    else
+                    {
+                        Debug.LogException(task.Exception);
+                    }
                 }
             });
 
@@ -40,11 +47,16 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public static async Task<IReadOnlyCollection<Task>> RunWithMaxConcurrentTasks<T>(IEnumerable<T> inputs,
+        public static async Task<IReadOnlyCollection<Task>> RunWithMaxConcurrentTasksAsync<T>(IEnumerable<T> inputs,
             CancellationToken token, Func<T, Task> taskCreation, int maxConcurrentTasks)
         {
             var semaphore = new SemaphoreSlim(maxConcurrentTasks);
+            return await RunWithMaxConcurrentTasksAsync(inputs, token, taskCreation, semaphore);
+        }
 
+        public static async Task<IReadOnlyCollection<Task>> RunWithMaxConcurrentTasksAsync<T>(IEnumerable<T> inputs,
+            CancellationToken token, Func<T, Task> taskCreation, SemaphoreSlim semaphore)
+        {
             var allTasks = new List<Task>();
 
             foreach (var input in inputs)
@@ -65,6 +77,17 @@ namespace Unity.AssetManager.Editor
             await Task.WhenAll(allTasks);
 
             return allTasks;
+        }
+
+        public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> asyncEnumerable, CancellationToken token)
+        {
+            var list = new List<T>();
+            await foreach (var item in asyncEnumerable.WithCancellation(token))
+            {
+                list.Add(item);
+            }
+
+            return list;
         }
     }
 }

@@ -51,6 +51,9 @@ namespace Unity.AssetManager.Editor
 
         protected void Report()
         {
+            if(Status != OperationStatus.InProgress)
+                return;
+
             var progress = Progress;
 
             if (StartIndefinite && progress > 0.0f &&

@@ -19,7 +19,7 @@ namespace Unity.AssetManager.Editor
 
                 IEnumerable<string> dependencyGuids = null;
 
-                var files = new List<string> { guid };
+                var files = new List<string> {guid};
 
                 switch (dependencyMode)
                 {
@@ -33,10 +33,9 @@ namespace Unity.AssetManager.Editor
                 }
 
                 var filteredFiles = files.Where(fileGuid => fileGuid == guid || !ignoredGuids.Contains(fileGuid)).ToList();
-                var filteredDependencies = dependencyGuids?.Where(fileGuid => !ignoredGuids.Contains(fileGuid)).ToList();
 
-                var assetUploadEntry = UploadAssetFactory.CreateUnityUploadAsset(guid, filteredFiles,
-                    filteredDependencies, filePathMode);
+                var assetUploadEntry =
+                    UploadAssetFactory.CreateUnityUploadAsset(guid, filteredFiles, dependencyGuids, filePathMode);
 
                 uploadAssets.Add(assetUploadEntry);
                 processedGuids.Add(guid);

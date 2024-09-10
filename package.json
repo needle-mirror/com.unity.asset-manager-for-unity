@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.0.0-exp.3",
+  "version": "1.0.0-exp.5",
   "unity": "2022.3",
   "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.",
   "keywords": [
@@ -11,22 +11,23 @@
   ],
   "dependencies": {
     "com.unity.settings-manager": "2.0.1",
-    "com.unity.cloud.assets": "1.2.0",
-    "com.unity.cloud.identity": "1.2.0"
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.modules.unitywebrequest": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.0.0-exp.3"
+    "com.unity.asset-manager-for-unity.tests": "1.0.0-exp.5"
   },
   "_upm": {
-    "changelog": "[Changed]\n- Change visibility of some types to make them private\n- Updated resource path\n- For now on, all preview images shown in thumbnail (grid and detail panel) will be the one from the latest version of the asset instead of the current imported version.\n- Side bar width is now persistent\n- Created the LoadDependencies operation to track the progress of the loading of dependencies\n\n[Fixed]\n- Fixed Grid Item selection bug\n- Fixed Upload Page selection bug where all assets were always selected.\n- Only hover highlight Filter button when enabled\n- Drags can only be started from MouseDown or MouseDrag events error\n- Fixed Collections always open on Refresh\n- Fix description only showed first line\n- Hide the All Assets button if one or zero project in the organization\n- Hide the filter button if no organization is linked or there is no project\n- Hide the role chip if no organization is linked or there is no project\n- Reverted previous changes into the TabView registration\n- Fixed the PageManager selection to create an AllAssetsPage when no Project selected\n- Uncollapsed Collection and Project in the side bar not staying uncollapsed after assembly reload"
+    "changelog": "- Fixed deserialization issue\n- Fixed dependency fetching performance\n- Fixed successful upload not clearing the upload page"
   },
   "upmCi": {
-    "footprint": "057e21860dd4e6c90687efca3d26f7436278424a"
+    "footprint": "93533b5a3d21ad6f62ce028da0bd6d5b2fef2612"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "c5a51a73cc4ecd9b7b6dd483223c7c65e2fd8c36"
+    "revision": "a3b792066494ff7ca0a5e3a5271a6e4249985d95"
   }
 }

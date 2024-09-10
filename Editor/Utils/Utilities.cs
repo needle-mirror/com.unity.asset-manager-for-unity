@@ -12,7 +12,9 @@ namespace Unity.AssetManager.Editor
 {
     static class Utilities
     {
-        static readonly string[] k_SizeSuffixes = {"B", "Kb", "Mb", "Gb", "Tb"};
+        static readonly IDialogManager k_DefaultDialogManager = new DialogManager();
+
+        static readonly string[] k_SizeSuffixes = { "B", "Kb", "Mb", "Gb", "Tb" };
 
         internal static string BytesToReadableString(double bytes)
         {
@@ -98,6 +100,12 @@ namespace Unity.AssetManager.Editor
         public static void DevLogError(string message)
         {
             Debug.LogError(message);
+        }
+
+        [System.Diagnostics.Conditional("AM4U_DEV")]
+        public static void DevLogException(Exception e)
+        {
+            Debug.LogException(e);
         }
 
         public static string GetInitials(string fullName)
@@ -200,25 +208,49 @@ namespace Unity.AssetManager.Editor
             return Regex.Replace(str, pattern, Path.DirectorySeparatorChar.ToString());
         }
 
-        public static string OpenFolderPanelInProject(string title, string defaultLocation)
+        public static string OpenFolderPanelInDirectory(string title, string directory, IDialogManager dialogManager = null)
         {
-            var validPath = false;
-            string importLocation = null;
+            bool isValidPath;
+            string importLocation;
 
             do
             {
-                importLocation = EditorUtility.OpenFolderPanel(title, defaultLocation, string.Empty);
+                dialogManager ??= k_DefaultDialogManager;
 
-                validPath = importLocation.Contains(Application.dataPath) || string.IsNullOrEmpty(importLocation);
+                importLocation = dialogManager.OpenFolderPanel(title, directory, string.Empty);
 
-                if (!validPath)
+                isValidPath = string.IsNullOrEmpty(importLocation) ||
+                              IsPathSubdirectoryOfSecondPath(importLocation, directory);
+
+                if (!isValidPath)
                 {
-                    EditorUtility.DisplayDialog("Select a valid folder",
+                    dialogManager.DisplayDialog("Select a valid folder",
                         "The default import location must be located inside the Assets folder of your project.", "Ok");
                 }
-            } while (!validPath);
+            } while (!isValidPath);
 
             return importLocation;
+        }
+
+        static bool IsPathSubdirectoryOfSecondPath(string path1, string path2)
+        {
+            if (string.IsNullOrEmpty(path1))
+                return false;
+
+            var dataFolderDirectory = new DirectoryInfo(path2);
+            var inputPathDirectory = new DirectoryInfo(path1);
+
+            while (inputPathDirectory.Parent != null)
+            {
+                if (inputPathDirectory.Parent.FullName == dataFolderDirectory.FullName)
+                {
+                    return true;
+                }
+
+                inputPathDirectory = inputPathDirectory.Parent;
+            }
+
+            return false;
         }
 
         public static string GetUniqueFilename(ICollection<string> allFilenames, string filename)

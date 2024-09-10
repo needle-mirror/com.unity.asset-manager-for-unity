@@ -27,6 +27,7 @@ namespace Unity.AssetManager.Editor
 
         float m_AnimationLeftOffset;
         bool m_IsIndefinite;
+        Action m_CancelCallback;
 
         bool IsIndefinite
         {
@@ -72,6 +73,8 @@ namespace Unity.AssetManager.Editor
             }
             else
             {
+                m_CancelCallback = cancelCallback;
+
                 m_CancelButton = new Button();
                 Add(m_CancelButton);
 
@@ -82,11 +85,17 @@ namespace Unity.AssetManager.Editor
                 m_CancelButton.AddToClassList(UssStyles.k_ProgressBarDetailsPageCancelButton);
                 m_CancelButton.RemoveFromClassList("unity-button");
                 m_CancelButton.tooltip = L10n.Tr(Constants.CancelImportActionText);
-                m_CancelButton.clicked += cancelCallback.Invoke;
+                m_CancelButton.clicked += OnCancelClicked;
             }
 
             m_AnimationUpdate = schedule.Execute(UpdateProgressBar).Every(30);
             IsIndefinite = false;
+        }
+
+        void OnCancelClicked()
+        {
+            m_CancelCallback?.Invoke();
+            Hide();
         }
 
         void UpdateProgressBar(TimerState timerState)
@@ -112,14 +121,14 @@ namespace Unity.AssetManager.Editor
             switch (operation.Status)
             {
                 case OperationStatus.Success:
-                    m_CancelButton?.SetEnabled(false);
+                    m_CancelCallback = null;
                     m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarSuccess);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarError);
                     break;
 
                 case OperationStatus.Error:
-                    m_CancelButton?.SetEnabled(false);
+                    m_CancelCallback = null;
                     m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarError);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarSuccess);

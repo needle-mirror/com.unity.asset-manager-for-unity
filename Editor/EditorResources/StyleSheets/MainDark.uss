@@ -168,6 +168,10 @@ SearchBar {
 * Filters
 ************************************************/
 
+.unity-filters-sort-container {
+    background-color: #2D2D2D;
+}
+
 .unity-filters {
     background-color: #2D2D2D;
 }
@@ -191,6 +195,21 @@ SearchBar {
 .unity-filters-chip--set
 {
     background-color: #2C5D87;
+}
+
+/************************************************
+* Sort
+************************************************/
+.unity-sort-dropdown > .unity-base-field__input {
+    background-color: #585858;
+}
+
+.unity-sort-order{
+    background-color: #2D2D2D;
+}
+
+.unity-sort-order:hover{
+    background-color: #676767;
 }
 
 /************************************************

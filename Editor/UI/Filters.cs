@@ -52,6 +52,7 @@ namespace Unity.AssetManager.Editor
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_PageManager.ActivePageChanged += OnActivePageChanged;
+            m_PageManager.LoadingStatusChanged += OnPageManagerLoadingStatusChanged;
             if (PageFilters != null)
             {
                 PageFilters.EnableStatusChanged += OnEnableStatusChanged;
@@ -66,6 +67,7 @@ namespace Unity.AssetManager.Editor
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
+            m_PageManager.LoadingStatusChanged -= OnPageManagerLoadingStatusChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
             if (PageFilters != null)
@@ -84,6 +86,14 @@ namespace Unity.AssetManager.Editor
             PageFilters.FilterApplied += OnFilterApplied;
             PageFilters.FilterAdded += OnFilterAdded;
             Refresh();
+        }
+
+        void OnPageManagerLoadingStatusChanged(IPage page, bool isLoading)
+        {
+            if (!m_PageManager.IsActivePage(page))
+                return;
+
+            UIElementsUtils.SetDisplay(m_FilterButton, page.AssetList?.Any() ?? false);
         }
 
         void OnOrganizationChanged(OrganizationInfo organization)
@@ -131,6 +141,8 @@ namespace Unity.AssetManager.Editor
 
             m_FilterButton.SetEnabled(PageFilters?.IsAvailableFilters() ?? false);
             m_FilterButton.clicked += OnFilterButtonClicked;
+            
+            UIElementsUtils.SetDisplay(m_FilterButton, m_PageManager?.ActivePage?.AssetList?.Any() ?? false);
         }
 
         void OnFilterButtonClicked()
@@ -282,7 +294,7 @@ namespace Unity.AssetManager.Editor
             if (selection != null)
             {
                 AnalyticsSender.SendEvent(new FilterSearchEvent(filter.DisplayName, selection));
-                m_PageManager.ActivePage.LoadingStatusChanged += OnLoadingStatusChanged;
+                m_PageManager.ActivePage.LoadingStatusChanged += OnActivePageLoadingStatusChanged;
             }
 
             PageFilters.ApplyFilter(filter, selection);
@@ -311,11 +323,11 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        void OnLoadingStatusChanged(bool isLoading)
+        void OnActivePageLoadingStatusChanged(bool isLoading)
         {
             if (!isLoading)
             {
-                m_PageManager.ActivePage.LoadingStatusChanged -= OnLoadingStatusChanged;
+                m_PageManager.ActivePage.LoadingStatusChanged -= OnActivePageLoadingStatusChanged;
                 var filters = new List<FilterSearchResultEvent.FilterData>();
                 foreach (var filter in SelectedFilters)
                 {

@@ -9,11 +9,11 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Assets;
-using Unity.Cloud.Common;
-using Unity.Cloud.Common.Runtime;
-using Unity.Cloud.Identity;
-using Unity.Cloud.Identity.Editor;
+using Unity.Cloud.AssetsEmbedded;
+using Unity.Cloud.CommonEmbedded;
+using Unity.Cloud.CommonEmbedded.Runtime;
+using Unity.Cloud.IdentityEmbedded;
+using Unity.Cloud.IdentityEmbedded.Editor;
 using UnityEngine;
 using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
@@ -101,9 +101,10 @@ namespace Unity.AssetManager.Editor
 
         Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token);
         Task<AssetData> GetLatestAssetVersionAsync(AssetIdentifier assetIdentifier, CancellationToken token);
+        IAsyncEnumerable<AssetData> ListVersionInDescendingOrderAsync(AssetIdentifier assetIdentifier, CancellationToken token);
 
         IAsyncEnumerable<AssetData> SearchAsync(string organizationId, IEnumerable<string> projectIds,
-             AssetSearchFilter assetSearchFilter, int startIndex, int pageSize, CancellationToken token);
+             AssetSearchFilter assetSearchFilter, SortField sortField, SortingOrder sortingOrder, int startIndex, int pageSize, CancellationToken token);
         Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
             AssetSearchFilter assetSearchFilter,
             AssetSearchGroupBy groupBy, CancellationToken token);
@@ -114,11 +115,17 @@ namespace Unity.AssetManager.Editor
         Task RemoveAsset(AssetIdentifier assetIdentifier, CancellationToken token);
 
         Task UpdateAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token);
-        Task UpdateStatusAsync(AssetData assetData, AssetStatusAction statusAction, CancellationToken token);
+        Task UpdateStatusAsync(AssetData assetData, string statusName, CancellationToken token);
         Task FreezeAsync(AssetData assetData, string changeLog, CancellationToken token);
         Task RefreshAsync(AssetData assetData, CancellationToken token);
 
+        Task<Uri> GetPreviewUrlAsync(AssetData assetData, CancellationToken token);
+
         Task<AssetComparisonResult> CompareAssetWithCloudAsync(IAssetData assetData, CancellationToken token);
+
+        IAsyncEnumerable<AssetData> GetDependenciesAsync(AssetIdentifier assetIdentifier, Range range, CancellationToken token);
+        IAsyncEnumerable<AssetData> GetDependentsAsync(AssetIdentifier assetIdentifier, Range range, CancellationToken token);
+        Task UpdateDependenciesAsync(AssetIdentifier assetIdentifier, IEnumerable<AssetIdentifier> assetDependencies, CancellationToken token);
 
         // Files
 
@@ -130,9 +137,7 @@ namespace Unity.AssetManager.Editor
         Task<AssetDataFile> UploadFile(AssetData assetData, string destinationPath, Stream stream, IProgress<HttpProgress> progress, CancellationToken token);
         Task RemoveAllFiles(AssetData assetData, CancellationToken token);
 
-        // Miscs
-
-        void OnAfterDeserializeAssetData(AssetData assetData);
+        IAsyncEnumerable<AssetDataFile> ListFilesAsync(AssetData assetData, Range range, CancellationToken token);
     }
 
     static class AssetsProviderUploadExtensions
@@ -150,6 +155,7 @@ namespace Unity.AssetManager.Editor
         const string k_ThumbnailFilename = "unity_thumbnail.png";
         const string k_UVCSUrl = "cloud.plasticscm.com";
         const int k_MaxNumberOfFilesForAssetDownloadUrlFetch = 100;
+        static readonly int k_MaxConcurrentFileDeleteTasks = 20;
 
         [SerializeReference]
         IUnityConnectProxy m_UnityConnectProxy;
@@ -158,6 +164,7 @@ namespace Unity.AssetManager.Editor
         ISettingsManager m_SettingsManager;
 
         IAssetRepository m_AssetRepositoryOverride;
+
         IAssetRepository AssetRepository
         {
             get
@@ -172,7 +179,8 @@ namespace Unity.AssetManager.Editor
         }
 
         public AssetsSdkProvider()
-        { }
+        {
+        }
 
         /// <summary>
         /// Internal constructor that allow the IAssetRepository to be overriden. Only used for testing.
@@ -281,10 +289,11 @@ namespace Unity.AssetManager.Editor
         }
 
         public async IAsyncEnumerable<AssetData> SearchAsync(string organizationId, IEnumerable<string> projectIds,
-            AssetSearchFilter assetSearchFilter, int startIndex, int pageSize,
+            AssetSearchFilter assetSearchFilter, SortField sortField, SortingOrder sortingOrder, int startIndex, int pageSize,
             [EnumeratorCancellation] CancellationToken token)
         {
             var cloudAssetSearchFilter = Map(assetSearchFilter);
+            var cloudSortingOrder = Map(sortingOrder);
 
             var range = new Range(startIndex, startIndex + pageSize);
 
@@ -294,7 +303,7 @@ namespace Unity.AssetManager.Editor
             t.Start();
 
             var count = 0;
-            await foreach (var asset in SearchAsync(organizationId, projectIds, cloudAssetSearchFilter, range, token))
+            await foreach (var asset in SearchAsync(organizationId, projectIds, cloudAssetSearchFilter, sortField.ToString(), cloudSortingOrder, range, token))
             {
                 yield return asset;
                 ++count;
@@ -396,18 +405,25 @@ namespace Unity.AssetManager.Editor
                 await asset.RefreshAsync(token);
             }
 
-            return asset == null ? null : new AssetData(asset);
+            return Map(asset);
         }
 
         public async Task<AssetData> CreateUnfrozenVersionAsync(AssetData assetData, CancellationToken token)
         {
-            if (assetData != null && assetData.Asset != null)
+            if (assetData != null)
             {
-                var unfrozenVersion = await assetData.Asset.CreateUnfrozenVersionAsync(token);
-                return unfrozenVersion == null ? null : new AssetData(unfrozenVersion);
+                var asset = await InternalGetAssetAsync(assetData.Identifier, token);
+                var unfrozenVersion = await asset.CreateUnfrozenVersionAsync(token);
+                return unfrozenVersion == null ? null : Map(unfrozenVersion);
             }
 
             return null;
+        }
+
+        async Task<IAsset> InternalGetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token)
+        {
+            var asset = await AssetRepository.GetAssetAsync(Map(assetIdentifier), token);
+            return asset;
         }
 
         public async Task RemoveAsset(AssetIdentifier assetIdentifier, CancellationToken token)
@@ -426,8 +442,8 @@ namespace Unity.AssetManager.Editor
 
         public async Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token)
         {
-            var asset = await AssetRepository.GetAssetAsync(Map(assetIdentifier), token);
-            return asset == null ? null : new AssetData(asset);
+            var asset = await InternalGetAssetAsync(assetIdentifier, token);
+            return Map(asset);
         }
 
         public async Task<AssetData> GetLatestAssetVersionAsync(AssetIdentifier assetIdentifier, CancellationToken token)
@@ -437,13 +453,50 @@ namespace Unity.AssetManager.Editor
                 return null;
             }
 
-            var projectDescriptor = new ProjectDescriptor(new OrganizationId(assetIdentifier.OrganizationId),
-                new ProjectId(assetIdentifier.ProjectId));
-            var assetId = new AssetId(assetIdentifier.AssetId);
+            try
+            {
+                var projectDescriptor = new ProjectDescriptor(new OrganizationId(assetIdentifier.OrganizationId),
+                    new ProjectId(assetIdentifier.ProjectId));
+                var assetId = new AssetId(assetIdentifier.AssetId);
 
-            var project = await AssetRepository.GetAssetProjectAsync(projectDescriptor, token);
-            var asset = await project.GetAssetWithLatestVersionAsync(assetId, token);
-            return new AssetData(asset);
+                var project = await AssetRepository.GetAssetProjectAsync(projectDescriptor, token);
+                var asset = await project.GetAssetWithLatestVersionAsync(assetId, token);
+                return Map(asset);
+            }
+            catch (NotFoundException)
+            {
+                try
+                {
+                    await using var enumerator = ListVersionInDescendingOrderAsync(assetIdentifier, token)
+                        .GetAsyncEnumerator(token);
+                    return await enumerator.MoveNextAsync() ? enumerator.Current : default;
+                }
+                catch (NotFoundException)
+                {
+                    return null;
+                }
+            }
+        }
+
+        public async IAsyncEnumerable<AssetData> ListVersionInDescendingOrderAsync(AssetIdentifier assetIdentifier, [EnumeratorCancellation] CancellationToken token)
+        {
+            if (assetIdentifier == null)
+            {
+                yield break;
+            }
+
+            var asset = await InternalGetAssetAsync(assetIdentifier, token);
+            if (asset == null)
+            {
+                yield break;
+            }
+
+            await foreach (var version in asset.QueryVersions()
+                               .OrderBy("versionNumber", Unity.Cloud.AssetsEmbedded.SortingOrder.Descending)
+                               .ExecuteAsync(token))
+            {
+                yield return version == null ? null : Map(version);
+            }
         }
 
         public async Task<AssetComparisonResult> CompareAssetWithCloudAsync(IAssetData assetData, CancellationToken token)
@@ -456,28 +509,7 @@ namespace Unity.AssetManager.Editor
             try
             {
                 var assetIdentifier = assetData.Identifier;
-
-                AssetData cloudAsset = null;
-                try
-                {
-                    cloudAsset = await GetLatestAssetVersionAsync(assetIdentifier, token);
-                }
-                catch (NotFoundException)
-                {
-                    try
-                    {
-                        if (assetData is AssetData typedAssetData)
-                        {
-                            await using var enumerator = typedAssetData.GetAssetDataInDescendingVersionNumberOrder(token).GetAsyncEnumerator(token);
-                            var latestVersion = await enumerator.MoveNextAsync() ? enumerator.Current : default;
-                            cloudAsset = latestVersion;
-                        }
-                    }
-                    catch (NotFoundException)
-                    {
-                        cloudAsset = null;
-                    }
-                }
+                AssetData cloudAsset = await GetLatestAssetVersionAsync(assetIdentifier, token);
 
                 if (cloudAsset == null)
                 {
@@ -485,9 +517,9 @@ namespace Unity.AssetManager.Editor
                 }
 
                 return assetIdentifier == cloudAsset.Identifier && assetData.Updated != null &&
-                       assetData.Updated == cloudAsset.Updated
-                    ? AssetComparisonResult.UpToDate
-                    : AssetComparisonResult.OutDated;
+                    assetData.Updated == cloudAsset.Updated
+                        ? AssetComparisonResult.UpToDate
+                        : AssetComparisonResult.OutDated;
             }
             catch (ForbiddenException)
             {
@@ -498,6 +530,169 @@ namespace Unity.AssetManager.Editor
                 // Ignore unreachable host
                 return AssetComparisonResult.Unknown;
             }
+        }
+
+         public async IAsyncEnumerable<AssetData> GetDependenciesAsync(AssetIdentifier assetIdentifier, Range range,
+            [EnumeratorCancellation] CancellationToken token)
+        {
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+
+            var assetDescriptor = Map(assetIdentifier);
+            var project = await AssetRepository.GetAssetProjectAsync(assetDescriptor.ProjectDescriptor, token);
+
+            List<ProjectDescriptor> allProjectDescriptors = null;
+
+            await foreach (var reference in GetDependenciesAsync(project, assetDescriptor, range,
+                               AssetReferenceSearchFilter.Context.Source, token))
+            {
+                var asset = await FindAssetAsync(project, reference, assetDataManager, GetProjectDescriptors, token);
+                yield return asset;
+            }
+
+            // This is a temporary workaround for a regression in the Assets SDK where project ids of searched assets are empty
+            // We want to execute this only once and only if necessary.
+            async Task<IEnumerable<ProjectDescriptor>> GetProjectDescriptors(CancellationToken _token)
+            {
+                if (allProjectDescriptors == null)
+                {
+                    var allProjects = await AssetRepository
+                        .ListAssetProjectsAsync(assetDescriptor.OrganizationId, Range.All, _token).ToListAsync(_token);
+                    allProjectDescriptors = allProjects.Select(p => p.Descriptor).ToList();
+                }
+
+                return allProjectDescriptors;
+            }
+        }
+
+        async Task<AssetData> FindAssetAsync(IAssetProject project, IAssetReference reference, IAssetDataManager assetDataManager, Func<CancellationToken, Task<IEnumerable<ProjectDescriptor>>> getProjectDescriptors, CancellationToken token)
+        {
+            var filter = new Cloud.AssetsEmbedded.AssetSearchFilter();
+            filter.Include().Id.WithValue(reference.TargetAssetId.ToString());
+            // Referenced by version
+            if (reference.TargetAssetVersion.HasValue)
+            {
+                try
+                {
+                    // Search for the asset in the asset data manager
+                    var assetData = FindAssetAsync(assetDataManager, project.Descriptor, reference.TargetAssetId, reference.TargetAssetVersion.Value);
+                    if (assetData != null)
+                    {
+                        return assetData;
+                    }
+
+                    // Try to fetch the asset from the current project
+                    var asset = await project.GetAssetAsync(reference.TargetAssetId, reference.TargetAssetVersion.Value, token);
+                    return Map(asset);
+                }
+                catch (NotFoundException)
+                {
+                    // Continue to search for the asset in the entire organization
+                }
+
+                filter.Include().Version.WithValue(reference.TargetAssetVersion.Value.ToString());
+            }
+            // Referenced by label
+            else if (!string.IsNullOrEmpty(reference.TargetLabel))
+            {
+                try
+                {
+                    // Try to fetch the asset from the current project
+                    var asset = await project.GetAssetAsync(reference.TargetAssetId, reference.TargetLabel, token);
+                        return Map(asset);
+                }
+                catch (NotFoundException)
+                {
+                    // Continue to search for the asset in the entire organization
+                }
+
+                filter.Include().Labels.WithValue(reference.TargetLabel);
+            }
+            else
+            {
+                return null;
+            }
+
+            var allProjectDescriptors = await getProjectDescriptors.Invoke(token);
+            var query = AssetRepository.QueryAssets(allProjectDescriptors)
+                .SelectWhereMatchesFilter(filter)
+                .LimitTo(new Range(0, 1))
+                .ExecuteAsync(token);
+
+            var assets = await query.ToListAsync(token);
+            return Map(assets.FirstOrDefault());
+        }
+
+        AssetData FindAssetAsync(IAssetDataManager assetDataManager, ProjectDescriptor projectDescriptor, AssetId assetId, AssetVersion assetVersion)
+        {
+            var assetIdentifier = new AssetIdentifier(projectDescriptor.OrganizationId.ToString(), projectDescriptor.ProjectId.ToString(), assetId.ToString(), assetVersion.ToString());
+            return assetDataManager.GetAssetData(assetIdentifier) as AssetData;
+        }
+
+        async IAsyncEnumerable<IAssetReference> GetDependenciesAsync(IAssetProject project, AssetDescriptor assetDescriptor, Range range, AssetReferenceSearchFilter.Context context, [EnumeratorCancellation] CancellationToken token)
+        {
+            var filter = new AssetReferenceSearchFilter();
+            filter.AssetVersion.WhereEquals(assetDescriptor.AssetVersion);
+            filter.ReferenceContext.WhereEquals(context);
+
+            var query = project.QueryAssetReferences(assetDescriptor.AssetId)
+                .SelectWhereMatchesFilter(filter)
+                .LimitTo(range)
+                .ExecuteAsync(token);
+
+            await foreach(var reference in query)
+            {
+                if (!reference.IsValid)
+                {
+                    continue;
+                }
+
+                yield return reference;
+            }
+        }
+
+        public async IAsyncEnumerable<AssetData> GetDependentsAsync(AssetIdentifier assetIdentifier, Range range, [EnumeratorCancellation] CancellationToken token)
+        {
+            var assetDescriptor = Map(assetIdentifier);
+            var project = await AssetRepository.GetAssetProjectAsync(assetDescriptor.ProjectDescriptor, token);
+
+            await foreach(var reference in GetDependenciesAsync(project, assetDescriptor, range, AssetReferenceSearchFilter.Context.Target, token))
+            {
+                var asset = await project.GetAssetAsync(reference.SourceAssetId, reference.SourceAssetVersion, token);
+                yield return asset == null ? null : Map(asset);
+            }
+        }
+
+        public async Task UpdateDependenciesAsync(AssetIdentifier assetIdentifier, IEnumerable<AssetIdentifier> assetDependencies,
+            CancellationToken token)
+        {
+            var assetDescriptor = Map(assetIdentifier);
+            var project = await AssetRepository.GetAssetProjectAsync(assetDescriptor.ProjectDescriptor, token);
+            var asset = await AssetRepository.GetAssetAsync(assetDescriptor, token);
+
+            var assetDependenciesList = assetDependencies.Select(Map).ToList();
+
+            var tasks = new List<Task>();
+
+            // Remove all dependencies that are not explicitly ignored.
+            await foreach (var existingDependency in GetDependenciesAsync(project, assetDescriptor, Range.All,
+                               AssetReferenceSearchFilter.Context.Source, token))
+            {
+                // Remove existing dependencies from the input list.
+                var nb = assetDependenciesList.RemoveAll(dep =>
+                    dep.AssetId == existingDependency.TargetAssetId &&
+                    dep.AssetVersion == existingDependency.TargetAssetVersion);
+
+                // If this dependency is not in the input list, remove it.
+                if (nb == 0)
+                {
+                    tasks.Add(asset.RemoveReferenceAsync(existingDependency.ReferenceId, token));
+                }
+            }
+
+            // Add any remaining dependencies
+            tasks.AddRange(assetDependenciesList.Select(dependencyDescriptor => asset.AddReferenceAsync(dependencyDescriptor, token)));
+
+            await Task.WhenAll(tasks);
         }
 
         public Task EnableProjectAsync(CancellationToken token = default)
@@ -518,7 +713,7 @@ namespace Unity.AssetManager.Editor
             [EnumeratorCancellation] CancellationToken token)
         {
             // First call to backend requires a valid authentication state
-            while (Services.AuthenticationState != Unity.Cloud.Identity.AuthenticationState.LoggedIn)
+            while (Services.AuthenticationState != Unity.Cloud.IdentityEmbedded.AuthenticationState.LoggedIn)
             {
                 await Task.Delay(200, token);
             }
@@ -546,7 +741,8 @@ namespace Unity.AssetManager.Editor
         }
 
         async IAsyncEnumerable<AssetData> SearchAsync(string organizationId, IEnumerable<string> projectIds,
-            IAssetSearchFilter assetSearchFilter, Range range, [EnumeratorCancellation] CancellationToken token)
+            IAssetSearchFilter assetSearchFilter, string sortField, Cloud.AssetsEmbedded.SortingOrder sortingOrder, Range range,
+            [EnumeratorCancellation] CancellationToken token)
         {
             var strongTypedOrgId = new OrganizationId(organizationId);
             var projectDescriptors = projectIds
@@ -561,11 +757,12 @@ namespace Unity.AssetManager.Editor
 
             var assetQueryBuilder = AssetRepository.QueryAssets(projectDescriptors)
                 .LimitTo(range)
-                .SelectWhereMatchesFilter(assetSearchFilter);
+                .SelectWhereMatchesFilter(assetSearchFilter)
+                .OrderBy(sortField, sortingOrder);
 
             await foreach (var asset in assetQueryBuilder.ExecuteAsync(token))
             {
-                yield return asset == null ? null : new AssetData(asset);
+                yield return asset == null ? null : Map(asset);
             }
         }
 
@@ -583,12 +780,18 @@ namespace Unity.AssetManager.Editor
 
         async Task<IDataset> GetDatasetAsync(AssetData assetData, string systemTag, CancellationToken token)
         {
-            if (assetData?.Asset == null)
+            if (assetData == null)
             {
                 return null;
             }
 
-            await foreach (var dataset in assetData.Asset.ListDatasetsAsync(Range.All, token))
+            var asset = await InternalGetAssetAsync(assetData.Identifier, token);
+            if (asset == null)
+            {
+                return null;
+            }
+
+            await foreach (var dataset in asset.ListDatasetsAsync(Range.All, token))
             {
                 if (dataset.SystemTags != null && dataset.SystemTags.Contains(systemTag))
                 {
@@ -599,26 +802,61 @@ namespace Unity.AssetManager.Editor
             return null;
         }
 
-        public Task UpdateAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token)
+        public async Task UpdateAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token)
         {
             var cloudAssetUpdate = Map(assetUpdate);
-            return assetData?.Asset == null ? Task.CompletedTask : assetData.Asset.UpdateAsync(cloudAssetUpdate, token);
+            var asset = await InternalGetAssetAsync(assetData.Identifier, token);
+            if (asset == null)
+            {
+                return;
+            }
+            await asset.UpdateAsync(cloudAssetUpdate, token);
         }
 
-        public Task UpdateStatusAsync(AssetData assetData, AssetStatusAction statusAction, CancellationToken token)
+        public async Task UpdateStatusAsync(AssetData assetData, string statusName, CancellationToken token)
         {
-            var cloudStatusAction = Map(statusAction);
-            return assetData?.Asset == null ? Task.CompletedTask : assetData.Asset.UpdateStatusAsync(cloudStatusAction, token);
+            var asset = await InternalGetAssetAsync(assetData.Identifier, token);
+            if (asset == null)
+            {
+                return;
+            }
+            await asset.UpdateStatusAsync(statusName, token);
         }
 
-        public Task FreezeAsync(AssetData assetData, string changeLog, CancellationToken token)
+        public async Task FreezeAsync(AssetData assetData, string changeLog, CancellationToken token)
         {
-            return assetData?.Asset == null ? Task.CompletedTask : assetData.Asset.FreezeAsync(changeLog, token);
+            var asset = await InternalGetAssetAsync(assetData.Identifier, token);
+            if (asset == null)
+            {
+                return;
+            }
+            await asset.FreezeAsync(changeLog, token);
         }
 
-        public Task RefreshAsync(AssetData assetData, CancellationToken token)
+        public async Task RefreshAsync(AssetData assetData, CancellationToken token)
         {
-            return assetData?.Asset == null ? Task.CompletedTask : assetData.Asset.RefreshAsync(token);
+            var asset = await InternalGetAssetAsync(assetData.Identifier, token);
+            if (asset == null)
+            {
+                return;
+            }
+            await asset.RefreshAsync(token);
+        }
+
+        public async Task<Uri> GetPreviewUrlAsync(AssetData assetData, CancellationToken token)
+        {
+            if (assetData == null)
+            {
+                return null;
+            }
+
+            var asset = await InternalGetAssetAsync(assetData.Identifier, token);
+            if (asset == null)
+            {
+                return null;
+            }
+
+            return await asset.GetPreviewUrlAsync(token);
         }
 
         public async Task RemoveThumbnail(AssetData assetData, CancellationToken token)
@@ -630,10 +868,9 @@ namespace Unity.AssetManager.Editor
                 {
                     await dataset.RemoveFileAsync(k_ThumbnailFilename, token);
                 }
-                catch (ServiceException e)
+                catch (NotFoundException)
                 {
-                    if (e.StatusCode != HttpStatusCode.NotFound)
-                        throw;
+                    // Ignore if the file is not found
                 }
             }
         }
@@ -671,14 +908,37 @@ namespace Unity.AssetManager.Editor
                     filesToWipe.Add(file);
                 }
 
-                var deleteTasks = new List<Task>();
-
-                foreach (var file in filesToWipe)
+                try
                 {
-                    deleteTasks.Add(dataset.RemoveFileAsync(file.Descriptor.Path, token));
+                    await TaskUtils.RunWithMaxConcurrentTasksAsync(filesToWipe, token,
+                        file => dataset.RemoveFileAsync(file.Descriptor.Path, token), k_MaxConcurrentFileDeleteTasks);
                 }
+                catch (NotFoundException)
+                {
+                    // Ignore if the file is not found
+                }
+            }
+        }
 
-                await Task.WhenAll(deleteTasks);
+        public async IAsyncEnumerable<AssetDataFile> ListFilesAsync(AssetData assetData, Range range, [EnumeratorCancellation] CancellationToken token)
+        {
+            IDataset sourceDataset = null;
+
+            try
+            {
+                sourceDataset = await GetSourceDatasetAsync(assetData, token);
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the dataset is not found
+            }
+
+            if (sourceDataset != null)
+            {
+                await foreach (var file in sourceDataset.ListFilesAsync(range, token))
+                {
+                    yield return new AssetDataFile(file);
+                }
             }
         }
 
@@ -778,7 +1038,13 @@ namespace Unity.AssetManager.Editor
 
         public async Task<IReadOnlyDictionary<string, Uri>> GetAssetDownloadUrlsAsync(AssetData assetData, IProgress<FetchDownloadUrlsProgress> progress, CancellationToken token)
         {
-            if (assetData == null || assetData.Asset == null)
+            if (assetData == null)
+            {
+                return null;
+            }
+
+            var asset = await InternalGetAssetAsync(assetData.Identifier, token);
+            if (asset == null)
             {
                 return null;
             }
@@ -800,7 +1066,7 @@ namespace Unity.AssetManager.Editor
 
             // Count the asset because if the asset has < threshold files, we can retrieve all urls in a single calls
             int fileCount = 0;
-            await foreach (var _ in assetData.Asset.ListFilesAsync(..(k_MaxNumberOfFilesForAssetDownloadUrlFetch+1), token))
+            await foreach (var _ in asset.ListFilesAsync(..(k_MaxNumberOfFilesForAssetDownloadUrlFetch+1), token))
             {
                 fileCount++;
             }
@@ -814,15 +1080,15 @@ namespace Unity.AssetManager.Editor
             else
             {
                 // Fast track, request urls in a single call
-                result = await GetAssetDownloadUrlsSingleRequestAsync(assetData, sourceDataset, progress, token);
+                result = await GetAssetDownloadUrlsSingleRequestAsync(asset, sourceDataset, progress, token);
             }
 
             return result;
         }
 
-        async Task<Dictionary<string, Uri>> GetAssetDownloadUrlsSingleRequestAsync(AssetData assetData, IDataset sourceDataset, IProgress<FetchDownloadUrlsProgress> progress, CancellationToken token)
+        async Task<Dictionary<string, Uri>> GetAssetDownloadUrlsSingleRequestAsync(IAsset asset, IDataset sourceDataset, IProgress<FetchDownloadUrlsProgress> progress, CancellationToken token)
         {
-            if (assetData?.Asset == null || sourceDataset == null)
+            if (asset == null || sourceDataset == null)
             {
                 return null;
             }
@@ -831,7 +1097,7 @@ namespace Unity.AssetManager.Editor
 
             // Requesting all files url for the whole asset.
             progress?.Report(new FetchDownloadUrlsProgress("Downloading all urls at once", 0.2f));
-            var downloadUrls = await assetData.Asset.GetAssetDownloadUrlsAsync(token);
+            var downloadUrls = await asset.GetAssetDownloadUrlsAsync(token);
             foreach (var (filePath, url) in downloadUrls)
             {
                 // Check that the file is from the Source dataset (to be changed for something more robust)
@@ -900,12 +1166,69 @@ namespace Unity.AssetManager.Editor
             return result;
         }
 
-        public void OnAfterDeserializeAssetData(AssetData assetData)
+        public AssetData DeserializeAssetData(string content)
         {
-            if (!string.IsNullOrEmpty(assetData.AssetSerialized))
+            // If the Cloud SDKs have been enbedded, we need to modify the namespaces
+            if (typeof(IAsset).FullName != "Unity.Cloud.Assets.IAsset")
             {
-                assetData.Asset = AssetRepository.DeserializeAsset(assetData.AssetSerialized);
+                var updatedNamespace = typeof(IAsset).FullName.Replace("IAsset", string.Empty);
+                content = content.Replace("Unity.Cloud.Assets.", updatedNamespace);
             }
+
+            var asset = AssetRepository.DeserializeAsset(content);
+            if (asset == null)
+            {
+                return null;
+            }
+
+            return Map(asset);
+        }
+
+        static AssetData Map(IAsset asset)
+        {
+            if (asset == null)
+            {
+                return null;
+            }
+
+            return new AssetData(
+                Map(asset.Descriptor),
+                asset.FrozenSequenceNumber,
+                asset.ParentFrozenSequenceNumber,
+                asset.Changelog,
+                asset.Name,
+                Map(asset.Type),
+                asset.StatusName,
+                asset.Description,
+                asset.AuthoringInfo.Created,
+                asset.AuthoringInfo.Updated,
+                asset.AuthoringInfo.CreatedBy.ToString(),
+                asset.AuthoringInfo.UpdatedBy.ToString(),
+                asset.IsFrozen,
+                asset.Tags);
+
+        }
+
+        static AssetType Map(Unity.Cloud.AssetsEmbedded.AssetType assetType)
+        {
+            return assetType switch
+            {
+                Cloud.AssetsEmbedded.AssetType.Asset_2D => AssetType.Asset2D,
+                Cloud.AssetsEmbedded.AssetType.Model_3D => AssetType.Model3D,
+                Cloud.AssetsEmbedded.AssetType.Audio => AssetType.Audio,
+                Cloud.AssetsEmbedded.AssetType.Material => AssetType.Material,
+                Cloud.AssetsEmbedded.AssetType.Script => AssetType.Script,
+                Cloud.AssetsEmbedded.AssetType.Video => AssetType.Video,
+                Cloud.AssetsEmbedded.AssetType.Unity_Editor => AssetType.UnityEditor,
+                _ => AssetType.Other
+            };
+        }
+        static AssetIdentifier Map(AssetDescriptor descriptor)
+        {
+            return new AssetIdentifier(descriptor.OrganizationId.ToString(),
+                descriptor.ProjectId.ToString(),
+                descriptor.AssetId.ToString(),
+                descriptor.AssetVersion.ToString());
         }
 
         static AssetDescriptor Map(AssetIdentifier assetIdentifier)
@@ -925,20 +1248,20 @@ namespace Unity.AssetManager.Editor
                 new ProjectId(projectIdentifier.ProjectId));
         }
 
-        static AuthenticationState Map(Unity.Cloud.Identity.AuthenticationState authenticationState) =>
+        static AuthenticationState Map(Unity.Cloud.IdentityEmbedded.AuthenticationState authenticationState) =>
             authenticationState switch
             {
-                Unity.Cloud.Identity.AuthenticationState.AwaitingInitialization => AuthenticationState.AwaitingInitialization,
-                Unity.Cloud.Identity.AuthenticationState.AwaitingLogin => AuthenticationState.AwaitingLogin,
-                Unity.Cloud.Identity.AuthenticationState.LoggedIn => AuthenticationState.LoggedIn,
-                Unity.Cloud.Identity.AuthenticationState.AwaitingLogout => AuthenticationState.AwaitingLogout,
-                Unity.Cloud.Identity.AuthenticationState.LoggedOut => AuthenticationState.LoggedOut,
+                Unity.Cloud.IdentityEmbedded.AuthenticationState.AwaitingInitialization => AuthenticationState.AwaitingInitialization,
+                Unity.Cloud.IdentityEmbedded.AuthenticationState.AwaitingLogin => AuthenticationState.AwaitingLogin,
+                Unity.Cloud.IdentityEmbedded.AuthenticationState.LoggedIn => AuthenticationState.LoggedIn,
+                Unity.Cloud.IdentityEmbedded.AuthenticationState.AwaitingLogout => AuthenticationState.AwaitingLogout,
+                Unity.Cloud.IdentityEmbedded.AuthenticationState.LoggedOut => AuthenticationState.LoggedOut,
                 _ => throw new ArgumentOutOfRangeException(nameof(authenticationState), authenticationState, null)
             };
 
         static IAssetSearchFilter Map(AssetSearchFilter assetSearchFilter)
         {
-            var cloudAssetSearchFilter = new Cloud.Assets.AssetSearchFilter();
+            var cloudAssetSearchFilter = new Cloud.AssetsEmbedded.AssetSearchFilter();
 
             if (assetSearchFilter.CreatedBy != null)
             {
@@ -963,7 +1286,7 @@ namespace Unity.AssetManager.Editor
 
             if (assetSearchFilter.Collection != null)
             {
-                cloudAssetSearchFilter.Collections.WhereContains( new CollectionPath(assetSearchFilter.Collection));
+                cloudAssetSearchFilter.Collections.WhereContains(new CollectionPath(assetSearchFilter.Collection));
             }
 
             if (assetSearchFilter.Searches != null)
@@ -999,38 +1322,19 @@ namespace Unity.AssetManager.Editor
             return new StorageUsage(cloudStorageUsage.UsageBytes, cloudStorageUsage.TotalStorageQuotaBytes);
         }
 
-        static Unity.Cloud.Assets.AssetCreation Map(AssetCreation assetCreation)
+        static Unity.Cloud.AssetsEmbedded.AssetCreation Map(AssetCreation assetCreation)
         {
             if (assetCreation == null)
             {
                 return null;
             }
 
-            return new Unity.Cloud.Assets.AssetCreation(assetCreation.Name)
+            return new Unity.Cloud.AssetsEmbedded.AssetCreation(assetCreation.Name)
             {
                 Type = Map(assetCreation.Type),
                 Collections = assetCreation.Collections?.Select(x => new CollectionPath(x)).ToList(),
                 Tags = assetCreation.Tags
             };
-        }
-
-        static Unity.Cloud.Assets.AssetStatusAction Map(AssetStatusAction statusAction)
-        {
-            switch (statusAction)
-            {
-                case AssetStatusAction.Approve:
-                    return Unity.Cloud.Assets.AssetStatusAction.Approve;
-                case AssetStatusAction.SendForReview:
-                    return Unity.Cloud.Assets.AssetStatusAction.SendForReview;
-                case AssetStatusAction.Withdraw:
-                    return Unity.Cloud.Assets.AssetStatusAction.Withdraw;
-                case AssetStatusAction.Publish:
-                    return Unity.Cloud.Assets.AssetStatusAction.Publish;
-                case AssetStatusAction.Reject:
-                    return Unity.Cloud.Assets.AssetStatusAction.Reject;
-            }
-
-            throw new ArgumentOutOfRangeException(nameof(statusAction), statusAction, null);
         }
 
         static IAssetUpdate Map(AssetUpdate assetUpdate)
@@ -1040,7 +1344,7 @@ namespace Unity.AssetManager.Editor
                 return null;
             }
 
-            return new Unity.Cloud.Assets.AssetUpdate()
+            return new Unity.Cloud.AssetsEmbedded.AssetUpdate()
             {
                 Name = assetUpdate.Name,
                 Type = Map(assetUpdate.Type),
@@ -1049,17 +1353,28 @@ namespace Unity.AssetManager.Editor
             };
         }
 
-        static Cloud.Assets.AssetType Map(AssetType assetType)
+        static Cloud.AssetsEmbedded.AssetType Map(AssetType assetType)
         {
             return assetType switch
             {
-                AssetType.Asset2D => Cloud.Assets.AssetType.Asset_2D,
-                AssetType.Model3D => Cloud.Assets.AssetType.Model_3D,
-                AssetType.Audio => Cloud.Assets.AssetType.Audio,
-                AssetType.Material => Cloud.Assets.AssetType.Material,
-                AssetType.Script => Cloud.Assets.AssetType.Script,
-                AssetType.Video => Cloud.Assets.AssetType.Video,
-                _ => Cloud.Assets.AssetType.Other
+                AssetType.Asset2D => Cloud.AssetsEmbedded.AssetType.Asset_2D,
+                AssetType.Model3D => Cloud.AssetsEmbedded.AssetType.Model_3D,
+                AssetType.Audio => Cloud.AssetsEmbedded.AssetType.Audio,
+                AssetType.Material => Cloud.AssetsEmbedded.AssetType.Material,
+                AssetType.Script => Cloud.AssetsEmbedded.AssetType.Script,
+                AssetType.Video => Cloud.AssetsEmbedded.AssetType.Video,
+                AssetType.UnityEditor => Cloud.AssetsEmbedded.AssetType.Unity_Editor,
+                _ => Cloud.AssetsEmbedded.AssetType.Other
+            };
+        }
+
+        static Cloud.AssetsEmbedded.SortingOrder Map(SortingOrder sortingOrder)
+        {
+            return sortingOrder switch
+            {
+                SortingOrder.Ascending => Cloud.AssetsEmbedded.SortingOrder.Ascending,
+                SortingOrder.Descending => Cloud.AssetsEmbedded.SortingOrder.Descending,
+                _ => throw new ArgumentOutOfRangeException(nameof(sortingOrder), sortingOrder, null)
             };
         }
 
@@ -1098,7 +1413,7 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
-            public static Unity.Cloud.Identity.AuthenticationState AuthenticationState =>
+            public static Unity.Cloud.IdentityEmbedded.AuthenticationState AuthenticationState =>
                 UnityEditorServiceAuthorizer.instance.AuthenticationState;
 
             public static Action AuthenticationStateChanged;
@@ -1127,7 +1442,7 @@ namespace Unity.AssetManager.Editor
                 s_ProjectEnabler = new ProjectEnabler(s_ServiceHttpClient, s_ServiceHostResolver);
             }
 
-            static void OnAuthenticationStateChanged(Unity.Cloud.Identity.AuthenticationState state)
+            static void OnAuthenticationStateChanged(Unity.Cloud.IdentityEmbedded.AuthenticationState state)
             {
                 AuthenticationStateChanged?.Invoke();
             }

@@ -18,6 +18,8 @@ namespace Unity.AssetManager.Editor
         readonly Button m_ShowInProjectBrowserButton;
         readonly Button m_RemoveImportButton;
         readonly OperationProgressBar m_OperationProgressBar;
+        readonly VisualElement m_FooterVisualElement;
+        readonly IPageManager m_PageManager;
 
         public VisualElement ButtonsContainer { get; }
 
@@ -28,18 +30,20 @@ namespace Unity.AssetManager.Editor
 
         public AssetDetailsFooter(VisualElement visualElement)
         {
-            var footer = visualElement.Q("footer");
+            m_FooterVisualElement = visualElement.Q("footer");
+
+            m_PageManager = ServicesContainer.instance.Resolve<IPageManager>();
 
             var operationsContainer = new VisualElement();
             operationsContainer.AddToClassList(UssStyle.DetailsPageFooterContainer);
-            footer.Add(operationsContainer);
+            m_FooterVisualElement.Add(operationsContainer);
 
             m_OperationProgressBar = new OperationProgressBar(CancelOperationInProgress);
             operationsContainer.Add(m_OperationProgressBar);
 
             var buttonsContainer = new VisualElement();
             buttonsContainer.AddToClassList(UssStyle.DetailsPageFooterContainer);
-            footer.Add(buttonsContainer);
+            m_FooterVisualElement.Add(buttonsContainer);
 
             ButtonsContainer = buttonsContainer;
 
@@ -55,7 +59,10 @@ namespace Unity.AssetManager.Editor
 
         public void OnSelection(IAssetData assetData, bool isLoading) { }
 
-        public void RefreshUI(IAssetData assetData, bool isLoading = false) { }
+        public void RefreshUI(IAssetData assetData, bool isLoading = false)
+        {
+            UIElementsUtils.SetDisplay(m_FooterVisualElement, ((BasePage)m_PageManager.ActivePage).DisplayFooter);
+        }
 
         public void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress)
         {

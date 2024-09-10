@@ -86,7 +86,7 @@ namespace Unity.AssetManager.Editor
                 evt.StopPropagation();
                 popupManager.Hide();
 
-                var importLocation = Utilities.OpenFolderPanelInProject(L10n.Tr(Constants.ImportLocationTitle),
+                var importLocation = Utilities.OpenFolderPanelInDirectory(L10n.Tr(Constants.ImportLocationTitle),
                     Constants.AssetsFolderName);
 
                 if (string.IsNullOrEmpty(importLocation))

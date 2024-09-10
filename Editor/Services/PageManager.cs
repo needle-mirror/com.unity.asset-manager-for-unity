@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -7,6 +8,8 @@ namespace Unity.AssetManager.Editor
     interface IPageManager : IService
     {
         IPage ActivePage { get; }
+        SortField SortField { get; set; }
+        SortingOrder SortingOrder { get; set; }
         bool IsActivePage(IPage page);
         event Action<IPage> ActivePageChanged;
         event Action<IPage, bool> LoadingStatusChanged;
@@ -20,6 +23,12 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class PageManager : BaseService<IPageManager>, IPageManager, ISerializationCallbackReceiver
     {
+        [SerializeField]
+        SortField m_SortField;
+
+        [SerializeField]
+        SortingOrder m_SortingOrder;
+
         [SerializeReference]
         IUnityConnectProxy m_UnityConnectProxy;
 
@@ -36,6 +45,18 @@ namespace Unity.AssetManager.Editor
         IPage m_ActivePage;
 
         public bool IsActivePage(IPage page) => m_ActivePage == page;
+
+        public SortField SortField
+        {
+            get => m_SortField;
+            set => m_SortField = value;
+        }
+
+        public SortingOrder SortingOrder
+        {
+            get => m_SortingOrder;
+            set => m_SortingOrder = value;
+        }
 
         public event Action<IPage> ActivePageChanged;
         public event Action<IPage, bool> LoadingStatusChanged;
@@ -57,22 +78,14 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
 
             m_ActivePage?.OnEnable();
         }
 
-        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
-        {
-            if (!cloudServicesReachable && m_ActivePage is not InProjectPage)
-            {
-                SetActivePage<InProjectPage>();
-            }
-        }
-
         public override void OnDisable()
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
 
             m_ActivePage?.OnDisable();
         }
@@ -85,7 +98,8 @@ namespace Unity.AssetManager.Editor
             m_ActivePage?.OnDeactivated();
             m_ActivePage?.OnDisable();
 
-            if (typeof(T) == typeof(CollectionPage) && string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProject?.Id))
+            if (typeof(T) == typeof(CollectionPage) &&
+                string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProject?.Id))
             {
                 m_ActivePage = CreatePage<AllAssetsPage>();
             }
@@ -98,6 +112,14 @@ namespace Unity.AssetManager.Editor
             m_ActivePage?.OnActivated();
 
             ActivePageChanged?.Invoke(m_ActivePage);
+        }
+
+        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            if (!cloudServicesReachable && m_ActivePage is not InProjectPage)
+            {
+                SetActivePage<InProjectPage>();
+            }
         }
 
         void RegisterPageEvents(IPage page)

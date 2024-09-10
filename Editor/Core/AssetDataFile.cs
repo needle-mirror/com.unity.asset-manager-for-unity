@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Cloud.Assets;
+using Unity.Cloud.AssetsEmbedded;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor

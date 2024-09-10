@@ -247,7 +247,7 @@ namespace Unity.AssetManager.Editor
                 a => { EditorUtility.RevealInFinder(m_SettingsManager.DefaultImportLocation); });
             importLocationDropdown.menu.AppendAction(L10n.Tr(Constants.ChangeLocationLabel), a =>
             {
-                string importLocation = Utilities.OpenFolderPanelInProject(L10n.Tr(Constants.ImportLocationTitle),
+                string importLocation = Utilities.OpenFolderPanelInDirectory(L10n.Tr(Constants.ImportLocationTitle),
                     m_SettingsManager.DefaultImportLocation);
 
                 // the user clicked cancel

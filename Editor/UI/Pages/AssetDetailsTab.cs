@@ -23,6 +23,7 @@ namespace Unity.AssetManager.Editor
 
         public override AssetDetailsPageTabs.TabType Type => AssetDetailsPageTabs.TabType.Details;
         public override bool IsFooterVisible => true;
+        public override bool EnabledWhenDisconnected => true;
         public override VisualElement Root { get; }
 
         public AssetDetailsTab(VisualElement visualElement)

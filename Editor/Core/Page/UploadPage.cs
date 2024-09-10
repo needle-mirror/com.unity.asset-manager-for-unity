@@ -2,11 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Common;
+using Unity.Cloud.CommonEmbedded;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -27,11 +26,18 @@ namespace Unity.AssetManager.Editor
         }
     }
 
+    // We need the context to be both static and serializable.
+    // A ScriptableSingleton is a good way to achieve this.
+    class UploadContextScriptableObject : ScriptableSingleton<UploadContextScriptableObject>
+    {
+        [SerializeField]
+        public UploadContext UploadContext = new();
+    }
+
     [Serializable]
     class UploadPage : BasePage
     {
-        [SerializeField]
-        UploadContext m_UploadContext = new();
+        UploadContext m_UploadContext => UploadContextScriptableObject.instance.UploadContext;
 
         static readonly string k_PopupUssClassName = "upload-page-settings-popup";
 
@@ -59,6 +65,7 @@ namespace Unity.AssetManager.Editor
         public override bool DisplayBreadcrumbs => true;
         public override bool DisplayFilters => false;
         public override bool DisplaySettings => true;
+        public override bool DisplayFooter => false;
 
         public UploadPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
             IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
@@ -109,8 +116,6 @@ namespace Unity.AssetManager.Editor
             m_UploadContext.SetOrganizationInfo(m_ProjectOrganizationProvider.SelectedOrganization);
             m_UploadContext.SetProjectId(m_ProjectOrganizationProvider.SelectedProject?.Id);
             m_UploadContext.SetCollectionPath(m_ProjectOrganizationProvider.SelectedCollection?.GetFullPath());
-
-            m_UploadContext.ClearAll();
         }
 
         public override void OpenSettings(VisualElement target)
@@ -364,9 +369,9 @@ namespace Unity.AssetManager.Editor
             {
                 // All Exception are logged in the IUploaderManager
                 // If it happens to be a ServiceClientException, we provide visual feedback to user
-                if (e is ServiceClientException serviceClientException)
+                if (e is ServiceException serviceException)
                 {
-                    DisplayErrorMessageFromServiceClientException(serviceClientException);
+                    DisplayErrorMessageFromServiceException(serviceException);
                 }
             }
             finally
@@ -376,15 +381,17 @@ namespace Unity.AssetManager.Editor
 
                 if (task.IsCompletedSuccessfully)
                 {
+                    m_UploadContext.ClearAll();
                     UpdateCancelButtonLabel();
                     GoBackToCollectionPage();
                 }
             }
         }
 
-        void DisplayErrorMessageFromServiceClientException(ServiceClientException serviceClientException)
+        void DisplayErrorMessageFromServiceException(ServiceException exp)
         {
-            var uploadErrorMessage = $"Upload operation was refused. {serviceClientException.Detail}.";
+            var expDetail = string.IsNullOrEmpty(exp.Detail) ? exp.Message : exp.Detail;
+            var uploadErrorMessage = $"Upload operation failed : [{exp.StatusCode}] {expDetail}";
             SetMessageData(uploadErrorMessage, RecommendedAction.OpenAssetManagerDocumentationPage,
                 false, HelpBoxMessageType.Error);
         }

@@ -19,12 +19,14 @@ namespace Unity.AssetManager.Editor
             public Button TabButton { get; }
             public VisualElement TabContent { get; }
             public bool DisplayFooter { get; }
+            public bool EnabledWhenDisconnected { get; }
 
-            public TabDetails(Button tabButton, VisualElement tabContent, bool displayFooter)
+            public TabDetails(Button tabButton, VisualElement tabContent, bool displayFooter, bool enabledWhenDisconnected)
             {
                 TabButton = tabButton;
                 TabContent = tabContent;
                 DisplayFooter = displayFooter;
+                EnabledWhenDisconnected = enabledWhenDisconnected;
             }
         }
 
@@ -34,8 +36,15 @@ namespace Unity.AssetManager.Editor
         readonly Dictionary<TabType, TabDetails> m_TabContents = new();
 
         readonly IUIPreferences m_UIPreferences;
+        readonly IUnityConnectProxy m_UnityConnectProxy;
 
         bool m_IsFooterVisible;
+
+        TabType ActiveTabType
+        {
+            get => (TabType)m_UIPreferences.GetInt("AssetDetailsPageTabs.ActiveTab", 0);
+            set => m_UIPreferences.SetInt("AssetDetailsPageTabs.ActiveTab", (int)value);
+        }
 
         public AssetDetailsPageTabs(VisualElement visualElement, VisualElement footer, IEnumerable<AssetTab> assetTabs)
         {
@@ -48,17 +57,19 @@ namespace Unity.AssetManager.Editor
                 {
                     text = L10n.Tr(tab.Type.ToString())
                 };
-                button.clicked += () => { SetActiveTab(tab.Type); };
+                button.clicked += () =>
+                {
+                    SetActiveTab(tab.Type);
+                };
                 m_TabsContainer.Add(button);
 
-                m_TabContents[tab.Type] = new TabDetails(button, tab.Root, tab.IsFooterVisible);
+                m_TabContents[tab.Type] = new TabDetails(button, tab.Root, tab.IsFooterVisible, tab.EnabledWhenDisconnected);
             }
 
+            m_UnityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
             m_UIPreferences = ServicesContainer.instance.Resolve<IUIPreferences>();
 
-            var activeTab = (TabType) m_UIPreferences.GetInt("AssetDetailsPageTabs.ActiveTab", 0);
-
-            SetActiveTab(activeTab);
+            SetActiveTab(ActiveTabType);
         }
 
         public void OnSelection(IAssetData assetData, bool isLoading)
@@ -76,7 +87,42 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void RefreshUI(IAssetData assetData, bool isLoading = false) { }
+        public void RefreshUI(IAssetData assetData, bool isLoading = false)
+        {
+            foreach (var kvp in m_TabContents)
+            {
+                var button = kvp.Value.TabButton;
+                if (m_UnityConnectProxy.AreCloudServicesReachable || kvp.Value.EnabledWhenDisconnected)
+                {
+                    button.SetEnabled(kvp.Key != ActiveTabType);
+                    kvp.Value.TabButton.RemoveFromClassList("details-page-tabs-button--disabled");
+                }
+                else
+                {
+                    button.SetEnabled(false);
+                    kvp.Value.TabButton.AddToClassList("details-page-tabs-button--disabled");
+                }
+            }
+
+            if(!m_UnityConnectProxy.AreCloudServicesReachable && !m_TabContents[ActiveTabType].EnabledWhenDisconnected)
+            {
+                foreach (var kvp in m_TabContents)
+                {
+                    if (kvp.Value.EnabledWhenDisconnected)
+                    {
+                        SetActiveTab(kvp.Key);
+                        return;
+                    }
+                }
+
+                // If no tab is enabled when disconnected, hide the active content
+                UIElementsUtils.Hide(m_TabContents[ActiveTabType].TabContent);
+            }
+            else if (m_UnityConnectProxy.AreCloudServicesReachable)
+            {
+                UIElementsUtils.Show(m_TabContents[ActiveTabType].TabContent);
+            }
+        }
 
         public void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress)
         {
@@ -85,12 +131,12 @@ namespace Unity.AssetManager.Editor
 
         void SetActiveTab(TabType activeTabType)
         {
-            m_UIPreferences.SetInt("AssetDetailsPageTabs.ActiveTab", (int) activeTabType);
+            ActiveTabType = activeTabType;
 
             foreach (var kvp in m_TabContents)
             {
                 var isActive = activeTabType == kvp.Key;
-                kvp.Value.TabButton.SetEnabled(!isActive);
+                kvp.Value.TabButton.SetEnabled(!isActive && (m_UnityConnectProxy.AreCloudServicesReachable || kvp.Value.EnabledWhenDisconnected));
                 UIElementsUtils.SetDisplay(kvp.Value.TabContent, isActive);
 
                 if (isActive)

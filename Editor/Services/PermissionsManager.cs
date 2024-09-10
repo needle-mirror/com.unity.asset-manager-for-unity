@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Common;
-using Unity.Cloud.Identity;
+using Unity.Cloud.CommonEmbedded;
+using Unity.Cloud.IdentityEmbedded;
 using UnityEngine;
 namespace Unity.AssetManager.Editor
 {

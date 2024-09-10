@@ -48,7 +48,7 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             OnActivePageChanged(m_PageManager.ActivePage);
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
@@ -56,7 +56,7 @@ namespace Unity.AssetManager.Editor
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= OnProjectSelectionChanged;
         }
@@ -74,7 +74,7 @@ namespace Unity.AssetManager.Editor
         {
             Add(child);
             child.RefreshSelectionStatus();
-            
+
             ChangeIntoParentFolder();
         }
 

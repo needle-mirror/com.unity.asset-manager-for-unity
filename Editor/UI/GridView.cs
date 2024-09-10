@@ -24,6 +24,10 @@ namespace Unity.AssetManager.Editor
         const int k_ExtraVisibleRows = 2;
         const float k_FooterHeight = 40;
         const float k_MinSidePadding = k_DefaultItemWidth / 2f;
+        static readonly string k_ScrollViewContentName = "unity-content-container";
+        static readonly string k_ScrollViewContentAndVerticalScrollName = "unity-content-and-vertical-scroll-container";
+        static readonly string k_GridViewRowClassName = "grid-view--row";
+        static readonly string k_GridViewItemDummyClassName = "grid-view--item-dummy";
 
         int m_MaxVisibleItems;
         readonly ScrollView m_ScrollView;
@@ -47,6 +51,7 @@ namespace Unity.AssetManager.Editor
         int m_VisibleRowCount;
 
         internal event Action GridViewLastItemVisible;
+        internal event Action BackgroundClicked;
 
         public new class UxmlFactory : UxmlFactory<GridView> { }
 
@@ -124,9 +129,9 @@ namespace Unity.AssetManager.Editor
             get => m_ColumnCount;
             set
             {
-                if (m_ColumnCount != value && value > 0)
+                if (m_ColumnCount != value)
                 {
-                    m_ColumnCount = value;
+                    m_ColumnCount = Math.Max(value, 1);
                     Refresh(RefreshRowsType.ResizeGridWidth);
                 }
             }
@@ -155,6 +160,8 @@ namespace Unity.AssetManager.Editor
             m_ScrollView.AddToClassList("grid-view-scrollbar");
             m_ScrollView.StretchToParentSize();
             m_ScrollView.verticalScroller.valueChanged += OnScroll;
+
+            m_ScrollView.RegisterCallback<ClickEvent>(OnBackgroundClicked);
 
             RegisterCallback<GeometryChangedEvent>(OnSizeChanged);
             m_Stopwatch.Start();
@@ -243,6 +250,18 @@ namespace Unity.AssetManager.Editor
             {
                 m_FirstVisibleIndex = firstVisibleIndex;
                 Scrolling();
+            }
+        }
+
+        void OnBackgroundClicked(ClickEvent evt)
+        {
+            var target = (VisualElement)evt.target;
+            if (target.name == k_ScrollViewContentName
+                || target.name == k_ScrollViewContentAndVerticalScrollName
+                || target.ClassListContains(k_GridViewRowClassName)
+                || target.ClassListContains(k_GridViewItemDummyClassName))
+            {
+                BackgroundClicked?.Invoke();
             }
         }
 

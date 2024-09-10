@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Common;
+using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.AssetManager.Editor
 {

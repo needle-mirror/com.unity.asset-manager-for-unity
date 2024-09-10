@@ -20,6 +20,7 @@ namespace Unity.AssetManager.Editor
         public abstract AssetDetailsPageTabs.TabType Type { get; }
         public abstract bool IsFooterVisible { get; }
         public abstract VisualElement Root { get; }
+        public abstract bool EnabledWhenDisconnected { get; }
 
         protected static void AddLoadingText(VisualElement container)
         {

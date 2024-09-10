@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.Common;
+using Unity.Cloud.CommonEmbedded;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -13,6 +13,12 @@ namespace Unity.AssetManager.Editor
 {
     class UploadOperation : AssetDataOperation, IProgress<HttpProgress>
     {
+        const string k_StatusInReview = "InReview";
+        const string k_StatusApproved = "Approved";
+
+        // All files upload from every assets should be limited in how many can be uploaded at the same time.
+        static readonly SemaphoreSlim k_MaxFileUploadSemaphore = new(50);
+
         readonly HashSet<HttpProgress> m_HttpProgresses = new();
         readonly IUploadAsset m_UploadAsset;
 
@@ -49,23 +55,48 @@ namespace Unity.AssetManager.Editor
         public async Task PrepareUploadAsync(AssetData asset, IDictionary<string, AssetData> guidToAssetLookup,
             CancellationToken token = default)
         {
+            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+
+            ReportStep("Preparing manifest...");
+
+            var dependencies = new List<AssetIdentifier>();
+
             var tasks = new List<Task>();
 
             // Dependency manifest
             if (m_UploadAsset.Dependencies.Any())
             {
-                ReportStep("Preparing manifest...");
-
-                foreach (var depGuid in m_UploadAsset.Dependencies)
+                foreach (var dependencyGuid in m_UploadAsset.Dependencies)
                 {
-                    if (guidToAssetLookup.TryGetValue(depGuid, out var depAsset))
+                    if (guidToAssetLookup.TryGetValue(dependencyGuid, out var depAsset))
                     {
-                        tasks.Add(UploadDependencySystemFileAsync(asset, depAsset, token));
+                        dependencies.Add(depAsset.Identifier);
+                    }
+
+                    // If the dependency wasn't found in the guid lookup it means it's an existing asset and not a new upload.
+                    else
+                    {
+                        tasks.Add(AddDependencyAsync(dependencies, asset.Identifier, dependencyGuid, token));
                     }
                 }
             }
 
             await Task.WhenAll(tasks);
+
+            // Even if there are no dependencies, we may need to clear any existing dependencies
+            await assetsProvider.UpdateDependenciesAsync(asset.Identifier, dependencies, token);
+        }
+
+        static async Task AddDependencyAsync(List<AssetIdentifier> dependencies, AssetIdentifier assetIdentifier,
+            string dependencyGuid, CancellationToken token)
+        {
+            var existingAsset = await AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(
+                dependencyGuid, assetIdentifier.OrganizationId, assetIdentifier.ProjectId, token);
+
+            if (existingAsset != null)
+            {
+                dependencies.Add(existingAsset.Identifier);
+            }
         }
 
         public async Task UploadAsync(AssetData asset, CancellationToken token = default)
@@ -78,21 +109,16 @@ namespace Unity.AssetManager.Editor
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
 
             // Upload files tasks
-            var uploadTasks = new List<Task>();
             var uploadThumbnailTask = Task.FromResult<AssetDataFile>(null);
 
             // Files inside the asset entry
-            foreach (var file in m_UploadAsset.Files)
-            {
-                if (string.IsNullOrEmpty(file.SourcePath))
+            await TaskUtils.RunWithMaxConcurrentTasksAsync(m_UploadAsset.Files.Where(file => !string.IsNullOrEmpty(file.SourcePath)), token,
+                file =>
                 {
-                    continue;
-                }
-
-                ReportStep($"Preparing file {Path.GetFileName(file.SourcePath)}");
-
-                uploadTasks.Add(assetsProvider.UploadFile(asset, file.DestinationPath, file.SourcePath, this, token));
-            }
+                    ReportStep($"Preparing file {Path.GetFileName(file.SourcePath)}");
+                    var task = assetsProvider.UploadFile(asset, file.DestinationPath, file.SourcePath, this, token);
+                    return task;
+                }, k_MaxFileUploadSemaphore);
 
             // Thumbnail
             if (RequiresThumbnail(assetInstance, assetPath))
@@ -106,7 +132,6 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
-            await Task.WhenAll(uploadTasks);
             var thumbnailFile = await uploadThumbnailTask;
 
             if (thumbnailFile != null && !string.IsNullOrEmpty(thumbnailFile.Path))
@@ -126,9 +151,8 @@ namespace Unity.AssetManager.Editor
 
             try
             {
-                await assetsProvider.UpdateStatusAsync(asset, AssetStatusAction.SendForReview, token);
-                await assetsProvider.UpdateStatusAsync(asset, AssetStatusAction.Approve, token);
-                await assetsProvider.UpdateStatusAsync(asset, AssetStatusAction.Publish, token);
+                await assetsProvider.UpdateStatusAsync(asset, k_StatusInReview, token);
+                await assetsProvider.UpdateStatusAsync(asset, k_StatusApproved, token);
             }
             catch (Exception e)
             {
@@ -169,20 +193,6 @@ namespace Unity.AssetManager.Editor
         static Task<Texture2D> GetThumbnailAsync(Object asset, string assetPath)
         {
             return AssetManagerPreviewer.GenerateAdvancedPreview(asset, assetPath, 512);
-        }
-
-        async Task UploadDependencySystemFileAsync(AssetData assetData, AssetData dependencyAsset,
-            CancellationToken token)
-        {
-            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-
-            var dependencyAssetId = dependencyAsset.Identifier.AssetId;
-            var dependencyAssetVersion = dependencyAsset.Identifier.Version;
-            var dependencyFilePath =
-                AssetDataDependencyHelper.EncodeDependencySystemFilename(dependencyAssetId, dependencyAssetVersion);
-
-            using var stream = new MemoryStream(new byte[] { });
-            await assetsProvider.UploadFile(assetData, dependencyFilePath, stream, this, token);
         }
 
         static bool RequiresThumbnail(Object assetInstance, string assetPath)

@@ -172,7 +172,7 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
             m_OperationManager.OperationProgressChanged += RefreshOperationProgress;
             m_OperationManager.OperationFinished += RefreshOperationProgress;
@@ -188,7 +188,7 @@ namespace Unity.AssetManager.Editor
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
             m_OperationManager.OperationProgressChanged -= RefreshOperationProgress;
             m_OperationManager.OperationFinished -= RefreshOperationProgress;

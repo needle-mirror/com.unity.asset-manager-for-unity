@@ -75,7 +75,7 @@ namespace Unity.AssetManager.Editor
         protected override void BindItem(MultiSelectionItem element, int index)
         {
             var fileItem = m_FilesList[index];
-            element.Refresh(fileItem);
+            TaskUtils.TrackException(element.Refresh(fileItem));
         }
     }
 }

@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -55,6 +54,7 @@ namespace Unity.AssetManager.Editor
         public virtual bool DisplaySideBar => true;
         public virtual bool DisplayFilters => true;
         public virtual bool DisplaySettings => false;
+        public virtual bool DisplayFooter => true;
 
         public event Action<bool> LoadingStatusChanged;
         public event Action<IReadOnlyCollection<AssetIdentifier>> SelectedAssetsChanged;
@@ -113,6 +113,7 @@ namespace Unity.AssetManager.Editor
         {
             m_PageFilters.SearchFiltersChanged += OnSearchFiltersChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
             if (!m_ReTriggerSearchAfterDomainReload)
                 return;
@@ -125,6 +126,7 @@ namespace Unity.AssetManager.Editor
         {
             m_PageFilters.SearchFiltersChanged -= OnSearchFiltersChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= OnProjectSelectionChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
             if (!IsLoading)
                 return;
@@ -295,6 +297,11 @@ namespace Unity.AssetManager.Editor
             m_PageManager.SetActivePage<CollectionPage>();
         }
 
+        private void OnOrganizationChanged(OrganizationInfo obj)
+        {
+            m_PageManager.ActivePage.ClearSelection();
+        }
+
         protected async IAsyncEnumerable<IAssetData> LoadMoreAssets(CollectionInfo collectionInfo,
             [EnumeratorCancellation] CancellationToken token)
         {
@@ -323,7 +330,7 @@ namespace Unity.AssetManager.Editor
 
             var count = 0;
             await foreach (var cloudAssetData in m_AssetsProvider.SearchAsync(organizationId, projectIds, assetSearchFilter,
-                               m_NextStartIndex, Constants.DefaultPageSize, token))
+                               m_PageManager.SortField, m_PageManager.SortingOrder, m_NextStartIndex, Constants.DefaultPageSize, token))
             {
                 ++count;
 

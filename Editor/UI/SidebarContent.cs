@@ -55,7 +55,7 @@ namespace Unity.AssetManager.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
 
             Refresh();
@@ -69,7 +69,7 @@ namespace Unity.AssetManager.Editor
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
 
             m_StateManager.SideBarScrollValue = m_ScrollContainer.verticalScroller.value;

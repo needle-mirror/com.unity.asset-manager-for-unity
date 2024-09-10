@@ -194,14 +194,14 @@ namespace Unity.AssetManager.Editor
         {
             m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_UnityConnectProxy.OrganizationIdChanged += OnProjectStateChanged;
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
         }
 
         public override void OnDisable()
         {
             m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_UnityConnectProxy.OrganizationIdChanged -= OnProjectStateChanged;
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
         }
 
         void OnAuthenticationStateChanged(AuthenticationState newState)

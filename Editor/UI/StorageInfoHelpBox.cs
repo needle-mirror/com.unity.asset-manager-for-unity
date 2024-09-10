@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Unity.Cloud.Identity;
+using Unity.Cloud.IdentityEmbedded;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;

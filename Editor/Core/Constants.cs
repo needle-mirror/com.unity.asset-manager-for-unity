@@ -12,6 +12,9 @@ namespace Unity.AssetManager.Editor
 
         public const int DefaultPageSize = 50;
 
+        // Sort
+        public const string Sort = "Sort by:";
+
         // Tabs
         public const string AssetsTabLabel = "Assets";
         public const string InProjectTabLabel = "In Project";

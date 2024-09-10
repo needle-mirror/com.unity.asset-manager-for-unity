@@ -10,17 +10,13 @@ namespace Unity.AssetManager.Editor
         Audio = 3,
         Material = 4,
         Script = 5,
-        Video = 6
+        Video = 6,
+        UnityEditor = 7
     }
 
     static class AssetTypeExtensions
     {
-        internal static string DisplayValue(this AssetType assetType)
-        {
-            return assetType.GetValueAsString();
-        }
-
-        static string GetValueAsString(this AssetType assetType)
+        public static string DisplayValue(this AssetType assetType)
         {
             return assetType switch
             {
@@ -31,6 +27,7 @@ namespace Unity.AssetManager.Editor
                 AssetType.Other => "Other",
                 AssetType.Script => "Script",
                 AssetType.Video => "Video",
+                AssetType.UnityEditor => "Unity Editor",
                 _ => string.Empty
             };
         }
@@ -39,19 +36,19 @@ namespace Unity.AssetManager.Editor
         {
             return unityAssetType switch
             {
-                UnityAssetType.AnimationClip => AssetType.Other,
+                UnityAssetType.AnimationClip => AssetType.UnityEditor,
                 UnityAssetType.AudioClip => AssetType.Audio,
-                UnityAssetType.AudioMixer => AssetType.Audio,
+                UnityAssetType.AudioMixer => AssetType.UnityEditor,
                 UnityAssetType.Font => AssetType.Other,
-                UnityAssetType.Material => AssetType.Material,
+                UnityAssetType.Material => AssetType.UnityEditor,
                 UnityAssetType.Mesh => AssetType.Model3D,
-                UnityAssetType.PhysicMaterial => AssetType.Other,
-                UnityAssetType.Prefab => AssetType.Model3D,
-                UnityAssetType.Scene => AssetType.Other,
-                UnityAssetType.Script => AssetType.Other,
-                UnityAssetType.Shader => AssetType.Other,
+                UnityAssetType.PhysicMaterial => AssetType.UnityEditor,
+                UnityAssetType.Prefab => AssetType.UnityEditor,
+                UnityAssetType.Scene => AssetType.UnityEditor,
+                UnityAssetType.Script => AssetType.UnityEditor,
+                UnityAssetType.Shader => AssetType.UnityEditor,
                 UnityAssetType.Texture => AssetType.Asset2D,
-                UnityAssetType.VisualEffect => AssetType.Other,
+                UnityAssetType.VisualEffect => AssetType.UnityEditor,
                 _ => AssetType.Other
             };
         }

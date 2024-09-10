@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
@@ -28,6 +27,7 @@ namespace Unity.AssetManager.Editor
         SearchBar m_SearchBar;
         Breadcrumbs m_Breadcrumbs;
         Filters m_Filters;
+        Sort m_Sort;
         TwoPaneSplitView m_CategoriesSplit;
         TwoPaneSplitView m_InspectorSplit;
         Button m_SettingsButton;
@@ -157,8 +157,7 @@ namespace Unity.AssetManager.Editor
 
             var storageInfoHelpBoxContainer = new VisualElement();
             storageInfoHelpBoxContainer.AddToClassList("HelpBoxContainer");
-            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
-            var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_AssetsProvider, unityConnectProxy);
+            var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_AssetsProvider, m_UnityConnect);
             storageInfoHelpBoxContainer.Add(storageInfoHelpBox);
             m_SearchContentSplitViewContainer.Add(storageInfoHelpBoxContainer);
 
@@ -197,8 +196,15 @@ namespace Unity.AssetManager.Editor
             m_SearchBar = new SearchBar(m_PageManager, m_ProjectOrganizationProvider);
             m_SearchContentSplitViewContainer.Add(m_SearchBar);
 
+            var filtersSortContainer = new VisualElement();
+            filtersSortContainer.AddToClassList("unity-filters-sort-container");
+            m_SearchContentSplitViewContainer.Add(filtersSortContainer);
+
             m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider, m_PopupManager);
-            m_SearchContentSplitViewContainer.Add(m_Filters);
+            filtersSortContainer.Add(m_Filters);
+
+            m_Sort = new Sort();
+            filtersSortContainer.Add(m_Sort);
 
             var content = new VisualElement();
             content.AddToClassList("AssetManagerContentView");
@@ -270,7 +276,8 @@ namespace Unity.AssetManager.Editor
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged += OnLoadingStateChanged;
-            m_UnityConnect.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_UnityConnect.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_Sort.ValueChanged += OnSortValueChanged;
         }
 
         void UnregisterCallbacks()
@@ -282,7 +289,8 @@ namespace Unity.AssetManager.Editor
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged -= OnLoadingStateChanged;
-            m_UnityConnect.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_UnityConnect.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_Sort.ValueChanged -= OnSortValueChanged;
         }
 
         void OnInspectorResized(GeometryChangedEvent evt)
@@ -309,6 +317,13 @@ namespace Unity.AssetManager.Editor
         void OnLoadingStateChanged(bool isLoading)
         {
             m_LoadingScreen.SetVisible(isLoading);
+        }
+
+        void OnSortValueChanged(SortField sortField, SortingOrder sortingOrder)
+        {
+            m_PageManager.SortField = sortField;
+            m_PageManager.SortingOrder = sortingOrder;
+            m_PageManager.ActivePage?.Clear(reloadImmediately:true, clearSelection:false);
         }
 
         void SetInspectorVisibility(IEnumerable<AssetIdentifier> assets)
@@ -349,6 +364,7 @@ namespace Unity.AssetManager.Editor
 
             UIElementsUtils.SetDisplay(m_SearchBar, basePage.DisplaySearchBar);
             UIElementsUtils.SetDisplay(m_Filters, basePage.DisplayFilters);
+            UIElementsUtils.SetDisplay(m_Sort, basePage.DisplayFilters);
             UIElementsUtils.SetDisplay(m_SettingsButton, basePage.DisplaySettings);
 
             if (basePage.DisplaySideBar)

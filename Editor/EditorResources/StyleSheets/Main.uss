@@ -404,6 +404,14 @@ is not intended properly and we need this to fix that issue*/
 /************************************************
 * Filters
 ************************************************/
+.unity-filters-sort-container{
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    flex-grow: 1;
+    justify-content: space-between;
+}
+
 .unity-filters {
     flex-direction: row;
     flex-wrap: wrap;
@@ -469,7 +477,7 @@ is not intended properly and we need this to fix that issue*/
 
 .unity-filters-chip-container {
     flex-direction: row;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     flex-shrink: 0;
 }
 
@@ -486,6 +494,43 @@ is not intended properly and we need this to fix that issue*/
     width: 12px;
     height: 12px;
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Close.png');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+/************************************************
+* Sort
+************************************************/
+.unity-sort{
+    flex-direction: row;
+    flex-shrink: 0;
+    padding-top: 6px;
+    padding-right: 8px;
+    padding-bottom: 6px;
+}
+
+.unity-sort-dropdown > .unity-label {
+    min-width: 0;
+}
+
+.unity-sort-dropdown > .unity-popup-field__input {
+    width: 110px;
+}
+
+.unity-sort-order {
+    border-width: 0;
+    margin: 0;
+    padding: 0;
+    width: 21px;
+    height: 21px;
+}
+
+.unity-sort-order--ascending {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Arrow-Up.png');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+.unity-sort-order--descending {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/EditorResources/Images/Icons/Arrow-Down.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
@@ -1085,7 +1130,7 @@ AssetsGridView {
 .grid-view--row {
     flex-direction: row;
     flex-shrink: 0;
-    justify-content: center;
+    justify-content: flex-start;
     margin: 2.5px 6px;
 }
 
@@ -1412,6 +1457,11 @@ AssetDetailsPage {
     border-color: rgb(222, 222, 222);
 }
 
+.details-page-tabs Button.details-page-tabs-button--disabled {
+    color: rgb(158, 158, 158);
+    border-width: 0;
+}
+
 .asset-name {
     padding: 5px;
     align-self: center;
@@ -1431,41 +1481,6 @@ AssetDetailsPage {
     border-radius: 5px;
     height: 18px;
     -unity-text-overflow-position: end;
-}
-
-.asset-status-chip
-{
-    width: 10px;
-    height: 10px;
-    border-radius: 5px;
-    margin: 5px;
-    align-self: center;
-    flex-shrink: 0;
-    background-color: rgba(255, 255, 255, 255);
-}
-
-.asset-version--draft {
-    background-color: rgba(243,204,96,255);
-}
-
-.asset-version--in-review {
-    background-color: rgba(77,143,247,255);
-}
-
-.asset-version--approved {
-    background-color: rgba(92,162,112,255);
-}
-
-.asset-version--rejected {
-    background-color: rgba(206,83,82,255);
-}
-
-.asset-version--published {
-    background-color: rgba(86,163,148,255);
-}
-
-.asset-version--withdrawn {
-    background-color: rgba(224,112,45,255);
 }
 
 .details-page-close-button {

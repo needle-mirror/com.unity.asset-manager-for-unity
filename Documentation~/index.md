@@ -1,25 +1,12 @@
-# About the Asset Manager
+# Asset Manager for Unity Editor
 
-The Asset Manager is an In-Editor tool that allows you to browse and import individual assets directly into your project. This package will add a new dockable window where assets are displayed and interacted with.
+### How to use Unity Cloud assets in your Unity Editor projects.
 
-This package is available as an experimental package, so it is not ready for production use.
+---
 
-## Known Limitations
+Asset Manager for Unity is a package that enables you to easily browse, import, upload assets between the Unity Editor and Asset Manager. To use the package’s functionality, you need to install the package in Unity Editor. Asset Manager for Unity enables you to easily find the assets you need. You can now:
 
-* The Asset Manager will only search for complete words
-
-# Using the Asset Manager
-
-The Asset Manager can be accessed through the Window Menu > Asset Manager option.
-
-The window's main components are:
-1. Project Selector
-2. Search Bar
-2. Collections Filter panel
-3. Breadcrumbs
-4. Assets view panel
-4. Asset details panel
-5. In Project section
-
-# Asset Manager workflows
-
+* Upload assets from the Unity Editor to Asset Manager in Unity Cloud.
+* Search, browse, and preview cloud assets in Unity Editor.
+* Import cloud assets into your Editor project.
+* Manage your imported assets with features like search, re-import, and remove.

@@ -82,7 +82,7 @@ namespace Unity.AssetManager.Editor
 
         public override void OnEnable()
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_DownloadManager.DownloadFinalized += OnDownloadFinalized;
             m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
@@ -90,7 +90,7 @@ namespace Unity.AssetManager.Editor
 
         public override void OnDisable()
         {
-            m_UnityConnectProxy.OnCloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_DownloadManager.DownloadFinalized -= OnDownloadFinalized;
             m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
