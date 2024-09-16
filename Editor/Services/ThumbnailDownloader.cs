@@ -79,7 +79,7 @@ namespace Unity.AssetManager.Editor
             var thumbnailUrl = $"https://transformation.unity.com/api/images?url={Uri.EscapeDataString(url)}&width={180}"; // 180 is roughly the size of the Detail panel thumbnail
             var thumbnailFileName = Hash128.Compute(thumbnailUrl).ToString();
 
-            var thumbnail = LoadThumbnail(thumbnailUrl,
+            var thumbnail = LoadThumbnail(url,
                 Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName));
 
             if (thumbnail != null)
@@ -130,7 +130,17 @@ namespace Unity.AssetManager.Editor
 
             m_ThumbnailDownloadCallbacks.Remove(thumbnailUrl);
 
-            var thumbnail = DownloadHandlerTexture.GetContent(asyncOperation.webRequest);
+            Texture2D thumbnail = null;
+
+            if (asyncOperation.webRequest.result == UnityWebRequest.Result.Success)
+            {
+                thumbnail = DownloadHandlerTexture.GetContent(asyncOperation.webRequest);
+            }
+            else
+            {
+                Debug.LogError("Unable to download thumbnail. Error: " + asyncOperation.webRequest.error);
+            }
+
             foreach (var callback in callbacks)
             {
                 callback?.Invoke(assetId, thumbnail);

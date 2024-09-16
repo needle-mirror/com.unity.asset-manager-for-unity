@@ -2,11 +2,11 @@
   "name": "Unity.Cloud.Identity.Runtime.Embedded",
   "rootNamespace": "Unity.Cloud.Identity.Runtime",
   "references": [
-    "GUID:48549effa43eca04ea0277e20bb9c058",
-    "GUID:8b332028f7fef8b42acb4b8751f1778f",
-    "GUID:9fd91fe89ad07b74b8360e8ce561ba85",
-    "GUID:5f2561e4a85ae4946aa6d8735b099ca7",
-    "GUID:8ba99dac61a6bab4babc3087a0880fc2"
+    "GUID:a96aa8fb4a1cf594ebf9f7348f9684ec",
+    "GUID:22f78d1a9abb55c45a7a311c9504f0e3",
+    "GUID:56058c56b2fd14445b257c3f4055eb46",
+    "GUID:14b497f0e20b4c4408f68c784ed61ac0",
+    "GUID:0184ee56c47a54943bc23b7695d07d1c"
   ],
   "includePlatforms": [
     "Editor"

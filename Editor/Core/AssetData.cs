@@ -498,19 +498,9 @@ namespace Unity.AssetManager.Editor
 
         async Task GetThumbnailUrlAsync(CancellationToken token)
         {
-        	var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
 
-            AssetData latestVersion;
-            if(m_Versions is { Count: > 0 })
-            {
-                latestVersion = (AssetData)m_Versions.FirstOrDefault();
-            }
-            else
-            {
-                latestVersion = await assetsSdkProvider.GetLatestAssetVersionAsync(m_Identifier, token);
-            }
-
-            m_GetPreviewStatusTask ??= assetsSdkProvider.GetPreviewUrlAsync(latestVersion ?? this, token);
+            m_GetPreviewStatusTask ??= assetsSdkProvider.GetPreviewUrlAsync(this, token);
 
             Uri previewFileUrl = null;
 

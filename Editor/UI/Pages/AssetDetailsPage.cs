@@ -380,6 +380,9 @@ namespace Unity.AssetManager.Editor
                 SetFileSize?.Invoke("-");
                 SetFileCount?.Invoke("-");
 
+                RefreshUI();
+                RefreshScrollView();
+
                 tasks.Add(m_SelectedAssetData.SyncWithCloudAsync(identifier =>
                 {
                     if (!identifier.Equals(m_SelectedAssetData?.Identifier))

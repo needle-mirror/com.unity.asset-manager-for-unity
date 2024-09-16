@@ -2,8 +2,8 @@
   "name": "Unity.Cloud.Assets.Runtime.Embedded",
   "rootNamespace": "Unity.Cloud.Assets.Runtime",
   "references": [
-    "GUID:8b332028f7fef8b42acb4b8751f1778f",
-    "GUID:e2f751c05e7a47b43ba4fc014c3d8f40"
+    "GUID:22f78d1a9abb55c45a7a311c9504f0e3",
+    "GUID:869040c80fda8824f93a7021e645e31b"
   ],
   "includePlatforms": [
     "Editor"
