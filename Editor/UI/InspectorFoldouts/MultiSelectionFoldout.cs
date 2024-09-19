@@ -50,9 +50,9 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void SetButtonDisplayed(bool displayed)
+        public void SetButtonEnable(bool enabled)
         {
-            UIElementsUtils.SetDisplay(m_Button, displayed);
+            m_Button.SetEnabled(enabled);
         }
 
         protected override IList PrepareListItem(IAssetData assetData, IEnumerable<IAssetData> items)

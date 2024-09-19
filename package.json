@@ -1,13 +1,17 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.0.0-pre.1",
+  "version": "1.0.0",
   "unity": "2022.3",
   "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.",
   "keywords": [
     "asset",
     "packages",
-    "preview"
+    "preview",
+    "management",
+    "versioning",
+    "pipeline",
+    "library"
   ],
   "dependencies": {
     "com.unity.settings-manager": "2.0.1",
@@ -16,18 +20,18 @@
     "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.0.0-pre.1"
+    "com.unity.asset-manager-for-unity.tests": "1.0.0"
   },
   "_upm": {
-    "changelog": "- Fixed WEbGL platform issue\n- Improved perfromance of some operations"
+    "changelog": "[Changed]\n- Now discoverable on Package Manager\n- Included more tags for discoverability in Package Manager"
   },
   "upmCi": {
-    "footprint": "74b2e662a198f214221b0393520d684b272ac4c3"
+    "footprint": "2886297e85ae2238de008bdb1df35eaf78b8c772"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.0/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "8d1af851b2ee04386768b169ae4c0140de0e83aa"
+    "revision": "c79bd59d748738c1cad6a1f9bafaad27e84c6ef9"
   }
 }

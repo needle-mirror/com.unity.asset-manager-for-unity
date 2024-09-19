@@ -12,5 +12,3 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Unity.Cloud.AppLinking.Embedded")]
 [assembly: InternalsVisibleTo("Unity.Cloud.AppLinking.Editor.Embedded")]
 [assembly: InternalsVisibleTo("Unity.Cloud.AppLinking.Runtime.Embedded")]
-[assembly: InternalsVisibleTo("Unity.Cloud.AppLinking.Tests.Editor.Embedded")]
-[assembly: InternalsVisibleTo("Unity.Cloud.AppLinking.Tests.Embedded")]

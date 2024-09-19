@@ -124,7 +124,7 @@ namespace Unity.AssetManager.Editor
             if (m_AssetData is UploadAssetData uploadAssetData)
             {
                 m_AssetPreview.EnableInClassList("asset-preview--upload", true);
-                m_AssetPreview.Toggle.value = !uploadAssetData.IsIgnored;
+                m_AssetPreview.Toggle.SetValueWithoutNotify(!uploadAssetData.IsIgnored);
                 m_AssetPreview.Toggle.tooltip = uploadAssetData.IsIgnored ?
                     L10n.Tr(Constants.IncludeToggleTooltip) :
                     L10n.Tr(Constants.IgnoreToggleTooltip);

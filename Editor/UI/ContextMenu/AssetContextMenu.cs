@@ -37,6 +37,9 @@ namespace Unity.AssetManager.Editor
             Action<DropdownMenuAction> action)
 
         {
+            if(evt == null || evt.menu == null)
+                return;
+
             evt.menu.InsertAction(0, actionName, action,
                 enabled ? DropdownMenuAction.Status.Normal : DropdownMenuAction.Status.Disabled);
         }

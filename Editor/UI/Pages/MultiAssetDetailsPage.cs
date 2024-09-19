@@ -253,6 +253,8 @@ namespace Unity.AssetManager.Editor
 
         void PopulateFoldout(FoldoutName foldoutName, IEnumerable<IAssetData> items)
         {
+            var haveEmptyAsset = items.Any(i => !i.SourceFiles.Any());
+            m_Foldouts[foldoutName].SetButtonEnable(!haveEmptyAsset);
             m_Foldouts[foldoutName].StartPopulating();
             var assetDatas = items.ToList();
             if (assetDatas.Any())

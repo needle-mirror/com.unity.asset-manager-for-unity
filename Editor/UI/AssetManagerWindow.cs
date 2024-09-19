@@ -1,8 +1,6 @@
 using System;
 using UnityEngine;
 using UnityEditor;
-using UnityEditor.SceneManagement;
-using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor

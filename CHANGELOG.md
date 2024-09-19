@@ -4,18 +4,36 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2024-09-19
+[Changed]
+- Now discoverable on Package Manager
+- Included more tags for discoverability in Package Manager
+
+## [1.0.0-pre.2] - 2024-09-17
+[Changed]
+- Disabled contextual import option if an asset contains no file
+- Disabled import button in multi selection panel if at least one asset is empty (contains no file)
+
+[Fixed]
+- Sort button is only visible in state where it should
+- Filter button doesn't hide when loading
+- Fixed scroll down in Upload tab when an asset is ignored
+
+
 ## [1.0.0-pre.1] - 2024-09-16
+[Fixed]
 - Fixed WEbGL platform issue
 - Improved perfromance of some operations 
 
 
 ## [1.0.0-exp.5] - 2024-09-10
+[Fixed]
 - Fixed deserialization issue
 - Fixed dependency fetching performance
 - Fixed successful upload not clearing the upload page
 
-## [1.0.0-exp.4] - 2024-09-09
 
+## [1.0.0-exp.4] - 2024-09-09
 [Added]
 - Ability to sort grid items by name, modified/uploaded date, description, asset type and status
 - Added UnityEditor AssetType

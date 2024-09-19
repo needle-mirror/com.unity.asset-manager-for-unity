@@ -41,9 +41,10 @@ namespace Unity.AssetManager.Editor
                 return;
 
             var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
-            if (selectedAssetData.Count > 1 && selectedAssetData.Any(ad => ad.Identifier.AssetId == TargetAssetData.Identifier.AssetId))
+            if (selectedAssetData.Count > 1 && selectedAssetData.Exists(ad => ad.Identifier.AssetId == TargetAssetData.Identifier.AssetId))
             {
-                AddMenuEntry(evt, L10n.Tr(Constants.ImportAllSelectedActionText), true,
+                var containsAssetWithoutSourceFiles = selectedAssetData.Exists(ad => !ad.SourceFiles.Any());
+                AddMenuEntry(evt, L10n.Tr(Constants.ImportAllSelectedActionText), !containsAssetWithoutSourceFiles,
                     _ =>
                     {
                         m_AssetImporter.StartImportAsync(selectedAssetData, ImportOperation.ImportType.UpdateToLatest);
@@ -68,6 +69,7 @@ namespace Unity.AssetManager.Editor
             enabled |= UIEnabledStates.ServicesReachable.GetFlag(m_UnityConnectProxy.AreCloudServicesReachable);
             enabled |= UIEnabledStates.ValidStatus.GetFlag(status == null || !string.IsNullOrEmpty(status.ActionText));
             enabled |= UIEnabledStates.IsImporting.GetFlag(IsImporting);
+            enabled |= UIEnabledStates.CanImport.GetFlag(TargetAssetData.SourceFiles.Any());
 
             AddMenuEntry(evt, text, AssetDetailsPageExtensions.IsImportAvailable(enabled),
                 _ =>

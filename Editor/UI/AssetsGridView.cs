@@ -191,7 +191,7 @@ namespace Unity.AssetManager.Editor
         {
             return e =>
             {
-                if(e.target is Toggle)
+                if(e.target is Toggle || e.button != (int)MouseButton.LeftMouse)
                     return;
 
                 m_IsClickedItemAlreadySelected =

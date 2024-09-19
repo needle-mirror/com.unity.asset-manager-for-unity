@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -8,8 +9,8 @@ namespace Unity.AssetManager.Editor
     interface IPageManager : IService
     {
         IPage ActivePage { get; }
-        SortField SortField { get; set; }
-        SortingOrder SortingOrder { get; set; }
+        SortField SortField { get; }
+        SortingOrder SortingOrder { get; }
         bool IsActivePage(IPage page);
         event Action<IPage> ActivePageChanged;
         event Action<IPage, bool> LoadingStatusChanged;
@@ -18,17 +19,28 @@ namespace Unity.AssetManager.Editor
         event Action<IPage, MessageData> MessageThrown;
 
         void SetActivePage<T>(bool forceChange = false) where T : IPage;
+        void SetSortValues(SortField sortField, SortingOrder sortingOrder);
+    }
+
+    enum SortingOrder
+    {
+        Ascending,
+        Descending
+    }
+
+    enum SortField
+    {
+        Name,
+        Updated,
+        Created,
+        Description,
+        PrimaryType,
+        Status
     }
 
     [Serializable]
     class PageManager : BaseService<IPageManager>, IPageManager, ISerializationCallbackReceiver
     {
-        [SerializeField]
-        SortField m_SortField;
-
-        [SerializeField]
-        SortingOrder m_SortingOrder;
-
         [SerializeReference]
         IUnityConnectProxy m_UnityConnectProxy;
 
@@ -44,18 +56,21 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         IPage m_ActivePage;
 
+        const string k_SortFieldPrefKey = "com.unity.asset-manager-for-unity.sortField";
+        const string k_SortingOrderKey = "com.unity.asset-manager-for-unity.sortingOrder";
+
         public bool IsActivePage(IPage page) => m_ActivePage == page;
 
         public SortField SortField
         {
-            get => m_SortField;
-            set => m_SortField = value;
+            get => (SortField)EditorPrefs.GetInt(k_SortFieldPrefKey, (int)SortField.Name);
+            set => EditorPrefs.SetInt(k_SortFieldPrefKey, (int)value);
         }
 
         public SortingOrder SortingOrder
         {
-            get => m_SortingOrder;
-            set => m_SortingOrder = value;
+            get => (SortingOrder)EditorPrefs.GetInt(k_SortingOrderKey, (int)SortingOrder.Ascending);
+            set => EditorPrefs.SetInt(k_SortingOrderKey, (int)value);
         }
 
         public event Action<IPage> ActivePageChanged;
@@ -112,6 +127,17 @@ namespace Unity.AssetManager.Editor
             m_ActivePage?.OnActivated();
 
             ActivePageChanged?.Invoke(m_ActivePage);
+        }
+
+        public void SetSortValues(SortField sortField, SortingOrder sortingOrder)
+        {
+            if(sortField == SortField && sortingOrder == SortingOrder)
+                return;
+
+            SortField = sortField;
+            SortingOrder = sortingOrder;
+
+            ActivePage?.Clear(reloadImmediately:true, clearSelection:false);
         }
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)

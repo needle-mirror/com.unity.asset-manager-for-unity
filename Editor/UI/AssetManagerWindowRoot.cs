@@ -203,7 +203,7 @@ namespace Unity.AssetManager.Editor
             m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider, m_PopupManager);
             filtersSortContainer.Add(m_Filters);
 
-            m_Sort = new Sort();
+            m_Sort = new Sort(m_PageManager, m_ProjectOrganizationProvider);
             filtersSortContainer.Add(m_Sort);
 
             var content = new VisualElement();
@@ -277,7 +277,6 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged += OnLoadingStateChanged;
             m_UnityConnect.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
-            m_Sort.ValueChanged += OnSortValueChanged;
         }
 
         void UnregisterCallbacks()
@@ -290,7 +289,6 @@ namespace Unity.AssetManager.Editor
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged -= OnLoadingStateChanged;
             m_UnityConnect.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
-            m_Sort.ValueChanged -= OnSortValueChanged;
         }
 
         void OnInspectorResized(GeometryChangedEvent evt)
@@ -317,13 +315,6 @@ namespace Unity.AssetManager.Editor
         void OnLoadingStateChanged(bool isLoading)
         {
             m_LoadingScreen.SetVisible(isLoading);
-        }
-
-        void OnSortValueChanged(SortField sortField, SortingOrder sortingOrder)
-        {
-            m_PageManager.SortField = sortField;
-            m_PageManager.SortingOrder = sortingOrder;
-            m_PageManager.ActivePage?.Clear(reloadImmediately:true, clearSelection:false);
         }
 
         void SetInspectorVisibility(IEnumerable<AssetIdentifier> assets)

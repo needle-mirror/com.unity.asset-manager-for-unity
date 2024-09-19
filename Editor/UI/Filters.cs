@@ -8,7 +8,7 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    class Filters : VisualElement
+    class Filters : GridTool
     {
         const string k_UssClassName = "unity-filters";
         const string k_ItemButtonClassName = k_UssClassName + "-button";
@@ -21,8 +21,6 @@ namespace Unity.AssetManager.Editor
         const string k_ItemChipDeleteClassName = k_ItemChipClassName + "-delete";
         const string k_SelfCenterClassName = "self-center";
 
-        readonly IPageManager m_PageManager;
-        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IPopupManager m_PopupManager;
         readonly Dictionary<VisualElement, BaseFilter> m_FilterPerChip = new();
 
@@ -33,26 +31,22 @@ namespace Unity.AssetManager.Editor
 
         PageFilters PageFilters => m_PageManager?.ActivePage?.PageFilters;
         List<BaseFilter> SelectedFilters => PageFilters?.SelectedFilters ?? new List<BaseFilter>();
+        protected override VisualElement Container => m_FilterButton;
 
         public Filters(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            IPopupManager popupManager)
+            IPopupManager popupManager): base(pageManager, projectOrganizationProvider)
         {
-            m_PageManager = pageManager;
-            m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_PopupManager = popupManager;
 
             AddToClassList(k_UssClassName);
 
             InitializeUI();
-
-            RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
-            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
 
-        void OnAttachToPanel(AttachToPanelEvent evt)
+        protected override void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_PageManager.ActivePageChanged += OnActivePageChanged;
-            m_PageManager.LoadingStatusChanged += OnPageManagerLoadingStatusChanged;
+            base.OnAttachToPanel(evt);
+
             if (PageFilters != null)
             {
                 PageFilters.EnableStatusChanged += OnEnableStatusChanged;
@@ -61,14 +55,11 @@ namespace Unity.AssetManager.Editor
             }
 
             m_PopupManager.Container.RegisterCallback<FocusOutEvent>(DeleteEmptyChip);
-            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
         }
 
-        void OnDetachFromPanel(DetachFromPanelEvent evt)
+        protected override void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_PageManager.ActivePageChanged -= OnActivePageChanged;
-            m_PageManager.LoadingStatusChanged -= OnPageManagerLoadingStatusChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+            base.OnDetachFromPanel(evt);
 
             if (PageFilters != null)
             {
@@ -80,25 +71,20 @@ namespace Unity.AssetManager.Editor
             m_PopupManager.Container.UnregisterCallback<FocusOutEvent>(DeleteEmptyChip);
         }
 
-        void OnActivePageChanged(IPage page)
+        protected override void OnActivePageChanged(IPage page)
         {
             PageFilters.EnableStatusChanged += OnEnableStatusChanged;
             PageFilters.FilterApplied += OnFilterApplied;
             PageFilters.FilterAdded += OnFilterAdded;
             Refresh();
+
+            base.OnActivePageChanged(page);
         }
 
-        void OnPageManagerLoadingStatusChanged(IPage page, bool isLoading)
+        protected override void InitDisplay(IPage page)
         {
-            if (!m_PageManager.IsActivePage(page))
-                return;
-
-            UIElementsUtils.SetDisplay(m_FilterButton, page.AssetList?.Any() ?? false);
-        }
-
-        void OnOrganizationChanged(OrganizationInfo organization)
-        {
-            UIElementsUtils.SetDisplay(m_FilterButton, organization != null && organization.ProjectInfos.Any());
+            UIElementsUtils.SetDisplay(Container,
+                SelectedFilters.Any() || (page?.AssetList?.Any() ?? false));
         }
 
         void Refresh()
@@ -141,8 +127,6 @@ namespace Unity.AssetManager.Editor
 
             m_FilterButton.SetEnabled(PageFilters?.IsAvailableFilters() ?? false);
             m_FilterButton.clicked += OnFilterButtonClicked;
-            
-            UIElementsUtils.SetDisplay(m_FilterButton, m_PageManager?.ActivePage?.AssetList?.Any() ?? false);
         }
 
         void OnFilterButtonClicked()

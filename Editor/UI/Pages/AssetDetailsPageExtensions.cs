@@ -90,6 +90,7 @@ namespace Unity.AssetManager.Editor
         public static bool IsImportAvailable(this UIEnabledStates enabled)
         {
             var isEnabled = !enabled.HasFlag(UIEnabledStates.IsImporting)
+                && enabled.HasFlag(UIEnabledStates.CanImport)
                 && enabled.HasFlag(UIEnabledStates.HasPermissions)
                 && enabled.HasFlag(UIEnabledStates.ServicesReachable)
                 && enabled.HasFlag(UIEnabledStates.ValidStatus);
