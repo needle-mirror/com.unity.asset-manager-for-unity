@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
     interface IImportedAssetsTracker : IService
     {
-        void TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, IAssetData assetData);
+        Task TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, IAssetData assetData);
         public void UntrackAsset(AssetIdentifier identifier);
     }
 
@@ -52,7 +54,7 @@ namespace Unity.AssetManager.Editor
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
         }
 
-        public void TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, IAssetData assetData)
+        public async Task TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, IAssetData assetData)
         {
             var fileInfos = new List<ImportedFileInfo>();
             foreach (var item in assetPaths)
@@ -67,7 +69,20 @@ namespace Unity.AssetManager.Editor
                     continue;
                 }
 
-                var fileInfo = new ImportedFileInfo(guid, item.originalPath);
+                var (timestamp, checksum) = await ExtractTimestampAndChecksum(assetPath);
+
+                var metafilePath = MetafilesHelper.AssetMetaFile(assetPath);
+
+                var metaFileTimestamp = 0L;
+                string metaFileChecksum = null;
+
+                if (File.Exists(metafilePath))
+                {
+                    // Ideally run this task in parallel to the one above
+                    (metaFileTimestamp, metaFileChecksum) = await ExtractTimestampAndChecksum(metafilePath);
+                }
+
+                var fileInfo = new ImportedFileInfo(guid, item.originalPath, checksum, timestamp, metaFileChecksum, metaFileTimestamp);
                 fileInfos.Add(fileInfo);
             }
 
@@ -76,6 +91,14 @@ namespace Unity.AssetManager.Editor
                 WriteToDisk(assetData, fileInfos);
                 m_AssetDataManager.AddOrUpdateGuidsToImportedAssetInfo(assetData, fileInfos);
             }
+        }
+
+        static async Task<(long, string)> ExtractTimestampAndChecksum(string assetPath)
+        {
+            var timestamp = ((DateTimeOffset)File.GetLastWriteTimeUtc(assetPath)).ToUnixTimeSeconds();
+            var checksum = await Utilities.CalculateMD5ChecksumAsync(assetPath, default);
+
+            return (timestamp, checksum);
         }
 
         public void UntrackAsset(AssetIdentifier identifier)

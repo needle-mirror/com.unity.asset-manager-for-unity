@@ -15,7 +15,6 @@ namespace Unity.AssetManager.Editor
         public const string ReimportWindowConflictsTitle = ReimportWindow + "-conflicts-title";
         public const string ReimportWindowWarningContainer = ReimportWindow + "-warning-container";
         public const string ReimportWindowWarningIcon = ReimportWindow + "-warning-icon";
-        public const string ReimportWindowDependentsTitle = ReimportWindow + "-dependents-title";
         public const string ReimportWindowUpwardDependenciesTitle = ReimportWindow + "-upward-dependencies-title";
         public const string ReimportWindowGap = ReimportWindow + "-gap";
     }
@@ -32,15 +31,15 @@ namespace Unity.AssetManager.Editor
 
         VisualElement m_ConflictsContainer;
         VisualElement m_NonConflictingContainer;
-        VisualElement m_DependentsContainer;
         VisualElement m_UpwardDependenciesContainer;
 
-        readonly List<VisualElement> m_Gaps = new ();
-        readonly List<ConflictsFoldout> m_ConflictsFoldouts = new();
-        readonly List<ReimportItem> m_ReimportItems = new();
+        readonly List<VisualElement> m_Gaps = new();
+        readonly List<ReimportFoldout> m_ReimportFoldouts = new();
+        readonly List<ReimportFoldout> m_ConflictsFoldouts = new();
         IEnumerable<ResolutionData> m_Resolutions;
 
-        public static void CreateModalWindow(UpdatedAssetData data, Action<IEnumerable<ResolutionData>> callback = null, Action cancelCallback = null)
+        public static void CreateModalWindow(UpdatedAssetData data, Action<IEnumerable<ResolutionData>> callback = null,
+            Action cancelCallback = null)
         {
             ReimportWindow window = GetWindow<ReimportWindow>(k_WindowTitle);
             window.minSize = k_MinWindowSize;
@@ -48,7 +47,6 @@ namespace Unity.AssetManager.Editor
             window.m_Callback = callback;
             window.m_CancelCallback = cancelCallback;
             window.CreateConflictsList(data);
-            window.CreateDependentsList(data);
             window.CreateUpwardDependenciesList(data);
 
             window.ShowModal();
@@ -56,7 +54,7 @@ namespace Unity.AssetManager.Editor
 
         void OnDestroy()
         {
-            if(m_Resolutions?.Any() ?? false)
+            if (m_Resolutions?.Any() ?? false)
             {
                 m_Callback?.Invoke(m_Resolutions);
             }
@@ -104,19 +102,6 @@ namespace Unity.AssetManager.Editor
             content.Add(gap);
             m_Gaps.Add(gap);
 
-            // Updated Dependencies
-            m_DependentsContainer = new VisualElement();
-            content.Add(m_DependentsContainer);
-
-            var dependentsTitle = new Label(L10n.Tr(Constants.ReimportWindowDependentsTitle));
-            dependentsTitle.AddToClassList(UssStyle.ReimportWindowDependentsTitle);
-            m_DependentsContainer.Add(dependentsTitle);
-
-            gap = new VisualElement();
-            gap.AddToClassList(UssStyle.ReimportWindowGap);
-            content.Add(gap);
-            m_Gaps.Add(gap);
-
             // Upward Dependencies
             m_UpwardDependenciesContainer = new VisualElement();
             content.Add(m_UpwardDependenciesContainer);
@@ -130,10 +115,7 @@ namespace Unity.AssetManager.Editor
             footer.AddToClassList(UssStyle.ReimportWindowFooter);
             rootVisualElement.Add(footer);
 
-            var cancelButton = new Button(() =>
-            {
-                Close();
-            })
+            var cancelButton = new Button(() => { Close(); })
             {
                 text = L10n.Tr(Constants.ReimportWindowCancel)
             };
@@ -141,17 +123,24 @@ namespace Unity.AssetManager.Editor
 
             var okButton = new Button(() =>
             {
-                var conflictsResolutions = m_ConflictsFoldouts.Select(foldout => new ResolutionData
+                // Need to clear dirty and reimport assets that are going to be replaced to avoid state problems
+                foreach (var foldout in m_ConflictsFoldouts)
                 {
-                    AssetData = foldout.AssetData,
-                    ResolutionSelection = foldout.ResolutionSelection
-                });
-                var reimportResolutions = m_ReimportItems.Select(item => new ResolutionData
+                    if (foldout.ResolutionSelection == ResolutionSelection.Replace)
+                    {
+                        foreach (var obj in foldout.AssetDataResolutionInfo.DirtyObjects)
+                        {
+                            EditorUtility.ClearDirty(obj);
+                            AssetDatabase.ImportAsset(AssetDatabase.GetAssetPath(obj));
+                        }
+                    }
+                }
+
+                m_Resolutions = m_ReimportFoldouts.Select(item => new ResolutionData
                 {
                     AssetData = item.AssetData,
                     ResolutionSelection = item.ResolutionSelection
                 });
-                m_Resolutions = conflictsResolutions.Union(reimportResolutions);
                 Close();
             })
             {
@@ -162,58 +151,33 @@ namespace Unity.AssetManager.Editor
 
         void CreateConflictsList(UpdatedAssetData updatedAssetData)
         {
-            // This will be the right way to do it when conflicts will be properly detected
-            // var allConflictedData = updatedAssetData.Assets.Where(a=> a.HasConflicts).Union(updatedAssetData.Dependants.Where(a=>a.HasConflicts));
-            var allConflictedData = updatedAssetData.Assets.Where(a=> a.Existed).Union(updatedAssetData.Dependants.Where(a=>a.Existed));
+            var allConflictedData = updatedAssetData.Assets.Where(a=> a.HasConflicts).Union(updatedAssetData.Dependants.Where(a=>a.HasConflicts));
 
-            if (!allConflictedData.Any())
+            UIElementsUtils.SetDisplay(m_ConflictsContainer, allConflictedData.Any());
+            if (allConflictedData.Any())
             {
-                UIElementsUtils.Hide(m_ConflictsContainer);
-                UIElementsUtils.Hide(m_NonConflictingContainer);
-                return;
+                var gap = new VisualElement();
+                gap.AddToClassList(UssStyle.ReimportWindowGap);
+                UIElementsUtils.Show(gap);
+                m_NonConflictingContainer.Add(gap);
             }
 
             var showedData = updatedAssetData.Assets.Union(updatedAssetData.Dependants);
 
             foreach (var data in showedData)
             {
+                var reimportFoldout = new ReimportFoldout(data);
+                m_ReimportFoldouts.Add(reimportFoldout);
+
                 if (data.HasConflicts)
                 {
-                    var conflictsFoldout = new ConflictsFoldout(data);
-                    m_ConflictsFoldouts.Add(conflictsFoldout);
-                    m_ConflictsContainer.Add(conflictsFoldout);
+                    m_ConflictsFoldouts.Add(reimportFoldout);
+                    m_ConflictsContainer.Add(reimportFoldout);
                 }
                 else
                 {
-                    var nonConflictingItem = new ReimportItem(data);
-                    m_ReimportItems.Add(nonConflictingItem);
-                    m_NonConflictingContainer.Add(nonConflictingItem);
+                    m_NonConflictingContainer.Add(reimportFoldout);
                 }
-            }
-        }
-
-        void CreateDependentsList(UpdatedAssetData updatedAssetData)
-        {
-            // TODO: Keep this hidden until design decision
-            UIElementsUtils.Hide(m_DependentsContainer);
-
-            var filteredDependants = updatedAssetData.Dependants.Where(a => a.HasChanges && !a.HasConflicts);
-
-            if (!filteredDependants.Any())
-            {
-                UIElementsUtils.Hide(m_DependentsContainer);
-                return;
-            }
-
-            if (UIElementsUtils.IsDisplayed(m_ConflictsContainer))
-            {
-                UIElementsUtils.Show(m_Gaps[0]);
-            }
-
-            foreach (var data in filteredDependants)
-            {
-                var dependentItem = new ReimportItem(data);
-                m_DependentsContainer.Add(dependentItem);
             }
         }
 
@@ -225,9 +189,9 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            if (UIElementsUtils.IsDisplayed(m_DependentsContainer) || UIElementsUtils.IsDisplayed(m_ConflictsContainer))
+            if (UIElementsUtils.IsDisplayed(m_ConflictsContainer))
             {
-                UIElementsUtils.Show(m_Gaps[1]);
+                UIElementsUtils.Show(m_Gaps[0]);
             }
 
             foreach (var data in updatedAssetData.UpwardDependencies)

@@ -22,12 +22,14 @@ namespace Unity.AssetManager.Editor
             }
         }
         public override bool StartIndefinite => true;
+        public override bool IsSticky => true;
+        public override bool ShowInBackgroundTasks => true;
 
         List<ImportOperation> m_ImportOperations;
 
-        public BulkImportOperation(List<ImportOperation> mImportOperations)
+        public BulkImportOperation(List<ImportOperation> importOperations)
         {
-            m_ImportOperations = mImportOperations;
+            m_ImportOperations = importOperations;
             foreach (var importOperation in m_ImportOperations)
             {
                 importOperation.Finished += OnImportCompleted;
@@ -35,13 +37,27 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void OnImportCompleted(OperationStatus status)
+        void OnImportCompleted(OperationStatus status)
         {
-            if (status is OperationStatus.Cancelled or OperationStatus.Error
-                || m_ImportOperations.TrueForAll(x => x.Status == OperationStatus.Success))
+            if (m_ImportOperations.TrueForAll(x => x.Status is OperationStatus.Success
+                or OperationStatus.Error or OperationStatus.Cancelled))
             {
-                SendImportEndAnalytic(status);
-                Finish(status);
+                OperationStatus finalStatus;
+                if(m_ImportOperations.Exists(x => x.Status == OperationStatus.Error))
+                {
+                    finalStatus = OperationStatus.Error;
+                }
+                else if(m_ImportOperations.Exists(x => x.Status == OperationStatus.Cancelled))
+                {
+                    finalStatus = OperationStatus.Cancelled;
+                }
+                else
+                {
+                    finalStatus = OperationStatus.Success;
+                }
+
+                SendImportEndAnalytic(finalStatus);
+                Finish(finalStatus);
             }
         }
 
@@ -78,11 +94,9 @@ namespace Unity.AssetManager.Editor
                                     break;
                                 }
                             }
-
                             break;
                         }
                     }
-
                     break;
 
                 default:

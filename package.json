@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "unity": "2022.3",
   "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.",
   "keywords": [
@@ -20,18 +20,18 @@
     "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.0.0"
+    "com.unity.asset-manager-for-unity.tests": "1.1.0"
   },
   "_upm": {
-    "changelog": "[Changed]\n- Now discoverable on Package Manager\n- Included more tags for discoverability in Package Manager"
+    "changelog": "[Added]\n- Ability to create, rename and remove Collections\n- Unmodified assets will not create a new version when re-uploaded (newly imported asset only)\n- Ability to force a new version when re-uploading an asset by setting re-upload mode to \"Force New Version\"\n\n[Changed]\n- Improve background tasks shown when importing\n- Ignored assets styles inside the grid is now more obvious\n- Improvements in the reimport window\n- Rename Upload mode to Reupload mode\n- Add focus visual state on focusable visual element\n- Save inspector width between session\n- Add margin at bottom of \"Add Filter\" button\n- Uniformize asset's information labels with the web app\n- Add extra space at grid bottom to allow collapsed settings bar to not hide GridItem on the last row\n- Shrink the label instead of the dropdown button in update settings panel\n- Added a full GridItem refresh on asset selection\n- Add caches for thumbnail and primary type extension to increase responsiveness in grid view\n- Put an error status on asset inside archived projects\n\n[Fixed]\n- Fixed 400 Bad Request thumbnail error\n- Ignored assets are now more obvious\n- Check if scene are dirty too when importing or uploading\n- Clear progress bars when starting a new import\n- Import now disabled for asset with incomplete source files\n- Fixes concurrent file upload errors resulting in failed asset upload.\n- Fixes background task reporting.\n- Removing an imported cloud asset will not delete files that are part of another imported cloud asset\n- Now caching dependencies identifiers when importing asset to fix missing dependencies in the AssetDetailsPage.\n- Fix Import cancel button not working when cancelling an asset import already finished before\n- Remove \"Fetching download URLs\" background tasks when cancelling\n- Move filter popup inside its window when resizing\n- Fixed cancellation exceptions when displaying dependencies in details tab.\n- Ignore shift selection if there is no asset selected previously\n- Implement properly the Control+ click and Command + Shift + click on Mac\n- Put a \"No results found\" message when applying a filter lead to no results\n- Don't add a unnecessary tooltip that contains the same string as the message\n- Fixed InProject page removal error\n- Skipped upload asset don't show a progress bar\n- Upload Assets button is disable when all staged assets are skipped\n- Upload status mismatch not match between gridview and inspector\n- Potential blank page when opening the Asset Manager and prompt to close/reopen the Unity Hub"
   },
   "upmCi": {
-    "footprint": "2886297e85ae2238de008bdb1df35eaf78b8c772"
+    "footprint": "9ecbb68ea92a531b14088d8b2a9025f639c3ad5e"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.0/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.1/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "c79bd59d748738c1cad6a1f9bafaad27e84c6ef9"
+    "revision": "7d91b6b01db269c03ebc052e697f62d352d0d72c"
   }
 }

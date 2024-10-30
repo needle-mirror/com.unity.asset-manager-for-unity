@@ -17,7 +17,6 @@ namespace Unity.AssetManager.Editor
         readonly Label m_FileName;
 
         AssetIdentifier m_AssetIdentifier;
-        Task<IAssetData> m_FetchingTask;
 
         CancellationTokenSource m_CancellationTokenSource;
 
@@ -31,6 +30,7 @@ namespace Unity.AssetManager.Editor
                 }
             });
 
+            m_Button.focusable = false;
             Add(m_Button);
             m_Button.AddToClassList(k_DetailsPageFileItemUssStyle);
 
@@ -43,8 +43,6 @@ namespace Unity.AssetManager.Editor
             m_Button.Add(m_Icon);
             m_Button.Add(m_FileName);
             m_Button.SetEnabled(false);
-
-            m_CancellationTokenSource = new CancellationTokenSource();
         }
 
         ~DetailsPageDependencyItem()
@@ -52,67 +50,78 @@ namespace Unity.AssetManager.Editor
             m_CancellationTokenSource?.Dispose();
         }
 
-        public async Task Refresh(DependencyAsset dependencyAsset)
+        public async Task Refresh(AssetIdentifier dependencyIdentifier)
         {
+            // Don't refresh if the asset pointer hasn't changed
+            if (m_AssetIdentifier != null && m_AssetIdentifier.Equals(dependencyIdentifier))
+            {
+                return;
+            }
+
             m_FileName.text = "Loading...";
             m_Icon.style.backgroundImage = null;
 
             m_Button.SetEnabled(false);
 
-            if (m_FetchingTask is { IsCompleted: false })
-            {
-                m_CancellationTokenSource.Cancel();
-            }
-
-            m_FetchingTask = FetchAssetData(dependencyAsset.Identifier, m_CancellationTokenSource.Token);
+            var token = GetCancellationToken();
 
             IAssetData assetData = null;
 
             try
             {
-                assetData = await m_FetchingTask;
+                assetData = await FetchAssetData(dependencyIdentifier, token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
             }
             catch (Exception e)
             {
                 Debug.LogException(e);
             }
-            finally
-            {
-                m_FetchingTask = null;
-            }
 
-            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(assetData?.PrimarySourceFile?.Extension);
+            m_FileName.text = assetData?.Name ?? $"{dependencyIdentifier.AssetId} (unavailable)";
 
             m_AssetIdentifier = assetData?.Identifier;
 
-            m_FileName.text =
-                assetData != null ? assetData.Name : $"{dependencyAsset.Identifier.AssetId} (unavailable)";
-
             m_Button.SetEnabled(m_AssetIdentifier != null);
+
+            await SetIcon(assetData, token);
         }
 
-        static async Task<IAssetData> FetchAssetData(AssetIdentifier assetIdentifier, CancellationToken token)
+        CancellationToken GetCancellationToken()
         {
+            if (m_CancellationTokenSource != null)
+            {
+                m_CancellationTokenSource.Cancel();
+                m_CancellationTokenSource.Dispose();
+            }
+
+            m_CancellationTokenSource = new CancellationTokenSource();
+            return m_CancellationTokenSource.Token;
+        }
+
+        static async Task<IAssetData> FetchAssetData(AssetIdentifier identifier, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+            var assetData = await assetDataManager.GetOrSearchAssetData(identifier, token);
 
-            if (token.IsCancellationRequested)
-            {
-                return null;
-            }
+            token.ThrowIfCancellationRequested();
 
-            var assetData = await assetDataManager.GetOrSearchAssetData(assetIdentifier, token);
+            return assetData;
+        }
 
-            if (token.IsCancellationRequested)
-            {
-                return null;
-            }
-
+        async Task SetIcon(IAssetData assetData, CancellationToken token)
+        {
             if (assetData != null && string.IsNullOrEmpty(assetData.PrimarySourceFile?.Extension))
             {
                 await assetData.ResolvePrimaryExtensionAsync(null, token);
             }
 
-            return assetData;
+            m_Icon.style.backgroundImage =
+                AssetDataTypeHelper.GetIconForExtension(assetData?.PrimarySourceFile?.Extension);
         }
     }
 }

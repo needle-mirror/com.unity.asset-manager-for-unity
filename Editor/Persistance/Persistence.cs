@@ -137,6 +137,18 @@ namespace Unity.AssetManager.Editor
 
             [SerializeField]
             public List<string> tags = new();
+
+            [SerializeField]
+            public string checksum;
+
+            [SerializeField]
+            public long timestamp;
+
+            [SerializeField]
+            public string metaFileChecksum;
+
+            [SerializeField]
+            public long metaFileTimestamp;
         }
 
         static AssetIdentifier ExtractAssetIdentifier(TrackedAssetPersisted trackedAsset)
@@ -204,21 +216,13 @@ namespace Unity.AssetManager.Editor
                 trackedAsset.files
                     .Select(x => ConvertFile(x)),
                 trackedAsset.dependencyAssets
-                    .Select(x =>
-                    {
-                        var dependencyAssetIdentifier =
-                            new AssetIdentifier(x.organizationId, x.projectId, x.assetId, x.versionId);
-                        return new DependencyAsset(
-                            dependencyAssetIdentifier,
-                            cache.GetAssetDataFor(dependencyAssetIdentifier));
-                    }));
-
+                    .Select(x => new AssetIdentifier(x.organizationId, x.projectId, x.assetId, x.versionId)));
 
             return new ImportedAssetInfo(
                 assetData,
                 trackedAsset.files
                     .Where(x => !string.IsNullOrEmpty(x.trackedUnityGuid))
-                    .Select(x => new ImportedFileInfo(x.trackedUnityGuid, x.path)));
+                    .Select(x => new ImportedFileInfo(x.trackedUnityGuid, x.path, x.checksum, x.timestamp, x.metaFileChecksum, x.metaFileTimestamp)));
         }
 
         static TrackedAssetIdentifierPersisted Convert(AssetIdentifier identifier)
@@ -337,26 +341,27 @@ namespace Unity.AssetManager.Editor
             version.tags = assetData.Tags?.ToList();
         }
 
-        static TrackedFilePersisted ConvertToFile(AssetDataFile assetDataFile,
-            Dictionary<string, string> importedFileInfos)
+        static TrackedFilePersisted ConvertToFile(AssetDataFile assetDataFile, ImportedFileInfo fileInfo)
         {
             var trackedFile = new TrackedFilePersisted();
             trackedFile.path = assetDataFile.Path;
-            trackedFile.trackedUnityGuid = importedFileInfos.TryGetValue(assetDataFile.Path, out var importedFileInfo)
-                ? importedFileInfo
-                : null;
+            trackedFile.trackedUnityGuid = fileInfo?.Guid;
             trackedFile.extension = assetDataFile.Extension;
             trackedFile.available = assetDataFile.Available;
             trackedFile.description = assetDataFile.Description;
             trackedFile.fileSize = assetDataFile.FileSize;
             trackedFile.tags = assetDataFile.Tags.ToList();
+            trackedFile.checksum = fileInfo?.Checksum;
+            trackedFile.timestamp = fileInfo?.Timestamp ?? 0L;
+            trackedFile.metaFileChecksum = fileInfo?.MetaFileChecksum;
+            trackedFile.metaFileTimestamp = fileInfo?.MetalFileTimestamp ?? 0L;
 
             return trackedFile;
         }
 
         public static void RemoveEntry(IIOProxy ioProxy, string assetId)
         {
-             ioProxy.DeleteFileIfExists(GetFilenameFor(assetId));
+            ioProxy.DeleteFileIfExists(GetFilenameFor(assetId));
         }
 
         public static void WriteEntry(IIOProxy ioProxy, AssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
@@ -376,16 +381,16 @@ namespace Unity.AssetManager.Editor
             trackedAsset.assetId = assetData.Identifier.AssetId;
             trackedAsset.thumbnailUrl = assetData.ThumbnailUrl;
             trackedAsset.dependencyAssets = assetData.Dependencies
-                .Select(x => Convert(x.Identifier))
+                .Select(Convert)
                 .ToList();
 
             var importedFileInfos =
-                fileInfos.ToDictionary(x => x.OriginalPath.Replace('\\', '/'), x => x.Guid);
+                fileInfos.ToDictionary(x => x.OriginalPath.Replace('\\', '/'), x => x);
 
             trackedAsset.files = assetData.SourceFiles
                 .Select(x => x as AssetDataFile)
                 .Where(x => x != null)
-                .Select(x => ConvertToFile(x, importedFileInfos))
+                .Select(x => ConvertToFile(x, importedFileInfos.GetValueOrDefault(x.Path)))
                 .ToList();
 
             return SerializeEntry(trackedAsset);

@@ -171,13 +171,13 @@ namespace Unity.AssetManager.Editor
             m_AssetDatas[persistedLegacy] = assetData;
 
             assetData.FillFromPersistenceLegacy(
-                persistedLegacy.m_DependencyAssets.Select(x => Convert(x)),
+                persistedLegacy.m_DependencyAssets.Select(x => x.m_Identifier),
                 persistedLegacy.m_AssetComparisonResult,
                 persistedLegacy.m_ThumbnailUrl,
-                persistedLegacy.m_SourceFiles.Select(x => Convert(x)),
+                persistedLegacy.m_SourceFiles.Select(Convert),
                 Convert(persistedLegacy.m_PrimarySourceFile),
-                persistedLegacy.m_UVCSFiles.Select(x => Convert(x)),
-                persistedLegacy.m_Versions.Select(x => Convert(x)));
+                persistedLegacy.m_UVCSFiles.Select(Convert),
+                persistedLegacy.m_Versions.Select(Convert));
 
             return assetData;
         }

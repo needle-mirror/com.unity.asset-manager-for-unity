@@ -16,7 +16,7 @@ namespace Unity.AssetManager.Editor
         public static readonly AssetPreview.IStatus Linked = new PreviewStatus(Constants.LinkedText, string.Empty, "grid-view--item-linked");
         public static readonly AssetPreview.IStatus UploadAdd = new PreviewStatus(Constants.UploadAddText, string.Empty, "grid-view--item-upload-add");
         public static readonly AssetPreview.IStatus UploadSkip = new PreviewStatus(Constants.UploadSkipText, string.Empty, "grid-view--item-upload-skip");
-        public static readonly AssetPreview.IStatus UploadOverride = new PreviewStatus(Constants.UploadOverrideText, string.Empty, "grid-view--item-upload-override");
+        public static readonly AssetPreview.IStatus UploadOverride = new PreviewStatus(Constants.UploadNewVersionText, string.Empty, "grid-view--item-upload-override");
         public static readonly AssetPreview.IStatus UploadDuplicate = new PreviewStatus(Constants.UploadDuplicateText, string.Empty, "grid-view--item-upload-duplicate");
         public static readonly AssetPreview.IStatus UploadOutside = new PreviewStatus(Constants.UploadOutsideText, string.Empty, "grid-view--item-upload-outside");
 

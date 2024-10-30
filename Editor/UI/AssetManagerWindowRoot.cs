@@ -15,6 +15,7 @@ namespace Unity.AssetManager.Editor
         const int k_InspectorPanelMinWidth = 200;
         const string k_MainDarkUssName = "MainDark";
         const string k_MainLightUssName = "MainLight";
+        const string k_InspectorPanelLastWidthPrefKey = "InspectorPanelLastWidth";
 
         VisualElement m_AssetManagerContainer;
         VisualElement m_SearchContentSplitViewContainer;
@@ -23,6 +24,7 @@ namespace Unity.AssetManager.Editor
         LoadingScreen m_LoadingScreen;
 
         LoginPage m_LoginPage;
+        AwaitingLoginPage m_AwaitingLoginPage;
         SideBar m_SideBar;
         SearchBar m_SearchBar;
         Breadcrumbs m_Breadcrumbs;
@@ -30,7 +32,6 @@ namespace Unity.AssetManager.Editor
         Sort m_Sort;
         TwoPaneSplitView m_CategoriesSplit;
         TwoPaneSplitView m_InspectorSplit;
-        Button m_SettingsButton;
 
         AssetsGridView m_AssetsGridView;
         readonly List<SelectionInspectorPage> m_SelectionInspectorPages = new();
@@ -39,8 +40,6 @@ namespace Unity.AssetManager.Editor
         IVisualElementScheduledItem m_StorageInfoRefreshScheduledItem;
 
         VisualElement m_CustomizableSection;
-
-        float m_InspectorPanelLastWidth = k_InspectorPanelMaxWidth;
 
         readonly IPageManager m_PageManager;
         readonly IAssetDataManager m_AssetDataManager;
@@ -56,6 +55,12 @@ namespace Unity.AssetManager.Editor
         readonly IUploadManager m_UploadManager;
         readonly IPopupManager m_PopupManager;
         readonly IAssetsProvider m_AssetsProvider;
+
+        static int InspectorPanelLastWidth
+        {
+            get => EditorPrefs.GetInt(k_InspectorPanelLastWidthPrefKey, k_InspectorPanelMaxWidth);
+            set => EditorPrefs.SetInt(k_InspectorPanelLastWidthPrefKey, value);
+        }
 
         public AssetManagerWindowRoot(IPageManager pageManager,
             IAssetDataManager assetDataManager,
@@ -105,6 +110,11 @@ namespace Unity.AssetManager.Editor
 
         void InitializeLayout()
         {
+            m_AwaitingLoginPage  = new AwaitingLoginPage();
+            m_AwaitingLoginPage.AddToClassList("SignInPage");
+            m_AwaitingLoginPage.StretchToParentSize();
+            Add(m_AwaitingLoginPage);
+
             m_LoginPage = new LoginPage();
             m_LoginPage.AddToClassList("SignInPage");
             m_LoginPage.StretchToParentSize();
@@ -180,15 +190,6 @@ namespace Unity.AssetManager.Editor
             var topRightContainer = new VisualElement();
             topRightContainer.AddToClassList("unity-top-right-container");
 
-            m_SettingsButton = new Button(() =>
-            {
-                var page = (BasePage)m_PageManager.ActivePage;
-                page?.OpenSettings(m_PopupManager.Container);
-
-                m_PopupManager.Show(m_SettingsButton, PopupContainer.PopupAlignment.BottomRight);
-            });
-            m_SettingsButton.AddToClassList("unity-settings-button");
-            topRightContainer.Add(m_SettingsButton);
             topContainer.Add(topRightContainer);
 
             m_SearchContentSplitViewContainer.Add(topContainer);
@@ -293,9 +294,9 @@ namespace Unity.AssetManager.Editor
 
         void OnInspectorResized(GeometryChangedEvent evt)
         {
-            m_InspectorPanelLastWidth = evt.newRect.width < k_InspectorPanelMinWidth ?
-                m_InspectorPanelLastWidth :
-                evt.newRect.width;
+            InspectorPanelLastWidth = (int) (evt.newRect.width < k_InspectorPanelMinWidth ?
+                InspectorPanelLastWidth :
+                evt.newRect.width);
         }
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
@@ -323,7 +324,7 @@ namespace Unity.AssetManager.Editor
 
             if (validAssets is { Count: > 0 })
             {
-                m_InspectorSplit.fixedPaneInitialDimension = m_InspectorPanelLastWidth;
+                m_InspectorSplit.fixedPaneInitialDimension = InspectorPanelLastWidth;
                 m_InspectorSplit.UnCollapse();
 
                 //Hide all pages
@@ -355,8 +356,7 @@ namespace Unity.AssetManager.Editor
 
             UIElementsUtils.SetDisplay(m_SearchBar, basePage.DisplaySearchBar);
             UIElementsUtils.SetDisplay(m_Filters, basePage.DisplayFilters);
-            UIElementsUtils.SetDisplay(m_Sort, basePage.DisplayFilters);
-            UIElementsUtils.SetDisplay(m_SettingsButton, basePage.DisplaySettings);
+            UIElementsUtils.SetDisplay(m_Sort, basePage.DisplaySort);
 
             if (basePage.DisplaySideBar)
             {
@@ -386,6 +386,7 @@ namespace Unity.AssetManager.Editor
             if (!m_UnityConnect.AreCloudServicesReachable)
             {
                 UIElementsUtils.Hide(m_LoginPage);
+                UIElementsUtils.Hide(m_AwaitingLoginPage);
                 UIElementsUtils.Show(m_AssetManagerContainer);
 
                 m_ActionHelpBox.Refresh();
@@ -397,6 +398,7 @@ namespace Unity.AssetManager.Editor
             if (m_AssetsProvider.AuthenticationState == AuthenticationState.AwaitingLogin)
             {
                 UIElementsUtils.Hide(m_LoginPage);
+                UIElementsUtils.Show(m_AwaitingLoginPage);
                 UIElementsUtils.Hide(m_AssetManagerContainer);
                 return;
             }
@@ -404,6 +406,7 @@ namespace Unity.AssetManager.Editor
             if (m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedOut)
             {
                 UIElementsUtils.Show(m_LoginPage);
+                UIElementsUtils.Hide(m_AwaitingLoginPage);
                 UIElementsUtils.Hide(m_AssetManagerContainer);
 
                 m_PermissionsManager.Reset();
@@ -414,6 +417,7 @@ namespace Unity.AssetManager.Editor
             if (m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedIn)
             {
                 UIElementsUtils.Hide(m_LoginPage);
+                UIElementsUtils.Hide(m_AwaitingLoginPage);
                 UIElementsUtils.Show(m_AssetManagerContainer);
 
                 m_ActionHelpBox.Refresh();

@@ -7,7 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 
@@ -34,19 +36,28 @@ namespace Unity.AssetManager.Editor
         public UploadContext UploadContext = new();
     }
 
+    static partial class UssStyle
+    {
+        public const string UploadPageSettingsPanel = "upload-page-settings-panel";
+        public const string UploadPageCustomSection = "upload-page-custom-section";
+        public const string UploadPageActionSection = "upload-page-action-section";
+        public const string UploadPageAllActionsSection = "upload-page-all-actions-section";
+        public const string UploadPageUploadButton = "upload-page-upload-button";
+        public const string UploadPageResetButton = "upload-page-reset-button";
+    }
+
     [Serializable]
     class UploadPage : BasePage
     {
-        UploadContext m_UploadContext => UploadContextScriptableObject.instance.UploadContext;
+        static readonly float k_UploadSettingPanelWidth = 280f;
 
-        static readonly string k_PopupUssClassName = "upload-page-settings-popup";
+        UploadContext m_UploadContext => UploadContextScriptableObject.instance.UploadContext;
 
         IUploadManager m_UploadManager;
         IReadOnlyCollection<AssetIdentifier> m_SelectionToRestore;
 
         Button m_UploadAssetsButton;
         Button m_ClearUploadButton;
-        VisualElement m_SettingsPopup;
 
         IUploadManager UploadManager
         {
@@ -64,8 +75,8 @@ namespace Unity.AssetManager.Editor
         public override bool DisplaySearchBar => false;
         public override bool DisplayBreadcrumbs => true;
         public override bool DisplayFilters => false;
-        public override bool DisplaySettings => true;
         public override bool DisplayFooter => false;
+        public override bool DisplaySort => false;
 
         public UploadPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
             IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
@@ -82,7 +93,11 @@ namespace Unity.AssetManager.Editor
         [MenuItem("Assets/Upload to Asset Manager", true, 21)]
         static bool UploadToAssetManagerMenuItemValidation()
         {
-            return Selection.assetGUIDs is { Length: > 0 } && Selection.activeObject != null;
+            var uploadManager = ServicesContainer.instance.Resolve<IUploadManager>();
+
+            return Selection.assetGUIDs is { Length: > 0 } &&
+                   Selection.activeObject != null &&
+                   !uploadManager.IsUploading;
         }
 
         static void LoadUploadPage()
@@ -118,16 +133,6 @@ namespace Unity.AssetManager.Editor
             m_UploadContext.SetCollectionPath(m_ProjectOrganizationProvider.SelectedCollection?.GetFullPath());
         }
 
-        public override void OpenSettings(VisualElement target)
-        {
-            if (m_SettingsPopup == null)
-            {
-                CreateSettingsPopup();
-            }
-
-            target.Add(m_SettingsPopup);
-        }
-
         public override void ToggleAsset(IAssetData assetData, bool checkState)
         {
             if (assetData is UploadAssetData uploadAssetData)
@@ -142,8 +147,10 @@ namespace Unity.AssetManager.Editor
                 }
 
                 uploadAssetData.IsIgnored = !checkState;
-                Reload();
                 UpdateButtonsState();
+                DisplayScalingIssuesHelpBoxIfNecessary();
+
+                InvokeToggleAssetChanged(assetData.Identifier, checkState);
             }
         }
 
@@ -184,6 +191,11 @@ namespace Unity.AssetManager.Editor
 
         void AddAssets(IEnumerable<string> assetGuids, bool clear = true)
         {
+            if (m_UploadManager.IsUploading)
+            {
+                Utilities.DevLog("You cannot add assets during upload.");
+            }
+
             if (clear)
             {
                 m_UploadContext.ClearAll();
@@ -242,28 +254,53 @@ namespace Unity.AssetManager.Editor
             await Task.CompletedTask; // Remove warning about async
         }
 
-        void CreateSettingsPopup()
+        VisualElement CreateSettingsPanel()
         {
-            m_SettingsPopup = new VisualElement();
-            m_SettingsPopup.AddToClassList(k_PopupUssClassName);
+            var settingsPanel = new VisualElement();
+            settingsPanel.AddToClassList(UssStyle.UploadPageSettingsPanel);
+
+            var foldout = new Foldout { text = L10n.Tr(Constants.UploadSettings) };
+            foldout.value = m_UploadContext.Settings.SavedUploadSettingsPanelOpened;
+            foldout.RegisterValueChangedCallback(evt => m_UploadContext.Settings.SavedUploadSettingsPanelOpened = evt.newValue);
+            settingsPanel.Add(foldout);
+
+            var toggle = foldout.Q<Toggle>();
+            toggle.focusable = false;
 
             // Upload Mode
-            var uploadModeDropdown = CreateEnumDropdown("Upload Mode", m_UploadContext.Settings.UploadMode,
+            var uploadModeDropdown = CreateEnumDropdown(L10n.Tr(Constants.UploadMode), m_UploadContext.Settings.UploadMode,
                 mode => { m_UploadContext.Settings.UploadMode = mode; }, UploadSettings.GetUploadModeTooltip);
 
-            m_SettingsPopup.Add(uploadModeDropdown);
+            foldout.Add(uploadModeDropdown);
 
             // Dependency Mode
-            var dependencyModeDropdown = CreateEnumDropdown("Dependencies", m_UploadContext.Settings.DependencyMode,
+            var dependencyModeDropdown = CreateEnumDropdown(L10n.Tr(Constants.Dependencies), m_UploadContext.Settings.DependencyMode,
                 mode => { m_UploadContext.Settings.DependencyMode = mode; }, UploadSettings.GetDependencyModeTooltip);
 
-            m_SettingsPopup.Add(dependencyModeDropdown);
+            foldout.Add(dependencyModeDropdown);
 
             // File Paths Mode
-            var filePathModeDropdown = CreateEnumDropdown("File Paths", m_UploadContext.Settings.FilePathMode,
+            var filePathModeDropdown = CreateEnumDropdown(L10n.Tr(Constants.FilePaths), m_UploadContext.Settings.FilePathMode,
                 mode => { m_UploadContext.Settings.FilePathMode = mode; }, UploadSettings.GetFilePathModeTooltip);
 
-            m_SettingsPopup.Add(filePathModeDropdown);
+            foldout.Add(filePathModeDropdown);
+
+            // Reset Button
+            var resetButton = new Button(() =>
+            {
+                m_UploadContext.Settings.Reset();
+                uploadModeDropdown.index = (int)m_UploadContext.Settings.UploadMode;
+                dependencyModeDropdown.index = (int)m_UploadContext.Settings.DependencyMode;
+                filePathModeDropdown.index = (int)m_UploadContext.Settings.FilePathMode;
+            })
+            {
+                text = L10n.Tr(Constants.UploadSettingsReset)
+            };
+
+            resetButton.AddToClassList(UssStyle.UploadPageResetButton);
+            foldout.Add(resetButton);
+
+            return settingsPanel;
         }
 
         DropdownField CreateEnumDropdown<TEnum>(string name, TEnum defaultValue, Action<TEnum> onValueChanged, Func<TEnum, string> tooltipProvider) where TEnum : Enum
@@ -295,8 +332,11 @@ namespace Unity.AssetManager.Editor
             }
             else
             {
-                SetMessageData(
-                    !m_AssetList.Any() ? L10n.Tr(Constants.UploadNoAssetsMessage) : string.Empty, RecommendedAction.None);
+                if (!DisplayScalingIssuesHelpBoxIfNecessary())
+                {
+                    SetMessageData(!m_AssetList.Any()
+                        ? L10n.Tr(Constants.UploadNoAssetsMessage) : string.Empty, RecommendedAction.None);
+                }
             }
 
             if (m_SelectionToRestore != null)
@@ -326,7 +366,7 @@ namespace Unity.AssetManager.Editor
             {
                 var userWantsToUploadWithMissingDependencies = ServicesContainer.instance.Resolve<IEditorUtilityProxy>()
                     .DisplayDialog(L10n.Tr(Constants.IgnoreDependenciesDialogTitle),
-                        L10n.Tr(Constants.IgnoreDependenciesDialogMessage), L10n.Tr("Continue"), L10n.Tr("Cancel"));
+                        L10n.Tr(Constants.IgnoreDependenciesDialogMessage), L10n.Tr(Constants.Continue), L10n.Tr(Constants.Cancel));
 
                 if (!userWantsToUploadWithMissingDependencies)
                     return;
@@ -335,6 +375,9 @@ namespace Unity.AssetManager.Editor
             var assetsToUpload = hasIgnoredAssets
                 ? m_UploadContext.UploadAssets.Where(uae => !m_UploadContext.IgnoredAssetGuids.Contains(uae.Guid))
                 : m_UploadContext.UploadAssets;
+
+            if (!CheckDirtyAssets(assetsToUpload))
+                return;
 
             if (assetsToUpload.Any())
             {
@@ -347,9 +390,63 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        bool CheckDirtyAssets(IEnumerable<IUploadAsset> assetsToUpload)
+        {
+            var dirtyObjects = new List<Object>();
+            var dirtyScenes = new List<Scene>();
+            foreach (var uploadAsset in assetsToUpload)
+            {
+                foreach (var path in uploadAsset.Files.Select(f => f.SourcePath))
+                {
+                    if(Utilities.IsFileDirty(path))
+                    {
+                        Object asset = AssetDatabase.LoadAssetAtPath<Object>(path);
+                        if (asset is SceneAsset)
+                        {
+                            dirtyScenes.Add(SceneManager.GetSceneByPath(path));
+                        }
+                        else
+                        {
+                            dirtyObjects.Add(asset);
+                        }
+
+                        break;
+                    }
+                }
+            }
+
+            if (dirtyObjects.Any() || dirtyScenes.Any())
+            {
+                var userWantsToUploadWithDirtyAssets = ServicesContainer.instance.Resolve<IEditorUtilityProxy>()
+                    .DisplayDialog(L10n.Tr(Constants.DirtyAssetsDialogTitle),
+                        L10n.Tr(Constants.DirtyAssetsDialogMessage),
+                        L10n.Tr(Constants.DirtyAssetsDialogOk),
+                        L10n.Tr(Constants.DirtyAssetsDialogCancel));
+
+                if (!userWantsToUploadWithDirtyAssets)
+                    return false;
+
+                foreach (var obj in dirtyObjects)
+                {
+                    AssetDatabase.SaveAssetIfDirty(obj);
+                }
+
+                foreach (var scene in dirtyScenes)
+                {
+                    EditorSceneManager.SaveScene(scene);
+                }
+            }
+
+            return true;
+        }
+
         async Task UploadAssetEntries()
         {
             IReadOnlyCollection<IUploadAsset> uploadEntries = m_UploadContext.UploadAssets.Where(uae => !m_UploadContext.IgnoredAssetGuids.Contains(uae.Guid)).ToList();
+
+            // If assets are dirty and needed to save, we need to wait for the save to complete
+            // and preview state to be reloaded before continuing
+            await WaitForStatusUpdate();
 
             var task = UploadManager.UploadAsync(uploadEntries, m_UploadContext.Settings);
 
@@ -357,6 +454,7 @@ namespace Unity.AssetManager.Editor
             m_UploadAssetsButton.text = L10n.Tr(Constants.UploadingText);
             UpdateCancelButtonLabel();
 
+            // TODO remove file that have not been uploaded from uploadEntries
             AnalyticsSender.SendEvent(new UploadEvent(uploadEntries.Count,
                 uploadEntries.SelectMany(e => e.Files).Select(f => Path.GetExtension(f.SourcePath)[1..]).Where(ext => ext != "meta").ToArray(),
                 !string.IsNullOrEmpty(m_UploadContext.CollectionPath), m_UploadContext.Settings));
@@ -388,6 +486,31 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        async Task WaitForStatusUpdate()
+        {
+            var preventFailureCounter = 1000;
+            while((m_AssetList == null || !m_AssetList.Any()) && preventFailureCounter > 0)
+            {
+                preventFailureCounter--;
+                await Task.Delay(1);
+            }
+
+            var uploadAssetData = m_AssetList.OfType<UploadAssetData>().ToList();
+
+            while (preventFailureCounter > 0)
+            {
+                preventFailureCounter--;
+                if (uploadAssetData.Exists(uad => !uad.HasAnExistingStatus))
+                {
+                    await Task.Delay(1);
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
         void DisplayErrorMessageFromServiceException(ServiceException exp)
         {
             var expDetail = string.IsNullOrEmpty(exp.Detail) ? exp.Message : exp.Detail;
@@ -399,23 +522,13 @@ namespace Unity.AssetManager.Editor
         public override VisualElement CreateCustomUISection()
         {
             var root = new VisualElement();
-            root.AddToClassList("upload-page-custom-section");
-
-            var settings = new VisualElement();
-            settings.AddToClassList("upload-page-all-settings-section");
-
-            root.Add(settings);
+            root.AddToClassList(UssStyle.UploadPageCustomSection);
 
             var actions = new VisualElement();
-            actions.AddToClassList("upload-page-all-actions-section");
-
-            var selectionSection = new VisualElement();
-            selectionSection.AddToClassList("upload-page-selection-section");
-
-            actions.Add(selectionSection);
+            actions.AddToClassList(UssStyle.UploadPageAllActionsSection);
 
             var actionsSection = new VisualElement();
-            actionsSection.AddToClassList("upload-page-action-section");
+            actionsSection.AddToClassList(UssStyle.UploadPageActionSection);
 
             actions.Add(actionsSection);
 
@@ -439,6 +552,7 @@ namespace Unity.AssetManager.Editor
             actionsSection.Add(m_ClearUploadButton);
 
             m_UploadAssetsButton = new Button(UploadAssets) { text = L10n.Tr(Constants.UploadActionText) };
+            m_UploadAssetsButton.AddToClassList(UssStyle.UploadPageUploadButton);
             actionsSection.Add(m_UploadAssetsButton);
 
             m_UploadContext.ProjectIdChanged += () =>
@@ -450,6 +564,22 @@ namespace Unity.AssetManager.Editor
             m_UploadContext.UploadAssetEntriesChanged += UpdateButtonsState;
 
             UpdateButtonsState();
+
+            var settingsPanel = CreateSettingsPanel();
+            settingsPanel.style.width = k_UploadSettingPanelWidth;
+            root.RegisterCallback<GeometryChangedEvent>( evt =>
+            {
+                if (evt.newRect.width < k_UploadSettingPanelWidth + settingsPanel.resolvedStyle.marginRight)
+                {
+                    settingsPanel.style.width = evt.newRect.width - settingsPanel.resolvedStyle.marginRight;
+                }
+                else
+                {
+                    settingsPanel.style.width = k_UploadSettingPanelWidth;
+                }
+            });
+
+            root.Add(settingsPanel);
 
             return root;
         }
@@ -476,6 +606,24 @@ namespace Unity.AssetManager.Editor
             m_ClearUploadButton?.SetEnabled(m_UploadContext.UploadAssets.Count > 0);
         }
 
+        bool DisplayScalingIssuesHelpBoxIfNecessary()
+        {
+            var numberOfAssetsToUpload = m_UploadContext.UploadAssets.Count(x =>
+                !m_UploadContext.IgnoredAssetGuids.Contains(x.Guid));
+
+            if (numberOfAssetsToUpload > Constants.ScalingIssuesThreshold)
+            {
+                SetMessageData(L10n.Tr(Constants.ScalingIssuesMessage),
+                    RecommendedAction.None, false, HelpBoxMessageType.Warning);
+
+                return true;
+            }
+
+            SetMessageData(string.Empty, RecommendedAction.None);
+
+            return false;
+        }
+
         async Task UpdateUploadButtonAsync()
         {
             string tooltip;
@@ -500,19 +648,24 @@ namespace Unity.AssetManager.Editor
             {
                 tooltip = L10n.Tr(Constants.UploadNoAssetsTooltip);
             }
-            else if (m_UploadContext.Settings.UploadMode == UploadAssetMode.SkipExisting)
-            {
-                tooltip = L10n.Tr(Constants.UploadWaitStatusTooltip);
-                TaskUtils.TrackException(UpdateUploadButtonIgnoreModeAsync());
-            }
             else if (anyOutsideProject)
             {
                 tooltip = L10n.Tr(Constants.UploadOutsideProjectTooltip);
             }
             else
             {
-                m_UploadAssetsButton.SetEnabled(true);
-                tooltip = L10n.Tr(Constants.UploadAssetsTooltip);
+                await WaitForStatusUpdate();
+                var uploadAssetData = m_AssetList.OfType<UploadAssetData>();
+                var allAssetSkipped = m_UploadContext.UploadAssets.Count > 0 && uploadAssetData.All(uad => uad.IsIgnored || uad.IsSkipped);
+                if (allAssetSkipped)
+                {
+                    tooltip = L10n.Tr(Constants.UploadAllSkippedTooltip);
+                }
+                else
+                {
+                    m_UploadAssetsButton.SetEnabled(true);
+                    tooltip = L10n.Tr(Constants.UploadAssetsTooltip);
+                }
             }
 
             m_UploadAssetsButton.tooltip = tooltip;
@@ -520,28 +673,53 @@ namespace Unity.AssetManager.Editor
 
         async Task<string> UpdateUploadButtonIgnoreModeAsync()
         {
-            var hasNonExistingAssets = false;
-            var uploadAssets = m_UploadContext.UploadAssets.ToList(); // Make a copy of the selection in case it changes while we're checking
-
-            foreach (var assetGuid in uploadAssets.Select(u => u.Guid))
+            switch (m_UploadContext.Settings.UploadMode)
             {
-                var existingAsset = await AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(assetGuid,
-                    m_UploadContext.Settings.OrganizationId, m_UploadContext.Settings.ProjectId, CancellationToken.None);
+                case UploadAssetMode.SkipIdentical:
+                    return await UpdateUploadButtonNewVersionModeAsync();
+                default:
+                    return string.Empty;
+            }
+        }
 
-                if (existingAsset == null && !m_UploadContext.IgnoredAssetGuids.Contains(assetGuid))
+        async Task<string> UpdateUploadButtonNewVersionModeAsync()
+        {
+            var uploadAssets =
+                m_UploadContext.UploadAssets
+                    .ToList(); // Make a copy of the selection in case it changes while we're checking
+
+            // Check if it contains any non-existing assets
+            var existingAssets = new List<(IUploadAsset, IAssetData)>();
+            foreach (var uploadAsset in uploadAssets)
+            {
+                var assetGuid = uploadAsset.Guid;
+                var existingAsset = await AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(assetGuid,
+                    m_UploadContext.Settings.OrganizationId, m_UploadContext.Settings.ProjectId,
+                    CancellationToken.None);
+
+                if (!m_UploadContext.IgnoredAssetGuids.Contains(assetGuid))
                 {
-                    hasNonExistingAssets = true;
-                    break;
+                    if (existingAsset == null)
+                    {
+                        m_UploadAssetsButton.SetEnabled(true);
+                        return L10n.Tr(Constants.UploadAssetsTooltip);
+                    }
+
+                    existingAssets.Add((uploadAsset, existingAsset));
                 }
             }
 
-            if (hasNonExistingAssets)
+            foreach (var (uploadAsset, existingAsset) in existingAssets)
             {
-                m_UploadAssetsButton.SetEnabled(true);
-                return L10n.Tr(Constants.UploadAssetsTooltip);
+                var hasModifiedFiles = await Utilities.IsLocallyModifiedAsync(uploadAsset, existingAsset);
+                if (hasModifiedFiles || await Utilities.CheckDependenciesModifiedAsync(existingAsset))
+                {
+                    m_UploadAssetsButton.SetEnabled(true);
+                    return L10n.Tr(Constants.UploadAssetsTooltip);
+                }
             }
 
-            return L10n.Tr(Constants.UploadAssetsExistsTooltip);
+            return L10n.Tr(Constants.UploadAssetsNotModifiedTooltip);
         }
 
         void UpdateCancelButtonLabel()

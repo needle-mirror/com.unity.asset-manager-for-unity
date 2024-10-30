@@ -7,10 +7,15 @@ namespace Unity.AssetManager.Editor
         public const string AllAssetsFolderName = "All Assets";
         public const string AssetsFolderName = "Assets";
         public const string ApplicationFolderName = "Asset Manager";
+        public const string Continue = "Continue";
+        public const string Cancel = "Cancel";
 
         public const string CategoriesScrollViewUssName = "categories-scrollView";
 
         public const int DefaultPageSize = 50;
+
+        // Filter
+        public const string NoSelectionsText = "Empty";
 
         // Sort
         public const string Sort = "Sort by:";
@@ -40,12 +45,25 @@ namespace Unity.AssetManager.Editor
         public const string UploadNoPermissionTooltip = "You don’t have permissions to upload this asset. \nSee your role from the project settings page on \nthe Asset Manager dashboard.";
         public const string UploadCloudServicesNotReachableTooltip = "Cloud services are not reachable";
         public const string UploadAllIgnoredTooltip = "All assets are ignored";
+        public const string UploadAllSkippedTooltip = "All assets are up to date";
         public const string UploadNoProjectSelectedTooltip = "Select a project to upload assets";
         public const string UploadNoAssetsTooltip = "No assets to upload";
         public const string UploadWaitStatusTooltip = "Waiting for assets status...";
         public const string UploadAssetsTooltip = "Upload assets to cloud";
         public const string UploadAssetsExistsTooltip = "All assets already exist in the cloud";
+        public const string UploadAssetsNotModifiedTooltip = "All assets are unchanged";
         public const string UploadOutsideProjectTooltip = "One of more assets contain files outside the Assets folder";
+        public const string DirtyAssetsDialogTitle = "Warning";
+        public const string DirtyAssetsDialogMessage = "You are trying to upload assets that have unsaved changes.\nAre you sure you want to proceed?";
+        public const string DirtyAssetsDialogOk = "Save and Continue";
+        public const string DirtyAssetsDialogCancel = Cancel;
+        public const string UploadSettings = "Upload Settings";
+        public const string UploadMode = "Reupload mode";
+        public const string Dependencies = "Dependencies";
+        public const string FilePaths = "File paths";
+        public const string UploadSettingsReset = "Reset to default";
+        public const string ScalingIssuesMessage = "Uploading 100+ assets may reach scaling issues. Try to upload less than 100 assets at the time for better results.";
+        public const int ScalingIssuesThreshold = 100;
 
         // Preview Status
         public const string ImportedText = "Asset is imported";
@@ -57,7 +75,7 @@ namespace Unity.AssetManager.Editor
         public const string LinkedText = "This asset is a dependency of another asset";
         public const string UploadAddText = "This asset does not exist on the cloud and will be added";
         public const string UploadSkipText = "This asset already exists on the cloud and will not be uploaded";
-        public const string UploadOverrideText = "This asset will override its cloud version";
+        public const string UploadNewVersionText = "This asset will add a new version in its cloud version";
         public const string UploadDuplicateText = "This asset already exists on the cloud but a new cloud asset will be uploaded";
         public const string UploadOutsideText = "This asset is outside the Assets folder and cannot be uploaded";
 
@@ -73,10 +91,11 @@ namespace Unity.AssetManager.Editor
         public const string ChangeLogText = "What's changed?";
         public const string NoChangeLogText = "No change log provided.";
         public const string CreatedFromText = "Created From";
-        public const string CreatedByText = "Created By";
-        public const string CreatedDateText = "Created Date";
-        public const string ModifiedByText = "Modified By";
-        public const string ModifiedDateText = "Modified Date";
+        public const string CreatedByText = "Created by";
+        public const string CreatedDateText = "Upload date";
+        public const string ModifiedByText = "Last edit by";
+        public const string ModifiedDateText = "Last modified";
+        public const string DateText = "Date";
         public const string TagsText = "Tags";
         public const string ProjectText = "Project";
         public const string AssetTypeText = "Asset Type";
@@ -110,6 +129,7 @@ namespace Unity.AssetManager.Editor
         public const string RemoveFromProjectActionText = "Remove From Project";
         public const string RemoveAllFromProjectActionText = "Remove All From Local Project";
         public const string CancelImportActionText = "Cancel Import";
+        public const string ClearImportActionText = "Clear All Finished Imports";
         public const string ShowInProjectActionText = "Show In Project";
         public const string ShowInProjectButtonToolTip = "Pings the Asset in an active Project window";
         public const string ShowInProjectButtonDisabledToolTip = "This Asset has not yet been imported";
@@ -138,6 +158,8 @@ namespace Unity.AssetManager.Editor
         public const string EmptyInProjectText = "Your imported assets will be shown here.";
         public const string EmptyProjectText = "The selected project is empty. To add assets, right click on any asset in project window and select upload to asset manager.";
         public const string EmptyAllAssetsText = "The selected organization is empty. To add assets, right click on any asset in project window and select upload to asset manager.";
+        public const string NoResultsText = "No results found";
+        public const string NoResultsForText = "No results found for";
         public const int ShrinkSizeInMb = 200;
         public const int DefaultCacheSizeGb = 2;
         public const int DefaultCacheSizeMb = DefaultCacheSizeGb * 1024;
@@ -151,11 +173,13 @@ namespace Unity.AssetManager.Editor
         public const string ReimportWindowConflictsWarning = "Warning: replacing files will overwrite local copies.";
         public const string ReimportWindowDependentsTitle = "The following dependent assets have updates:";
         public const string ReimportWindowUpwardDependenciesTitle = "The following assets have dependencies on updated assets. They might also be affected:";
-        public const string ReimportWindowCancel = "Cancel";
+        public const string ReimportWindowCancel = Cancel;
         public const string ReimportWindowImport = "Import";
         public const string ReimportWindowSkip = "Skip";
         public const string ReimportWindowUpdate = "Update";
         public const string ReimportWindowReimport = "Reimport";
+        public const string ReimportWindowReplace = "Replace";
+        public const string Conflicts = "conflicts";
 
         // Asset Manager Settings
         public const string AssetManagerTitle = "Asset Manager";
@@ -184,6 +208,16 @@ namespace Unity.AssetManager.Editor
         public const string TagsCreation = "Generate tags automatically based on preview image";
         public const string TagsCreationConfidenceLevel = "Confidence level for automatic tags generation";
         public const string TagsCreationConfidenceLevelTooltip = "The higher the value, the more accurate the tags will be.";
+
+        // Collection
+        public const string CollectionCreate = "Create new collection";
+        public const string CollectionDefaultName = "New collection";
+        public const string CollectionRename = "Rename";
+        public const string CollectionDelete = "Delete";
+        public const string CollectionDeleteMessage = "Deleting a collection will not delete assets linked to it, they will still be visible from the project view.";
+        public const string CollectionDeleteTitle = "Warning";
+        public const string CollectionDeleteOk = "Delete";
+        public const string CollectionDeleteCancel = Cancel;
 
         // This exists here for compatibility with 2020.x versions
         public static DateTime UnixEpoch = new(1970, 1, 1, 0, 0, 0);

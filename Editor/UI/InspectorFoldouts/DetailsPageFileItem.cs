@@ -38,6 +38,7 @@ namespace Unity.AssetManager.Editor
             m_ThreeDots = new Button();
             m_InProjectIcon = new VisualElement();
             m_ThreeDots.ClearClassList();
+            m_ThreeDots.focusable = false;
 
             AddToClassList(k_DetailsPageFileItemUssStyle);
             m_Icon.AddToClassList(k_DetailsPageFileIconItemUssStyle);

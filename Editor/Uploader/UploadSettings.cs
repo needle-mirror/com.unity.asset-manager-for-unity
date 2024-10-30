@@ -6,9 +6,13 @@ namespace Unity.AssetManager.Editor
     [Serializable]
     class UploadSettings
     {
-        static readonly string k_UploadModePrefKey = "com.unity.asset-manager-for-unity.upload-mode";
+        static readonly string k_UploadModePrefKey = "com.unity.asset-manager-for-unity.reupload-mode";
         static readonly string k_UploadDependencyModePrefKey = "com.unity.asset-manager-for-unity.upload-dependency-mode";
         static readonly string k_UploadFlattenFilePathsPrefKey = "com.unity.asset-manager-for-unity.upload-flatten-file-paths";
+        static readonly string k_UploadSettingsPanelOpenedPrefKey = "com.unity.asset-manager-for-unity.upload-settings-panel-opened";
+        static readonly UploadAssetMode k_DefaultUploadAssetMode = UploadAssetMode.SkipIdentical;
+        static readonly UploadDependencyMode k_DefaultUploadDependencyMode = UploadDependencyMode.Separate;
+        static readonly UploadFilePathMode k_DefaultUploadFilePathMode = UploadFilePathMode.Full;
 
         public string OrganizationId;
         public string ProjectId;
@@ -35,30 +39,43 @@ namespace Unity.AssetManager.Editor
         UploadAssetMode SavedUploadMode
         {
             set => EditorPrefs.SetInt(k_UploadModePrefKey, (int)value);
-            get => (UploadAssetMode)EditorPrefs.GetInt(k_UploadModePrefKey, (int)UploadAssetMode.Override);
+            get => (UploadAssetMode)EditorPrefs.GetInt(k_UploadModePrefKey, (int)k_DefaultUploadAssetMode);
         }
 
         UploadDependencyMode SavedDependencyMode
         {
             set => EditorPrefs.SetInt(k_UploadDependencyModePrefKey, (int)value);
-            get => (UploadDependencyMode)EditorPrefs.GetInt(k_UploadDependencyModePrefKey, (int)UploadDependencyMode.Separate);
+            get => (UploadDependencyMode)EditorPrefs.GetInt(k_UploadDependencyModePrefKey, (int)k_DefaultUploadDependencyMode);
         }
 
         UploadFilePathMode SavedFilePathMode
         {
             set => EditorPrefs.SetInt(k_UploadFlattenFilePathsPrefKey, (int)value);
-            get => (UploadFilePathMode)EditorPrefs.GetInt(k_UploadFlattenFilePathsPrefKey, (int)UploadFilePathMode.Full);
+            get => (UploadFilePathMode)EditorPrefs.GetInt(k_UploadFlattenFilePathsPrefKey, (int)k_DefaultUploadFilePathMode);
+        }
+
+        public bool SavedUploadSettingsPanelOpened
+        {
+            set => EditorPrefs.SetBool(k_UploadSettingsPanelOpenedPrefKey, value);
+            get => EditorPrefs.GetBool(k_UploadSettingsPanelOpenedPrefKey, false);
+        }
+
+        public void Reset()
+        {
+            SavedUploadMode = k_DefaultUploadAssetMode;
+            SavedDependencyMode = k_DefaultUploadDependencyMode;
+            SavedFilePathMode = k_DefaultUploadFilePathMode;
         }
 
         public static string GetUploadModeTooltip(UploadAssetMode mode)
         {
             return mode switch
             {
-                UploadAssetMode.Duplicate => L10n.Tr("Uploads new assets and potentially duplicates without checking for existing matches"),
+                UploadAssetMode.ForceNewAsset => L10n.Tr("Uploads new assets and potentially duplicates without checking for existing matches"),
 
-                UploadAssetMode.Override => L10n.Tr("Replaces and overrides any existing asset with the same id on the cloud"),
+                UploadAssetMode.SkipIdentical => L10n.Tr("For existing cloud Assets, a new version will be created only if local changes are detected"),
 
-                UploadAssetMode.SkipExisting => L10n.Tr("Ignores and skips the upload if an asset with the same id already exists on the cloud"),
+                UploadAssetMode.ForceNewVersion => L10n.Tr("For existing cloud Assets, a new version will always be created regardless of local changes"),
 
                 _ => null
             };

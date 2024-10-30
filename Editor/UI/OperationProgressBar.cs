@@ -27,6 +27,8 @@ namespace Unity.AssetManager.Editor
 
         float m_AnimationLeftOffset;
         bool m_IsIndefinite;
+        bool m_IsFinished;
+
         Action m_CancelCallback;
 
         bool IsIndefinite
@@ -95,7 +97,11 @@ namespace Unity.AssetManager.Editor
         void OnCancelClicked()
         {
             m_CancelCallback?.Invoke();
-            Hide();
+
+            if (m_IsFinished)
+            {
+                Hide();
+            }
         }
 
         void UpdateProgressBar(TimerState timerState)
@@ -121,14 +127,14 @@ namespace Unity.AssetManager.Editor
             switch (operation.Status)
             {
                 case OperationStatus.Success:
-                    m_CancelCallback = null;
+                    m_IsFinished = true;
                     m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarSuccess);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarError);
                     break;
 
                 case OperationStatus.Error:
-                    m_CancelCallback = null;
+                    m_IsFinished = true;
                     m_ProgressBar.AddToClassList(UssStyles.k_ProgressBarError);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarColor);
                     m_ProgressBar.RemoveFromClassList(UssStyles.k_ProgressBarSuccess);
@@ -156,8 +162,16 @@ namespace Unity.AssetManager.Editor
             }
             else
             {
-                if (operation.IsSticky || operation.Status == OperationStatus.Error)
+                if(operation.Status == OperationStatus.Cancelled || operation.Status == OperationStatus.None)
                 {
+                    m_IsFinished = true;
+                    UpdateTooltip();
+                    Hide();
+                }
+                else if (operation.IsSticky || operation.Status == OperationStatus.Error)
+                {
+                    m_IsFinished = true;
+                    UpdateTooltip();
                     SetProgress(1.0f);
                 }
                 else if(operation.Status == OperationStatus.Paused)
@@ -182,6 +196,12 @@ namespace Unity.AssetManager.Editor
 
         void SetProgress(float progress)
         {
+            if (progress < 1f)
+            {
+                m_IsFinished = false;
+                UpdateTooltip();
+            }
+
             UIElementsUtils.Show(this);
             IsIndefinite = progress <= 0.0f;
 
@@ -189,6 +209,14 @@ namespace Unity.AssetManager.Editor
             {
                 m_ProgressBar.style.left = 0.0f;
                 m_ProgressBar.style.width = Length.Percent(progress * 100);
+            }
+        }
+
+        void UpdateTooltip()
+        {
+            if (m_CancelButton != null)
+            {
+                m_CancelButton.tooltip = m_IsFinished ?  L10n.Tr(Constants.ClearImportActionText) : L10n.Tr(Constants.CancelImportActionText);
             }
         }
     }

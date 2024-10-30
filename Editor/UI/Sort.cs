@@ -58,5 +58,15 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager.SetSortValues(sortField, sortingOrder);
         }
+
+        protected override bool IsDisplayed(IPage page)
+        {
+            if (page is BasePage basePage)
+            {
+                return basePage.DisplaySort;
+            }
+
+            return base.IsDisplayed(page);
+        }
     }
 }

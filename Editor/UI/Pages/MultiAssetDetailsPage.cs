@@ -59,6 +59,18 @@ namespace Unity.AssetManager.Editor
             BuildUxmlDocument();
         }
 
+        protected override void OnAttachToPanel(AttachToPanelEvent evt)
+        {
+            base.OnAttachToPanel(evt);
+            m_PageManager.ToggleAssetChanged += OnToggleAssetChanged;
+        }
+
+        protected override void OnDetachFromPanel(DetachFromPanelEvent evt)
+        {
+            base.OnDetachFromPanel(evt);
+            m_PageManager.ToggleAssetChanged -= OnToggleAssetChanged;
+        }
+
         public override bool IsVisible(int selectedAssetCount)
         {
             return selectedAssetCount > 1;
@@ -97,10 +109,7 @@ namespace Unity.AssetManager.Editor
             }
 
             m_FooterContainer = this.Q<VisualElement>(k_InspectorFooterContainerName);
-            m_OperationProgressBar = new OperationProgressBar(() =>
-            {
-                m_AssetImporter.CancelBulkImport(m_SelectedAssetsData.Select(x => x.Identifier).ToList(), true);
-            });
+            m_OperationProgressBar = new OperationProgressBar(CancelOrClearImport);
             m_FooterContainer.contentContainer.hierarchy.Add(m_OperationProgressBar);
 
             m_RemoveImportButton = new Button
@@ -119,6 +128,29 @@ namespace Unity.AssetManager.Editor
 
             m_SelectedAssetsData = m_AssetDataManager.GetAssetsData(m_PageManager.ActivePage.SelectedAssets);
             RefreshUI();
+        }
+
+        void CancelOrClearImport()
+        {
+            var operations = new List<AssetDataOperation>();
+            foreach (var id in m_SelectedAssetsData.Select(x => x.Identifier))
+            {
+                var operation = m_AssetOperationManager.GetAssetOperation(id);
+                Utilities.DevAssert(operation != null, $"Operation for asset {id} not found");
+                if (operation != null)
+                {
+                    operations.Add(operation);
+                }
+            }
+
+            if (operations.Exists(o => o.Status == OperationStatus.InProgress))
+            {
+                m_AssetImporter.CancelBulkImport(m_SelectedAssetsData.Select(x => x.Identifier).ToList(), true);
+            }
+            else
+            {
+                m_AssetOperationManager.ClearFinishedOperations();
+            }
         }
 
         protected override Task SelectAssetDataAsync(List<IAssetData> assetData)
@@ -194,6 +226,14 @@ namespace Unity.AssetManager.Editor
             RefreshUI();
         }
 
+        void OnToggleAssetChanged(IPage page, AssetIdentifier assetIdentifier, bool checkedState)
+        {
+            if (page != m_PageManager.ActivePage)
+                return;
+
+            RefreshUI();
+        }
+
         void RefreshTitleAndButtons()
         {
             // Refresh Title
@@ -253,8 +293,6 @@ namespace Unity.AssetManager.Editor
 
         void PopulateFoldout(FoldoutName foldoutName, IEnumerable<IAssetData> items)
         {
-            var haveEmptyAsset = items.Any(i => !i.SourceFiles.Any());
-            m_Foldouts[foldoutName].SetButtonEnable(!haveEmptyAsset);
             m_Foldouts[foldoutName].StartPopulating();
             var assetDatas = items.ToList();
             if (assetDatas.Any())
@@ -368,7 +406,7 @@ namespace Unity.AssetManager.Editor
 
             try
             {
-                m_AssetImporter.RemoveBulkImport(importedAssets, true);
+                m_AssetImporter.RemoveImports(importedAssets, true);
             }
             catch (Exception e)
             {

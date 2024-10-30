@@ -22,8 +22,10 @@ namespace Unity.AssetManager.Editor
 
     static class AnalyticsSender
     {
+#if !AM4U_DEV && !UNITY_2023_2_OR_NEWER
         static readonly int k_MaxEventsPerHour = 1000;
         static readonly int k_MaxNumberOfElements = 1000;
+#endif
 
         // Vendor key must start with unity.
         public const string VendorKey = "unity.asset-explorer";

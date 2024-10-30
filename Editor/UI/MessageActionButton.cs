@@ -20,6 +20,7 @@ namespace Unity.AssetManager.Editor
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_LinksProxy = linksProxy;
+            focusable = false;
         }
 
         public void SetRecommendedAction(RecommendedAction action)

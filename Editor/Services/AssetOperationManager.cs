@@ -9,6 +9,8 @@ namespace Unity.AssetManager.Editor
     {
         event Action<AssetDataOperation> OperationProgressChanged;
         event Action<AssetDataOperation> OperationFinished;
+        event Action<TrackedAssetIdentifier> OperationCleared;
+        event Action FinishedOperationsCleared;
 
         AssetDataOperation GetAssetOperation(AssetIdentifier identifier);
         void PauseAllOperations();
@@ -27,6 +29,8 @@ namespace Unity.AssetManager.Editor
 
         public event Action<AssetDataOperation> OperationProgressChanged;
         public event Action<AssetDataOperation> OperationFinished;
+        public event Action<TrackedAssetIdentifier> OperationCleared;
+        public event Action FinishedOperationsCleared;
 
         [ServiceInjection]
         public void Inject(IPageManager pageManager)
@@ -69,17 +73,20 @@ namespace Unity.AssetManager.Editor
         {
             var identifier = new TrackedAssetIdentifier(operation.Identifier);
 
-            if (m_Operations.TryGetValue(identifier, out var existingOperation) &&
-                operation == existingOperation)
-
+            if (m_Operations.TryGetValue(identifier, out var existingOperation))
+            {
                 // The operation is already registered
-            {
-                return;
-            }
+                if (operation == existingOperation)
+                    return;
 
-            if (existingOperation is { IsSticky: false })
-            {
-                Debug.LogWarning("An operation for this asset were already existing");
+                if (!existingOperation.IsSticky)
+                {
+                    Debug.LogWarning("An operation for this asset already exists");
+                }
+                else
+                {
+                    ClearOperation(identifier);
+                }
             }
 
             operation.ProgressChanged += _ => OperationProgressChanged?.Invoke(operation);
@@ -87,7 +94,7 @@ namespace Unity.AssetManager.Editor
             {
                 if (!operation.IsSticky)
                 {
-                    m_Operations.Remove(identifier);
+                    ClearOperation(identifier);
                 }
 
                 OperationFinished?.Invoke(operation);
@@ -101,15 +108,27 @@ namespace Unity.AssetManager.Editor
             ClearFinishedOperations();
         }
 
+        void ClearOperation(TrackedAssetIdentifier identifier)
+        {
+            if(m_Operations.TryGetValue(identifier, out var operation))
+            {
+                OperationCleared?.Invoke(identifier);
+                operation.Remove();
+                m_Operations.Remove(identifier);
+            }
+        }
+
         public void ClearFinishedOperations()
         {
             foreach (var operation in m_Operations.Values.ToArray())
             {
                 if (operation.Status != OperationStatus.InProgress)
                 {
-                    m_Operations.Remove(new TrackedAssetIdentifier(operation.Identifier));
+                    ClearOperation(new TrackedAssetIdentifier(operation.Identifier));
                 }
             }
+
+            FinishedOperationsCleared?.Invoke();
         }
     }
 }

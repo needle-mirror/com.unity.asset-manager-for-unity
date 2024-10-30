@@ -22,6 +22,7 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            focusable = false;
 
             AddToClassList(k_UssClassName);
 
@@ -124,6 +125,9 @@ namespace Unity.AssetManager.Editor
             {
                 RemoveFromClassList(ussClassName);
                 AddToClassList(k_ItemButtonClassName);
+
+                focusable = false;
+
             }
         }
     }

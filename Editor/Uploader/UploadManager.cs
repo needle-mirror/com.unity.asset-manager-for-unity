@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Cloud.CommonEmbedded;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -21,9 +20,9 @@ namespace Unity.AssetManager.Editor
 
     enum UploadAssetMode
     {
-        SkipExisting, // Skips the upload if an asset with the same ID already exists on the cloud
-        Override, // Replaces and overrides any existing asset with the same ID on the cloud
-        Duplicate, // Uploads new assets and potentially duplicates without checking for existing matches
+        SkipIdentical, // Upload a new version of asset and skips any existing asset on the cloud that are identical
+        ForceNewVersion, // Always force a new version on the asset
+        ForceNewAsset, // Uploads new assets and potentially duplicates without checking for existing matches
     }
 
     enum UploadDependencyMode
@@ -68,6 +67,12 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         IAssetsProvider m_AssetsProvider;
 
+        [SerializeReference]
+        IAssetDataManager m_AssetDataManager;
+
+        [SerializeReference]
+        IPageManager m_PageManager;
+
         CancellationTokenSource m_TokenSource;
 
         bool m_Uploading;
@@ -82,11 +87,13 @@ namespace Unity.AssetManager.Editor
         static readonly int k_MaxConcurrentTasks = 5;
 
         [ServiceInjection]
-        public void Inject(IAssetOperationManager assetOperationManager, IImportedAssetsTracker importTracker, IAssetsProvider assetsProvider)
+        public void Inject(IAssetOperationManager assetOperationManager, IImportedAssetsTracker importTracker, IAssetsProvider assetsProvider, IAssetDataManager assetDataManager, IPageManager pageManager)
         {
             m_AssetOperationManager = assetOperationManager;
             m_ImportTracker = importTracker;
             m_AssetsProvider = assetsProvider;
+            m_AssetDataManager = assetDataManager;
+            m_PageManager = pageManager;
         }
 
         public async Task UploadAsync(IReadOnlyCollection<IUploadAsset> uploadEntries, UploadSettings settings)
@@ -123,11 +130,30 @@ namespace Unity.AssetManager.Editor
                 var createAssetTasks = await TaskUtils.RunWithMaxConcurrentTasksAsync(assetEntriesWithAllDependencies, token,
                     (uploadEntry) =>
                     {
-                        var operation = StartNewOperation(uploadEntry);
-                        uploadEntryToOperationLookup[uploadEntry] = operation;
+                        UploadOperation operation = null;
 
-                        return CreateOrRecycleAsset(operation, uploadEntry, settings.UploadMode, targetProject,
+                        var skipped = false;
+                        foreach (var assetData in m_PageManager.ActivePage.AssetList)
+                        {
+                            if (assetData is UploadAssetData uploadAssetData &&
+                                uploadEntry.Guid == uploadAssetData.Guid &&
+                                uploadAssetData.IsSkipped)
+                            {
+                                skipped = true;
+                                break;
+                            }
+                        }
+
+                        if (!skipped)
+                        {
+                            operation = StartNewOperation(uploadEntry);
+                            uploadEntryToOperationLookup[uploadEntry] = operation;
+                        }
+
+                        var assetUploadInfo = CreateOrRecycleAsset(operation, uploadEntry, settings.UploadMode, targetProject,
                             targetCollection, token);
+
+                        return assetUploadInfo;
                     }, k_MaxConcurrentTasks);
 
                 foreach (var task in createAssetTasks)
@@ -141,12 +167,18 @@ namespace Unity.AssetManager.Editor
 
                     if (!assetUploadInfo.Skip)
                     {
+                        // In the case we modified the asset after it was staged for upload
+                        if(!uploadEntryToOperationLookup.TryGetValue(uploadEntry, out _))
+                        {
+                            uploadEntryToOperationLookup[uploadEntry] = StartNewOperation(uploadEntry);
+                        }
+
                         uploadEntryToAssetUploadInfoLookup[uploadEntry] = assetUploadInfo;
                     }
-                    else
+                    // In the case we undo changes on an asset after it was staged for upload
+                    else if(uploadEntryToOperationLookup.TryGetValue(uploadEntry, out var operation))
                     {
-                        var operation = uploadEntryToOperationLookup[uploadEntry];
-                        operation.Finish(OperationStatus.Success);
+                        operation.Finish(OperationStatus.None);
                     }
 
                     guidToAssetLookup[uploadEntry.Guid] = assetUploadInfo.AssetData;
@@ -183,6 +215,7 @@ namespace Unity.AssetManager.Editor
             finally
             {
                 m_Uploading = false;
+                CancelUpload(); // Any failure should cancel whatever is left; if there's nothing left like on success, it's a no-op
                 m_TokenSource?.Dispose();
                 m_TokenSource = null;
                 UploadEnded?.Invoke();
@@ -200,10 +233,9 @@ namespace Unity.AssetManager.Editor
             {
                 IEnumerable<(string originalPath, string finalPath)> assetPaths = new List<(string, string)>();
 
-                foreach (var sourcePath in uploadAsset.Files.Select(f => f.SourcePath))
+                foreach (var f in uploadAsset.Files)
                 {
-                    var originalFile = Utilities.GetPathRelativeToAssetsFolder(sourcePath);
-                    assetPaths = assetPaths.Append((originalPath: originalFile, sourcePath));
+                    assetPaths = assetPaths.Append((originalPath: f.DestinationPath, f.SourcePath));
                 }
 
                 IAssetData assetData;
@@ -225,7 +257,7 @@ namespace Unity.AssetManager.Editor
                 // Make sure additional information like dependencies are populated
                 await assetData.SyncWithCloudAsync(null, token);
 
-                m_ImportTracker.TrackAssets(assetPaths, assetData);
+                await m_ImportTracker.TrackAssets(assetPaths, assetData);
             }
             catch (OperationCanceledException)
             {
@@ -255,7 +287,7 @@ namespace Unity.AssetManager.Editor
             catch (Exception e)
             {
                 Debug.LogException(e);
-                operation.Finish(OperationStatus.Error);
+                operation?.Finish(OperationStatus.Error);
             }
 
             return null;
@@ -266,17 +298,20 @@ namespace Unity.AssetManager.Editor
         {
             AssetData existingAsset = null;
 
-            if (uploadMode != UploadAssetMode.Duplicate)
+            if (uploadMode != UploadAssetMode.ForceNewAsset)
             {
                 try
                 {
                     existingAsset = await AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(uploadAsset.Guid,
-                        targetProject.OrganizationId.ToString(), targetProject.ProjectId.ToString(), token);
+                        targetProject.OrganizationId, targetProject.ProjectId, token);
 
-                    if (existingAsset != null && uploadMode == UploadAssetMode.SkipExisting)
+                    if (existingAsset != null)
                     {
-                        Utilities.DevLog($"Asset is already on the cloud: {existingAsset.Name}. Skipping...");
-                        return new AssetUploadInfo(uploadAsset, existingAsset, true, true);
+                        var assetUploadInfo = await CheckExistingAsset(existingAsset, uploadAsset, uploadMode, token);
+                        if (assetUploadInfo != null)
+                        {
+                            return assetUploadInfo;
+                        }
                     }
                 }
                 catch (OperationCanceledException)
@@ -291,7 +326,7 @@ namespace Unity.AssetManager.Editor
             }
 
             AssetData asset;
-            var canRecycleAsset = existingAsset != null && uploadMode == UploadAssetMode.Override;
+            var canRecycleAsset = existingAsset != null && uploadMode == UploadAssetMode.SkipIdentical;
             if (canRecycleAsset)
             {
                 asset = await RecycleAsset(uploadAsset, existingAsset, token);
@@ -303,6 +338,26 @@ namespace Unity.AssetManager.Editor
             }
 
             return new AssetUploadInfo(uploadAsset, asset, canRecycleAsset, false);
+        }
+
+        async Task<AssetUploadInfo> CheckExistingAsset(AssetData existingAsset, IUploadAsset uploadAsset, UploadAssetMode uploadMode, CancellationToken token)
+        {
+            switch (uploadMode)
+            {
+                case UploadAssetMode.SkipIdentical:
+                {
+                    var hasModifiedFiles = await Utilities.IsLocallyModifiedAsync(uploadAsset, existingAsset, m_AssetDataManager, token);
+                    if (!hasModifiedFiles && !await Utilities.CheckDependenciesModifiedAsync(existingAsset, m_AssetDataManager, token))
+                    {
+                        Utilities.DevLog($"Asset is already as is on the cloud: {existingAsset.Name}. Skipping...");
+                        return new AssetUploadInfo(uploadAsset, existingAsset, true, true);
+                    }
+
+                    break;
+                }
+            }
+
+            return null;
         }
 
         UploadOperation StartNewOperation(IUploadAsset uploadAsset)

@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Image = UnityEngine.UIElements.Image;
 
 namespace Unity.AssetManager.Editor
 {
@@ -10,11 +11,14 @@ namespace Unity.AssetManager.Editor
         static readonly string k_IconFolderClose = "icon-folder-close";
 
         readonly ProjectInfo m_ProjectInfo;
-        readonly string m_CollectionPath;
-
         readonly IUploadManager m_UploadManager;
-
         readonly Image m_Icon;
+        readonly Label m_Label;
+        readonly TextField m_TextField;
+
+        ContextualMenuManipulator m_ContextualMenuManipulator;
+
+        string m_CollectionPath;
 
         internal SideBarCollectionFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IStateManager stateManager,
             IProjectOrganizationProvider projectOrganizationProvider,
@@ -29,6 +33,10 @@ namespace Unity.AssetManager.Editor
 
             var iconParent = this.Q(className: inputUssClassName);
             m_Icon = iconParent.Q<Image>();
+            m_Label = m_Toggle.Q<Label>();
+            m_TextField = new TextField();
+            m_Label.parent.Add(m_TextField);
+            UIElementsUtils.Hide(m_TextField);
 
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
@@ -39,10 +47,52 @@ namespace Unity.AssetManager.Editor
             return string.IsNullOrEmpty(collectionPath) ? projectInfo.Id : $"{projectInfo.Id}::{collectionPath}";
         }
 
+        public void StartRenaming()
+        {
+            UIElementsUtils.Hide(m_Label);
+            UIElementsUtils.Show(m_TextField);
+            m_TextField.value = m_Label.text;
+            m_TextField.Focus();
+
+            m_TextField.RegisterCallback<FocusOutEvent>(Rename);
+        }
+
+        public void StartNaming()
+        {
+            UIElementsUtils.Hide(m_Label);
+            UIElementsUtils.Show(m_TextField);
+            m_TextField.value = m_Label.text;
+            m_TextField.Focus();
+
+            m_TextField.RegisterCallback<FocusOutEvent>(OnNameSet);
+        }
+
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             RegisterEventForIconChange();
             RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
+
+            if (m_ContextualMenuManipulator != null)
+            {
+                this.RemoveManipulator(m_ContextualMenuManipulator);
+            }
+
+            if (m_CollectionPath != null)
+            {
+                var collectionInfo = CollectionInfo.CreateFromFullPath(m_CollectionPath);
+                collectionInfo.ProjectId = m_ProjectInfo.Id;
+                collectionInfo.OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id;
+                var contextMenu = new CollectionContextMenu(collectionInfo, m_UnityConnectProxy, m_ProjectOrganizationProvider, m_PageManager, m_StateManager);
+                m_ContextualMenuManipulator = new ContextualMenuManipulator(contextMenu.SetupContextMenuEntries);
+            }
+            else
+            {
+                var contextMenu = new ProjectContextMenu(m_ProjectInfo, m_UnityConnectProxy, m_ProjectOrganizationProvider,
+                    m_PageManager, m_StateManager);
+                m_ContextualMenuManipulator = new ContextualMenuManipulator(contextMenu.SetupContextMenuEntries);
+            }
+            this.AddManipulator(m_ContextualMenuManipulator);
+            SetIcon();
 
             m_UploadManager.UploadBegan += OnUploadBegan;
             m_UploadManager.UploadEnded += OnUploadEnded;
@@ -53,12 +103,18 @@ namespace Unity.AssetManager.Editor
             UnRegisterEventForIconChange();
             UnregisterCallback<PointerDownEvent>(OnPointerDown);
 
+            this.RemoveManipulator(m_ContextualMenuManipulator);
+            m_ContextualMenuManipulator = null;
+
             m_UploadManager.UploadBegan -= OnUploadBegan;
             m_UploadManager.UploadEnded -= OnUploadEnded;
         }
 
         void OnPointerDown(PointerDownEvent evt)
         {
+            if(evt.button != (int)MouseButton.LeftMouse)
+                return;
+
             // We skip the user's click if they aimed the check mark of the foldout
             // to only select foldouts when they click on it's title/label
             if (evt.target != this)
@@ -180,6 +236,55 @@ namespace Unity.AssetManager.Editor
                 m_Icon.RemoveFromClassList(k_IconFolderOpen);
                 m_Icon.AddToClassList(k_IconFolderClose);
             }
+        }
+
+        async void OnNameSet(FocusOutEvent evt)
+        {
+            UIElementsUtils.Hide(m_TextField);
+            UIElementsUtils.Show(m_Label);
+            m_TextField.UnregisterCallback<FocusOutEvent>(OnNameSet);
+
+            if(string.IsNullOrEmpty(m_TextField.value))
+                return;
+
+            m_Label.text = m_TextField.value;
+
+            var collectionInfo = new CollectionInfo
+            {
+                OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id,
+                ProjectId =  m_ProjectInfo.Id,
+                ParentPath = m_CollectionPath,
+                Name = m_TextField.value
+            };
+
+            m_CollectionPath += $"/{m_TextField.value}";
+            name = GetCollectionId(m_ProjectInfo, m_CollectionPath);
+
+            try
+            {
+                await m_ProjectOrganizationProvider.CreateCollection(collectionInfo);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                UIElementsUtils.Hide(this);
+            }
+        }
+
+        async void Rename(FocusOutEvent evt)
+        {
+            UIElementsUtils.Hide(m_TextField);
+            UIElementsUtils.Show(m_Label);
+            m_TextField.UnregisterCallback<FocusOutEvent>(Rename);
+
+            if(m_Label.text == m_TextField.value)
+                return;
+
+            m_Label.text = m_TextField.value;
+            var collectionInfo = CollectionInfo.CreateFromFullPath(m_CollectionPath);
+            collectionInfo.ProjectId = m_ProjectInfo.Id;
+            collectionInfo.OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id;
+            await m_ProjectOrganizationProvider.RenameCollection(collectionInfo, m_TextField.value);
         }
     }
 }

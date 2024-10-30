@@ -18,6 +18,7 @@ namespace Unity.AssetManager.Editor
         event Action<bool> LoadingStatusChanged;
         event Action<IReadOnlyCollection<AssetIdentifier>> SelectedAssetsChanged;
         event Action<IReadOnlyCollection<string>> SearchFiltersChanged;
+        event Action<AssetIdentifier, bool> ToggleAssetChanged;
         event Action<MessageData> MessageThrown;
 
         Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,

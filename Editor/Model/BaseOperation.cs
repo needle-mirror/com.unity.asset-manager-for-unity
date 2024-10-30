@@ -1,4 +1,5 @@
 using System;
+using Unity.AssetManager.Editor;
 using UnityEditor;
 using UnityEngine;
 
@@ -18,6 +19,7 @@ namespace Unity.AssetManager.Editor
     abstract class AssetDataOperation : BaseOperation
     {
         public abstract AssetIdentifier Identifier { get; }
+        public override bool ShowInBackgroundTasks => true;
     }
 
     abstract class BaseOperation
@@ -37,15 +39,20 @@ namespace Unity.AssetManager.Editor
         public virtual bool StartIndefinite => false;
 
         public virtual bool IsSticky => false;
+        public virtual bool ShowInBackgroundTasks => false;
 
         public OperationStatus Status { get; private set; } = OperationStatus.None;
 
-        public void Start()
+        public virtual void Start()
         {
             Status = OperationStatus.InProgress;
-            var options = StartIndefinite ? UnityEditor.Progress.Options.Indefinite : UnityEditor.Progress.Options.None;
 
-            m_ProgressId = UnityEditor.Progress.Start(OperationName, Description, options);
+            if (ShowInBackgroundTasks)
+            {
+                var options = StartIndefinite ? UnityEditor.Progress.Options.Indefinite : UnityEditor.Progress.Options.None;
+                m_ProgressId = UnityEditor.Progress.Start(OperationName, Description, options);
+            }
+
             ProgressChanged?.Invoke(0.0f);
         }
 
@@ -56,7 +63,7 @@ namespace Unity.AssetManager.Editor
 
             var progress = Progress;
 
-            if (StartIndefinite && progress > 0.0f &&
+            if (ShowInBackgroundTasks && StartIndefinite && progress > 0.0f &&
                 (UnityEditor.Progress.GetOptions(m_ProgressId) & UnityEditor.Progress.Options.Indefinite) != 0)
             {
                 UnityEditor.Progress.Remove(m_ProgressId);
@@ -64,17 +71,31 @@ namespace Unity.AssetManager.Editor
                     IsSticky ? UnityEditor.Progress.Options.Sticky : UnityEditor.Progress.Options.None);
             }
 
-            UnityEditor.Progress.Report(m_ProgressId, progress, Description);
+            if (ShowInBackgroundTasks)
+            {
+                UnityEditor.Progress.Report(m_ProgressId, progress, Description);
+            }
 
             ProgressChanged?.Invoke(progress);
         }
 
-        public void Finish(OperationStatus status)
+        public virtual void Finish(OperationStatus status)
         {
             Status = status;
-            UnityEditor.Progress.Finish(m_ProgressId, FromOperationStatus(status));
+            if (ShowInBackgroundTasks && UnityEditor.Progress.Exists(m_ProgressId))
+            {
+                UnityEditor.Progress.Finish(m_ProgressId, FromOperationStatus(status));
+            }
 
             Finished?.Invoke(status);
+        }
+
+        public void Remove()
+        {
+            if (ShowInBackgroundTasks && UnityEditor.Progress.Exists(m_ProgressId))
+            {
+                UnityEditor.Progress.Remove(m_ProgressId);
+            }
         }
 
         public void Pause()
@@ -85,8 +106,11 @@ namespace Unity.AssetManager.Editor
 
         public void Resume()
         {
-            Status = OperationStatus.InProgress;
-            Report();
+            if (Status == OperationStatus.Paused)
+            {
+                Status = OperationStatus.InProgress;
+                Report();
+            }
         }
 
         static Progress.Status FromOperationStatus(OperationStatus status)

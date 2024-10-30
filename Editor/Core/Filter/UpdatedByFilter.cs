@@ -8,7 +8,7 @@ namespace Unity.AssetManager.Editor
 {
     class UpdatedByFilter : CloudFilter
     {
-        public override string DisplayName => "Updated by";
+        public override string DisplayName => L10n.Tr(Constants.ModifiedByText);
         protected override AssetSearchGroupBy GroupBy => AssetSearchGroupBy.UpdatedBy;
 
         List<UserInfo> m_UserInfos;

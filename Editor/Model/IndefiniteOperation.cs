@@ -11,6 +11,7 @@ namespace Unity.AssetManager.Editor
         public override string Description => "Processing";
         public override AssetIdentifier Identifier => m_AssetData.Identifier;
         public override bool StartIndefinite => true;
+        public override bool ShowInBackgroundTasks => false;
 
         [SerializeReference]
         IAssetData m_AssetData;

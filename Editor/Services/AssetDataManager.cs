@@ -33,6 +33,8 @@ namespace Unity.AssetManager.Editor
         List<IAssetData> GetAssetsData(IEnumerable<AssetIdentifier> ids);
         Task<IAssetData> GetOrSearchAssetData(AssetIdentifier assetIdentifier, CancellationToken token);
         bool IsInProject(AssetIdentifier id);
+        void SetCachedAssetPrimaryTypeExtension(AssetIdentifier id, string extension);
+        string GetCachedAssetPrimaryTypeExtension(AssetIdentifier id);
     }
 
     [Serializable]
@@ -47,6 +49,7 @@ namespace Unity.AssetManager.Editor
         readonly Dictionary<TrackedAssetIdentifier, IAssetData> m_AssetData = new();
         readonly Dictionary<TrackedAssetIdentifier, ImportedAssetInfo> m_TrackedIdentifierToImportedAssetInfoLookup = new();
         readonly Dictionary<string, List<ImportedAssetInfo>> m_FileGuidToImportedAssetInfosMap = new();
+        readonly Dictionary<AssetIdentifier, string> m_CachedAssetPrimaryTypeExtensions = new();
 
         [SerializeReference]
         IAssetsProvider m_AssetsProvider;
@@ -221,13 +224,36 @@ namespace Unity.AssetManager.Editor
         {
             var id = new TrackedAssetIdentifier(assetIdentifier);
 
-            m_TrackedIdentifierToImportedAssetInfoLookup.Remove(id);
-            ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs {Removed = new[] {id}});
+            if (m_TrackedIdentifierToImportedAssetInfoLookup.TryGetValue(id, out var importedAssetInfo))
+            {
+                m_TrackedIdentifierToImportedAssetInfoLookup.Remove(id);
+
+                // Remove all file guids related to that imported asset too
+                foreach (var fileInfo in importedAssetInfo.FileInfos)
+                {
+                    if (m_FileGuidToImportedAssetInfosMap.TryGetValue(fileInfo.Guid, out var importedAssetInfos))
+                    {
+                        var entry = importedAssetInfos.Find(info => info.Identifier.Equals(assetIdentifier));
+
+                        if (entry == null)
+                            continue;
+
+                        importedAssetInfos.Remove(entry);
+
+                        if (importedAssetInfos.Count == 0)
+                        {
+                            m_FileGuidToImportedAssetInfosMap.Remove(fileInfo.Guid);
+                        }
+                    }
+                }
+            }
+
+            ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { Removed = new[] { id } });
         }
 
-        public List<ImportedAssetInfo> GetImportedAssetInfosFromFileGuid(string fileGuid)
+        public List<ImportedAssetInfo> GetImportedAssetInfosFromFileGuid(string guid)
         {
-            return m_FileGuidToImportedAssetInfosMap.GetValueOrDefault(fileGuid);
+            return m_FileGuidToImportedAssetInfosMap.GetValueOrDefault(guid);
         }
 
         public IAssetData GetAssetData(AssetIdentifier assetIdentifier)
@@ -353,6 +379,16 @@ namespace Unity.AssetManager.Editor
 
             // m_TrackedIdentifierToImportedAssetInfoLookup must contain the updated imported info, ignoring it's version, because only one version can be imported at a time.
             m_TrackedIdentifierToImportedAssetInfoLookup[trackId] = info;
+        }
+
+        public void SetCachedAssetPrimaryTypeExtension(AssetIdentifier id, string extension)
+        {
+            m_CachedAssetPrimaryTypeExtensions[id] = extension;
+        }
+
+        public string GetCachedAssetPrimaryTypeExtension(AssetIdentifier id)
+        {
+            return m_CachedAssetPrimaryTypeExtensions.GetValueOrDefault(id);
         }
     }
 }

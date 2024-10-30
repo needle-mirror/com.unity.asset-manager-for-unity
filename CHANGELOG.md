@@ -4,6 +4,51 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2024-10-30
+[Added]
+- Ability to create, rename and remove Collections
+- Unmodified assets will not create a new version when re-uploaded (newly imported asset only)
+- Ability to force a new version when re-uploading an asset by setting re-upload mode to "Force New Version"
+
+[Changed]
+- Improve background tasks shown when importing
+- Ignored assets styles inside the grid is now more obvious
+- Improvements in the reimport window
+- Rename Upload mode to Reupload mode
+- Add focus visual state on focusable visual element
+- Save inspector width between session
+- Add margin at bottom of "Add Filter" button
+- Uniformize asset's information labels with the web app
+- Add extra space at grid bottom to allow collapsed settings bar to not hide GridItem on the last row
+- Shrink the label instead of the dropdown button in update settings panel
+- Added a full GridItem refresh on asset selection
+- Add caches for thumbnail and primary type extension to increase responsiveness in grid view
+- Put an error status on asset inside archived projects
+
+[Fixed]
+- Fixed 400 Bad Request thumbnail error
+- Ignored assets are now more obvious
+- Check if scene are dirty too when importing or uploading
+- Clear progress bars when starting a new import
+- Import now disabled for asset with incomplete source files
+- Fixes concurrent file upload errors resulting in failed asset upload.
+- Fixes background task reporting.
+- Removing an imported cloud asset will not delete files that are part of another imported cloud asset
+- Now caching dependencies identifiers when importing asset to fix missing dependencies in the AssetDetailsPage.
+- Fix Import cancel button not working when cancelling an asset import already finished before
+- Remove "Fetching download URLs" background tasks when cancelling
+- Move filter popup inside its window when resizing
+- Fixed cancellation exceptions when displaying dependencies in details tab.
+- Ignore shift selection if there is no asset selected previously
+- Implement properly the Control+ click and Command + Shift + click on Mac
+- Put a "No results found" message when applying a filter lead to no results
+- Don't add a unnecessary tooltip that contains the same string as the message
+- Fixed InProject page removal error
+- Skipped upload asset don't show a progress bar
+- Upload Assets button is disable when all staged assets are skipped
+- Upload status mismatch not match between gridview and inspector
+- Potential blank page when opening the Asset Manager and prompt to close/reopen the Unity Hub
+
 ## [1.0.0] - 2024-09-19
 [Changed]
 - Now discoverable on Package Manager
@@ -23,7 +68,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [1.0.0-pre.1] - 2024-09-16
 [Fixed]
 - Fixed WEbGL platform issue
-- Improved perfromance of some operations 
+- Improved perfromance of some operations
 
 
 ## [1.0.0-exp.5] - 2024-09-10

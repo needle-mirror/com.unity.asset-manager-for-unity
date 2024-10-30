@@ -1,0 +1,20 @@
+{
+  "name": "Unity.Cloud.Assets.Embedded",
+  "rootNamespace": "Unity.Cloud.Assets",
+  "references": [
+    "GUID:2052490dcc44a574e9a611cea4a2fa9d"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

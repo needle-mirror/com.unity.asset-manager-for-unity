@@ -16,6 +16,7 @@ namespace Unity.AssetManager.Editor
         event Action<IPage, bool> LoadingStatusChanged;
         event Action<IPage, IEnumerable<string>> SearchFiltersChanged;
         event Action<IPage, IEnumerable<AssetIdentifier>> SelectedAssetChanged;
+        event Action<IPage, AssetIdentifier, bool> ToggleAssetChanged;
         event Action<IPage, MessageData> MessageThrown;
 
         void SetActivePage<T>(bool forceChange = false) where T : IPage;
@@ -77,6 +78,7 @@ namespace Unity.AssetManager.Editor
         public event Action<IPage, bool> LoadingStatusChanged;
         public event Action<IPage, IEnumerable<string>> SearchFiltersChanged;
         public event Action<IPage, IEnumerable<AssetIdentifier>> SelectedAssetChanged;
+        public event Action<IPage, AssetIdentifier, bool> ToggleAssetChanged;
         public event Action<IPage, MessageData> MessageThrown;
 
         public IPage ActivePage => m_ActivePage;
@@ -153,6 +155,7 @@ namespace Unity.AssetManager.Editor
             page.LoadingStatusChanged += loading => LoadingStatusChanged?.Invoke(page, loading);
             page.SelectedAssetsChanged += data => SelectedAssetChanged?.Invoke(page, data);
             page.SearchFiltersChanged += data => SearchFiltersChanged?.Invoke(page, data);
+            page.ToggleAssetChanged += (asset, checkState) => ToggleAssetChanged?.Invoke(page, asset, checkState);
             page.MessageThrown += errorHandling => MessageThrown?.Invoke(page, errorHandling);
         }
 

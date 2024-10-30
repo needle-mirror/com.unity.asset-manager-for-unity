@@ -65,7 +65,8 @@ namespace Unity.AssetManager.Editor
             rootVisualElement.Add(m_Root);
 
             // Manipulators and Inputs
-            m_Manipulator = new DragFromOutsideManipulator(rootVisualElement, container.Resolve<IPageManager>());
+            m_Manipulator = new DragFromOutsideManipulator(rootVisualElement, container.Resolve<IPageManager>(),
+                container.Resolve<IUploadManager>());
             rootVisualElement.RegisterCallback<KeyDownEvent>(OnKeyDown);
             // This line is needed in order to receive the KeyDownEvent
             rootVisualElement.focusable = true;

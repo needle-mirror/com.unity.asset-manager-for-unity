@@ -16,24 +16,23 @@ namespace Unity.AssetManager.Editor
         public List<AssetDataResolutionInfo> Dependants => m_Dependants;
         public List<IAssetData> UpwardDependencies => m_UpwardDependencies;
 
-        public async Task<bool> CheckUpdatedAssetDataAsync(CancellationToken token)
+        public async Task CheckUpdatedAssetDataAsync(CancellationToken token)
         {
             if (m_Assets.Count == 0)
-                return false;
+                return;
 
             var tasks = new List<Task<bool>>();
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
             var assetAndDependantInfos = m_Assets.Union(m_Dependants).ToList();
             foreach (var assetDataInfo in assetAndDependantInfos)
             {
-                tasks.Add(assetDataInfo.CheckUpdatedAssetDataUpToDateAsync(token));
-                tasks.Add(assetDataInfo.CheckUpdatedAssetDataConflictsAsync(token));
+                tasks.Add(assetDataInfo.CheckUpdatedAssetDataUpToDateAsync(assetDataManager, token));
+                tasks.Add(assetDataInfo.CheckUpdatedAssetDataConflictsAsync(assetDataManager, token));
             }
 
             tasks.Add(CheckUpdatedAssetUpwardDependenciesAsync(token));
 
             await Task.WhenAll(tasks);
-
-            return tasks.Exists(t => t.Result);
         }
 
         Task<bool> CheckUpdatedAssetUpwardDependenciesAsync(CancellationToken token)

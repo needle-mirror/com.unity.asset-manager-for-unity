@@ -10,6 +10,10 @@
     background-color: #202020;
 }
 
+.unity-base-slider__input:focus .unity-base-slider__dragger {
+    background-color: #656565;
+}
+
 /************************************************
 * Loading Screen
 ************************************************/
@@ -200,10 +204,6 @@ SearchBar {
 /************************************************
 * Sort
 ************************************************/
-.unity-sort-dropdown > .unity-base-field__input {
-    background-color: #585858;
-}
-
 .unity-sort-order{
     background-color: #2D2D2D;
 }
@@ -228,13 +228,21 @@ SearchBar {
     background-color: #424242;
 }
 
-.grid-view--item-label-highlight {
-    background-color: #585858 !important;
-    color: white !important;
-}
-
 GridMessageView > .unity-label {
     color: rgba(135, 135, 135, 1);
+}
+
+.grid-view--item-ignore .grid-view--item-overlay {
+    background-color: rgba(45, 45, 45, 0.9);
+}
+
+.grid-view--item-ignore:hover .grid-view--item-overlay {
+    background-color: rgba(45, 45, 45, 0.3);
+}
+
+.grid-view--item-ignore .grid-view--item-label {
+    background-color: rgba(20, 20, 20, 0.4);
+    color: rgba(255, 255, 255, 0.5);
 }
 
 /************************************************
@@ -324,9 +332,34 @@ TagChip:hover {
     background-color: #505050;
 }
 
+.import-to-button {
+    border-color: #303030;
+    border-bottom-color: #242424;
+    background-color: #585858;
+}
+
+.import-to-button:hover {
+    background-color: #676767;
+}
+
 .import-popup {
     background-color: #2D2D2D;
     border-color: #515151;
+}
+
+.asset-version-details-foldout > Toggle {
+    background-color: rgba(32, 32, 32, 1);
+}
+
+.asset-version-label-latest
+{
+    background-color: #585858;
+    border-color: #585858;
+}
+
+.asset-version-label-imported
+{
+    border-color: #C4C4C4;
 }
 
 /************************************************
@@ -365,8 +398,8 @@ TagChip:hover {
     border-color: #191919;
 }
 
-.upload-page-settings-popup DropdownField .unity-base-field__input {
-    background-color: #585858;
+.upload-page-settings-panel {
+    background-color: rgba(0,0,0,0.5);
 }
 
 /************************************************
@@ -391,22 +424,11 @@ PopupContainer {
     border-color: #232323;
 }
 
-.conflicts-foldout-content {
-    background-color: #383838;
+.reimport-foldout-content {
+    background-color: #232323;
 }
 
-.conflicts-foldout-header-dropdown
-{
-    background-color: #515151;
-    border-color: #232323;
-}
-
-.conflicts-foldout-content
-{
-    border-color: #232323;
-}
-
-.reimport-item-resolve-dropdown
+.reimport-foldout-header-dropdown
 {
     background-color: #515151;
     border-color: #232323;

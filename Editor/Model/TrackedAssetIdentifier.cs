@@ -48,6 +48,16 @@ namespace Unity.AssetManager.Editor
             return (str1 ?? string.Empty) == (str2 ?? string.Empty);
         }
 
+        public static bool IsFromSameAsset(AssetIdentifier first, AssetIdentifier second)
+        {
+            return new TrackedAssetIdentifier(first).Equals(new TrackedAssetIdentifier(second));
+        }
+
+        public static bool IsFromSameAsset(TrackedAssetIdentifier first, AssetIdentifier second)
+        {
+            return first.Equals(new TrackedAssetIdentifier(second));
+        }
+
         public virtual bool Equals(TrackedAssetIdentifier other)
         {
             if (ReferenceEquals(null, other))

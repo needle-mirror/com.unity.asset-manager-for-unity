@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.AssetManager.Editor.Editor.Model;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -18,7 +19,7 @@ namespace Unity.AssetManager.Editor
         bool IsImporting(AssetIdentifier identifier);
         Task<IEnumerable<IAssetData>> StartImportAsync(List<IAssetData> assets, ImportOperation.ImportType importType, string importDestination = null);
         bool RemoveImport(AssetIdentifier identifier, bool showConfirmationDialog = false);
-        bool RemoveBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false);
+        bool RemoveImports(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false);
         void ShowInProject(AssetIdentifier identifier);
         void CancelImport(AssetIdentifier identifier, bool showConfirmationDialog = false);
         void CancelBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false);
@@ -91,6 +92,7 @@ namespace Unity.AssetManager.Editor
         static readonly SemaphoreSlim k_DownloadFileSemaphore = new(k_MaxConcurrentDownloads);
 
         CancellationTokenSource m_TokenSource;
+        BulkImportOperation m_BulkImportOperation;
 
         [ServiceInjection]
         public void Inject(IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy,
@@ -108,6 +110,16 @@ namespace Unity.AssetManager.Editor
             m_AssetsProvider = assetsProvider;
         }
 
+        public override void OnEnable()
+        {
+            m_AssetOperationManager.FinishedOperationsCleared += OnFinishedOperationsCleared;
+        }
+
+        public override void OnDisable()
+        {
+            m_AssetOperationManager.FinishedOperationsCleared -= OnFinishedOperationsCleared;
+        }
+
         public ImportOperation GetImportOperation(AssetIdentifier identifier)
         {
             return m_ImportOperations.GetValueOrDefault(identifier.AssetId);
@@ -123,9 +135,13 @@ namespace Unity.AssetManager.Editor
         {
             SendImportAnalytics(assets);
 
+            m_AssetOperationManager.ClearFinishedOperations();
+
             try
             {
                 // Create a temporary operation to track the (long) dependency loading
+                var processingOperation = new ProcessingOperation();
+                processingOperation.Start();
                 var syncWithCloudOperations = new List<IndefiniteOperation>();
                 foreach (var asset in assets)
                 {
@@ -138,20 +154,31 @@ namespace Unity.AssetManager.Editor
                 m_TokenSource = new CancellationTokenSource();
 
                 var copiedAssets = new List<IAssetData>();
-                foreach (var asset in assets)
+                IEnumerable<IAssetData> resolutions = null;
+                try
                 {
-                    var copy = await m_AssetsProvider.GetAssetAsync(asset.Identifier, m_TokenSource.Token);
-                    copiedAssets.Add(copy);
+                    foreach (var asset in assets)
+                    {
+                        var copy = await m_AssetsProvider.GetAssetAsync(asset.Identifier, m_TokenSource.Token);
+                        copiedAssets.Add(copy);
+                    }
+
+                    m_TokenSource.Token.ThrowIfCancellationRequested();
+
+                    resolutions = await m_Resolver.Resolve(copiedAssets,
+                        importType,
+                        importDestination ?? m_SettingsManager.DefaultImportLocation,
+                        m_TokenSource.Token);
+
+                    m_TokenSource.Token.ThrowIfCancellationRequested();
                 }
-
-                var resolutions = await m_Resolver.Resolve(copiedAssets,
-                    importType,
-                    importDestination ?? m_SettingsManager.DefaultImportLocation,
-                    m_TokenSource.Token);
-
-                foreach (var operation in syncWithCloudOperations)
+                finally
                 {
-                    operation.Finish(OperationStatus.Success);
+                    processingOperation.Finish(OperationStatus.Success);
+                    foreach (var operation in syncWithCloudOperations)
+                    {
+                        operation.Finish(OperationStatus.Success);
+                    }
                 }
 
                 if (resolutions != null && resolutions.Any())
@@ -227,47 +254,86 @@ namespace Unity.AssetManager.Editor
                 FinalizeImport(importOperation, OperationStatus.Cancelled);
             }
 
+            m_AssetOperationManager.ClearFinishedOperations();
+
             m_TokenSource?.Dispose();
             m_TokenSource = null;
+        }
+
+        public bool RemoveImports(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false)
+        {
+            if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Remove Imported Assets"),
+                    L10n.Tr("Remove the selected assets?" + Environment.NewLine +
+                            "Any changes you made to this assets will be lost."), L10n.Tr("Remove"),
+                    L10n.Tr(Constants.Cancel)))
+            {
+                return false;
+            }
+
+            return RemoveImportsInternal(identifiers);
         }
 
         public bool RemoveImport(AssetIdentifier identifier, bool showConfirmationDialog = false)
         {
             if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Remove Imported Asset"),
                     L10n.Tr("Remove the selected asset?" + Environment.NewLine +
-                        "Any changes you made to this asset will be lost."), L10n.Tr("Remove"), L10n.Tr("Cancel")))
+                            "Any changes you made to this asset will be lost."), L10n.Tr("Remove"),
+                    L10n.Tr(Constants.Cancel)))
             {
                 return false;
             }
 
+            return RemoveImportsInternal(new List<AssetIdentifier> { identifier });
+        }
+
+        bool RemoveImportsInternal(List<AssetIdentifier> identifiers)
+        {
             try
             {
-                // Untrack asset even if there is no files locally
-                m_ImportedAssetsTracker.UntrackAsset(identifier);
+                // Make sure to always untrack to fulfill user action.
+                foreach (var identifier in identifiers)
+                {
+                    m_ImportedAssetsTracker.UntrackAsset(identifier);
+                }
 
-                var assetsAndFoldersToRemove = FindAssetsAndLeftoverFolders(identifier);
-                if (!assetsAndFoldersToRemove.Any())
+                var assetsAndFoldersToRemove = new HashSet<string>();
+
+                foreach (var identifier in identifiers)
+                {
+                    var files = FindAssetsAndLeftoverFolders(identifier);
+
+                    if (files.Length == 0)
+                    {
+                        Debug.LogWarning(
+                            $"Asset with Id '{identifier.AssetId}' was removed, but no files were deleted because they weren't found in the project.");
+                        continue;
+                    }
+
+                    foreach (var file in files)
+                    {
+                        if (!FileIsUsedByAnotherAsset(file, identifiers))
+                        {
+                            assetsAndFoldersToRemove.Add(file);
+                        }
+                        else
+                        {
+                            Utilities.DevLog($"File '{file}' is used by another imported asset and will not be removed.");
+                        }
+                    }
+                }
+
+                // Make sure to remove the asset imported info from memory before deleting the files
+                foreach (var identifier in identifiers)
                 {
                     m_AssetDataManager.RemoveImportedAssetInfo(identifier);
-                    Debug.LogWarning(
-                        "Asset was removed, but no files were deleted because they weren't found in the project.");
+                }
+
+                if (!assetsAndFoldersToRemove.Any())
+                {
                     return false;
                 }
 
-                var pathsFailedToRemove = new List<string>();
-
-                m_AssetDatabaseProxy.DeleteAssets(assetsAndFoldersToRemove, pathsFailedToRemove);
-
-                if (pathsFailedToRemove.Any())
-                {
-                    var errorMessage = L10n.Tr("Failed to remove the following asset(s) and/or folder(s):");
-                    foreach (var path in pathsFailedToRemove)
-                    {
-                        errorMessage += "\n" + path;
-                    }
-
-                    Debug.LogError(errorMessage);
-                }
+                DeleteFilesAndFolders(assetsAndFoldersToRemove);
             }
             catch (Exception e)
             {
@@ -278,21 +344,34 @@ namespace Unity.AssetManager.Editor
             return true;
         }
 
-        public bool RemoveBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false)
+        bool FileIsUsedByAnotherAsset(string path, IEnumerable<AssetIdentifier> identifiers)
         {
-            if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Remove Imported Assets"),
-                    L10n.Tr("Remove the selected assets?" + Environment.NewLine +
-                        "Any changes you made to those assets will be lost."), L10n.Tr("Remove"), L10n.Tr("Cancel")))
-            {
+            var guid = m_AssetDatabaseProxy.AssetPathToGuid(path);
+
+            if (string.IsNullOrEmpty(guid))
                 return false;
-            }
 
-            foreach (var identifier in identifiers)
-            {
-                RemoveImport(identifier, false);
-            }
+            var importedAssetInfos = m_AssetDataManager.GetImportedAssetInfosFromFileGuid(guid);
 
-            return true;
+            if (importedAssetInfos == null || importedAssetInfos.Count == 0)
+                return false;
+
+            return importedAssetInfos.Exists(importedAssetInfo => !identifiers.Contains(importedAssetInfo.Identifier));
+        }
+
+        void DeleteFilesAndFolders(IEnumerable<string> assetsAndFoldersToRemove)
+        {
+            var pathsFailedToRemove = new List<string>();
+
+            m_AssetDatabaseProxy.DeleteAssets(assetsAndFoldersToRemove.ToArray(), pathsFailedToRemove);
+
+            if (!pathsFailedToRemove.Any())
+                return;
+
+            var errorMessage = L10n.Tr("Failed to remove the following asset(s) and/or folder(s):");
+            errorMessage += Environment.NewLine + string.Join(Environment.NewLine, pathsFailedToRemove);
+
+            Debug.LogError(errorMessage);
         }
 
         void FinalizeImport(ImportOperation importOperation, OperationStatus finalStatus)
@@ -331,10 +410,12 @@ namespace Unity.AssetManager.Editor
                 m_AssetDatabaseProxy.Refresh();
             }
 
+            var tasks = new List<Task>();
             foreach (var kvp in filesToTrack)
             {
-                m_ImportedAssetsTracker.TrackAssets(kvp.Value, kvp.Key.AssetData);
+                tasks.Add(m_ImportedAssetsTracker.TrackAssets(kvp.Value, kvp.Key.AssetData));
             }
+            TaskUtils.TrackException(Task.WhenAll(tasks));
 
             m_TokenSource?.Dispose();
             m_TokenSource = null;
@@ -533,7 +614,7 @@ namespace Unity.AssetManager.Editor
                         destinationFolderName, newPathFolderName);
 
                     if (m_EditorUtilityProxy.DisplayDialog(title, message, L10n.Tr("Create new folder"),
-                            L10n.Tr("Cancel")))
+                            L10n.Tr(Constants.Cancel)))
                     {
                         m_ResolvedDestinationPaths[defaultDestinationPath] = nonConflictingImportPath;
                         destinationPath = nonConflictingImportPath;
@@ -549,7 +630,7 @@ namespace Unity.AssetManager.Editor
                         destinationFolderName, newPathFolderName);
 
                     switch (m_EditorUtilityProxy.DisplayDialogComplex(title, message, L10n.Tr("Continue"),
-                                L10n.Tr("Create new folder"), L10n.Tr("Cancel")))
+                                L10n.Tr("Create new folder"), L10n.Tr(Constants.Cancel)))
                     {
                         case 1:
                             m_ResolvedDestinationPaths[defaultDestinationPath] = nonConflictingImportPath;
@@ -595,6 +676,11 @@ namespace Unity.AssetManager.Editor
             {
                 m_IOProxy.CreateDirectory(importOperation.TempDownloadPath);
                 await importOperation.ImportAsync(token);
+            }
+            catch (TaskCanceledException)
+            {
+                importOperation.Finish(OperationStatus.Cancelled);
+                throw;
             }
             catch (Exception)
             {
@@ -655,14 +741,14 @@ namespace Unity.AssetManager.Editor
                 importOperations.Add(importOperation);
             }
 
-            var bulkImportOperation = new BulkImportOperation(importOperations);
-            bulkImportOperation.Finished += _ =>
+            m_BulkImportOperation?.Remove();
+            m_BulkImportOperation = new BulkImportOperation(importOperations);
+            m_BulkImportOperation.Finished += _ =>
             {
                 ProcessImports(importOperations);
-                m_AssetOperationManager.ClearFinishedOperations();
             };
 
-            bulkImportOperation.Start();
+            m_BulkImportOperation.Start();
 
             foreach (var importOperation in importOperations)
             {
@@ -711,6 +797,9 @@ namespace Unity.AssetManager.Editor
                 foreach (var assetPath in leftOverAssetsGuids.Select(i => m_AssetDatabaseProxy.GuidToAssetPath(i)))
                 {
                     var path = Path.GetDirectoryName(assetPath);
+
+                    if (!foldersToRemove.Any())
+                        break;
 
                     // If after the removal process, there will still be some assets left behind, we want to make sure the folders containing
                     // left over assets are not removed
@@ -812,6 +901,18 @@ namespace Unity.AssetManager.Editor
             {
                 Debug.LogException(e);
                 throw;
+            }
+        }
+
+        void OnFinishedOperationsCleared()
+        {
+            if (m_BulkImportOperation == null)
+                return;
+
+            if (m_BulkImportOperation.Status == OperationStatus.Success)
+            {
+                m_BulkImportOperation.Remove();
+                m_BulkImportOperation = null;
             }
         }
     }

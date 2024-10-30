@@ -40,21 +40,30 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnLoadMoreSuccessCallBack()
         {
-            if (string.IsNullOrEmpty(CollectionPath) && !m_AssetList.Any() && !PageFilters.SearchFilters.Any())
+            if (!m_AssetList.Any())
             {
-                SetMessageData(L10n.Tr(Constants.EmptyProjectText),
-                    RecommendedAction.OpenAssetManagerDashboardLink);
-            }
-            else if (PageFilters.SearchFilters.Any() && !m_AssetList.Any())
-            {
-                SetMessageData(
-                    L10n.Tr("No results found for \"" + string.Join(", ", PageFilters.SearchFilters) + "\""),
-                    RecommendedAction.None);
-            }
-            else if (!m_AssetList.Any())
-            {
-                SetMessageData(L10n.Tr(Constants.EmptyCollectionsText),
-                    RecommendedAction.OpenAssetManagerDashboardLink);
+                if (PageFilters.SelectedFilters.Any())
+                {
+                    SetMessageData(
+                        L10n.Tr(Constants.NoResultsText),
+                        RecommendedAction.None);
+                }
+                else if (PageFilters.SearchFilters.Any())
+                {
+                    SetMessageData(
+                        $"{L10n.Tr(Constants.NoResultsForText)} \"{string.Join(", ", PageFilters.SearchFilters)}\"",
+                        RecommendedAction.None);
+                }
+                else if (string.IsNullOrEmpty(CollectionPath))
+                {
+                    SetMessageData(L10n.Tr(Constants.EmptyProjectText),
+                        RecommendedAction.OpenAssetManagerDashboardLink);
+                }
+                else
+                {
+                    SetMessageData(L10n.Tr(Constants.EmptyCollectionsText),
+                        RecommendedAction.OpenAssetManagerDashboardLink);
+                }
             }
             else
             {

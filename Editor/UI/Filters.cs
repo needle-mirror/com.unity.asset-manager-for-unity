@@ -15,6 +15,7 @@ namespace Unity.AssetManager.Editor
         const string k_ItemButtonCaretClassName = k_ItemButtonClassName + "-caret";
         const string k_ItemPopupClassName = k_UssClassName + "-popup";
         const string k_ItemFilterSelectionClassName = k_ItemPopupClassName + "-filter-selection";
+        const string k_ItemFilterNoSelectionClassName = k_ItemPopupClassName + "-filter-no-selection";
         const string k_ItemChipContainerClassName = k_UssClassName + "-chip-container";
         const string k_ItemChipClassName = k_UssClassName + "-chip";
         const string k_ItemChipSetClassName = k_ItemChipClassName + "--set";
@@ -87,6 +88,16 @@ namespace Unity.AssetManager.Editor
                 SelectedFilters.Any() || (page?.AssetList?.Any() ?? false));
         }
 
+        protected override bool IsDisplayed(IPage page)
+        {
+            if (page is BasePage basePage)
+            {
+                return basePage.DisplayFilters;
+            }
+
+            return base.IsDisplayed(page);
+        }
+
         void Refresh()
         {
             Clear();
@@ -127,6 +138,8 @@ namespace Unity.AssetManager.Editor
 
             m_FilterButton.SetEnabled(PageFilters?.IsAvailableFilters() ?? false);
             m_FilterButton.clicked += OnFilterButtonClicked;
+
+            UIElementsUtils.SetDisplay(m_FilterButton, m_PageManager?.ActivePage?.AssetList?.Any() ?? false);
         }
 
         void OnFilterButtonClicked()
@@ -241,35 +254,45 @@ namespace Unity.AssetManager.Editor
 
             m_PopupManager.Clear();
 
-            var scrollView = new ScrollView();
-            m_PopupManager.Container.Add(scrollView);
-
-            foreach (var selection in selections)
+            if (selections.Any())
             {
-                var filterSelection = new VisualElement();
-                filterSelection.AddToClassList(k_ItemFilterSelectionClassName);
-                filterSelection.style.paddingLeft = 0;
+                var scrollView = new ScrollView();
+                m_PopupManager.Container.Add(scrollView);
 
-                var checkmark = new Image();
-                filterSelection.Add(checkmark);
-
-                var label = new TextElement();
-                label.text = selection;
-                filterSelection.Add(label);
-
-                checkmark.visible = filter.SelectedFilter == selection;
-
-                filterSelection.RegisterCallback<ClickEvent>(evt =>
+                foreach (var selection in selections)
                 {
-                    evt.StopPropagation();
+                    var filterSelection = new VisualElement();
+                    filterSelection.AddToClassList(k_ItemFilterSelectionClassName);
+                    filterSelection.style.paddingLeft = 0;
 
-                    Chip.AddToClassList(k_ItemChipSetClassName);
-                    m_PopupManager.Hide();
+                    var checkmark = new Image();
+                    filterSelection.Add(checkmark);
 
-                    ApplyFilter(filter, selection);
-                });
+                    var label = new TextElement();
+                    label.text = selection;
+                    filterSelection.Add(label);
 
-                scrollView.Add(filterSelection);
+                    checkmark.visible = filter.SelectedFilter == selection;
+
+                    filterSelection.RegisterCallback<ClickEvent>(evt =>
+                    {
+                        evt.StopPropagation();
+
+                        Chip.AddToClassList(k_ItemChipSetClassName);
+                        m_PopupManager.Hide();
+
+                        ApplyFilter(filter, selection);
+                    });
+
+                    scrollView.Add(filterSelection);
+                }
+            }
+            else
+            {
+                var noSelection = new TextElement();
+                noSelection.AddToClassList(k_ItemFilterNoSelectionClassName);
+                noSelection.text = L10n.Tr(Constants.NoSelectionsText);
+                m_PopupManager.Container.Add(noSelection);
             }
         }
 

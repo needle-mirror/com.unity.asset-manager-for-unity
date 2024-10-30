@@ -3,7 +3,7 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    class DependenciesFoldout : ItemFoldout<DependencyAsset, DetailsPageDependencyItem>
+    class DependenciesFoldout : ItemFoldout<AssetIdentifier, DetailsPageDependencyItem>
     {
         readonly IPageManager m_PageManager;
 
@@ -21,7 +21,7 @@ namespace Unity.AssetManager.Editor
 
         protected override void BindItem(DetailsPageDependencyItem element, int index)
         {
-            var dependency = (DependencyAsset)Items[index];
+            var dependency = (AssetIdentifier)Items[index];
             TaskUtils.TrackException(element.Refresh(dependency));
         }
     }

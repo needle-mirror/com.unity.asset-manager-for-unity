@@ -55,7 +55,7 @@ namespace Unity.AssetManager.Editor
             header.OpenDashboard += LinkToDashboard;
 
             var footer = new AssetDetailsFooter(this);
-            footer.CancelOperation += () => m_AssetImporter.CancelImport(m_PageManager.ActivePage.LastSelectedAssetId, true);
+            footer.CancelOperation += CancelOrClearImport;
             footer.ImportAsset += ImportAssetAsync;
             footer.HighlightAsset += ShowInProjectBrowser;
             footer.RemoveAsset += RemoveFromProject;
@@ -194,7 +194,7 @@ namespace Unity.AssetManager.Editor
 
         protected override void OnOperationFinished(AssetDataOperation operation)
         {
-            if (operation is not ImportOperation)
+            if (operation is not ImportOperation and not IndefiniteOperation)
                 return;
 
             if (!UIElementsUtils.IsDisplayed(this)
@@ -202,7 +202,8 @@ namespace Unity.AssetManager.Editor
                 || operation.Status == OperationStatus.None)
                 return;
 
-            if (operation.Status is OperationStatus.Cancelled or OperationStatus.Error)
+            if (m_PreviouslySelectedAssetData != null &&
+                operation.Status is OperationStatus.Cancelled or OperationStatus.Error)
             {
                 m_SelectedAssetData = m_PreviouslySelectedAssetData;
             }
@@ -238,6 +239,22 @@ namespace Unity.AssetManager.Editor
         protected override void OnCloudServicesReachabilityChanged(bool cloudServiceReachable)
         {
             RefreshUI();
+        }
+
+        void CancelOrClearImport()
+        {
+            var operation = m_AssetOperationManager.GetAssetOperation(m_PageManager.ActivePage.LastSelectedAssetId);
+            if (operation == null)
+                return;
+
+            if (operation.Status == OperationStatus.InProgress)
+            {
+                m_AssetImporter.CancelImport(m_PageManager.ActivePage.LastSelectedAssetId, true);
+            }
+            else
+            {
+                m_AssetOperationManager.ClearFinishedOperations();
+            }
         }
 
         async void ImportAssetAsync(string importDestination, IEnumerable<IAssetData> assetsToImport = null)
@@ -331,7 +348,7 @@ namespace Unity.AssetManager.Editor
             if (hasFiles)
             {
                 SetFileSize?.Invoke(Utilities.BytesToReadableString(m_TotalFileSize));
-                SetFileCount?.Invoke(m_IncompleteFilesCount > 0 ? $"{m_TotalFilesCount} [{m_TotalFilesCount} incomplete]" : m_TotalFilesCount.ToString());
+                SetFileCount?.Invoke(m_IncompleteFilesCount > 0 ? $"{m_TotalFilesCount} [{m_IncompleteFilesCount} incomplete]" : m_TotalFilesCount.ToString());
             }
             else
             {
@@ -529,9 +546,9 @@ namespace Unity.AssetManager.Editor
 
         void RefreshDependenciesInformationUI(IAssetData assetData)
         {
-            var dependencyAssets = assetData.Dependencies.ToList();
-            m_DependenciesFoldout.Populate(assetData, dependencyAssets);
-            UIElementsUtils.SetDisplay(m_NoDependenciesBox, !dependencyAssets.Any());
+            var dependencies = assetData.Dependencies.ToList();
+            m_DependenciesFoldout.Populate(assetData, dependencies);
+            UIElementsUtils.SetDisplay(m_NoDependenciesBox, !dependencies.Any());
             m_DependenciesFoldout.StopPopulating();
         }
 
@@ -546,8 +563,10 @@ namespace Unity.AssetManager.Editor
             enabled |= UIEnabledStates.HasPermissions.GetFlag(false);
 
             var files = assetData?.SourceFiles?.ToList();
-            var hasFilesAndUniqueNames = files != null && files.Any() && !HasCaseInsensitiveMatch(files.Select(f => f.Path));
-            if (hasFilesAndUniqueNames)
+            if (files != null
+                && files.Any() // has files
+                && !HasCaseInsensitiveMatch(files.Select(f => f.Path)) // files have unique names
+                && files.All(file => file.Available)) // files are all available
             {
                 enabled |= UIEnabledStates.CanImport;
             }

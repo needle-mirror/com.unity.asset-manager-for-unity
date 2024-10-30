@@ -45,7 +45,10 @@ namespace Unity.AssetManager.Editor
                 return;
 
             var clearSelection = args.Removed.Any(a => a.Equals(LastSelectedAssetId));
-            Clear(true, clearSelection);
+            if (clearSelection)
+            {
+                Clear(true);
+            }
         }
 
         protected internal override async IAsyncEnumerable<IAssetData> LoadMoreAssets(

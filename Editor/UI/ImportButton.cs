@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -11,14 +12,12 @@ namespace Unity.AssetManager.Editor
         public const string ImportButtonsContainer = "import-buttons-container";
         public const string ImportButton = "import-button";
         public const string ImportToButton = "import-to-button";
-        public const string ImportToButtonCaret = "import-to-button-caret";
-        public const string ImportPopupImportTo = "import-popup-import-to";
     }
 
     class ImportButton : VisualElement
     {
         readonly Button m_ImportButton;
-        readonly Button m_ImportToButton;
+        readonly DropdownField m_ImportToDropdown;
 
         public string text
         {
@@ -31,7 +30,7 @@ namespace Unity.AssetManager.Editor
             AddToClassList(UssStyle.ImportButtonsContainer);
 
             m_ImportButton = CreateImportButton(this);
-            m_ImportToButton = CreateImportToButton(this);
+            m_ImportToDropdown = CreateImportToButton(this);
 
             SetEnabled(false);
         }
@@ -39,7 +38,15 @@ namespace Unity.AssetManager.Editor
         public void RegisterCallback(Action<string> beginImport)
         {
             m_ImportButton.clicked += () => beginImport(null);
-            m_ImportToButton.clicked += () => ShowImportOptions(beginImport);
+            m_ImportToDropdown.RegisterValueChangedCallback(value =>
+            {
+                if (value.newValue == L10n.Tr(Constants.ImportToActionText))
+                {
+                    ShowImportOptions(beginImport);
+                }
+
+                m_ImportToDropdown.value = null;
+            });
         }
 
         static Button CreateImportButton(VisualElement container)
@@ -56,49 +63,33 @@ namespace Unity.AssetManager.Editor
             return button;
         }
 
-        static Button CreateImportToButton(VisualElement container)
+        static DropdownField CreateImportToButton(VisualElement container)
         {
-            var importToButton = new Button
+            var importToDropdown = new DropdownField
             {
                 focusable = false
             };
-            importToButton.AddToClassList(UssStyle.ImportToButton);
+            UIElementsUtils.Hide(importToDropdown.Q(null, "unity-base-popup-field__text"));
+            importToDropdown.AddToClassList(UssStyle.ImportToButton);
 
-            var caret = new VisualElement();
-            caret.AddToClassList(UssStyle.ImportToButtonCaret);
-            importToButton.Add(caret);
+            importToDropdown.choices = new List<string> { L10n.Tr(Constants.ImportToActionText) };
 
-            container.Add(importToButton);
+            container.Add(importToDropdown);
 
-            return importToButton;
+            return importToDropdown;
         }
 
         void ShowImportOptions(Action<string> beginImport)
         {
-            var popupManager = ServicesContainer.instance.Resolve<IPopupManager>();
-            var importToText = new TextElement
+            var importLocation = Utilities.OpenFolderPanelInDirectory(L10n.Tr(Constants.ImportLocationTitle),
+                Constants.AssetsFolderName);
+
+            if (string.IsNullOrEmpty(importLocation))
             {
-                text = L10n.Tr(Constants.ImportToActionText)
-            };
-            importToText.AddToClassList(UssStyle.ImportPopupImportTo);
-            importToText.RegisterCallback<ClickEvent>(evt =>
-            {
-                evt.StopPropagation();
-                popupManager.Hide();
+                return;
+            }
 
-                var importLocation = Utilities.OpenFolderPanelInDirectory(L10n.Tr(Constants.ImportLocationTitle),
-                    Constants.AssetsFolderName);
-
-                if (string.IsNullOrEmpty(importLocation))
-                {
-                    return;
-                }
-
-                beginImport(Path.Combine(Constants.AssetsFolderName, importLocation[(Application.dataPath.Length + 1)..]));
-            });
-
-            popupManager.Container.Add(importToText);
-            popupManager.Show(m_ImportToButton, PopupContainer.PopupAlignment.BottomRight);
+            beginImport(Path.Combine(Constants.AssetsFolderName, importLocation[(Application.dataPath.Length + 1)..]));
         }
     }
 }

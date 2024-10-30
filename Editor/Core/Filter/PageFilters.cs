@@ -143,7 +143,10 @@ namespace Unity.AssetManager.Editor
 
             FilterApplied?.Invoke(filter);
 
-            m_Page?.Clear(reload);
+            if (reload)
+            {
+                m_Page?.Clear(true);
+            }
         }
 
         public void EnableFilters(bool value = true)

@@ -12,12 +12,17 @@ namespace Unity.AssetManager.Editor
         [SerializeReference]
         IPageManager m_PageManager;
 
-        bool m_DragSelectionContainsValidAsset;
+        [SerializeReference]
+        IUploadManager m_UploadManager;
 
-        public DragFromOutsideManipulator(VisualElement rootTarget, IPageManager pageManager)
+        bool m_CanDropOnPage;
+
+        public DragFromOutsideManipulator(VisualElement rootTarget, IPageManager pageManager,
+            IUploadManager uploadManager)
         {
             target = rootTarget;
             m_PageManager = pageManager;
+            m_UploadManager = uploadManager;
         }
 
         protected override void RegisterCallbacksOnTarget()
@@ -53,14 +58,21 @@ namespace Unity.AssetManager.Editor
 
         void OnDragUpdate(DragUpdatedEvent _)
         {
-            DragAndDrop.visualMode = m_DragSelectionContainsValidAsset
+            DragAndDrop.visualMode = m_CanDropOnPage
                 ? DragAndDropVisualMode.Generic
                 : DragAndDropVisualMode.Rejected;
         }
 
         void OnDragEnter(DragEnterEvent _)
         {
-            m_DragSelectionContainsValidAsset = !Array.TrueForAll(DragAndDrop.objectReferences,
+            if (m_UploadManager.IsUploading)
+            {
+                m_CanDropOnPage = false;
+
+                return;
+            }
+
+            m_CanDropOnPage = !Array.TrueForAll(DragAndDrop.objectReferences,
                 o => string.IsNullOrEmpty(AssetDatabase.GetAssetPath(o)));
         }
     }

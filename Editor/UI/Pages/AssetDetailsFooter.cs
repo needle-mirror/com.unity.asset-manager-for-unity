@@ -48,6 +48,7 @@ namespace Unity.AssetManager.Editor
             ButtonsContainer = buttonsContainer;
 
             m_ImportButton = new ImportButton();
+            m_ImportButton.focusable = false;
             ButtonsContainer.Add(m_ImportButton);
             m_ShowInProjectBrowserButton = CreateBigButton(ButtonsContainer, Constants.ShowInProjectActionText);
             m_RemoveImportButton = CreateBigButton(ButtonsContainer, Constants.RemoveFromProjectActionText);
@@ -106,6 +107,7 @@ namespace Unity.AssetManager.Editor
             };
             button.AddToClassList(UssStyle.BigButton);
 
+            button.focusable = false;
             container.Add(button);
 
             return button;

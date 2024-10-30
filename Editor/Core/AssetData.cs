@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 using UnityEngine;
-using Task = System.Threading.Tasks.Task;
 
 namespace Unity.AssetManager.Editor
 {
@@ -29,7 +27,7 @@ namespace Unity.AssetManager.Editor
         IAssetDataFile PrimarySourceFile { get; }
         IEnumerable<IAssetDataFile> SourceFiles { get; }
         IEnumerable<AssetPreview.IStatus> PreviewStatus { get; }
-        IEnumerable<DependencyAsset> Dependencies { get; }
+        IEnumerable<AssetIdentifier> Dependencies { get; }
         IEnumerable<IAssetDataFile> UVCSFiles { get; }
         IEnumerable<IAssetData> Versions { get; }
 
@@ -37,12 +35,12 @@ namespace Unity.AssetManager.Editor
         Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback, CancellationToken token = default);
         Task SyncWithCloudAsync(Action<AssetIdentifier> callback, CancellationToken token = default);
         Task SyncWithCloudLatestAsync(Action<AssetIdentifier> callback, CancellationToken token = default);
-
         Task GetPreviewStatusAsync(Action<AssetIdentifier, IEnumerable<AssetPreview.IStatus>> callback = null,
             CancellationToken token =
                 default); // TODO Move away all methods not related to the actual IAssetData raw data
 
         Task RefreshVersionsAsync(CancellationToken token = default);
+        Task RefreshDependenciesAsync(CancellationToken token = default);
     }
 
     static class AssetDataExtension
@@ -126,7 +124,7 @@ namespace Unity.AssetManager.Editor
         List<string> m_Tags;
 
         [SerializeField]
-        List<DependencyAsset> m_DependencyAssets = new();
+        List<AssetIdentifier> m_Dependencies = new();
 
         [SerializeField]
         AssetComparisonResult m_AssetComparisonResult = AssetComparisonResult.None;
@@ -152,6 +150,7 @@ namespace Unity.AssetManager.Editor
         Task m_RefreshFilesTask;
         Task m_SyncWithCloudTask;
         Task m_SyncWithCloudLatestTask;
+        bool m_NoPrimaryExtension;
 
         public AssetIdentifier Identifier => m_Identifier;
         public int SequenceNumber => m_SequenceNumber;
@@ -167,9 +166,19 @@ namespace Unity.AssetManager.Editor
         public string UpdatedBy => m_UpdatedBy;
         public bool IsFrozen => m_IsFrozen;
         public IEnumerable<string> Tags => m_Tags;
-        public IAssetDataFile PrimarySourceFile => m_PrimarySourceFile;
+        public IAssetDataFile PrimarySourceFile
+        {
+            get => m_PrimarySourceFile;
+            private set
+            {
+                m_PrimarySourceFile = value;
+                // If the primary extension is not found, it is not available; prevent further attempts
+                m_NoPrimaryExtension = value == null;
+            }
+        }
+
         public IEnumerable<IAssetDataFile> SourceFiles => m_SourceFiles;
-        public IEnumerable<DependencyAsset> Dependencies => m_DependencyAssets;
+        public IEnumerable<AssetIdentifier> Dependencies => m_Dependencies;
         public IEnumerable<IAssetDataFile> UVCSFiles => m_UVCSFiles;
 
         public string ThumbnailUrl => m_ThumbnailUrl; // Used by persistence only to get the current state
@@ -239,7 +248,7 @@ namespace Unity.AssetManager.Editor
 
         #pragma warning disable S107  // Disabling the warning regarding too many parameters.
         // Used when de-serialized from version 1.0 to fill data not in the IAsset
-        public void FillFromPersistenceLegacy(IEnumerable<DependencyAsset> dependencyAssets,
+        public void FillFromPersistenceLegacy(IEnumerable<AssetIdentifier> dependencyAssets,
             AssetComparisonResult assetComparisonResult,
             string thumbnailUrl,
             IEnumerable<IAssetDataFile> sourceFiles,
@@ -247,11 +256,11 @@ namespace Unity.AssetManager.Editor
             IEnumerable<IAssetDataFile> uvcsFiles,
             IEnumerable<IAssetData> versions)
         {
-            m_DependencyAssets = dependencyAssets?.ToList();
+            m_Dependencies = dependencyAssets?.ToList();
             m_AssetComparisonResult = assetComparisonResult;
             m_ThumbnailUrl = thumbnailUrl;
             m_SourceFiles = sourceFiles?.ToList();
-            m_PrimarySourceFile = primarySourceFile;
+            PrimarySourceFile = primarySourceFile;
             m_UVCSFiles = uvcsFiles?.ToList();
             m_Versions = versions.ToList();
         }
@@ -275,7 +284,7 @@ namespace Unity.AssetManager.Editor
             bool isFrozen,
             IEnumerable<string> tags,
             IEnumerable<AssetDataFile> sourceFiles,
-            IEnumerable<DependencyAsset> dependencyAssets)
+            IEnumerable<AssetIdentifier> dependencies)
         {
             m_Identifier = assetIdentifier;
             m_SequenceNumber = sequenceNumber;
@@ -292,9 +301,9 @@ namespace Unity.AssetManager.Editor
             m_IsFrozen = isFrozen;
             m_Tags = tags.ToList();
             m_SourceFiles = sourceFiles?.Cast<IAssetDataFile>().ToList();
-            m_DependencyAssets = dependencyAssets?.ToList();
+            m_Dependencies = dependencies?.ToList();
 
-            m_PrimarySourceFile = m_SourceFiles
+            PrimarySourceFile = m_SourceFiles
                 ?.FilterUsableFilesAsPrimaryExtensions()
                 .OrderBy(x => x, new AssetDataFileComparerByExtension())
                 .LastOrDefault();
@@ -322,10 +331,12 @@ namespace Unity.AssetManager.Editor
         public async Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null,
             CancellationToken token = default)
         {
+            var thumbnailDownloader = ServicesContainer.instance.Resolve<IThumbnailDownloader>();
+            Texture2D texture = null;
+
             if (!string.IsNullOrEmpty(m_ThumbnailUrl))
             {
-                var texture = ServicesContainer.instance.Resolve<IThumbnailDownloader>()
-                    .GetCachedThumbnail(m_ThumbnailUrl);
+                texture = thumbnailDownloader.GetCachedThumbnail(m_ThumbnailUrl);
 
                 if (texture != null)
                 {
@@ -334,10 +345,16 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
+            // If the thumbnail URL is not available yet, try to get temporary cached URL
+            texture = thumbnailDownloader.GetCachedThumbnail(Identifier);
+            if (texture != null)
+            {
+                callback?.Invoke(Identifier, texture);
+            }
+
             await GetThumbnailUrlAsync(token);
 
-            ServicesContainer.instance.Resolve<IThumbnailDownloader>()
-                .DownloadThumbnail(Identifier, m_ThumbnailUrl, callback);
+            thumbnailDownloader.DownloadThumbnail(Identifier, m_ThumbnailUrl, callback);
         }
 
         public async Task GetPreviewStatusAsync(
@@ -374,7 +391,7 @@ namespace Unity.AssetManager.Editor
         public async Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback,
             CancellationToken token = default)
         {
-            if (string.IsNullOrEmpty(m_PrimarySourceFile?.Extension))
+            if (!m_NoPrimaryExtension && string.IsNullOrEmpty(m_PrimarySourceFile?.Extension))
             {
                 m_PrimaryExtensionTask ??= RefreshSourceFilesAndPrimaryExtensionAsync(token);
 
@@ -397,6 +414,11 @@ namespace Unity.AssetManager.Editor
 
         public async Task SyncWithCloudAsync(Action<AssetIdentifier> callback, CancellationToken token = default)
         {
+            if (m_AssetComparisonResult == AssetComparisonResult.NotFoundOrInaccessible)
+            {
+                return;
+            }
+
             // If there is already a sync operation in progress, wait for it to finish, but no need to trigger another sync
             if (m_SyncWithCloudLatestTask != null)
             {
@@ -413,7 +435,7 @@ namespace Unity.AssetManager.Editor
                         RefreshAsync(token),
                         RefreshSourceFilesAndPrimaryExtensionAsync(token),
                         GetThumbnailUrlAsync(token),
-                        GetDependenciesAsync(token),
+                        RefreshDependenciesAsync(token),
                         RefreshVersionsAsync(token)
                     };
 
@@ -479,7 +501,7 @@ namespace Unity.AssetManager.Editor
             {
                 RefreshSourceFilesAndPrimaryExtensionAsync(token),
                 GetThumbnailUrlAsync(token),
-                GetDependenciesAsync(token),
+                RefreshDependenciesAsync(token),
                 RefreshVersionsAsync(token)
             };
 
@@ -490,8 +512,9 @@ namespace Unity.AssetManager.Editor
         {
             m_ThumbnailUrl = null;
             m_PrimarySourceFile = null;
+            m_NoPrimaryExtension = false;
             m_SourceFiles.Clear();
-            m_DependencyAssets.Clear();
+            m_Dependencies.Clear();
             m_UVCSFiles.Clear();
             m_Versions.Clear();
         }
@@ -556,32 +579,32 @@ namespace Unity.AssetManager.Editor
         async Task RefreshSourceFilesAndPrimaryExtensionInternalAsync(CancellationToken token)
         {
             var files = new List<IAssetDataFile>();
-            var extensions = new HashSet<string>();
 
             var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
 
             await foreach (var file in assetsSdkProvider.ListFilesAsync(this, Range.All, token))
             {
                 files.Add(file);
-                extensions.Add(Path.GetExtension(file.Path));
             }
 
+            token.ThrowIfCancellationRequested();
+
             m_SourceFiles = files;
-            m_PrimarySourceFile = m_SourceFiles
+            PrimarySourceFile = m_SourceFiles
                 .FilterUsableFilesAsPrimaryExtensions()
                 .OrderBy(x => x, new AssetDataFileComparerByExtension())
                 .LastOrDefault();
         }
 
-        async Task GetDependenciesAsync(CancellationToken token)
+        public async Task RefreshDependenciesAsync(CancellationToken token)
         {
-            var deps = new List<DependencyAsset>();
+            var dependencies = new List<AssetIdentifier>();
             await foreach (var dependency in AssetDataDependencyHelper.LoadDependenciesAsync(this, token))
             {
-                deps.Add(new DependencyAsset(dependency.Identifier, dependency.AssetData));
+                dependencies.Add(dependency);
             }
 
-            m_DependencyAssets = deps;
+            m_Dependencies = dependencies;
         }
 
         public async Task RefreshVersionsAsync(CancellationToken token = default)

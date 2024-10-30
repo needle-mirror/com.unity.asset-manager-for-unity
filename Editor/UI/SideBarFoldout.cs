@@ -9,6 +9,7 @@ namespace Unity.AssetManager.Editor
     {
         protected const string k_UnityListViewItemSelected = "unity-list-view__item--selected";
         protected const string k_CheckMarkName = "unity-checkmark";
+        protected const string k_ToggleInputUssClassName = "unity-toggle__input";
 
         VisualElement m_CheckMark;
 
@@ -32,6 +33,8 @@ namespace Unity.AssetManager.Editor
             m_HasChild = false;
             m_Toggle = this.Q<Toggle>();
             m_Toggle.tooltip = foldoutName;
+            var toggleInput = m_Toggle.Q("", k_ToggleInputUssClassName);
+            toggleInput.focusable = false;
             m_CheckMark = m_Toggle.Q<VisualElement>(k_CheckMarkName);
 
             var iconParent = this.Q(className: inputUssClassName);

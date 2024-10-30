@@ -68,10 +68,10 @@ namespace Unity.AssetManager.Editor
             overlay.AddToClassList(UssStyles.ItemOverlay);
 
             Add(m_AssetPreview);
+            Add(overlay);
             Add(m_AssetNameLabel);
             Add(m_LoadingIcon);
             Add(m_OperationProgressBar);
-            Add(overlay);
         }
 
         void OnAssetPreviewToggleValueChanged(bool value)
@@ -115,26 +115,37 @@ namespace Unity.AssetManager.Editor
             m_AssetNameLabel.text = m_AssetData.Name;
             m_AssetNameLabel.tooltip = m_AssetData.Name;
 
-            m_AssetPreview.ClearPreview();
-
             m_OperationProgressBar.Refresh(m_OperationManager.GetAssetOperation(m_AssetData.Identifier));
 
             m_AssetPreview.SetStatuses(m_AssetData.PreviewStatus);
 
-            if (m_AssetData is UploadAssetData uploadAssetData)
+            if (m_AssetData is UploadAssetData)
             {
                 m_AssetPreview.EnableInClassList("asset-preview--upload", true);
-                m_AssetPreview.Toggle.SetValueWithoutNotify(!uploadAssetData.IsIgnored);
-                m_AssetPreview.Toggle.tooltip = uploadAssetData.IsIgnored ?
-                    L10n.Tr(Constants.IncludeToggleTooltip) :
-                    L10n.Tr(Constants.IgnoreToggleTooltip);
-                m_AssetPreview.Toggle.SetEnabled(!m_UploadManager.IsUploading);
-
-                EnableInClassList(UssStyles.ItemIgnore, uploadAssetData.IsIgnored);
-                tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IgnoreAssetToolTip) : "";
+                RefreshToggle();
             }
 
+            // Clear the thumbnail before setting the new one to avoid seeing the old thumbnail while the new one is loading
+            m_AssetPreview.ClearPreview();
+
             var tasks = new List<Task>();
+
+            var cachedExtension = m_AssetDataManager.GetCachedAssetPrimaryTypeExtension(m_AssetData.Identifier);
+            if (!string.IsNullOrEmpty(cachedExtension))
+            {
+                m_AssetPreview.SetAssetType(cachedExtension);
+            }
+
+            tasks.Add(m_AssetData.ResolvePrimaryExtensionAsync((identifier, extension) =>
+            {
+                if (!identifier.Equals(m_AssetData.Identifier))
+                {
+                    return;
+                }
+
+                m_AssetDataManager.SetCachedAssetPrimaryTypeExtension(identifier, extension);
+                m_AssetPreview.SetAssetType(extension);
+            }));
 
             tasks.Add(m_AssetData.GetThumbnailAsync((identifier, texture2D) =>
             {
@@ -147,17 +158,11 @@ namespace Unity.AssetManager.Editor
             tasks.Add(m_AssetData.GetPreviewStatusAsync((identifier, status) =>
             {
                 if (!identifier.Equals(m_AssetData.Identifier))
+                {
                     return;
+                }
 
                 m_AssetPreview.SetStatuses(status);
-            }));
-
-            tasks.Add(m_AssetData.ResolvePrimaryExtensionAsync((identifier, extension) =>
-            {
-                if (!identifier.Equals(m_AssetData.Identifier))
-                    return;
-
-                m_AssetPreview.SetAssetType(extension);
             }));
 
             if (m_UnityConnectProxy.AreCloudServicesReachable)
@@ -174,24 +179,23 @@ namespace Unity.AssetManager.Editor
         {
             m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
+            m_PageManager.ToggleAssetChanged += OnToggleAssetChanged;
             m_OperationManager.OperationProgressChanged += RefreshOperationProgress;
             m_OperationManager.OperationFinished += RefreshOperationProgress;
+            m_OperationManager.OperationCleared += OnOperationCleared;
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
             m_AssetPreview.ToggleValueChanged += OnAssetPreviewToggleValueChanged;
             m_UploadManager.UploadBegan += OnUploadBegan;
-        }
-
-        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
-        {
-            Refresh();
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
+            m_PageManager.ToggleAssetChanged -= OnToggleAssetChanged;
             m_OperationManager.OperationProgressChanged -= RefreshOperationProgress;
             m_OperationManager.OperationFinished -= RefreshOperationProgress;
+            m_OperationManager.OperationCleared -= OnOperationCleared;
             m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
             m_AssetPreview.ToggleValueChanged -= OnAssetPreviewToggleValueChanged;
             m_UploadManager.UploadBegan -= OnUploadBegan;
@@ -207,11 +211,23 @@ namespace Unity.AssetManager.Editor
 
         void RefreshOperationProgress(AssetDataOperation operation)
         {
-            if (!new TrackedAssetIdentifier(operation.Identifier).Equals(
-                    new TrackedAssetIdentifier(m_AssetData?.Identifier)))
-                return;
+            if(TrackedAssetIdentifier.IsFromSameAsset(operation.Identifier, m_AssetData?.Identifier))
+            {
+                m_OperationProgressBar.Refresh(operation);
+            }
+        }
 
-            m_OperationProgressBar.Refresh(operation);
+        void OnOperationCleared(TrackedAssetIdentifier identifier)
+        {
+            if (TrackedAssetIdentifier.IsFromSameAsset(identifier, m_AssetData?.Identifier))
+            {
+                m_OperationProgressBar.Refresh(null);
+            }
+        }
+
+        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
+        {
+            Refresh();
         }
 
         void OnImportedAssetInfoChanged(AssetChangeArgs assetChangeArgs)
@@ -226,13 +242,35 @@ namespace Unity.AssetManager.Editor
                 var assetData = m_AssetDataManager.GetAssetData(m_AssetData.Identifier);
                 m_AssetData = null;
                 BindWithItem(assetData);
-                m_OperationProgressBar.Refresh(null);
+
+                var operation = m_OperationManager.GetAssetOperation(assetData.Identifier);
+                m_OperationProgressBar.Refresh(operation);
             }
         }
 
         void OnSelectedAssetChanged(IPage page, IEnumerable<AssetIdentifier> assets)
         {
-            RefreshHighlight();
+            if (m_AssetData == null)
+                return;
+
+            var isSelected = m_PageManager.ActivePage.SelectedAssets.Any(i =>
+                new TrackedAssetIdentifier(i).Equals(new TrackedAssetIdentifier(AssetData.Identifier)));
+            if (isSelected)
+            {
+                Refresh();
+            }
+            else
+            {
+                RefreshHighlight();
+            }
+        }
+
+        void OnToggleAssetChanged(IPage page, AssetIdentifier asset, bool value)
+        {
+            if(TrackedAssetIdentifier.IsFromSameAsset(asset, m_AssetData?.Identifier))
+            {
+               RefreshToggle();
+            }
         }
 
         void OnUploadBegan()
@@ -257,7 +295,7 @@ namespace Unity.AssetManager.Editor
                 return;
 
             var isSelected = m_PageManager.ActivePage.SelectedAssets.Any(i =>
-                new TrackedAssetIdentifier(i).Equals(new TrackedAssetIdentifier(AssetData.Identifier)));
+                TrackedAssetIdentifier.IsFromSameAsset(i, m_AssetData.Identifier));
             if (isSelected)
             {
                 AddToClassList(UssStyles.ItemHighlight);
@@ -265,6 +303,24 @@ namespace Unity.AssetManager.Editor
             else
             {
                 RemoveFromClassList(UssStyles.ItemHighlight);
+            }
+        }
+
+        void RefreshToggle()
+        {
+            if(m_AssetData == null)
+                return;
+
+            if (m_AssetData is UploadAssetData uploadAssetData)
+            {
+                m_AssetPreview.Toggle.SetValueWithoutNotify(!uploadAssetData.IsIgnored);
+                m_AssetPreview.Toggle.tooltip = uploadAssetData.IsIgnored ?
+                    L10n.Tr(Constants.IncludeToggleTooltip) :
+                    L10n.Tr(Constants.IgnoreToggleTooltip);
+                m_AssetPreview.Toggle.SetEnabled(!m_UploadManager.IsUploading);
+
+                EnableInClassList(UssStyles.ItemIgnore, uploadAssetData.IsIgnored);
+                tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IgnoreAssetToolTip) : "";
             }
         }
 

@@ -20,10 +20,10 @@ namespace Unity.AssetManager.Editor
 
         // Item height/widths are used to calculate the # of rows/columns
         const int k_DefaultItemHeight = 150;
-        const int k_DefaultItemWidth = 125;
+        const int k_DefaultItemWidth = 131; // 125 + 6 margin
         const int k_ExtraVisibleRows = 2;
-        const float k_FooterHeight = 40;
-        const float k_MinSidePadding = k_DefaultItemWidth / 2f;
+        const float k_FooterHeight = 55;
+        const float k_MinSidePadding = 6f;
         static readonly string k_ScrollViewContentName = "unity-content-container";
         static readonly string k_ScrollViewContentAndVerticalScrollName = "unity-content-and-vertical-scroll-container";
         static readonly string k_GridViewRowClassName = "grid-view--row";
@@ -169,8 +169,6 @@ namespace Unity.AssetManager.Editor
 
             m_ScrollView.contentContainer.focusable = true;
             m_ScrollView.contentContainer.usageHints &= ~UsageHints.GroupTransform; // Scroll views with virtualized content shouldn't have the "view transform" optimization
-
-            focusable = true;
         }
 
         /// <summary>
@@ -760,7 +758,7 @@ namespace Unity.AssetManager.Editor
 
         void OnSizeChanged(GeometryChangedEvent evt)
         {
-            ColumnCount = Mathf.FloorToInt((evt.newRect.width - k_MinSidePadding) / m_ItemWidth);
+            ColumnCount = Mathf.FloorToInt((m_ScrollView.contentViewport.layout.width - k_MinSidePadding) / m_ItemWidth);
 
             if (!HasValidDataAndBindings())
                 return;

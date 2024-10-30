@@ -15,6 +15,7 @@ namespace Unity.AssetManager.Editor
             Action<AssetIdentifier, Texture2D> doneCallbackAction = null);
 
         Texture2D GetCachedThumbnail(string thumbnailUrl);
+        Texture2D GetCachedThumbnail(AssetIdentifier identifier);
     }
 
     [Serializable]
@@ -27,6 +28,13 @@ namespace Unity.AssetManager.Editor
 
         [SerializeField]
         Texture2D[] m_SerializedThumbnails;
+
+        [SerializeField]
+        AssetIdentifier[] m_SerializedThumbnailUrlsKeys;
+
+        [SerializeField]
+        string[] m_SerializedThumbnailUrls;
+
 
         [SerializeReference]
         ICacheEvictionManager m_CacheEvictionManager;
@@ -43,6 +51,7 @@ namespace Unity.AssetManager.Editor
         readonly Dictionary<string, AssetIdentifier> m_DownloadIdToAssetIdMap = new();
         readonly Dictionary<string, List<Action<AssetIdentifier, Texture2D>>> m_ThumbnailDownloadCallbacks = new();
         readonly Dictionary<string, Texture2D> m_Thumbnails = new();
+        readonly Dictionary<AssetIdentifier, string> m_ThumbnailUrls = new();
 
         [ServiceInjection]
         public void Inject(IDownloadManager downloadManager, IIOProxy ioProxy, ISettingsManager settingsManager,
@@ -58,6 +67,9 @@ namespace Unity.AssetManager.Editor
         {
             m_SerializedThumbnailsKeys = m_Thumbnails.Keys.ToArray();
             m_SerializedThumbnails = m_Thumbnails.Values.ToArray();
+
+            m_SerializedThumbnailUrlsKeys = m_ThumbnailUrls.Keys.ToArray();
+            m_SerializedThumbnailUrls = m_ThumbnailUrls.Values.ToArray();
         }
 
         public void OnAfterDeserialize()
@@ -65,6 +77,11 @@ namespace Unity.AssetManager.Editor
             for (var i = 0; i < m_SerializedThumbnailsKeys.Length; i++)
             {
                 m_Thumbnails[m_SerializedThumbnailsKeys[i]] = m_SerializedThumbnails[i];
+            }
+
+            for(var i=0; i < m_SerializedThumbnailUrlsKeys.Length; i++)
+            {
+                m_ThumbnailUrls[m_SerializedThumbnailUrlsKeys[i]] = m_SerializedThumbnailUrls[i];
             }
         }
 
@@ -76,8 +93,9 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            var thumbnailUrl = $"https://transformation.unity.com/api/images?url={Uri.EscapeDataString(url)}&width={180}"; // 180 is roughly the size of the Detail panel thumbnail
-            var thumbnailFileName = Hash128.Compute(thumbnailUrl).ToString();
+            m_ThumbnailUrls[identifier] = url;
+
+            var thumbnailFileName = Hash128.Compute(url).ToString();
 
             var thumbnail = LoadThumbnail(url,
                 Path.Combine(m_SettingsManager.ThumbnailsCacheLocation, thumbnailFileName));
@@ -88,22 +106,15 @@ namespace Unity.AssetManager.Editor
                 return;
             }
 
-            if (m_ThumbnailDownloadCallbacks.TryGetValue(thumbnailUrl, out var callbacks))
+            if (m_ThumbnailDownloadCallbacks.TryGetValue(url, out var callbacks))
             {
                 callbacks.Add(doneCallbackAction);
                 return;
             }
 
-            m_DownloadIdToAssetIdMap[thumbnailUrl] = identifier;
+            m_DownloadIdToAssetIdMap[url] = identifier;
 
-            var unityWebRequest = new UnityWebRequest(thumbnailUrl, UnityWebRequest.kHttpVerbGET) { disposeDownloadHandlerOnDispose = true };
-            unityWebRequest.downloadHandler = new DownloadHandlerTexture();
-
-            var webRequestAsyncOperation = unityWebRequest.SendWebRequest();
-            webRequestAsyncOperation.completed += asyncOp =>
-            {
-                OnRequestCompletion((UnityWebRequestAsyncOperation)asyncOp, thumbnailUrl);
-            };
+            DownloadThumbnail(url, true);
 
             var newCallbacks = new List<Action<AssetIdentifier, Texture2D>>();
             if (doneCallbackAction != null)
@@ -111,12 +122,47 @@ namespace Unity.AssetManager.Editor
                 newCallbacks.Add(doneCallbackAction);
             }
 
-            m_ThumbnailDownloadCallbacks[thumbnailUrl] = newCallbacks;
+            m_ThumbnailDownloadCallbacks[url] = newCallbacks;
+        }
+
+        void DownloadThumbnail(string url, bool resize)
+        {
+            var finaleUrl = resize ? $"https://transformation.unity.com/api/images?url={Uri.EscapeDataString(url)}&width={180}" : url;
+
+            var unityWebRequest = new UnityWebRequest(finaleUrl, UnityWebRequest.kHttpVerbGET) { disposeDownloadHandlerOnDispose = true };
+            unityWebRequest.downloadHandler = new DownloadHandlerTexture();
+
+            var webRequestAsyncOperation = unityWebRequest.SendWebRequest();
+            webRequestAsyncOperation.completed += asyncOp =>
+            {
+                var webOperation = (UnityWebRequestAsyncOperation)asyncOp;
+                if (resize && webOperation.webRequest.result != UnityWebRequest.Result.Success)
+                {
+                    Utilities.DevLogWarning($"Resizing thumbnail failed, trying regular thumbnail using '{url}'");
+
+                    // Try again without resizing
+                    DownloadThumbnail(url, false);
+                }
+                else
+                {
+                    OnRequestCompletion(webOperation, url);
+                }
+            };
         }
 
         public Texture2D GetCachedThumbnail(string thumbnailUrl)
         {
             return m_Thumbnails.TryGetValue(thumbnailUrl, out var result) ? result : null;
+        }
+
+        public Texture2D GetCachedThumbnail(AssetIdentifier identifier)
+        {
+            if (!m_ThumbnailUrls.TryGetValue(identifier, out var url))
+            {
+                return null;
+            }
+
+            return GetCachedThumbnail(url);
         }
 
         void OnRequestCompletion(UnityWebRequestAsyncOperation asyncOperation, string thumbnailUrl)
@@ -138,7 +184,7 @@ namespace Unity.AssetManager.Editor
             }
             else
             {
-                Debug.LogError("Unable to download thumbnail. Error: " + asyncOperation.webRequest.error);
+                Utilities.DevLogError("Unable to download thumbnail. Error: " + asyncOperation.webRequest.error);
             }
 
             foreach (var callback in callbacks)

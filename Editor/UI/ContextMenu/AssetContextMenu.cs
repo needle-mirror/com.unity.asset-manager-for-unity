@@ -3,7 +3,7 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Editor
 {
-    abstract class AssetContextMenu
+    abstract class AssetContextMenu: ContextMenu
     {
         internal readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
         internal readonly IAssetDataManager m_AssetDataManager;
@@ -29,19 +29,6 @@ namespace Unity.AssetManager.Editor
             m_LinksProxy = linksProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
             m_PageManager = pageManager;
-        }
-
-        public abstract void SetupContextMenuEntries(ContextualMenuPopulateEvent evt);
-
-        protected static void AddMenuEntry(ContextualMenuPopulateEvent evt, string actionName, bool enabled,
-            Action<DropdownMenuAction> action)
-
-        {
-            if(evt == null || evt.menu == null)
-                return;
-
-            evt.menu.InsertAction(0, actionName, action,
-                enabled ? DropdownMenuAction.Status.Normal : DropdownMenuAction.Status.Disabled);
         }
     }
 }

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -15,7 +14,7 @@ namespace Unity.AssetManager.Editor
     class UploadAssetData : IAssetData
     {
         [SerializeField]
-        List<DependencyAsset> m_Dependencies = new();
+        List<AssetIdentifier> m_Dependencies = new();
 
         [SerializeField]
         AssetIdentifier m_Identifier;
@@ -29,15 +28,6 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         UploadSettings m_Settings;
 
-        [SerializeReference]
-        IUploadAsset m_UploadAsset;
-
-        [SerializeReference]
-        List<IAssetDataFile> m_Files = new();
-
-        [SerializeReference]
-        IAssetDataFile m_PrimaryFile;
-
         [SerializeField]
         string m_PrimaryExtension;
 
@@ -50,8 +40,20 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         bool m_IsDependency;
 
+        [SerializeField]
+        bool m_IsSkipped;
+
+        [SerializeReference]
+        IUploadAsset m_UploadAsset;
+
+        [SerializeReference]
+        List<IAssetDataFile> m_Files = new();
+
+        [SerializeReference]
+        IAssetDataFile m_PrimaryFile;
+
         Task<Texture2D> m_GetThumbnailTask;
-        Task<AssetData> m_PreviewStatusTask;
+        Task m_PreviewStatusTask;
 
         AssetPreview.IStatus m_ExistingStatus;
 
@@ -85,7 +87,15 @@ namespace Unity.AssetManager.Editor
             set => m_IsDependency = value;
         }
 
+        public bool IsSkipped
+        {
+            get => m_IsSkipped;
+            set => m_IsSkipped = value;
+        }
+
         public string Guid => m_UploadAsset.Guid;
+
+        public bool HasAnExistingStatus => m_ExistingStatus != null;
 
         public UploadAssetData(IUploadAsset uploadAsset, UploadSettings settings)
         {
@@ -120,7 +130,7 @@ namespace Unity.AssetManager.Editor
             foreach (var dependency in m_UploadAsset.Dependencies)
             {
                 var id = new AssetIdentifier(dependency);
-                m_Dependencies.Add(new DependencyAsset(id, null));
+                m_Dependencies.Add(id);
             }
         }
 
@@ -140,7 +150,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public IEnumerable<DependencyAsset> Dependencies => m_Dependencies;
+        public IEnumerable<AssetIdentifier> Dependencies => m_Dependencies;
 
         public IEnumerable<IAssetData> Versions => Array.Empty<IAssetData>();
 
@@ -153,9 +163,9 @@ namespace Unity.AssetManager.Editor
 
                 if (asset != null)
                 {
-                    m_GetThumbnailTask = s_UseAdvancedPreviewer
-                        ? AssetManagerPreviewer.GenerateAdvancedPreview(asset, m_AssetPath)
-                        : AssetManagerPreviewer.GetDefaultPreviewTexture(asset);
+                    m_GetThumbnailTask = s_UseAdvancedPreviewer ?
+                        AssetManagerPreviewer.GenerateAdvancedPreview(asset, m_AssetPath) :
+                        AssetManagerPreviewer.GetDefaultPreviewTexture(asset);
                 }
             }
 
@@ -171,15 +181,11 @@ namespace Unity.AssetManager.Editor
         {
             m_ExistingStatus = null;
 
-            var guidWasMatchedWithAnAsset = false;
-
-            m_PreviewStatusTask ??= AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(m_AssetGuid,
-                m_Settings.OrganizationId, m_Settings.ProjectId, token);
+            m_PreviewStatusTask ??= GetPreviewStatusInternalAsync(token);
 
             try
             {
-                var result = await m_PreviewStatusTask;
-                guidWasMatchedWithAnAsset = result != null;
+                await m_PreviewStatusTask;
             }
             catch (Exception)
             {
@@ -187,16 +193,52 @@ namespace Unity.AssetManager.Editor
                 throw;
             }
 
+            m_PreviewStatusTask = null;
+
+            callback?.Invoke(m_Identifier, PreviewStatus);
+        }
+
+        async Task GetPreviewStatusInternalAsync(CancellationToken token)
+        {
+            var guidWasMatchedWithAnAsset = false;
+
+            var statusTask = AssetDataDependencyHelper.GetAssetAssociatedWithGuidAsync(m_AssetGuid,
+                m_Settings.OrganizationId, m_Settings.ProjectId, token);
+
+            var result = await statusTask;
+            guidWasMatchedWithAnAsset = result != null;
+
+            var assetData = statusTask?.Result;
+
             if (guidWasMatchedWithAnAsset)
             {
-                m_ExistingStatus = m_Settings.UploadMode switch
+                switch (m_Settings.UploadMode)
                 {
-                    UploadAssetMode.Duplicate => AssetDataStatus.UploadDuplicate,
-                    UploadAssetMode.Override => AssetDataStatus.UploadOverride,
-                    UploadAssetMode.SkipExisting => AssetDataStatus.UploadSkip,
+                    case UploadAssetMode.SkipIdentical:
 
-                    _ => AssetDataStatus.Imported
-                };
+                        var hasModifiedFiles = await Utilities.IsLocallyModifiedAsync(m_UploadAsset, assetData, null, token);
+                        if (hasModifiedFiles || await Utilities.CheckDependenciesModifiedAsync(assetData, null, token))
+                        {
+                            m_ExistingStatus = AssetDataStatus.UploadOverride;
+                            m_IsSkipped = false;
+                        }
+                        else
+                        {
+                            m_ExistingStatus = AssetDataStatus.UploadSkip;
+                            m_IsSkipped = true;
+                        }
+
+                        break;
+                    case UploadAssetMode.ForceNewVersion:
+                        m_ExistingStatus = assetData != null ? AssetDataStatus.UploadOverride : AssetDataStatus.UploadAdd;
+                        break;
+                    case UploadAssetMode.ForceNewAsset:
+                        m_ExistingStatus = AssetDataStatus.UploadDuplicate;
+                        break;
+                    default:
+                        m_ExistingStatus = AssetDataStatus.Imported;
+                        break;
+                }
             }
             else if (m_AssetPath.StartsWith("Packages") || m_AssetPath.StartsWith("../"))
             {
@@ -206,13 +248,14 @@ namespace Unity.AssetManager.Editor
             {
                 m_ExistingStatus = AssetDataStatus.UploadAdd;
             }
-
-            m_PreviewStatusTask = null;
-
-            callback?.Invoke(m_Identifier, PreviewStatus);
         }
 
         public Task RefreshVersionsAsync(CancellationToken token = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task RefreshDependenciesAsync(CancellationToken token = default)
         {
             return Task.CompletedTask;
         }

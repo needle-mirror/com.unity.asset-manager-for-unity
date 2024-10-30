@@ -70,7 +70,6 @@ namespace Unity.AssetManager.Editor
         {
             UIElementsUtils.Show(this);
 
-            m_MessageLabel.tooltip = L10n.Tr(messageData.Message);
             m_MessageLabel.text = L10n.Tr(messageData.Message);
             m_MessageActionButton.SetRecommendedAction(messageData.RecommendedAction);
         }

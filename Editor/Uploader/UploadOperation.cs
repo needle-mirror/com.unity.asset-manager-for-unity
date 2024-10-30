@@ -17,7 +17,7 @@ namespace Unity.AssetManager.Editor
         const string k_StatusApproved = "Approved";
 
         // All files upload from every assets should be limited in how many can be uploaded at the same time.
-        static readonly SemaphoreSlim k_MaxFileUploadSemaphore = new(50);
+        static readonly SemaphoreSlim k_MaxFileUploadSemaphore = new(15);
 
         readonly HashSet<HttpProgress> m_HttpProgresses = new();
         readonly IUploadAsset m_UploadAsset;
@@ -39,17 +39,14 @@ namespace Unity.AssetManager.Editor
 
         public void Report(HttpProgress value)
         {
-            if (!m_HttpProgresses.Contains(value))
-            {
-                m_HttpProgresses.Add(value);
-            }
+            m_HttpProgresses.Add(value);
 
             var totalProgress = m_HttpProgresses.Where(httpProgress => httpProgress.UploadProgress != null)
                 .Sum(httpProgress => httpProgress.UploadProgress.Value);
 
             totalProgress /= m_HttpProgresses.Count;
 
-            ReportStep($"Uploading {m_UploadAsset.Files.Count} file(s)", totalProgress);
+            ReportStep(totalProgress);
         }
 
         public async Task PrepareUploadAsync(AssetData asset, IDictionary<string, AssetData> guidToAssetLookup,
@@ -109,18 +106,19 @@ namespace Unity.AssetManager.Editor
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
 
             // Upload files tasks
-            var uploadThumbnailTask = Task.FromResult<AssetDataFile>(null);
 
             // Files inside the asset entry
+            var fileNumber = 0;
             await TaskUtils.RunWithMaxConcurrentTasksAsync(m_UploadAsset.Files.Where(file => !string.IsNullOrEmpty(file.SourcePath)), token,
                 file =>
                 {
-                    ReportStep($"Preparing file {Path.GetFileName(file.SourcePath)}");
-                    var task = assetsProvider.UploadFile(asset, file.DestinationPath, file.SourcePath, this, token);
-                    return task;
+                    Interlocked.Increment(ref fileNumber);
+                    ReportStep($"Preparing file {Path.GetFileName(file.SourcePath)} ({fileNumber} of {m_UploadAsset.Files.Count})");
+                    return assetsProvider.UploadFile(asset, file.DestinationPath, file.SourcePath, this, token);
                 }, k_MaxFileUploadSemaphore);
 
             // Thumbnail
+            AssetDataFile thumbnailFile = null;
             if (RequiresThumbnail(assetInstance, assetPath))
             {
                 ReportStep("Preparing thumbnail");
@@ -128,11 +126,9 @@ namespace Unity.AssetManager.Editor
                 var texture = await GetThumbnailAsync(assetInstance, assetPath);
                 if (texture != null)
                 {
-                    uploadThumbnailTask = assetsProvider.UploadThumbnail(asset, texture, this, token);
+                    thumbnailFile = await assetsProvider.UploadThumbnail(asset, texture, this, token);
                 }
             }
-
-            var thumbnailFile = await uploadThumbnailTask;
 
             if (thumbnailFile != null && !string.IsNullOrEmpty(thumbnailFile.Path))
             {
@@ -182,11 +178,15 @@ namespace Unity.AssetManager.Editor
             ReportStep("Done");
         }
 
-        void ReportStep(string description, float progress = 0.0f)
+        void ReportStep(string description)
         {
             m_Description = description;
-            m_Progress = progress;
+            Report();
+        }
 
+        void ReportStep(float progress = 0.0f)
+        {
+            m_Progress = progress;
             Report();
         }
 

@@ -61,6 +61,7 @@ namespace Unity.AssetManager.Editor
                 {
                     SetActiveTab(tab.Type);
                 };
+                button.focusable = false;
                 m_TabsContainer.Add(button);
 
                 m_TabContents[tab.Type] = new TabDetails(button, tab.Root, tab.IsFooterVisible, tab.EnabledWhenDisconnected);

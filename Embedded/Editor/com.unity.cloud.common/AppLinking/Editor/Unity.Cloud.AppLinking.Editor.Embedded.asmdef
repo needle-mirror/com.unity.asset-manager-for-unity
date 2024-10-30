@@ -1,0 +1,24 @@
+{
+  "name": "Unity.Cloud.AppLinking.Editor.Embedded",
+  "rootNamespace": "Unity.Cloud.AppLinking.Editor",
+  "references": [
+    "GUID:2052490dcc44a574e9a611cea4a2fa9d",
+    "GUID:5daef786c7e02be44801be030e7c2bfa",
+    "GUID:0bb06d4da9d5be645bda23e261883a98",
+    "GUID:1cf63c77680c75e4cbdc7a275526b3bd",
+    "GUID:efd22da1d2d0661459a672d4068fc352",
+    "GUID:9842f2882c73e2148b6a2e8f40c67de6",
+    "GUID:7a269f91d1db6c54ea98d3cae876314d"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

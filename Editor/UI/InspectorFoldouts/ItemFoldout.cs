@@ -67,6 +67,13 @@ namespace Unity.AssetManager.Editor
                 }
             }
 
+            var toggle = m_Foldout.Q<Toggle>();
+            if (toggle != null)
+            {
+                toggle.focusable = false;
+            }
+            m_ListView.focusable = false;
+
             if (foldoutExpandedClassName != null)
             {
                 m_FoldoutExpandedClassName = foldoutExpandedClassName;
@@ -74,6 +81,7 @@ namespace Unity.AssetManager.Editor
 
             m_Foldout.viewDataKey = foldoutName;
             m_ListView.viewDataKey = listViewName;
+            m_ListView.selectionType = SelectionType.None;
             m_ListView.selectionChanged += RaiseSelectionChangedEvent;
         }
 

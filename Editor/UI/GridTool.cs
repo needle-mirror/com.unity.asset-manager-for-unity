@@ -40,7 +40,7 @@ namespace Unity.AssetManager.Editor
 
         protected virtual void InitDisplay(IPage page)
         {
-            UIElementsUtils.SetDisplay(Container, m_ProjectOrganizationProvider.SelectedOrganization != null && (page?.AssetList?.Any() ?? false));
+            UIElementsUtils.SetDisplay(Container, IsDisplayed(page) && m_ProjectOrganizationProvider.SelectedOrganization != null && (page?.AssetList?.Any() ?? false));
         }
 
         void OnPageManagerLoadingStatusChanged(IPage page, bool isLoading)
@@ -56,7 +56,12 @@ namespace Unity.AssetManager.Editor
 
         void OnOrganizationChanged(OrganizationInfo organization)
         {
-            UIElementsUtils.SetDisplay(Container, organization != null && organization.ProjectInfos.Any());
+            UIElementsUtils.SetDisplay(Container, organization != null && organization.ProjectInfos.Any() && IsDisplayed(m_PageManager.ActivePage));
+        }
+
+        protected virtual bool IsDisplayed(IPage page)
+        {
+            return true;
         }
     }
 }

@@ -19,11 +19,16 @@ namespace Unity.AssetManager.Editor
 
         public override void SetupContextMenuEntries(ContextualMenuPopulateEvent evt)
         {
+            TaskUtils.TrackException(SetupContextMenuEntriesAsync(evt));
+        }
+
+        async Task SetupContextMenuEntriesAsync(ContextualMenuPopulateEvent evt)
+        {
             ClearMenuEntries(evt);
             RemoveFromProjectEntry(evt);
             ShowInProjectEntry(evt);
             ShowInDashboardEntry(evt);
-            ImportEntry(evt);
+            await ImportEntry(evt);
             CancelImportEntry(evt);
         }
 
@@ -35,41 +40,36 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        void ImportEntry(ContextualMenuPopulateEvent evt)
+        async Task ImportEntry(ContextualMenuPopulateEvent evt)
         {
             if (IsImporting || !m_UnityConnectProxy.AreCloudServicesReachable)
                 return;
 
+            var permissionsManager = ServicesContainer.instance.Resolve<PermissionsManager>();
+            var importPermission = await permissionsManager.CheckPermissionAsync(TargetAssetData.Identifier.OrganizationId, TargetAssetData.Identifier.ProjectId, Constants.ImportPermission);
+
+            var enabled = UIEnabledStates.HasPermissions.GetFlag(importPermission);
+            enabled |= UIEnabledStates.ServicesReachable.GetFlag(m_UnityConnectProxy.AreCloudServicesReachable);
+            enabled |= UIEnabledStates.IsImporting.GetFlag(IsImporting);
+            enabled |= UIEnabledStates.CanImport.GetFlag(true); // We unfortunately don't have a way to check instantly if the asset is not empty, so we need to assume it is.
+
             var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
             if (selectedAssetData.Count > 1 && selectedAssetData.Exists(ad => ad.Identifier.AssetId == TargetAssetData.Identifier.AssetId))
             {
-                var containsAssetWithoutSourceFiles = selectedAssetData.Exists(ad => !ad.SourceFiles.Any());
-                AddMenuEntry(evt, L10n.Tr(Constants.ImportAllSelectedActionText), !containsAssetWithoutSourceFiles,
-                    _ =>
-                    {
-                        m_AssetImporter.StartImportAsync(selectedAssetData, ImportOperation.ImportType.UpdateToLatest);
-                        AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
-                            .ContextMenuItemType.ImportAll));
-                    });
+                ImportEntryMultiple(evt, selectedAssetData, enabled);
             }
             else if (!selectedAssetData.Any() || selectedAssetData.First().Identifier.AssetId == TargetAssetData.Identifier.AssetId)
             {
-               TaskUtils.TrackException(AddUpdateToLatestAsync(evt));
+               ImportEntrySingle(evt, enabled);
             }
         }
 
-        async Task AddUpdateToLatestAsync(ContextualMenuPopulateEvent evt)
+        void ImportEntrySingle(ContextualMenuPopulateEvent evt, UIEnabledStates enabled)
         {
             var status = TargetAssetData.PreviewStatus.FirstOrDefault();
+            enabled |= UIEnabledStates.ValidStatus.GetFlag(status == null || !string.IsNullOrEmpty(status.ActionText));
 
             var text = AssetDetailsPageExtensions.GetImportButtonLabel(null, status);
-            var permissionsManager = ServicesContainer.instance.Resolve<PermissionsManager>();
-            var importPermission = await permissionsManager.CheckPermissionAsync(TargetAssetData.Identifier.OrganizationId, TargetAssetData.Identifier.ProjectId, Constants.ImportPermission);
-            var enabled = UIEnabledStates.HasPermissions.GetFlag(importPermission);
-            enabled |= UIEnabledStates.ServicesReachable.GetFlag(m_UnityConnectProxy.AreCloudServicesReachable);
-            enabled |= UIEnabledStates.ValidStatus.GetFlag(status == null || !string.IsNullOrEmpty(status.ActionText));
-            enabled |= UIEnabledStates.IsImporting.GetFlag(IsImporting);
-            enabled |= UIEnabledStates.CanImport.GetFlag(TargetAssetData.SourceFiles.Any());
 
             AddMenuEntry(evt, text, AssetDetailsPageExtensions.IsImportAvailable(enabled),
                 _ =>
@@ -78,6 +78,29 @@ namespace Unity.AssetManager.Editor
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(!IsInProject
                         ? GridContextMenuItemSelectedEvent.ContextMenuItemType.Import
                         : GridContextMenuItemSelectedEvent.ContextMenuItemType.Reimport));
+                });
+        }
+
+        void ImportEntryMultiple(ContextualMenuPopulateEvent evt, List<IAssetData> selectedAssetData, UIEnabledStates enabled)
+        {
+            var isContainedInvalidStatus = false;
+            foreach (var assetData in selectedAssetData)
+            {
+                var status = assetData.PreviewStatus.FirstOrDefault();
+                if(!(status == null || !string.IsNullOrEmpty(status.ActionText)))
+                {
+                    isContainedInvalidStatus = true;
+                    break;
+                }
+            }
+            enabled |= UIEnabledStates.ValidStatus.GetFlag(!isContainedInvalidStatus);
+
+            AddMenuEntry(evt, L10n.Tr(Constants.ImportAllSelectedActionText), AssetDetailsPageExtensions.IsImportAvailable(enabled),
+                _ =>
+                {
+                    m_AssetImporter.StartImportAsync(selectedAssetData, ImportOperation.ImportType.UpdateToLatest);
+                    AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
+                        .ContextMenuItemType.ImportAll));
                 });
         }
 
@@ -102,17 +125,17 @@ namespace Unity.AssetManager.Editor
 
             var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
             if (selectedAssetData.Count > 1 &&
-                selectedAssetData.All(x => m_AssetDataManager.IsInProject(x.Identifier)))
+                selectedAssetData.TrueForAll(x => m_AssetDataManager.IsInProject(x.Identifier)))
             {
                 AddMenuEntry(evt, L10n.Tr(Constants.RemoveFromProjectAllSelectedActionText), true,
                     _ =>
                     {
-                        m_AssetImporter.RemoveBulkImport(selectedAssetData.Select(x => x.Identifier).ToList(), true);
+                        m_AssetImporter.RemoveImports(selectedAssetData.Select(x => x.Identifier).ToList(), true);
                         AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
                             .ContextMenuItemType.RemoveAll));
                     });
             }
-            else if(!selectedAssetData.Any() || selectedAssetData.First().Identifier.AssetId == TargetAssetData.Identifier.AssetId)
+            else if (!selectedAssetData.Any() || selectedAssetData[0].Identifier.AssetId == TargetAssetData.Identifier.AssetId)
             {
                 AddMenuEntry(evt, L10n.Tr(Constants.RemoveFromProjectActionText), true,
                     _ =>

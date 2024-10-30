@@ -14,6 +14,8 @@ namespace Unity.AssetManager.Editor
         readonly IStateManager m_StateManager;
         readonly IUnityConnectProxy m_UnityConnectProxy;
 
+        readonly Dictionary<string, SideBarCollectionFoldout> m_SideBarProjectFoldouts = new ();
+
         SideBarAllAssetsFoldout m_AllAssetsFolder;
         VisualElement m_NoProjectSelectedContainer;
         ScrollView m_ScrollContainer;
@@ -56,29 +58,36 @@ namespace Unity.AssetManager.Editor
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
+            m_ProjectOrganizationProvider.ProjectInfoChanged += OnProjectInfoChanged;
 
             Refresh();
             ScrollToHeight(m_StateManager.SideBarScrollValue);
         }
 
-        private void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
-        {
-            Refresh();
-        }
-
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
             m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+            m_ProjectOrganizationProvider.ProjectInfoChanged -= OnProjectInfoChanged;
 
             m_StateManager.SideBarScrollValue = m_ScrollContainer.verticalScroller.value;
             m_StateManager.SideBarWidth = layout.width;
         }
 
-        void OrganizationChanged(OrganizationInfo organization)
+        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
             Refresh();
+        }
+
+        void OnOrganizationChanged(OrganizationInfo organization)
+        {
+            Refresh();
+        }
+
+        void OnProjectInfoChanged(ProjectInfo projectInfo)
+        {
+            TryAddCollections(projectInfo);
         }
 
         void Refresh()
@@ -119,6 +128,7 @@ namespace Unity.AssetManager.Editor
         void RebuildProjectList(List<ProjectInfo> projectInfos)
         {
             m_ScrollContainer.Clear();
+            m_SideBarProjectFoldouts.Clear();
 
             if (projectInfos?.Any() != true)
                 return;
@@ -133,6 +143,7 @@ namespace Unity.AssetManager.Editor
                 var projectFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
                     m_ProjectOrganizationProvider, projectInfo.Name, projectInfo, null);
                 m_ScrollContainer.Add(projectFoldout);
+                m_SideBarProjectFoldouts[projectInfo.Id] = projectFoldout;
 
                 TryAddCollections(projectInfo);
             }
@@ -141,8 +152,7 @@ namespace Unity.AssetManager.Editor
         void TryAddCollections(ProjectInfo projectInfo)
         {
             // Clean up any existing collection foldouts for the project
-            var projectFoldout = m_ScrollContainer.Q<SideBarCollectionFoldout>(projectInfo.Id);
-            if (projectFoldout == null)
+            if (!m_SideBarProjectFoldouts.TryGetValue(projectInfo.Id, out var projectFoldout))
                 return;
 
             projectFoldout.Clear();

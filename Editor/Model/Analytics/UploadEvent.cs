@@ -45,12 +45,12 @@ namespace Unity.AssetManager.Editor
         }
 
         const string k_EventName = AnalyticsSender.EventPrefix + "Upload";
-        const int k_EventVersion = 1;
+        const int k_EventVersion = 2;
 
         public string EventName => k_EventName;
         public int EventVersion => k_EventVersion;
 
-        UploadEventData m_Data;
+        readonly UploadEventData m_Data;
 
         internal UploadEvent(int fileCount, string[] fileExtensions, bool useCollection, UploadSettings uploadSettings)
         {
@@ -69,7 +69,7 @@ namespace Unity.AssetManager.Editor
         [AnalyticInfo(eventName:k_EventName, vendorKey:AnalyticsSender.VendorKey, version:k_EventVersion, maxEventsPerHour:1000,maxNumberOfElements:1000)]
         class UploadEventAnalytic : IAnalytic
         {
-            UploadEventData m_Data;
+            readonly UploadEventData m_Data;
 
             public UploadEventAnalytic(UploadEventData data)
             {

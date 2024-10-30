@@ -97,11 +97,16 @@ namespace Unity.AssetManager.Editor
 
         Task EnableProjectAsync(CancellationToken token = default);
 
+        Task CreateCollectionAsync(CollectionInfo collectionInfo, CancellationToken token);
+        Task DeleteCollectionAsync(CollectionInfo collectionInfo, CancellationToken token);
+        Task RenameCollectionAsync(CollectionInfo collectionInfo, string newName, CancellationToken token);
+
         // Assets
 
         Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token);
         Task<AssetData> GetLatestAssetVersionAsync(AssetIdentifier assetIdentifier, CancellationToken token);
         IAsyncEnumerable<AssetData> ListVersionInDescendingOrderAsync(AssetIdentifier assetIdentifier, CancellationToken token);
+        Task<AssetData> FindAssetAsync(string organizationId, string assetId, string assetVersion, CancellationToken token);
 
         IAsyncEnumerable<AssetData> SearchAsync(string organizationId, IEnumerable<string> projectIds,
              AssetSearchFilter assetSearchFilter, SortField sortField, SortingOrder sortingOrder, int startIndex, int pageSize, CancellationToken token);
@@ -123,8 +128,8 @@ namespace Unity.AssetManager.Editor
 
         Task<AssetComparisonResult> CompareAssetWithCloudAsync(IAssetData assetData, CancellationToken token);
 
-        IAsyncEnumerable<AssetData> GetDependenciesAsync(AssetIdentifier assetIdentifier, Range range, CancellationToken token);
-        IAsyncEnumerable<AssetData> GetDependentsAsync(AssetIdentifier assetIdentifier, Range range, CancellationToken token);
+        IAsyncEnumerable<AssetIdentifier> GetDependenciesAsync(AssetIdentifier assetIdentifier, Range range, CancellationToken token);
+        IAsyncEnumerable<AssetIdentifier> GetDependentsAsync(AssetIdentifier assetIdentifier, Range range, CancellationToken token);
         Task UpdateDependenciesAsync(AssetIdentifier assetIdentifier, IEnumerable<AssetIdentifier> assetDependencies, CancellationToken token);
 
         // Files
@@ -156,6 +161,7 @@ namespace Unity.AssetManager.Editor
         const string k_UVCSUrl = "cloud.plasticscm.com";
         const int k_MaxNumberOfFilesForAssetDownloadUrlFetch = 100;
         static readonly int k_MaxConcurrentFileDeleteTasks = 20;
+        static readonly string k_DefaultCollectionDescription = "none";
 
         [SerializeReference]
         IUnityConnectProxy m_UnityConnectProxy;
@@ -459,8 +465,7 @@ namespace Unity.AssetManager.Editor
                     new ProjectId(assetIdentifier.ProjectId));
                 var assetId = new AssetId(assetIdentifier.AssetId);
 
-                var project = await AssetRepository.GetAssetProjectAsync(projectDescriptor, token);
-                var asset = await project.GetAssetWithLatestVersionAsync(assetId, token);
+                var asset = await AssetRepository.GetAssetAsync(projectDescriptor, assetId, "Latest", token);
                 return Map(asset);
             }
             catch (NotFoundException)
@@ -485,7 +490,8 @@ namespace Unity.AssetManager.Editor
                 yield break;
             }
 
-            var asset = await InternalGetAssetAsync(assetIdentifier, token);
+            var project = await AssetRepository.GetAssetProjectAsync(Map(assetIdentifier.ProjectIdentifier), token);
+            var asset = await project.GetAssetAsync(new AssetId(assetIdentifier.AssetId), token);
             if (asset == null)
             {
                 yield break;
@@ -499,6 +505,45 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        public async Task<AssetData> FindAssetAsync(string organizationId, string assetId, string assetVersion,
+            CancellationToken token)
+        {
+            if (string.IsNullOrEmpty(assetId))
+            {
+                return null;
+            }
+
+            var filter = new Cloud.AssetsEmbedded.AssetSearchFilter();
+            filter.Include().Id.WithValue(assetId);
+            filter.Include().Version.WithValue(assetVersion);
+
+            var asset = await FindAssetAsync(filter, GetProjectDescriptorsAsync, token);
+            return asset == null ? null : Map(asset);
+
+            // This is a temporary workaround for a regression in the Assets SDK where project ids of searched assets are empty
+            // We want to execute this only once and only if necessary.
+            async Task<IEnumerable<ProjectDescriptor>> GetProjectDescriptorsAsync(CancellationToken _token)
+            {
+                var allProjects = await AssetRepository
+                    .ListAssetProjectsAsync(new OrganizationId(organizationId), Range.All, _token).ToListAsync(_token);
+                return allProjects.Select(p => p.Descriptor).ToList();
+            }
+        }
+
+        async Task<IAsset> FindAssetAsync(Cloud.AssetsEmbedded.AssetSearchFilter filter,
+            Func<CancellationToken, Task<IEnumerable<ProjectDescriptor>>> getProjectDescriptors,
+            CancellationToken token)
+        {
+            var allProjectDescriptors = await getProjectDescriptors.Invoke(token);
+            var query = AssetRepository.QueryAssets(allProjectDescriptors)
+                .SelectWhereMatchesFilter(filter)
+                .LimitTo(new Range(0, 1))
+                .ExecuteAsync(token);
+
+            var assets = await query.ToListAsync(token);
+            return assets.FirstOrDefault();
+        }
+
         public async Task<AssetComparisonResult> CompareAssetWithCloudAsync(IAssetData assetData, CancellationToken token)
         {
             if (assetData == null)
@@ -509,17 +554,18 @@ namespace Unity.AssetManager.Editor
             try
             {
                 var assetIdentifier = assetData.Identifier;
-                AssetData cloudAsset = await GetLatestAssetVersionAsync(assetIdentifier, token);
+                var cloudAsset = await GetLatestAssetVersionAsync(assetIdentifier, token);
 
                 if (cloudAsset == null)
                 {
                     return AssetComparisonResult.NotFoundOrInaccessible;
                 }
 
-                return assetIdentifier == cloudAsset.Identifier && assetData.Updated != null &&
-                    assetData.Updated == cloudAsset.Updated
-                        ? AssetComparisonResult.UpToDate
-                        : AssetComparisonResult.OutDated;
+                // Even if cloudAsset is != null, we might need to check if the project is archived or not.
+
+                return assetIdentifier == cloudAsset.Identifier && assetData.Updated != null && assetData.Updated == cloudAsset.Updated
+                    ? AssetComparisonResult.UpToDate
+                    : AssetComparisonResult.OutDated;
             }
             catch (ForbiddenException)
             {
@@ -532,11 +578,9 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-         public async IAsyncEnumerable<AssetData> GetDependenciesAsync(AssetIdentifier assetIdentifier, Range range,
+         public async IAsyncEnumerable<AssetIdentifier> GetDependenciesAsync(AssetIdentifier assetIdentifier, Range range,
             [EnumeratorCancellation] CancellationToken token)
         {
-            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
-
             var assetDescriptor = Map(assetIdentifier);
             var project = await AssetRepository.GetAssetProjectAsync(assetDescriptor.ProjectDescriptor, token);
 
@@ -545,13 +589,16 @@ namespace Unity.AssetManager.Editor
             await foreach (var reference in GetDependenciesAsync(project, assetDescriptor, range,
                                AssetReferenceSearchFilter.Context.Source, token))
             {
-                var asset = await FindAssetAsync(project, reference, assetDataManager, GetProjectDescriptors, token);
-                yield return asset;
+                var referenceIdentifier = await FindAssetIdentifierAsync(project, reference, GetProjectDescriptorsAsync, token);
+                if (referenceIdentifier != null)
+                {
+                    yield return referenceIdentifier;
+                }
             }
 
             // This is a temporary workaround for a regression in the Assets SDK where project ids of searched assets are empty
             // We want to execute this only once and only if necessary.
-            async Task<IEnumerable<ProjectDescriptor>> GetProjectDescriptors(CancellationToken _token)
+            async Task<IEnumerable<ProjectDescriptor>> GetProjectDescriptorsAsync(CancellationToken _token)
             {
                 if (allProjectDescriptors == null)
                 {
@@ -564,68 +611,42 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        async Task<AssetData> FindAssetAsync(IAssetProject project, IAssetReference reference, IAssetDataManager assetDataManager, Func<CancellationToken, Task<IEnumerable<ProjectDescriptor>>> getProjectDescriptors, CancellationToken token)
+        async Task<AssetIdentifier> FindAssetIdentifierAsync(IAssetProject project, IAssetReference reference,
+            Func<CancellationToken, Task<IEnumerable<ProjectDescriptor>>> getProjectDescriptors,
+            CancellationToken token)
         {
-            var filter = new Cloud.AssetsEmbedded.AssetSearchFilter();
-            filter.Include().Id.WithValue(reference.TargetAssetId.ToString());
             // Referenced by version
             if (reference.TargetAssetVersion.HasValue)
             {
-                try
-                {
-                    // Search for the asset in the asset data manager
-                    var assetData = FindAssetAsync(assetDataManager, project.Descriptor, reference.TargetAssetId, reference.TargetAssetVersion.Value);
-                    if (assetData != null)
-                    {
-                        return assetData;
-                    }
-
-                    // Try to fetch the asset from the current project
-                    var asset = await project.GetAssetAsync(reference.TargetAssetId, reference.TargetAssetVersion.Value, token);
-                    return Map(asset);
-                }
-                catch (NotFoundException)
-                {
-                    // Continue to search for the asset in the entire organization
-                }
-
-                filter.Include().Version.WithValue(reference.TargetAssetVersion.Value.ToString());
+                return new AssetIdentifier(project.Descriptor.OrganizationId.ToString(),
+                    project.Descriptor.ProjectId.ToString(),
+                    reference.TargetAssetId.ToString(),
+                    reference.TargetAssetVersion.Value.ToString());
             }
+
             // Referenced by label
-            else if (!string.IsNullOrEmpty(reference.TargetLabel))
+            if (!string.IsNullOrEmpty(reference.TargetLabel))
             {
                 try
                 {
                     // Try to fetch the asset from the current project
                     var asset = await project.GetAssetAsync(reference.TargetAssetId, reference.TargetLabel, token);
-                        return Map(asset);
+                    return Map(asset.Descriptor);
                 }
                 catch (NotFoundException)
                 {
                     // Continue to search for the asset in the entire organization
                 }
 
+                var filter = new Cloud.AssetsEmbedded.AssetSearchFilter();
+                filter.Include().Id.WithValue(reference.TargetAssetId.ToString());
                 filter.Include().Labels.WithValue(reference.TargetLabel);
+
+                var result = await FindAssetAsync(filter, getProjectDescriptors, token);
+                return result != null ? Map(result.Descriptor) : null;
             }
-            else
-            {
-                return null;
-            }
 
-            var allProjectDescriptors = await getProjectDescriptors.Invoke(token);
-            var query = AssetRepository.QueryAssets(allProjectDescriptors)
-                .SelectWhereMatchesFilter(filter)
-                .LimitTo(new Range(0, 1))
-                .ExecuteAsync(token);
-
-            var assets = await query.ToListAsync(token);
-            return Map(assets.FirstOrDefault());
-        }
-
-        AssetData FindAssetAsync(IAssetDataManager assetDataManager, ProjectDescriptor projectDescriptor, AssetId assetId, AssetVersion assetVersion)
-        {
-            var assetIdentifier = new AssetIdentifier(projectDescriptor.OrganizationId.ToString(), projectDescriptor.ProjectId.ToString(), assetId.ToString(), assetVersion.ToString());
-            return assetDataManager.GetAssetData(assetIdentifier) as AssetData;
+            return null;
         }
 
         async IAsyncEnumerable<IAssetReference> GetDependenciesAsync(IAssetProject project, AssetDescriptor assetDescriptor, Range range, AssetReferenceSearchFilter.Context context, [EnumeratorCancellation] CancellationToken token)
@@ -650,15 +671,17 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public async IAsyncEnumerable<AssetData> GetDependentsAsync(AssetIdentifier assetIdentifier, Range range, [EnumeratorCancellation] CancellationToken token)
+        public async IAsyncEnumerable<AssetIdentifier> GetDependentsAsync(AssetIdentifier assetIdentifier, Range range, [EnumeratorCancellation] CancellationToken token)
         {
             var assetDescriptor = Map(assetIdentifier);
             var project = await AssetRepository.GetAssetProjectAsync(assetDescriptor.ProjectDescriptor, token);
 
             await foreach(var reference in GetDependenciesAsync(project, assetDescriptor, range, AssetReferenceSearchFilter.Context.Target, token))
             {
-                var asset = await project.GetAssetAsync(reference.SourceAssetId, reference.SourceAssetVersion, token);
-                yield return asset == null ? null : Map(asset);
+                yield return new AssetIdentifier(assetIdentifier.OrganizationId,
+                    assetIdentifier.ProjectId,
+                    reference.SourceAssetId.ToString(),
+                    reference.SourceAssetVersion.ToString());
             }
         }
 
@@ -698,6 +721,30 @@ namespace Unity.AssetManager.Editor
         public Task EnableProjectAsync(CancellationToken token = default)
         {
             return Services.ProjectEnabler.EnableProjectAsync(m_UnityConnectProxy.ProjectId, token);
+        }
+
+        public async Task CreateCollectionAsync(CollectionInfo collectionInfo, CancellationToken token)
+        {
+            var projectDescriptor = new ProjectDescriptor(new OrganizationId(collectionInfo.OrganizationId), new ProjectId(collectionInfo.ProjectId));
+            var project = await AssetRepository.GetAssetProjectAsync(projectDescriptor, token);
+            var collectionCreation = new AssetCollectionCreation(collectionInfo.Name, k_DefaultCollectionDescription){ ParentPath = collectionInfo.ParentPath };
+            await project.CreateCollectionAsync(collectionCreation, token);
+        }
+
+        public async Task DeleteCollectionAsync(CollectionInfo collectionInfo, CancellationToken token)
+        {
+            var projectDescriptor = new ProjectDescriptor(new OrganizationId(collectionInfo.OrganizationId), new ProjectId(collectionInfo.ProjectId));
+            var project = await AssetRepository.GetAssetProjectAsync(projectDescriptor, token);
+            await project.DeleteCollectionAsync(new CollectionPath(collectionInfo.GetFullPath()), token);
+        }
+
+        public async Task RenameCollectionAsync(CollectionInfo collectionInfo, string newName, CancellationToken token)
+        {
+            var projectDescriptor = new ProjectDescriptor(new OrganizationId(collectionInfo.OrganizationId), new ProjectId(collectionInfo.ProjectId));
+            var collection = await AssetRepository.GetAssetCollectionAsync(
+                    new CollectionDescriptor(projectDescriptor, collectionInfo.GetFullPath()), token);
+            var assetCollectionUpdate = new AssetCollectionUpdate { Name = newName, Description = k_DefaultCollectionDescription };
+            await collection.UpdateAsync(assetCollectionUpdate, token);
         }
 
         public async IAsyncEnumerable<IMemberInfo> GetOrganizationMembersAsync(string organizationId, Range range, [EnumeratorCancellation] CancellationToken token)

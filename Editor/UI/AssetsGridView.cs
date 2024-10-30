@@ -197,7 +197,7 @@ namespace Unity.AssetManager.Editor
                 m_IsClickedItemAlreadySelected =
                     m_PageManager.ActivePage.SelectedAssets.Contains(item.AssetData.Identifier);
 
-                if ((e.modifiers & EventModifiers.Shift) != 0)
+                if (IsContinuousSelection(e.modifiers) && m_PageManager.ActivePage.SelectedAssets.Any())
                 {
                     var lastSelectedItemIndex = m_PageManager.ActivePage.AssetList.ToList()
                         .FindIndex(x => x.Identifier.Equals(m_PageManager.ActivePage.LastSelectedAssetId));
@@ -213,7 +213,7 @@ namespace Unity.AssetManager.Editor
                 else if (!m_IsClickedItemAlreadySelected)
                 {
                     m_PageManager.ActivePage.SelectAsset(item.AssetData.Identifier,
-                        (e.modifiers & (EventModifiers.Command | EventModifiers.Control)) != 0);
+                        IsAdditiveSelection(e.modifiers));
                 }
             };
         }
@@ -222,10 +222,10 @@ namespace Unity.AssetManager.Editor
         {
             return e =>
             {
-                if ((e.modifiers & EventModifiers.Shift) == 0 && m_IsClickedItemAlreadySelected)
+                if (m_IsClickedItemAlreadySelected)
                 {
                     m_PageManager.ActivePage.SelectAsset(item.AssetData.Identifier,
-                        (e.modifiers & (EventModifiers.Command | EventModifiers.Control)) != 0);
+                        IsAdditiveSelection(e.modifiers));
                 }
             };
         }
@@ -309,6 +309,24 @@ namespace Unity.AssetManager.Editor
         void OnOrganizationChanged(OrganizationInfo organization)
         {
             Refresh();
+        }
+
+        static bool IsContinuousSelection(EventModifiers eventModifiers)
+        {
+#if UNITY_EDITOR_OSX
+            return (eventModifiers & EventModifiers.Shift) != 0 && (eventModifiers & EventModifiers.Command) == 0;
+#else
+            return (eventModifiers & EventModifiers.Shift) != 0;
+#endif
+        }
+
+        static bool IsAdditiveSelection(EventModifiers eventModifiers)
+        {
+#if UNITY_EDITOR_OSX
+            return (eventModifiers & EventModifiers.Command) != 0 && (eventModifiers & EventModifiers.Shift) != 0;
+#else
+            return (eventModifiers & EventModifiers.Control) != 0 && (eventModifiers & EventModifiers.Shift) == 0;
+#endif
         }
     }
 }

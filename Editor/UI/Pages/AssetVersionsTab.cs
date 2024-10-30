@@ -17,6 +17,7 @@ namespace Unity.AssetManager.Editor
         public const string AssetVersionLabel = "asset-version-label";
         public const string AssetVersionLabel_Latest = "asset-version-label-latest";
         public const string AssetVersionLabel_Imported = "asset-version-label-imported";
+        public const string UnityFoldoutInput = "unity-foldout__input";
     }
 
     class AssetVersionsTab : AssetTab
@@ -145,9 +146,7 @@ namespace Unity.AssetManager.Editor
                 }
 
                 AddUser(foldout, Constants.CreatedByText, data.CreatedBy, typeof(CreatedByFilter));
-                AddText(foldout, Constants.CreatedDateText, data.Created?.ToLocalTime().ToString("G"));
-                AddUser(foldout, Constants.ModifiedByText, data.UpdatedBy, typeof(UpdatedByFilter));
-                AddText(foldout, Constants.ModifiedDateText, data.Updated?.ToLocalTime().ToString("G"));
+                AddText(foldout, Constants.DateText, data.Updated?.ToLocalTime().ToString("G"));
                 AddText(foldout, Constants.StatusText, data.Status);
 
                 var importButton = new ImportButton();
@@ -285,7 +284,8 @@ namespace Unity.AssetManager.Editor
                 name = k_FoldoutLabelsContainer
             };
             labelsContainer.AddToClassList(UssStyle.AssetVersionLabelContainer);
-            foldoutContainer.Add(labelsContainer);
+            var foldoutLabel = foldout.Q(null, UssStyle.UnityFoldoutInput);
+            foldoutLabel.Add(labelsContainer);
 
             return foldout;
         }

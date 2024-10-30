@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -74,6 +75,16 @@ namespace Unity.AssetManager.Editor
             }
         }
 
+        public override void Finish(OperationStatus status)
+        {
+            base.Finish(status);
+
+            if (status == OperationStatus.Success)
+            {
+                Remove();
+            }
+        }
+
         float m_LastReportedProgress = 0f;
 
         public ImportOperation(IAssetData assetData)
@@ -91,19 +102,26 @@ namespace Unity.AssetManager.Editor
             var fetchDownloadUrlsOperation = new FetchDownloadUrlsOperation();
             fetchDownloadUrlsOperation.Start();
 
-            var downloadUrls = await assetsProvider.GetAssetDownloadUrlsAsync(TypedAssetData, fetchDownloadUrlsOperation, token);
-
-            fetchDownloadUrlsOperation.Finish(OperationStatus.Success);
-
-            foreach (var (filePath, url) in downloadUrls)
+            try
             {
-                var tempPath = Path.Combine(TempDownloadPath, filePath);
-                m_DownloadRequests.Add(new FileDownloadRequests(tempPath, CreateFileDownloadRequest(url.AbsoluteUri, tempPath)));
+                var downloadUrls = await assetsProvider.GetAssetDownloadUrlsAsync(TypedAssetData, fetchDownloadUrlsOperation, token);
+
+                fetchDownloadUrlsOperation.Finish(OperationStatus.Success);
+
+                foreach (var (filePath, url) in downloadUrls)
+                {
+                    var tempPath = Path.Combine(TempDownloadPath, filePath);
+                    m_DownloadRequests.Add(new FileDownloadRequests(tempPath, CreateFileDownloadRequest(url.AbsoluteUri, tempPath)));
+                }
+            }
+            catch(TaskCanceledException)
+            {
+                fetchDownloadUrlsOperation.Finish(OperationStatus.None);
+                throw;
             }
 
             if (m_DownloadRequests.Count == 0)
             {
-                Finish(OperationStatus.Error);
                 throw new InvalidOperationException($"Nothing to download from asset '{TypedAssetData?.Name}'. Asset is empty, unavailable or corrupted.");
             }
 

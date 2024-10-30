@@ -10,6 +10,10 @@
     background-color: #7E7E7E;
 }
 
+.unity-base-slider__input:focus .unity-base-slider__dragger {
+    background-color: #E7E7E7;
+}
+
 /************************************************
 * Loading Screen
 ************************************************/
@@ -195,10 +199,6 @@ SearchBar {
 /************************************************
 * Sort
 ************************************************/
-.unity-sort-dropdown > .unity-base-field__input {
-    background-color: #E4E4E4;
-}
-
 .unity-sort-order{
     background-color: #F0F0F0;
 }
@@ -223,17 +223,25 @@ SearchBar {
     background-color: #C8C8C8;
 }
 
-.grid-view--item-label-highlight {
-    background-color: #E7E7E7 !important;
-    color: black !important;
-}
-
 .grid-view--item-download_cancel_button {
     background-color: white;
 }
 
 GridMessageView > .unity-label {
     color: rgb(100, 100, 100);
+}
+
+.grid-view--item-ignore .grid-view--item-overlay {
+    background-color: rgba(165, 165, 165, 0.85);
+}
+
+.grid-view--item-ignore:hover .grid-view--item-overlay {
+    background-color: rgba(165, 165, 165, 0.3);
+}
+
+.grid-view--item-ignore .grid-view--item-label {
+    background-color: rgba(255, 255, 255, 0.5);
+    color: rgba(0, 0, 0, 0.6);
 }
 
 /************************************************
@@ -348,9 +356,34 @@ TagChip:hover {
     background-color: #EFEFEF;
 }
 
+.import-to-button {
+    border-color: #B2B2B2;
+    border-bottom-color: #939393;
+    background-color: #E4E4E4;
+}
+
+.import-to-button:hover {
+    background-color: #EFEFEF;
+}
+
 .import-popup {
     background-color: #F0F0F0;
     border-color: #7E7E7E;
+}
+
+.asset-version-details-foldout > Toggle {
+    background-color: #C6C6C6;
+}
+
+.asset-version-label-latest
+{
+    background-color: #EFEFEF;
+    border-color: #EFEFEF;
+}
+
+.asset-version-label-imported
+{
+    border-color: #EFEFEF;
 }
 
 /************************************************
@@ -389,8 +422,8 @@ TagChip:hover {
     border-color: #7E7E7E;
 }
 
-.upload-page-settings-popup DropdownField .unity-base-field__input {
-    background-color: #E4E4E4;
+.upload-page-settings-panel {
+    background-color: rgba(255,255,255,0.5);
 }
 
 /************************************************
@@ -415,18 +448,11 @@ PopupContainer {
     border-color: #232323;
 }
 
-.conflicts-foldout-header-dropdown
-{
+.reimport-foldout-header-dropdown {
     background-color: #7E7E7E;
     border-color: #232323;
 }
 
-.conflicts-foldout-content
-{
-    border-color: #232323;
-}
-
-.reimport-item-resolve-dropdown {
-    background-color: #7E7E7E;
+.reimport-foldout-content {
     border-color: #232323;
 }

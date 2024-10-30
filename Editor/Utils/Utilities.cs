@@ -3,18 +3,26 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Editor
 {
     static class Utilities
     {
-        static readonly IDialogManager k_DefaultDialogManager = new DialogManager();
-
         static readonly string[] k_SizeSuffixes = { "B", "Kb", "Mb", "Gb", "Tb" };
+        static readonly int k_MD5_bufferSize = 4096;
+        static readonly List<string> k_IgnoreExtensions = new() { ".meta", ".am4u_dep", ".am4u_guid" };
+
+        static readonly IDialogManager k_DefaultDialogManager = new DialogManager();
 
         internal static string BytesToReadableString(double bytes)
         {
@@ -100,6 +108,12 @@ namespace Unity.AssetManager.Editor
         public static void DevLogError(string message)
         {
             Debug.LogError(message);
+        }
+
+        [System.Diagnostics.Conditional("AM4U_DEV")]
+        public static void DevLogWarning(string message)
+        {
+            Debug.LogWarning(message);
         }
 
         [System.Diagnostics.Conditional("AM4U_DEV")]
@@ -191,7 +205,8 @@ namespace Unity.AssetManager.Editor
 
         public static bool ComparePaths(string path1, string path2)
         {
-            return string.Equals(NormalizePathSeparators(path1), NormalizePathSeparators(path2), StringComparison.OrdinalIgnoreCase);
+            return string.Equals(NormalizePathSeparators(path1), NormalizePathSeparators(path2),
+                StringComparison.OrdinalIgnoreCase);
         }
 
         public static string NormalizePathSeparators(string path)
@@ -200,9 +215,9 @@ namespace Unity.AssetManager.Editor
                 return path;
 
             // Path normalization depends on the current OS
-            var str = Application.platform == RuntimePlatform.WindowsEditor
-                ? path.Replace('/', Path.DirectorySeparatorChar)
-                : path.Replace('\\', Path.DirectorySeparatorChar);
+            var str = Application.platform == RuntimePlatform.WindowsEditor ?
+                path.Replace('/', Path.DirectorySeparatorChar) :
+                path.Replace('\\', Path.DirectorySeparatorChar);
 
             var pattern = Path.DirectorySeparatorChar == '\\' ? "\\\\+" : "/+";
             return Regex.Replace(str, pattern, Path.DirectorySeparatorChar.ToString());
@@ -344,6 +359,313 @@ namespace Unity.AssetManager.Editor
         public static bool IsPathInsideAssetsFolder(string assetPath)
         {
             return assetPath.Replace('\\', '/').ToLower().StartsWith("assets/");
+        }
+
+        public static bool IsFileDirty(string path)
+        {
+            // Check dirty flag
+            Object asset = AssetDatabase.LoadAssetAtPath<Object>(path);
+            if (asset != null && EditorUtility.IsDirty(asset))
+            {
+                return true;
+            }
+
+            // Check if the file is a scene and it is dirty
+            if (asset is SceneAsset)
+            {
+                var scene = SceneManager.GetSceneByPath(path);
+                if (scene.isDirty)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public static async Task<bool> IsLocallyModifiedAsync(IUploadAsset uploadAsset, IAssetData targetAssetData, IAssetDataManager assetDataManager = null, CancellationToken token = default)
+        {
+            DevAssert(uploadAsset != null);
+            DevAssert(targetAssetData != null);
+
+            if (uploadAsset == null || targetAssetData == null)
+            {
+                return false;
+            }
+
+            assetDataManager ??= ServicesContainer.instance.Resolve<IAssetDataManager>();
+
+            var importedAssetInfo = assetDataManager.GetImportedAssetInfo(targetAssetData.Identifier);
+
+            if (importedAssetInfo == null)
+            {
+                // Un-imported asset cannot have modified files by definition
+                return false;
+            }
+
+            // Because Metadata files are not added to the imported asset info, we need to ignore them when comparing file count
+            var sourceFiles = uploadAsset.Files.Where(s => !MetafilesHelper.IsMetafile(s.DestinationPath)).ToList();
+
+            // If the number of files is different, then the asset was modified
+            if (sourceFiles.Count != importedAssetInfo.FileInfos.Count)
+            {
+                return true;
+            }
+
+            // If the files are different, or their path has changed, then the asset was modified
+            foreach (var importedFileInfo in importedAssetInfo.FileInfos)
+            {
+                if (!sourceFiles.Exists(f => ComparePaths(f.DestinationPath, importedFileInfo.OriginalPath)))
+                {
+                    return true;
+                }
+            }
+
+            // Check if the number of dependencies is different
+            if (uploadAsset.Dependencies.Count != targetAssetData.Dependencies.Count())
+            {
+                return true;
+            }
+
+            // Check if the dependencies are different
+            foreach (var dependency in uploadAsset.Dependencies)
+            {
+                if (targetAssetData.Dependencies.FirstOrDefault(d => d.PrimarySourceFileGuid == dependency) != null)
+                {
+                    return true;
+                }
+            }
+
+            // Otherwise, check if the files are identical
+            if (await HasLocallyModifiedFilesAsync(targetAssetData.Identifier, assetDataManager, token))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        public static async Task<bool> HasLocallyModifiedFilesAsync(AssetIdentifier identifier, IAssetDataManager assetDataManager = null, CancellationToken token = default)
+        {
+            assetDataManager ??= ServicesContainer.instance.Resolve<IAssetDataManager>();
+
+            var importedAssetInfo = assetDataManager.GetImportedAssetInfo(identifier);
+
+            if (importedAssetInfo == null)
+            {
+                // Un-imported asset cannot have modified files by definition
+                return false;
+            }
+
+            // Otherwise, check if the files are identical
+            foreach (var importedFileInfo in importedAssetInfo.FileInfos)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(importedFileInfo.Guid);
+
+                if (await FileWasModified(path, importedFileInfo.Timestamp, importedFileInfo.Checksum, token))
+                {
+                    return true;
+                }
+
+                // Check if the meta file was modified
+                var metaPath = MetafilesHelper.AssetMetaFile(path);
+                if (File.Exists(metaPath) && await FileWasModified(metaPath, importedFileInfo.MetalFileTimestamp, importedFileInfo.MetaFileChecksum, token))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        static async Task<bool> FileWasModified(string path, long expectedTimestamp, string expectedChecksum, CancellationToken token)
+        {
+            // Locally modified files are always considered dirty
+            if (IsFileDirty(path))
+            {
+                return true;
+            }
+
+            // Check if the file has the same modified date, in which case we know it wasn't modified
+            if (IsSameTimestamp(expectedTimestamp, path))
+            {
+                return false;
+            }
+
+            // Check if we have checksum information, in which case, a similar checksum means the file wasn't modified
+            if (await IsSameFileChecksumAsync(expectedChecksum, path, token))
+            {
+                return false;
+            }
+
+            // In case we can't determine if the file was modified, we assume it was to avoid blocking the re-upload
+            return true;
+        }
+
+        public static async Task<IEnumerable<IAssetDataFile>> GetModifiedFilesAsync(AssetIdentifier identifier, IEnumerable<IAssetDataFile> files, IAssetDataManager assetDataManager = null, CancellationToken token = default)
+        {
+            var modifiedFiles = new List<IAssetDataFile>();
+
+            assetDataManager ??= ServicesContainer.instance.Resolve<IAssetDataManager>();
+
+            var importedAssetInfo = assetDataManager.GetImportedAssetInfo(identifier);
+
+            if (importedAssetInfo == null)
+            {
+                return modifiedFiles;
+            }
+
+            foreach (var file in files.Where(f => !k_IgnoreExtensions.Contains(Path.GetExtension(f.Path))))
+            {
+                try
+                {
+                    string path = $"Assets/{file.Path}";
+
+                    var guid = string.IsNullOrEmpty(file.Guid) ? AssetDatabase.AssetPathToGUID(path) : file.Guid;
+                    var importedFileInfo = importedAssetInfo.FileInfos.Find(f => f.Guid == guid);
+
+                    if (importedFileInfo != null && await FileWasModified(path, importedFileInfo.Timestamp, importedFileInfo.Checksum, token))
+                    {
+                        modifiedFiles.Add(file);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError(e);
+                }
+            }
+
+            return modifiedFiles;
+        }
+
+        public static async Task<bool> CheckDependenciesModifiedAsync(IAssetData assetData, IAssetDataManager assetDataManager = null, CancellationToken token = default)
+        {
+            var dependencies = assetData.Dependencies?.ToList();
+            if (dependencies == null || !dependencies.Any())
+            {
+                return false;
+            }
+
+            assetDataManager ??= ServicesContainer.instance.Resolve<IAssetDataManager>();
+
+            foreach (var dependencyIdentifier in dependencies)
+            {
+                var dependencyAssetData = assetDataManager.GetAssetData(dependencyIdentifier);
+
+                // Check if the dependency version is the same as the one the asset references
+                if (dependencyIdentifier.Version != dependencyAssetData.Identifier.Version)
+                {
+                    return true;
+                }
+
+                var hasModifiedFiles = await HasLocallyModifiedFilesAsync(dependencyIdentifier, assetDataManager, token);
+                if (hasModifiedFiles)
+                {
+                    return true;
+                }
+            }
+
+            foreach (var dependencyAssetData in dependencies.Select(d => assetDataManager.GetAssetData(d)))
+            {
+                if (await CheckDependenciesModifiedAsync(dependencyAssetData, assetDataManager, token))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public static async Task<string> CalculateMD5ChecksumAsync(string path, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var stream = new FileStream(path, FileMode.Open);
+                var checksum = await CalculateMD5ChecksumAsync(stream, cancellationToken);
+                stream.Close();
+                return checksum;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        public static async Task<string> CalculateMD5ChecksumAsync(Stream stream, CancellationToken cancellationToken)
+        {
+            var position = stream.Position;
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+#pragma warning disable S4790 //Using weak hashing algorithms is security-sensitive
+                using (var md5 = MD5.Create())
+#pragma warning restore S4790
+                {
+                    var result = new TaskCompletionSource<bool>();
+                    await Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await CalculateMD5ChecksumInternalAsync(md5, stream, cancellationToken);
+                        }
+                        finally
+                        {
+                            result.SetResult(true);
+                        }
+                    }, cancellationToken);
+                    await result.Task;
+                    return BitConverter.ToString(md5.Hash).Replace("-", "").ToLowerInvariant();
+                }
+            }
+            finally
+            {
+                stream.Position = position;
+            }
+        }
+
+        static async Task CalculateMD5ChecksumInternalAsync(MD5 md5, Stream stream, CancellationToken cancellationToken)
+        {
+            byte[] buffer = new byte[k_MD5_bufferSize];
+            int bytesRead;
+            do
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                bytesRead = await stream.ReadAsync(buffer, 0, k_MD5_bufferSize, cancellationToken);
+                if (bytesRead > 0)
+                {
+                    md5.TransformBlock(buffer, 0, bytesRead, null, 0);
+                }
+            } while (bytesRead > 0);
+
+            md5.TransformFinalBlock(buffer, 0, 0);
+            await Task.CompletedTask;
+        }
+
+        static long GetLastModifiedDate(string path)
+        {
+            return ((DateTimeOffset)File.GetLastWriteTimeUtc(path)).ToUnixTimeSeconds();
+        }
+
+        static bool IsSameTimestamp(long timestamp, string path)
+        {
+            if (timestamp == 0L)
+            {
+                return false;
+            }
+
+            return timestamp == GetLastModifiedDate(path);
+        }
+
+        static async Task<bool> IsSameFileChecksumAsync(string checksum, string path, CancellationToken token)
+        {
+            if (string.IsNullOrEmpty(checksum))
+            {
+                return false;
+            }
+
+            var localChecksum = await CalculateMD5ChecksumAsync(path, token);
+            return checksum == localChecksum;
         }
     }
 }

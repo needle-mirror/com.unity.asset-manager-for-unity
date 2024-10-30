@@ -93,10 +93,15 @@ namespace Unity.AssetManager.Editor
         event Action<OrganizationInfo> OrganizationChanged;
         event Action<bool> LoadingStateChanged;
         event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
+        event Action<ProjectInfo> ProjectInfoChanged;
 
         void SelectProject(ProjectInfo projectInfo, string collectionPath = null);
         void SelectProject(string projectId, string collectionPath = null);
         void EnableProjectForAssetManager();
+        ProjectInfo GetProject(string projectId);
+        Task CreateCollection(CollectionInfo collectionInfo);
+        Task DeleteCollection(CollectionInfo collectionInfo);
+        Task RenameCollection(CollectionInfo collectionInfo, string newName);
     }
 
     [Serializable]
@@ -114,7 +119,8 @@ namespace Unity.AssetManager.Editor
         [SerializeField]
         string m_CollectionPath;
 
-        [FormerlySerializedAs("m_ErrorOrMessageHandling")] [SerializeField]
+        [FormerlySerializedAs("m_ErrorOrMessageHandling")]
+        [SerializeField]
         MessageData m_MessageData = new();
 
         [SerializeReference]
@@ -149,6 +155,7 @@ namespace Unity.AssetManager.Editor
 
         public event Action<OrganizationInfo> OrganizationChanged;
         public event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
+        public event Action<ProjectInfo> ProjectInfoChanged;
 
         public bool IsLoading => m_LoadOrganizationOperation.IsLoading;
         public MessageData MessageData => m_MessageData;
@@ -256,6 +263,81 @@ namespace Unity.AssetManager.Editor
             FetchProjectOrganization(m_UnityConnectProxy.OrganizationId, true);
         }
 
+        public ProjectInfo GetProject(string projectId)
+        {
+            return m_OrganizationInfo?.ProjectInfos.Find(p => p.Id == projectId);
+        }
+
+        public async Task CreateCollection(CollectionInfo collectionInfo)
+        {
+            if (collectionInfo == null)
+                return;
+
+            await m_AssetsProvider.CreateCollectionAsync(collectionInfo, CancellationToken.None);
+
+            var projectInfo = GetProject(collectionInfo.ProjectId);
+            if (projectInfo == null)
+                return;
+
+            var collections = projectInfo.CollectionInfos.ToList();
+            collections.Add(collectionInfo);
+            projectInfo.SetCollections(collections);
+            ProjectInfoChanged?.Invoke(projectInfo);
+
+            SelectProject(projectInfo, collectionInfo.GetFullPath());
+        }
+
+        public async Task DeleteCollection(CollectionInfo collectionInfo)
+        {
+            if(collectionInfo == null)
+                return;
+
+            await m_AssetsProvider.DeleteCollectionAsync(collectionInfo, CancellationToken.None);
+
+            var projectInfo = GetProject(collectionInfo.ProjectId);
+            if (projectInfo == null)
+                return;
+
+            var collections = projectInfo.CollectionInfos.ToList();
+            collections.RemoveAll(c => c.GetFullPath().Contains(collectionInfo.GetFullPath()));
+            projectInfo.SetCollections(collections);
+            ProjectInfoChanged?.Invoke(projectInfo);
+        }
+
+        public async Task RenameCollection(CollectionInfo collectionInfo, string newName)
+        {
+            if(collectionInfo == null || string.IsNullOrEmpty(newName))
+                return;
+
+            await m_AssetsProvider.RenameCollectionAsync(collectionInfo, newName, CancellationToken.None);
+
+            var projectInfo = GetProject(collectionInfo.ProjectId);
+            if (projectInfo == null)
+                return;
+
+            bool isCollectionSelected = m_CollectionPath == collectionInfo.GetFullPath();
+
+            var collections = projectInfo.CollectionInfos.ToList();
+            var renamedCollection = collections.Find(c => c.GetFullPath() == collectionInfo.GetFullPath());
+            if (renamedCollection != null)
+            {
+                var previousFullPath = collectionInfo.GetFullPath();
+                renamedCollection.Name = newName;
+                foreach (var collection in collections.Where(c => c.ParentPath.StartsWith(previousFullPath)))
+                {
+                    collection.ParentPath = renamedCollection.GetFullPath() + collection.ParentPath.Substring(previousFullPath.Length);
+                }
+            }
+            projectInfo.SetCollections(collections);
+
+            ProjectInfoChanged?.Invoke(projectInfo);
+
+            if (isCollectionSelected && renamedCollection != null)
+            {
+                SelectProject(projectInfo.Id, renamedCollection.GetFullPath());
+            }
+        }
+
         void OnProjectStateChanged(string newOrgId)
         {
             FetchProjectOrganization(newOrgId);
@@ -263,7 +345,8 @@ namespace Unity.AssetManager.Editor
 
         void FetchProjectOrganization(string newOrgId, bool forceRefresh = false)
         {
-            if (!m_UnityConnectProxy.AreCloudServicesReachable || m_AssetsProvider.AuthenticationState != AuthenticationState.LoggedIn)
+            if (!m_UnityConnectProxy.AreCloudServicesReachable ||
+                m_AssetsProvider.AuthenticationState != AuthenticationState.LoggedIn)
                 return;
 
             if (!forceRefresh && !string.IsNullOrEmpty(m_OrganizationInfo?.Id) && m_OrganizationInfo.Id == newOrgId)
@@ -341,10 +424,7 @@ namespace Unity.AssetManager.Editor
 
                     InvokeOrganizationChanged();
                 },
-                finallyCallback: () =>
-                {
-                    LoadingStateChanged?.Invoke(false);
-                }
+                finallyCallback: () => { LoadingStateChanged?.Invoke(false); }
             );
         }
 

@@ -53,12 +53,13 @@ namespace Unity.AssetManager.Editor
         public virtual bool DisplayBreadcrumbs => false;
         public virtual bool DisplaySideBar => true;
         public virtual bool DisplayFilters => true;
-        public virtual bool DisplaySettings => false;
         public virtual bool DisplayFooter => true;
+        public virtual bool DisplaySort => true;
 
         public event Action<bool> LoadingStatusChanged;
         public event Action<IReadOnlyCollection<AssetIdentifier>> SelectedAssetsChanged;
         public event Action<IReadOnlyCollection<string>> SearchFiltersChanged;
+        public event Action<AssetIdentifier, bool> ToggleAssetChanged;
         public event Action<MessageData> MessageThrown;
 
         public bool IsLoading => m_LoadMoreAssetsOperations.Exists(op => op.IsLoading);
@@ -134,8 +135,6 @@ namespace Unity.AssetManager.Editor
             CancelAndClearLoadMoreOperations();
             m_ReTriggerSearchAfterDomainReload = true;
         }
-
-        public virtual void OpenSettings(VisualElement target) { }
 
         public void SelectAsset(AssetIdentifier asset, bool additive)
         {
@@ -310,6 +309,12 @@ namespace Unity.AssetManager.Editor
             {
                 yield return assetData;
             }
+        }
+
+        // Because an event Action cannot be Invoke inside child classes
+        protected void InvokeToggleAssetChanged(AssetIdentifier asset, bool checkState)
+        {
+            ToggleAssetChanged?.Invoke(asset, checkState);
         }
 
         protected async IAsyncEnumerable<IAssetData> LoadMoreAssets(OrganizationInfo organizationInfo,
