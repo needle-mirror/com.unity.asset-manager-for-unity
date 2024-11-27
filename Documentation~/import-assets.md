@@ -17,9 +17,9 @@ To import a cloud asset into your Unity Editor project, follow these steps:
 > **Tip:**
 After you import an asset, you can move the files to another destination folder.
 
-## View an imported asset
+## Browse imported assets
 
-To view an imported asset, go to the bottom left corner of the Asset Manager for Unity window and select **In Project**.
+To browse imported asset, select the **In Project** tab at the top of the Asset Manager for Unity window.
 
 ## Reimport an asset
 
@@ -28,7 +28,22 @@ You can reimport assets to get the latest version of the files uploaded to the a
 1. Select the imported asset you want. On the right side, the Asset Manager Inspector appears.
 2. Go to the bottom right corner of the Asset Manager Inspector and select **Reimport**. The Reimport dialog appears.
 3. Select **Reimport** for the files you want to reimport, or select **Skip** to ignore reimporting files.
-4. Select **Import**.
+4. Click the **Import** button.
+
+You can also update all imported assets by following these steps:
+
+1. Go to the **In Project** tab.
+2. Click the **Update All To Latest** button.
+3. Select **Reimport** for the files you want to reimport, or select **Skip** to ignore reimporting files.
+4. Click the **Import** button.
+
+You can do the same with assets from a specific project or collection by following these steps:
+
+1. Select the desired project or collection in the **Projects** sidebar.
+2. In the main window, right-click on an asset without selecting any beforehand to update all assets, or select any number of assets and right-click on one of them to update the selection only.
+3. Select the **Update All To Latest** or **Update Selected To Latest** option.
+4. Select **Reimport** for the files you want to reimport, or select **Skip** to ignore reimporting files.
+5. Click the **Import** button.
 
 > **Note:**
 If you move your files into a different destination folder, they will still be updated when you use the Reimport feature.

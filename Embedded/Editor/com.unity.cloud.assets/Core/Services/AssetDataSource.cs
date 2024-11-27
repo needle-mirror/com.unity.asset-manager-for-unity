@@ -83,7 +83,7 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var (offset, length) = await parameters.PaginationRange.GetOffsetAndLengthAsync(token => GetTotalCount(projectDescriptor, token), cancellationToken);
+            var (offset, length) = await parameters.PaginationRange.GetOffsetAndLengthAsync(token => GetAssetCountAsync(projectDescriptor, token), cancellationToken);
             if (length == 0) yield break;
 
             var request = new SearchRequest(projectDescriptor.ProjectId, parameters);
@@ -239,18 +239,6 @@ namespace Unity.Cloud.AssetsEmbedded
                 ServiceHttpClientOptions.Default(), cancellationToken);
         }
 
-        async Task<int> GetTotalCount(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
-        {
-            var parameters = new SearchAndAggregateRequestParameters(AssetTypeSearchCriteria.SearchKey);
-            var aggregations = await GetAssetAggregateAsync(projectDescriptor, parameters, cancellationToken);
-            var total = 0;
-            foreach (var aggregate in aggregations)
-            {
-                total += aggregate.Count;
-            }
-            return total;
-        }
-
         async Task<int> GetAcrossProjectsTotalCount(OrganizationId organizationId, IEnumerable<ProjectId> projectIds, CancellationToken cancellationToken)
         {
             var parameters = new AcrossProjectsSearchAndAggregateRequestParameters(projectIds.ToArray(), AssetTypeSearchCriteria.SearchKey);
@@ -286,11 +274,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
             httpRequestMessage.Headers.Add(blobTypeHeaderKey, blobTypeHeaderValue);
 
-            var httpClientOptions = new ServiceHttpClientOptions(true, false, false,
-                false, retryPolicy: new NoRetryPolicy());
-
-            var response = await RateLimitedServiceClient("UploadFile", HttpMethod.Put).SendAsync(httpRequestMessage, httpClientOptions,
-                HttpCompletionOption.ResponseContentRead, progress, cancellationToken);
+            var response = await RateLimitedServiceClient("UploadFile", HttpMethod.Put)
+                .SendAsync(httpRequestMessage, ServiceHttpClientOptions.SkipDefaultAuthenticationOption(), HttpCompletionOption.ResponseContentRead, progress, cancellationToken);
 
             var result = response.EnsureSuccessStatusCode();
             if (!result.IsSuccessStatusCode)
@@ -313,7 +298,7 @@ namespace Unity.Cloud.AssetsEmbedded
             httpRequestMessage.Method = HttpMethod.Get;
             httpRequestMessage.RequestUri = downloadUri;
 
-            using var response = await m_ServiceHttpClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseContentRead, progress, cancellationToken);
+            using var response = await m_ServiceHttpClient.SendAsync(httpRequestMessage, ServiceHttpClientOptions.SkipDefaultAuthenticationOption(), HttpCompletionOption.ResponseContentRead, progress, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var source = await response.Content.ReadAsStreamAsync();
@@ -462,7 +447,12 @@ namespace Unity.Cloud.AssetsEmbedded
 
         IServiceHttpClient RateLimitedServiceClient(ApiRequest request, HttpMethod httpMethod)
         {
-            var requestKey = request.GetType().ToString() + httpMethod;
+            return RateLimitedServiceClient(request, httpMethod.ToString());
+        }
+
+        IServiceHttpClient RateLimitedServiceClient(ApiRequest request, string httpMethod)
+        {
+            var requestKey = request.GetType() + httpMethod;
 
             if (m_HttpClients.TryGetValue(requestKey, out var client)) return client;
 

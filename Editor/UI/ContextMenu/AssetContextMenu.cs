@@ -1,7 +1,8 @@
 using System;
+using Unity.AssetManager.Core.Editor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     abstract class AssetContextMenu: ContextMenu
     {
@@ -12,9 +13,9 @@ namespace Unity.AssetManager.Editor
         internal readonly IPageManager m_PageManager;
         internal readonly IUnityConnectProxy m_UnityConnectProxy;
 
-        IAssetData m_TargetAssetData;
+        BaseAssetData m_TargetAssetData;
 
-        public IAssetData TargetAssetData
+        public BaseAssetData TargetAssetData
         {
             get => m_TargetAssetData;
             set => m_TargetAssetData = value;

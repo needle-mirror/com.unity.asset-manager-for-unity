@@ -85,8 +85,8 @@ namespace Unity.Cloud.AssetsEmbedded
                 AuthoringInfo = AuthoringInfo,
                 Tags = Tags?.ToArray(),
                 SystemTags = SystemTags?.ToArray(),
-                MetadataEntity = { Properties = MetadataEntity.Properties },
-                SystemMetadataEntity = { Properties = SystemMetadataEntity.Properties },
+                MetadataEntity = {Properties = MetadataEntity.Properties},
+                SystemMetadataEntity = {Properties = SystemMetadataEntity.Properties},
                 SizeBytes = SizeBytes,
                 UserChecksum = UserChecksum,
                 PreviewUrl = PreviewUrl,
@@ -130,13 +130,7 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             if (PreviewUrl == null)
             {
-                var filter = new FieldsFilter
-                {
-                    AssetFields = AssetFields.files,
-                    DatasetFields = DatasetFields.none,
-                    FileFields = FileFields.previewURL
-                };
-
+                var filter = new FieldsFilter {FileFields = FileFields.previewURL};
                 var fileData = await m_DataSource.GetFileAsync(Descriptor, filter, cancellationToken);
                 this.MapFrom(m_DataSource, Descriptor.DatasetDescriptor.AssetDescriptor, fileData, filter.FileFields);
             }
@@ -153,7 +147,7 @@ namespace Unity.Cloud.AssetsEmbedded
             {
                 try
                 {
-                    DownloadUrl = await m_DataSource.GetFileDownloadUrlAsync(Descriptor, cancellationToken);
+                    DownloadUrl = await m_DataSource.GetFileDownloadUrlAsync(Descriptor, null, cancellationToken);
                 }
                 catch (NotFoundException)
                 {
@@ -187,6 +181,12 @@ namespace Unity.Cloud.AssetsEmbedded
             {
                 DownloadUrl = null; // Discard the url as it can only be used once.
             }
+        }
+
+        /// <inheritdoc />
+        public Task<Uri> GetResizedImageDownloadUrlAsync(int maxDimension, CancellationToken cancellationToken)
+        {
+            return m_DataSource.GetFileDownloadUrlAsync(Descriptor, maxDimension, cancellationToken);
         }
 
         /// Not exposed in the interface

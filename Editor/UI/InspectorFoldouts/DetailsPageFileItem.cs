@@ -1,11 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     class DetailsPageFileItem : VisualElement
     {
@@ -27,6 +29,8 @@ namespace Unity.AssetManager.Editor
         string m_Guid;
         GenericMenu m_ThreeDotsMenu;
         Dictionary<string, bool> m_ThreeDotsMenuItems;
+
+        public Action RemoveClicked;
 
         public DetailsPageFileItem(IAssetDatabaseProxy assetDatabaseProxy)
         {
@@ -52,7 +56,7 @@ namespace Unity.AssetManager.Editor
             m_InProjectIcon.AddToClassList(k_DetailsPageInProjectItemUssStyle);
             m_InProjectIcon.tooltip = L10n.Tr("Imported");
 
-            InitializeThreeDotsMenu();
+            InitializeThreeDotsMenu(false);
             m_ThreeDots.clicked += () => m_ThreeDotsMenu.ShowAsContext();
 
             Add(m_Icon);
@@ -62,7 +66,7 @@ namespace Unity.AssetManager.Editor
             Add(m_ThreeDots);
         }
 
-        public void Refresh(string fileName, string guid, bool enabled, bool uploaded)
+        public void Refresh(string fileName, string guid, bool enabled, bool uploaded, bool removable)
         {
             var extension = string.IsNullOrEmpty(fileName) ? null : Path.GetExtension(fileName);
 
@@ -83,7 +87,7 @@ namespace Unity.AssetManager.Editor
             m_FileName.text = fileName;
             m_Guid = guid;
 
-            InitializeThreeDotsMenu();
+            InitializeThreeDotsMenu(removable);
 
             m_InProjectIcon.visible = IsShowInProjectEnabled();
             m_ThreeDots.visible = !MetafilesHelper.IsMetafile(fileName) && IsAnyMenuItemEnabled();
@@ -91,7 +95,7 @@ namespace Unity.AssetManager.Editor
             SetEnabled(enabled);
         }
 
-        void InitializeThreeDotsMenu()
+        void InitializeThreeDotsMenu(bool removable)
         {
             m_ThreeDotsMenu = new GenericMenu();
             m_ThreeDotsMenuItems = new Dictionary<string, bool>();
@@ -108,6 +112,14 @@ namespace Unity.AssetManager.Editor
             {
                 m_ThreeDotsMenu.AddDisabledItem(guiContent);
                 m_ThreeDotsMenuItems.Add(text, false);
+            }
+
+            if (removable)
+            {
+                text = "Remove";
+
+                m_ThreeDotsMenu.AddItem(new GUIContent(text), false, () => { RemoveClicked?.Invoke(); });
+                m_ThreeDotsMenuItems.Add(text, true);
             }
         }
 

@@ -3,9 +3,14 @@ namespace Unity.Cloud.AssetsEmbedded
     interface IStatus
     {
         /// <summary>
-        /// The descriptor of the status.
+        /// The descriptor of the status flow which owns the status.
         /// </summary>
-        StatusDescriptor Descriptor { get; }
+        StatusFlowDescriptor Descriptor { get; }
+
+        /// <summary>
+        /// The id of the status.
+        /// </summary>
+        string Id { get; }
 
         /// <summary>
         /// The name of the status.

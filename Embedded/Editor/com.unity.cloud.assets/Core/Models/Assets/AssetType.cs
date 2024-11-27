@@ -86,7 +86,7 @@ enum AssetType
                 case var s when s.OrdinalEquals("Video"):
                     assetType = AssetType.Video;
                     break;
-                case var s when s.OrdinalEquals("Unity Editor"):
+                case var s when s.OrdinalEquals("Unity Editor") || s.OrdinalEquals("Unity"):
                     assetType = AssetType.Unity_Editor;
                     break;
                 default:

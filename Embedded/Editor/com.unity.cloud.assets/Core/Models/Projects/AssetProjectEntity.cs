@@ -22,6 +22,9 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public IDeserializable Metadata { get; set; }
 
+        /// <inheritdoc/>
+        public bool HasCollection { get; set; }
+
         internal AssetProjectEntity(IAssetDataSource dataSource, ProjectDescriptor projectDescriptor)
         {
             m_DataSource = dataSource;
@@ -92,6 +95,12 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        public Task<int> CountAssetsAsync(CancellationToken cancellationToken)
+        {
+            return m_DataSource.GetAssetCountAsync(Descriptor, cancellationToken);
+        }
+
+        /// <inheritdoc />
         public Task LinkAssetsAsync(ProjectDescriptor sourceProjectDescriptor, IEnumerable<AssetId> assetIds, CancellationToken cancellationToken)
         {
             return m_DataSource.LinkAssetsToProjectAsync(sourceProjectDescriptor, Descriptor, assetIds, cancellationToken);
@@ -110,6 +119,12 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        public Task<int> CountCollectionsAsync(CancellationToken cancellationToken)
+        {
+            return m_DataSource.GetCollectionCountAsync(Descriptor, cancellationToken);
+        }
+
+        /// <inheritdoc />
         public async Task<IAssetCollection> GetCollectionAsync(CollectionPath collectionPath, CancellationToken cancellationToken)
         {
             var collectionData = await m_DataSource.GetCollectionAsync(new CollectionDescriptor(Descriptor, collectionPath), cancellationToken);
@@ -122,7 +137,10 @@ namespace Unity.Cloud.AssetsEmbedded
             assetCollectionCreation.Validate();
 
             var creationPath = CollectionPath.CombinePaths(assetCollectionCreation.ParentPath, assetCollectionCreation.Name);
-            var assetCollection = new AssetCollection(m_DataSource, new CollectionDescriptor(Descriptor, creationPath), assetCollectionCreation.Name, assetCollectionCreation.Description, assetCollectionCreation.ParentPath);
+            var assetCollection = new AssetCollection(m_DataSource, new CollectionDescriptor(Descriptor, creationPath))
+            {
+                Description = assetCollectionCreation.Description
+            };
 
             var collectionPath = await m_DataSource.CreateCollectionAsync(Descriptor, assetCollection.From(), cancellationToken);
             if (creationPath != collectionPath)

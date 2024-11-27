@@ -1,10 +1,12 @@
-﻿using System.Linq;
+using System;
+using System.Linq;
 using System.Threading.Tasks;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     class CollectionContextMenu : ContextMenu
     {
@@ -91,7 +93,23 @@ namespace Unity.AssetManager.Editor
                 var isSelected = m_CollectionInfo.ProjectId == m_ProjectOrganizationProvider.SelectedCollection.ProjectId &&
                                  m_CollectionInfo.GetFullPath() == m_ProjectOrganizationProvider.SelectedCollection.GetFullPath();
 
-                await m_ProjectOrganizationProvider.DeleteCollection(m_CollectionInfo);
+                try
+                {
+                    await m_ProjectOrganizationProvider.DeleteCollection(m_CollectionInfo);
+
+                    AnalyticsSender.SendEvent(new ManageCollectionEvent(ManageCollectionEvent.CollectionOperationType.Delete));
+                }
+                catch (Exception e)
+                {
+                    var serviceExceptionInfo = ServiceExceptionHelper.GetServiceExceptionInfo(e);
+                    if (serviceExceptionInfo != null)
+                    {
+                        m_PageManager.ActivePage.SetMessageData(e.Message, RecommendedAction.None, false,
+                            HelpBoxMessageType.Error);
+                    }
+
+                    throw;
+                }
 
                 if(isSelected)
                 {

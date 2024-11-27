@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using Unity.AssetManager.Core.Editor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     static partial class UssStyle
     {
@@ -41,12 +42,12 @@ namespace Unity.AssetManager.Editor
             m_AssetPreview.AddToClassList(UssStyle.ImageContainer);
         }
 
-        public override void OnSelection(IAssetData assetData, bool isLoading)
+        public override void OnSelection(BaseAssetData assetData)
         {
             m_AssetPreview.ClearPreview();
         }
 
-        public override void RefreshUI(IAssetData assetData, bool isLoading = false)
+        public override void RefreshUI(BaseAssetData assetData, bool isLoading = false)
         {
             // Remove asset preview from hierarchy to avoid it being destroyed when clearing the container
             m_AssetPreview.RemoveFromHierarchy();
@@ -55,21 +56,25 @@ namespace Unity.AssetManager.Editor
 
             AddText(m_EntriesContainer, null, assetData.Description);
 
-            m_AssetPreview.SetAssetType(assetData.PrimarySourceFile?.Extension);
-            UpdatePreviewStatus(assetData.PreviewStatus);
-            m_EntriesContainer.Add(m_AssetPreview);
+            m_AssetPreview.SetAssetType(assetData.PrimaryExtension);
+            UpdatePreviewStatus(AssetDataStatus.GetIStatusFromAssetDataStatusType(assetData.PreviewStatus));
 
-            AddTags(m_EntriesContainer, Constants.TagsText, assetData.Tags);
+            m_EntriesContainer.Add(m_AssetPreview);
+            SetPreviewImage(assetData.Thumbnail);
+
+            AddTagChips(m_EntriesContainer, Constants.TagsText, assetData.Tags);
             AddProject(m_EntriesContainer, Constants.ProjectText, assetData.Identifier.ProjectId, "entry-project");
             AddText(m_EntriesContainer, Constants.StatusText, assetData.Status);
             AddText(m_EntriesContainer, Constants.AssetTypeText, assetData.AssetType.DisplayValue());
             AddText(m_EntriesContainer, Constants.TotalFilesText, "-", k_FileCountName);
             AddText(m_EntriesContainer, Constants.FilesSizeText, "-", k_FileSizeName);
-            AddText(m_EntriesContainer, Constants.CreatedDateText, assetData.Created?.ToLocalTime().ToString("G"));
+            AddText(m_EntriesContainer, Constants.UploadDateText, Utilities.DatetimeToString(assetData.Created));
             AddUser(m_EntriesContainer, Constants.CreatedByText, assetData.CreatedBy, typeof(CreatedByFilter));
-            AddText(m_EntriesContainer, Constants.ModifiedDateText, assetData.Updated?.ToLocalTime().ToString("G"));
-            AddUser(m_EntriesContainer, Constants.ModifiedByText, assetData.UpdatedBy, typeof(UpdatedByFilter));
-            AddText(m_EntriesContainer, Constants.AssetIdText, assetData.Identifier.AssetId);
+            AddText(m_EntriesContainer, Constants.LastModifiedText, Utilities.DatetimeToString(assetData.Updated));
+            AddUser(m_EntriesContainer, Constants.LastEditByText, assetData.UpdatedBy, typeof(UpdatedByFilter));
+            AddAssetIdentifier(m_EntriesContainer, Constants.AssetIdText, assetData.Identifier);
+
+            DisplayMetadata(assetData);
 
             if (isLoading)
             {
@@ -77,7 +82,37 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public override void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress)
+        void DisplayMetadata(BaseAssetData assetData)
+        {
+            foreach (var metadata in assetData.Metadata)
+            {
+                if (metadata is BooleanMetadata booleanMetadata)
+                {
+                    AddToggle(m_EntriesContainer, metadata.Name, booleanMetadata.GetValue() as bool? ?? bool.Parse(booleanMetadata.GetValue()?.ToString() ?? false.ToString()));
+                }
+                else if (metadata is UserMetadata userMetadata)
+                {
+                    AddUser(m_EntriesContainer, metadata.Name,
+                        userMetadata.Value, null);
+                }
+                else if (metadata is SingleSelectionMetadata singleSelectionMetadata)
+                {
+                    AddSelectionChips(m_EntriesContainer, metadata.Name,
+                        new List<string> {singleSelectionMetadata.Value});
+                }
+                else if (metadata is MultiSelectionMetadata multiSelectionMetadata)
+                {
+                    AddSelectionChips(m_EntriesContainer, metadata.Name,
+                        multiSelectionMetadata.Value);
+                }
+                else
+                {
+                    AddText(m_EntriesContainer, metadata.Name, metadata.ToString());
+                }
+            }
+        }
+
+        public override void RefreshButtons(UIEnabledStates enabled, BaseAssetData assetData, BaseOperation operationInProgress)
         {
             m_EntriesContainer.Q("entry-project")?.SetEnabled(enabled.HasFlag(UIEnabledStates.ServicesReachable));
         }
@@ -100,6 +135,11 @@ namespace Unity.AssetManager.Editor
         public void SetFileSize(string fileSize)
         {
             m_EntriesContainer.Q<DetailsPageEntry>(k_FileSizeName)?.SetText(fileSize);
+        }
+
+        public void SetPrimaryExtension(string primaryExtension)
+        {
+            m_AssetPreview.SetAssetType(primaryExtension);
         }
     }
 }

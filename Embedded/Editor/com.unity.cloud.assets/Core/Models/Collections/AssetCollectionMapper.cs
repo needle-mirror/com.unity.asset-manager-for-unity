@@ -12,7 +12,10 @@ namespace Unity.Cloud.AssetsEmbedded
 
         internal static AssetCollection From(this IAssetCollectionData data, IAssetDataSource dataSource, CollectionDescriptor collectionDescriptor)
         {
-            return new AssetCollection(dataSource, collectionDescriptor, data.Name, data.Description, data.ParentPath);
+            return new AssetCollection(dataSource, collectionDescriptor)
+            {
+                Description = data.Description,
+            };
         }
 
         internal static IAssetCollectionData From(this IAssetCollection assetCollection)

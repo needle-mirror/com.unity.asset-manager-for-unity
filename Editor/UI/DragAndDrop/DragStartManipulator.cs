@@ -1,7 +1,7 @@
 using System;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     /// <summary>
     /// Manipulator that fires a Drag Event when you press the pointer down on its target.

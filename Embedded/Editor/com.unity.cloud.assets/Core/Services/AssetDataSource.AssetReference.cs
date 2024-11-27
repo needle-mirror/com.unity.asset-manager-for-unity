@@ -26,7 +26,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var request = new AssetReferenceRequest(projectDescriptor.ProjectId, assetId, assetVersion, context, offset, pageSize);
-                var response = await m_ServiceHttpClient.GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
+                var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
 
                 var jsonContent = await response.GetContentAsString();
                 cancellationToken.ThrowIfCancellationRequested();

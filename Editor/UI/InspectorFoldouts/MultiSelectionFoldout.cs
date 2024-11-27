@@ -2,22 +2,27 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
-    class MultiSelectionFoldout : ItemFoldout<IAssetData, MultiSelectionItem>
+    class MultiSelectionFoldout : ItemFoldout<BaseAssetData, MultiSelectionItem>
     {
-        protected const string k_CheckMarkName = "unity-checkmark";
+        static readonly string k_FoldoutClassName = "multi-selection-foldout";
+        static readonly string k_CheckMarkName = "unity-checkmark";
+        static readonly string k_ViewListName = "view-list";
 
-        List<IAssetData> m_FilesList = new();
+        List<BaseAssetData> m_FilesList = new();
         readonly Button m_Button;
 
-        public MultiSelectionFoldout(VisualElement parent, string foldoutName, string listViewName, string buttonTitle, Action buttonCallback , string foldoutTitle = null, string foldoutExpandedClassName = null)
-            : base(parent, foldoutName, listViewName, foldoutTitle, foldoutExpandedClassName)
+        public MultiSelectionFoldout(VisualElement parent, string foldoutName, string buttonTitle, Action buttonCallback , string foldoutTitle = null, string foldoutExpandedClassName = null)
+            : base(parent, foldoutName, k_ViewListName, foldoutTitle, foldoutExpandedClassName)
         {
             var foldout = parent.Q<Foldout>(foldoutName);
+            foldout.AddToClassList(k_FoldoutClassName);
+
             var toggle = foldout.Q<Toggle>();
             var checkmark = toggle.Q<VisualElement>(k_CheckMarkName);
             checkmark.parent.style.flexDirection = FlexDirection.Row;
@@ -39,7 +44,7 @@ namespace Unity.AssetManager.Editor
             m_FilesList.Clear();
         }
 
-        public override void RemoveItems(IEnumerable<IAssetData> items)
+        public override void RemoveItems(IEnumerable<BaseAssetData> items)
         {
             var list = items.ToList();
             base.RemoveItems(list);
@@ -55,9 +60,9 @@ namespace Unity.AssetManager.Editor
             m_Button.SetEnabled(enabled);
         }
 
-        protected override IList PrepareListItem(IAssetData assetData, IEnumerable<IAssetData> items)
+        protected override IList PrepareListItem(BaseAssetData assetData, IEnumerable<BaseAssetData> items)
         {
-            m_FilesList = new List<IAssetData>();
+            m_FilesList = new List<BaseAssetData>();
 
             foreach (var assetDataFile in items.OrderBy(f => f.Name))
             {

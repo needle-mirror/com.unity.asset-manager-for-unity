@@ -32,8 +32,17 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <param name="assetDescriptor">The object containing the necessary information to identify the asset.</param>
         /// <param name="changeLog">An optional change log describing the version changes. </param>
+        /// <param name="forceFreeze">Whether ongoing transformations should be cancelled. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task whose result is the new sequence id of the asset version. </returns>
-        Task<int> FreezeAssetVersionAsync(AssetDescriptor assetDescriptor, string changeLog, CancellationToken cancellationToken);
+        Task<int?> FreezeAssetVersionAsync(AssetDescriptor assetDescriptor, string changeLog, bool? forceFreeze, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Cancels the freeze of an asset version.
+        /// </summary>
+        /// <param name="assetDescriptor">The object containing the necessary information to identify the asset.</param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task with no result.</returns>
+        Task CancelFreezeAssetVersionAsync(AssetDescriptor assetDescriptor, CancellationToken cancellationToken);
     }
 }

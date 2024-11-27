@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     static partial class UssStyle
     {
@@ -24,7 +25,7 @@ namespace Unity.AssetManager.Editor
         public VisualElement ButtonsContainer { get; }
 
         public event Action CancelOperation;
-        public event Action<string, IEnumerable<IAssetData>> ImportAsset;
+        public event Action<string, IEnumerable<BaseAssetData>> ImportAsset;
         public event Action HighlightAsset;
         public event Func<bool> RemoveAsset;
 
@@ -58,18 +59,20 @@ namespace Unity.AssetManager.Editor
             m_RemoveImportButton.clicked += RemoveFromProject;
         }
 
-        public void OnSelection(IAssetData assetData, bool isLoading) { }
+        public void OnSelection(BaseAssetData assetData)
+        {
+        }
 
-        public void RefreshUI(IAssetData assetData, bool isLoading = false)
+        public void RefreshUI(BaseAssetData assetData, bool isLoading = false)
         {
             UIElementsUtils.SetDisplay(m_FooterVisualElement, ((BasePage)m_PageManager.ActivePage).DisplayFooter);
         }
 
-        public void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress)
+        public void RefreshButtons(UIEnabledStates enabled, BaseAssetData assetData, BaseOperation operationInProgress)
         {
             var isEnabled = enabled.IsImportAvailable();
 
-            m_ImportButton.text = AssetDetailsPageExtensions.GetImportButtonLabel(operationInProgress, assetData.PreviewStatus.FirstOrDefault());
+            m_ImportButton.text = AssetDetailsPageExtensions.GetImportButtonLabel(operationInProgress, AssetDataStatus.GetIStatusFromAssetDataStatusType(assetData?.PreviewStatus?.FirstOrDefault()));
             m_ImportButton.tooltip = AssetDetailsPageExtensions.GetImportButtonTooltip(operationInProgress, enabled);
             m_ImportButton.SetEnabled(isEnabled);
 

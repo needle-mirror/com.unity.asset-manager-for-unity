@@ -19,7 +19,11 @@ namespace Unity.Cloud.AssetsEmbedded
         /// The description of the asset.
         /// </summary>
         [DataMember(Name = "description")]
-        string Description { get; }
+        string Description
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The tags of the asset.

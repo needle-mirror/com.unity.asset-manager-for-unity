@@ -3,18 +3,20 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Unity.AssetManager.Core.Editor;
+using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Button = UnityEngine.UIElements.Button;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     interface IPageComponent
     {
-        void OnSelection(IAssetData assetData, bool isLoading);
-        void RefreshUI(IAssetData assetData, bool isLoading = false);
-        void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress);
+        void OnSelection(BaseAssetData assetData);
+        void RefreshUI(BaseAssetData assetData, bool isLoading = false);
+        void RefreshButtons(UIEnabledStates enabled, BaseAssetData assetData, BaseOperation operationInProgress);
     }
 
     class AssetDetailsPage : SelectionInspectorPage
@@ -27,17 +29,52 @@ namespace Unity.AssetManager.Editor
         FilesFoldout m_SourceFilesFoldout;
         FilesFoldout m_UVCSFilesFoldout;
         DependenciesFoldout m_DependenciesFoldout;
-        IAssetData m_SelectedAssetData;
-        IAssetData m_PreviouslySelectedAssetData;
 
-        int m_TotalFilesCount;
-        int m_IncompleteFilesCount;
-        long m_TotalFileSize;
+        BaseAssetData m_SelectedAssetData;
+
+        BaseAssetData SelectedAssetData
+        {
+            get => m_SelectedAssetData;
+            set
+            {
+                if (m_SelectedAssetData == value)
+                    return;
+
+                if (m_SelectedAssetData != null)
+                {
+                    m_SelectedAssetData.AssetDataChanged -= OnAssetDataEvent;
+                }
+
+                m_SelectedAssetData = value;
+
+                if (m_SelectedAssetData != null)
+                {
+                    m_SelectedAssetData.AssetDataChanged += OnAssetDataEvent;
+                }
+            }
+        }
+
+        void OnAssetDataEvent(BaseAssetData assetData, AssetDataEventType eventType)
+        {
+            if (assetData != SelectedAssetData)
+                return;
+
+            switch (eventType)
+            {
+                case AssetDataEventType.PrimaryFileChanged:
+                    RefreshSourceFilesInformationUI(SelectedAssetData);
+                    break;
+                // Need to add more cases similar to GridItem
+            }
+        }
+
+        BaseAssetData m_PreviouslySelectedAssetData;
 
         readonly Action<IEnumerable<AssetPreview.IStatus>> PreviewStatusUpdated;
         readonly Action<Texture2D> PreviewImageUpdated;
         readonly Action<string> SetFileCount;
         readonly Action<string> SetFileSize;
+        readonly Action<string> SetPrimaryExtension;
         Action<Type, string> ApplyFilter;
 
         public AssetDetailsPage(IAssetImporter assetImporter, IAssetOperationManager assetOperationManager,
@@ -69,6 +106,7 @@ namespace Unity.AssetManager.Editor
             PreviewImageUpdated += detailsTab.SetPreviewImage;
             SetFileCount += detailsTab.SetFileCount;
             SetFileSize += detailsTab.SetFileSize;
+            SetPrimaryExtension += detailsTab.SetPrimaryExtension;
 
             var versionsTab = new AssetVersionsTab(m_ScrollView.contentContainer);
             versionsTab.CreateUserChip += CreateUserChip;
@@ -108,11 +146,11 @@ namespace Unity.AssetManager.Editor
             m_ScrollView = this.Q<ScrollView>("details-page-scrollview");
 
             m_SourceFilesFoldout = new FilesFoldout(this, "details-source-files-foldout",
-                "details-source-files-listview", m_AssetDataManager, m_AssetDatabaseProxy,
+                "details-source-files-listview", m_AssetDatabaseProxy,
                 Constants.SourceFilesText);
 
             m_UVCSFilesFoldout = new FilesFoldout(this, "details-uvcs-files-foldout",
-                "details-uvcs-files-listview", m_AssetDataManager, m_AssetDatabaseProxy,
+                "details-uvcs-files-listview", m_AssetDatabaseProxy,
                 Constants.UVCSFilesText);
 
             m_DependenciesFoldout = new DependenciesFoldout(this, "details-dependencies-foldout",
@@ -159,7 +197,7 @@ namespace Unity.AssetManager.Editor
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
 
             // We need to manually refresh once to make sure the UI is updated when the window is opened.
-            m_SelectedAssetData = m_PageManager.ActivePage?.SelectedAssets.Count > 1 ? null : m_AssetDataManager.GetAssetData(m_PageManager.ActivePage?.LastSelectedAssetId);
+            SelectedAssetData = m_PageManager.ActivePage?.SelectedAssets.Count > 1 ? null : m_AssetDataManager.GetAssetData(m_PageManager.ActivePage?.LastSelectedAssetId);
         }
 
         protected override void OnAttachToPanel(AttachToPanelEvent evt)
@@ -186,10 +224,10 @@ namespace Unity.AssetManager.Editor
                 return;
 
             if (!UIElementsUtils.IsDisplayed(this)
-                || !operation.Identifier.Equals(m_SelectedAssetData?.Identifier))
+                || !operation.Identifier.Equals(SelectedAssetData?.Identifier))
                 return;
 
-            RefreshButtons(m_SelectedAssetData, operation);
+            RefreshButtons(SelectedAssetData, operation);
         }
 
         protected override void OnOperationFinished(AssetDataOperation operation)
@@ -198,14 +236,14 @@ namespace Unity.AssetManager.Editor
                 return;
 
             if (!UIElementsUtils.IsDisplayed(this)
-                || !operation.Identifier.Equals(m_SelectedAssetData?.Identifier)
+                || !operation.Identifier.Equals(SelectedAssetData?.Identifier)
                 || operation.Status == OperationStatus.None)
                 return;
 
             if (m_PreviouslySelectedAssetData != null &&
                 operation.Status is OperationStatus.Cancelled or OperationStatus.Error)
             {
-                m_SelectedAssetData = m_PreviouslySelectedAssetData;
+                SelectedAssetData = m_PreviouslySelectedAssetData;
             }
 
             RefreshUI();
@@ -214,11 +252,11 @@ namespace Unity.AssetManager.Editor
         protected override void OnImportedAssetInfoChanged(AssetChangeArgs args)
         {
             if (!UIElementsUtils.IsDisplayed(this)
-                || !args.Added.Concat(args.Updated).Concat(args.Removed).Any(a => a.Equals(m_SelectedAssetData?.Identifier)))
+                || !args.Added.Concat(args.Updated).Concat(args.Removed).Any(a => a.Equals(SelectedAssetData?.Identifier)))
                 return;
 
             // In case of an import, force a full refresh of the displayed information
-            TaskUtils.TrackException(SelectAssetDataAsync(new List<IAssetData> { m_SelectedAssetData }));
+            TaskUtils.TrackException(SelectAssetDataAsync(new List<BaseAssetData> { SelectedAssetData }));
         }
 
         void OnFilterModified(Type filterType, string filterValue)
@@ -233,7 +271,7 @@ namespace Unity.AssetManager.Editor
 
         void LinkToDashboard()
         {
-            m_LinksProxy.OpenAssetManagerDashboard(m_SelectedAssetData?.Identifier);
+            m_LinksProxy.OpenAssetManagerDashboard(SelectedAssetData?.Identifier);
         }
 
         protected override void OnCloudServicesReachabilityChanged(bool cloudServiceReachable)
@@ -257,21 +295,21 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        async void ImportAssetAsync(string importDestination, IEnumerable<IAssetData> assetsToImport = null)
+        async void ImportAssetAsync(string importDestination, IEnumerable<BaseAssetData> assetsToImport = null)
         {
-            m_PreviouslySelectedAssetData = m_SelectedAssetData;
+            m_PreviouslySelectedAssetData = SelectedAssetData;
             try
             {
                 var importType = assetsToImport == null ? ImportOperation.ImportType.UpdateToLatest : ImportOperation.ImportType.Import;
 
                 // If assets have been targeted for import, we use the first asset as the selected asset
-                m_SelectedAssetData = assetsToImport?.FirstOrDefault() ?? m_SelectedAssetData;
+                SelectedAssetData = assetsToImport?.FirstOrDefault() ?? SelectedAssetData;
 
                 // If no assets have been targeted for import, we use the selected asset from the details page
                 assetsToImport ??= m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x));
 
                 var importedAssets = await m_AssetImporter.StartImportAsync(assetsToImport.ToList(), importType, importDestination);
-                m_SelectedAssetData = importedAssets?.FirstOrDefault() ?? m_PreviouslySelectedAssetData;
+                SelectedAssetData = importedAssets?.FirstOrDefault() ?? m_PreviouslySelectedAssetData;
 
                 if (importedAssets == null)
                 {
@@ -280,7 +318,7 @@ namespace Unity.AssetManager.Editor
             }
             catch (Exception)
             {
-                m_SelectedAssetData = m_PreviouslySelectedAssetData;
+                SelectedAssetData = m_PreviouslySelectedAssetData;
                 RefreshUI();
                 throw;
             }
@@ -288,7 +326,7 @@ namespace Unity.AssetManager.Editor
 
         void ShowInProjectBrowser()
         {
-            m_AssetImporter.ShowInProject(m_SelectedAssetData?.Identifier);
+            m_AssetImporter.ShowInProject(SelectedAssetData?.Identifier);
 
             AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Show));
         }
@@ -299,25 +337,25 @@ namespace Unity.AssetManager.Editor
 
             try
             {
-                return m_AssetImporter.RemoveImport(m_SelectedAssetData?.Identifier, true);
+                return m_AssetImporter.RemoveImport(SelectedAssetData?.Identifier, true);
             }
             catch (Exception)
             {
-                RefreshButtons(m_SelectedAssetData,
-                    m_AssetImporter.GetImportOperation(m_SelectedAssetData?.Identifier));
+                RefreshButtons(SelectedAssetData,
+                    m_AssetImporter.GetImportOperation(SelectedAssetData?.Identifier));
                 throw;
             }
         }
 
         void RefreshUI(bool isLoading = false)
         {
-            if (m_SelectedAssetData == null)
+            if (SelectedAssetData == null)
                 return;
 
             // Asynchronously load the new image and update the UI
-            TaskUtils.TrackException(m_SelectedAssetData.GetThumbnailAsync((identifier, texture2D) =>
+            TaskUtils.TrackException(SelectedAssetData.GetThumbnailAsync((identifier, texture2D) =>
             {
-                if (!identifier.Equals(m_SelectedAssetData?.Identifier))
+                if (!identifier.Equals(SelectedAssetData?.Identifier))
                     return;
 
                 PreviewImageUpdated?.Invoke(texture2D);
@@ -325,63 +363,40 @@ namespace Unity.AssetManager.Editor
 
             foreach (var component in m_PageComponents)
             {
-                component.RefreshUI(m_SelectedAssetData, isLoading);
+                component.RefreshUI(SelectedAssetData, isLoading);
             }
 
-            var operation = m_AssetOperationManager.GetAssetOperation(m_SelectedAssetData.Identifier);
+            var operation = m_AssetOperationManager.GetAssetOperation(SelectedAssetData.Identifier);
 
-            RefreshButtons(m_SelectedAssetData, operation);
+            RefreshButtons(SelectedAssetData, operation);
 
             m_SourceFilesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
             m_UVCSFilesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
             m_DependenciesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
 
-            m_TotalFilesCount = 0;
-            m_IncompleteFilesCount = 0;
-            m_TotalFileSize = 0;
-
-            RefreshSourceFilesInformationUI(m_SelectedAssetData);
-            RefreshUVCSFilesInformationUI(m_SelectedAssetData);
-            RefreshDependenciesInformationUI(m_SelectedAssetData);
-
-            var hasFiles = m_TotalFilesCount > 0;
-            if (hasFiles)
-            {
-                SetFileSize?.Invoke(Utilities.BytesToReadableString(m_TotalFileSize));
-                SetFileCount?.Invoke(m_IncompleteFilesCount > 0 ? $"{m_TotalFilesCount} [{m_IncompleteFilesCount} incomplete]" : m_TotalFilesCount.ToString());
-            }
-            else
-            {
-                SetFileSize?.Invoke(Utilities.BytesToReadableString(0));
-                SetFileCount?.Invoke("0");
-            }
-
-            UIElementsUtils.SetDisplay(m_NoFilesWarningBox, !hasFiles);
-            UIElementsUtils.SetDisplay(m_SameFileNamesWarningBox, HasCaseInsensitiveMatch(m_SelectedAssetData.SourceFiles.Select(f => f.Path)));
+            RefreshSourceFilesInformationUI(SelectedAssetData);
+            RefreshDependenciesInformationUI(SelectedAssetData);
         }
 
-        protected override async Task SelectAssetDataAsync(List<IAssetData> assetData)
+        protected override async Task SelectAssetDataAsync(IReadOnlyCollection<BaseAssetData> assetData)
         {
-            if (assetData.Count > 1)
+            if (assetData == null || assetData.Count > 1)
             {
-                m_SelectedAssetData = null;
+                SelectedAssetData = null;
                 return;
             }
 
-            m_SelectedAssetData = assetData.FirstOrDefault();
+            SelectedAssetData = assetData.FirstOrDefault();
 
-            if (m_SelectedAssetData == null)
+            if (SelectedAssetData == null)
                 return;
 
-            var requiresLoading = !m_AssetDataManager.IsInProject(m_SelectedAssetData.Identifier);
+            var requiresLoading = SelectedAssetData is not UploadAssetData && !m_AssetDataManager.IsInProject(SelectedAssetData.Identifier);
 
             foreach (var component in m_PageComponents)
             {
-                component.OnSelection(m_SelectedAssetData, requiresLoading);
+                component.OnSelection(SelectedAssetData);
             }
-
-            RefreshUI(requiresLoading);
-            RefreshScrollView();
 
             var tasks = new List<Task>();
             if (requiresLoading)
@@ -397,30 +412,41 @@ namespace Unity.AssetManager.Editor
                 SetFileSize?.Invoke("-");
                 SetFileCount?.Invoke("-");
 
-                RefreshUI();
-                RefreshScrollView();
-
-                tasks.Add(m_SelectedAssetData.SyncWithCloudAsync(identifier =>
-                {
-                    if (!identifier.Equals(m_SelectedAssetData?.Identifier))
-                        return;
-
-                    RefreshUI();
-                    RefreshScrollView();
-                }));
+                tasks.Add(SyncWithCloudAsync(SelectedAssetData));
             }
+
+            RefreshUI(requiresLoading);
+            RefreshScrollView();
 
             PreviewStatusUpdated?.Invoke(null);
 
-            tasks.Add(m_SelectedAssetData.GetPreviewStatusAsync((identifier, status) =>
+            tasks.Add(SelectedAssetData.GetPreviewStatusAsync((identifier, status) =>
             {
-                if (!identifier.Equals(m_SelectedAssetData?.Identifier))
+                if (!identifier.Equals(SelectedAssetData?.Identifier))
                     return;
 
-                PreviewStatusUpdated?.Invoke(status);
+                PreviewStatusUpdated?.Invoke(AssetDataStatus.GetIStatusFromAssetDataStatusType(status));
             }));
 
             await TaskUtils.WaitForTasksWithHandleExceptions(tasks);
+        }
+
+        async Task SyncWithCloudAsync(BaseAssetData assetData)
+        {
+            var tasks = new List<Task>
+            {
+                assetData.RefreshPropertiesAsync(),
+                assetData.ResolvePrimaryExtensionAsync(),
+                assetData.RefreshDependenciesAsync(),
+            };
+
+            await Task.WhenAll(tasks);
+
+            if (!assetData.Identifier.Equals(SelectedAssetData?.Identifier))
+                return;
+
+            RefreshUI();
+            RefreshScrollView();
         }
 
         async Task<UserChip> CreateUserChip(string userId, Type searchFilterType)
@@ -487,14 +513,16 @@ namespace Unity.AssetManager.Editor
         protected override void OnAssetDataChanged(AssetChangeArgs args)
         {
             if (!UIElementsUtils.IsDisplayed(this)
-                || !args.Added.Concat(args.Removed).Concat(args.Updated).Any(a => a.Equals(m_SelectedAssetData?.Identifier)))
+                || !args.Added.Concat(args.Removed).Concat(args.Updated).Any(a => a.Equals(SelectedAssetData?.Identifier)))
                 return;
 
-            RefreshButtons(m_SelectedAssetData, m_AssetImporter.GetImportOperation(m_SelectedAssetData?.Identifier));
+            RefreshButtons(SelectedAssetData, m_AssetImporter.GetImportOperation(SelectedAssetData?.Identifier));
         }
 
-        void RefreshSourceFilesInformationUI(IAssetData assetData)
+        void RefreshSourceFilesInformationUI(BaseAssetData assetData)
         {
+            SetPrimaryExtension?.Invoke(assetData.PrimaryExtension);
+
             var files = assetData.SourceFiles.Where(f =>
             {
                 if (string.IsNullOrEmpty(f?.Path))
@@ -503,14 +531,19 @@ namespace Unity.AssetManager.Editor
                 return !AssetDataDependencyHelper.IsASystemFile(Path.GetExtension(f.Path));
             }).ToList();
 
+
+            long totalFileSize = 0;
+            var totalFilesCount = 0;
+            var incompleteFilesCount = 0;
+
             var hasFiles = files.Any();
 
             if (hasFiles)
             {
                 var assetFileSize = files.Sum(i => i.FileSize);
-                m_TotalFileSize += assetFileSize;
-                m_TotalFilesCount += files.Count;
-                m_IncompleteFilesCount += files.Count(f => !f.Available);
+                totalFileSize += assetFileSize;
+                totalFilesCount += files.Count;
+                incompleteFilesCount += files.Count(f => !f.Available);
 
                 m_SourceFilesFoldout.Populate(assetData, files);
             }
@@ -520,19 +553,41 @@ namespace Unity.AssetManager.Editor
             }
 
             m_SourceFilesFoldout.StopPopulating();
+
+            RefreshUVCSFilesInformationUI(assetData, out var uvcsTotalFileSize, out var uvcsTotalFilesCount);
+
+            totalFileSize += uvcsTotalFileSize;
+            totalFilesCount += uvcsTotalFilesCount;
+
+            if (hasFiles)
+            {
+                SetFileSize?.Invoke(Utilities.BytesToReadableString(totalFileSize));
+                SetFileCount?.Invoke(incompleteFilesCount > 0 ? $"{totalFilesCount} [{incompleteFilesCount} incomplete]" : totalFilesCount.ToString());
+            }
+            else
+            {
+                SetFileSize?.Invoke(Utilities.BytesToReadableString(0));
+                SetFileCount?.Invoke("0");
+            }
+
+            UIElementsUtils.SetDisplay(m_NoFilesWarningBox, !hasFiles);
+            UIElementsUtils.SetDisplay(m_SameFileNamesWarningBox, HasCaseInsensitiveMatch(assetData.SourceFiles.Select(f => f.Path)));
         }
 
-        void RefreshUVCSFilesInformationUI(IAssetData assetData)
+        void RefreshUVCSFilesInformationUI(BaseAssetData assetData, out long totalFileSize, out int totalFilesCount)
         {
             var files = assetData.UVCSFiles?.ToList();
 
             var hasFiles = files != null && files.Any();
 
+            totalFileSize = 0;
+            totalFilesCount = 0;
+
             if (hasFiles)
             {
                 var assetFileSize = files.Sum(i => i.FileSize);
-                m_TotalFileSize += assetFileSize;
-                m_TotalFilesCount += files.Count;
+                totalFileSize += assetFileSize;
+                totalFilesCount += files.Count;
 
                 m_UVCSFilesFoldout.Populate(assetData, files);
             }
@@ -544,7 +599,7 @@ namespace Unity.AssetManager.Editor
             m_UVCSFilesFoldout.StopPopulating();
         }
 
-        void RefreshDependenciesInformationUI(IAssetData assetData)
+        void RefreshDependenciesInformationUI(BaseAssetData assetData)
         {
             var dependencies = assetData.Dependencies.ToList();
             m_DependenciesFoldout.Populate(assetData, dependencies);
@@ -552,9 +607,9 @@ namespace Unity.AssetManager.Editor
             m_DependenciesFoldout.StopPopulating();
         }
 
-        void RefreshButtons(IAssetData assetData, BaseOperation importOperation)
+        void RefreshButtons(BaseAssetData assetData, BaseOperation importOperation)
         {
-            var status = assetData?.PreviewStatus.FirstOrDefault();
+            var status = AssetDataStatus.GetIStatusFromAssetDataStatusType(assetData?.PreviewStatus?.FirstOrDefault());
             var enabled = UIEnabledStates.CanImport.GetFlag(assetData is AssetData);
             enabled |= UIEnabledStates.InProject.GetFlag(m_AssetDataManager.IsInProject(assetData?.Identifier));
             enabled |= UIEnabledStates.ServicesReachable.GetFlag(m_UnityConnectProxy.AreCloudServicesReachable);
@@ -583,7 +638,7 @@ namespace Unity.AssetManager.Editor
             TaskUtils.TrackException(RefreshButtonsAsync(assetData, importOperation, enabled));
         }
 
-        async Task RefreshButtonsAsync(IAssetData assetData, BaseOperation importOperation, UIEnabledStates enabled)
+        async Task RefreshButtonsAsync(BaseAssetData assetData, BaseOperation importOperation, UIEnabledStates enabled)
         {
             var hasPermissions = await m_PermissionsManager.CheckPermissionAsync(assetData?.Identifier.OrganizationId, assetData?.Identifier.ProjectId, Constants.ImportPermission);
             enabled |= UIEnabledStates.HasPermissions.GetFlag(hasPermissions);

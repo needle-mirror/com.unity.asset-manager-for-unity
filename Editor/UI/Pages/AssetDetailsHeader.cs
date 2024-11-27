@@ -1,8 +1,9 @@
 using System;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     class AssetDetailsHeader : IPageComponent
     {
@@ -24,23 +25,22 @@ namespace Unity.AssetManager.Editor
             });
         }
 
-        public void OnSelection(IAssetData assetData, bool isLoading) { }
-
-        public void RefreshUI(IAssetData assetData, bool isLoading = false)
+        public void OnSelection(BaseAssetData assetData)
         {
-            m_AssetName.text = assetData.Name;
-            m_AssetVersion.text = assetData.SequenceNumber > 0
-                ? L10n.Tr(Constants.VersionText) + assetData.SequenceNumber
-                : L10n.Tr(Constants.PendingVersionText);
-            m_AssetVersion.tooltip = assetData.Identifier.Version;
-
-            UIElementsUtils.SetDisplay(m_AssetDashboardLink,
-                !(string.IsNullOrEmpty(assetData.Identifier.OrganizationId) ||
-                    string.IsNullOrEmpty(assetData.Identifier.ProjectId) ||
-                    string.IsNullOrEmpty(assetData.Identifier.AssetId)));
         }
 
-        public void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress)
+        public void RefreshUI(BaseAssetData assetData, bool isLoading = false)
+        {
+            m_AssetName.text = assetData.Name;
+
+            UIElementsUtils.SetSequenceNumberText(m_AssetVersion, assetData);
+            UIElementsUtils.SetDisplay(m_AssetDashboardLink,
+                !(string.IsNullOrEmpty(assetData.Identifier.OrganizationId) ||
+                  string.IsNullOrEmpty(assetData.Identifier.ProjectId) ||
+                  string.IsNullOrEmpty(assetData.Identifier.AssetId)));
+        }
+
+        public void RefreshButtons(UIEnabledStates enabled, BaseAssetData assetData, BaseOperation operationInProgress)
         {
             m_AssetDashboardLink.SetEnabled(enabled.HasFlag(UIEnabledStates.ServicesReachable));
         }

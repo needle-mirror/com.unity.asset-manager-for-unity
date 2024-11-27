@@ -18,7 +18,7 @@ namespace Unity.Cloud.AssetsEmbedded
         public bool IsDefault { get; set; }
 
         /// <inheritdoc />
-        public StatusDescriptor StartStatusDescriptor { get; set; }
+        public string StartStatusId { get; set; }
 
         internal IStatus[] Statuses { get; set; } = Array.Empty<IStatus>();
         internal IStatusTransition[] Transitions { get; set; } = Array.Empty<IStatusTransition>();

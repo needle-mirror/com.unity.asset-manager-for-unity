@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,7 +32,7 @@ namespace Unity.Cloud.AssetsEmbedded
             cancellationToken.ThrowIfCancellationRequested();
 
             var request = new CreateAssetVersionRequest(parentAssetDescriptor.ProjectId, parentAssetDescriptor.AssetId, parentAssetDescriptor.AssetVersion, statusFlowId);
-            var response = await m_ServiceHttpClient.PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
+            var response = await RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
 
             var jsonContent = await response.GetContentAsString();
@@ -42,19 +43,43 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public async Task<int> FreezeAssetVersionAsync(AssetDescriptor assetDescriptor, string changeLog, CancellationToken cancellationToken)
+        public async Task<int?> FreezeAssetVersionAsync(AssetDescriptor assetDescriptor, string changeLog, bool? forceFreeze, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var request = new SubmitVersionRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, changeLog);
-            var response = await m_ServiceHttpClient.PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
-                ServiceHttpClientOptions.Default(), cancellationToken);
+            HttpResponseMessage response;
+
+            if (forceFreeze.HasValue)
+            {
+                var request = new SubmitVersionRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, changeLog, forceFreeze);
+                response = await RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
+                    ServiceHttpClientOptions.Default(), cancellationToken);
+            }
+            else
+            {
+                response = await AutoFreezeAssetVersionAsync(assetDescriptor, changeLog, cancellationToken);
+            }
 
             var jsonContent = await response.GetContentAsString();
             cancellationToken.ThrowIfCancellationRequested();
 
             var dto = IsolatedSerialization.Deserialize<VersionNumberDto>(jsonContent, IsolatedSerialization.defaultSettings);
             return dto.VersionNumber;
+        }
+
+        Task<HttpResponseMessage> AutoFreezeAssetVersionAsync(AssetDescriptor assetDescriptor, string changelog, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var request = new AutoSubmitAssetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, changelog);
+            return RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(), ServiceHttpClientOptions.Default(), cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task CancelFreezeAssetVersionAsync(AssetDescriptor assetDescriptor, CancellationToken cancellationToken)
+        {
+            var request = AutoSubmitAssetRequest.GetDisableRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion);
+            return RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(), ServiceHttpClientOptions.Default(), cancellationToken);
         }
     }
 }

@@ -14,7 +14,7 @@ namespace Unity.Cloud.AssetsEmbedded
         public string Description { get; set; }
 
         /// <inheritdoc />
-        public List<string> Tags { get; set; } = new List<string>();// For now initialize list
+        public IEnumerable<string> Tags { get; set; }
 
         /// <inheritdoc />
         public Dictionary<string, object> Metadata { get; set; }

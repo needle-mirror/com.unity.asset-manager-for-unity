@@ -1,7 +1,9 @@
+using Unity.AssetManager.Core.Editor;
+using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     class UploadContextMenu : AssetContextMenu
     {
@@ -10,6 +12,8 @@ namespace Unity.AssetManager.Editor
 
         public override void SetupContextMenuEntries(ContextualMenuPopulateEvent evt)
         {
+            IncludeAllScripts(evt);
+            RemoveAssetEntry(evt);
             IgnoreAssetEntry(evt);
             ShowInProjectEntry(evt);
         }
@@ -28,11 +32,49 @@ namespace Unity.AssetManager.Editor
         void IgnoreAssetEntry(ContextualMenuPopulateEvent evt)
         {
             var uploadAssetData = (UploadAssetData)TargetAssetData;
-            AddMenuEntry(evt, !uploadAssetData.IsIgnored ? L10n.Tr(Constants.IgnoreAsset) : L10n.Tr(Constants.IncludeAsset), true,
+
+            if (!uploadAssetData.CanBeIgnored)
+                return;
+
+            AddMenuEntry(evt, L10n.Tr(Constants.IgnoreAsset), true, uploadAssetData.IsIgnored,
                 (_) =>
                 {
-                    ServicesContainer.instance.Resolve<IPageManager>().ActivePage.ToggleAsset(uploadAssetData, uploadAssetData.IsIgnored);
+                    if (ServicesContainer.instance.Resolve<IPageManager>().ActivePage is not UploadPage uploadPage)
+                        return;
+
+                    uploadPage.ToggleAsset(uploadAssetData.Identifier, uploadAssetData.IsIgnored);
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent.ContextMenuItemType.IgnoreUploadedAsset));
+                });
+        }
+
+        void RemoveAssetEntry(ContextualMenuPopulateEvent evt)
+        {
+            var uploadAssetData = (UploadAssetData)TargetAssetData;
+
+            if (!uploadAssetData.CanBeRemoved)
+                return;
+
+            AddMenuEntry(evt, L10n.Tr(Constants.RemoveAsset), true,
+                (_) =>
+                {
+                    if (ServicesContainer.instance.Resolve<IPageManager>().ActivePage is not UploadPage uploadPage)
+                        return;
+
+                    uploadPage.RemoveAsset(uploadAssetData);
+                });
+        }
+
+        void IncludeAllScripts(ContextualMenuPopulateEvent evt)
+        {
+            var uploadAssetData = (UploadAssetData)TargetAssetData;
+            var scriptsIncluded = uploadAssetData.HasAdditionalFiles();
+            AddMenuEntry(evt, L10n.Tr(Constants.IncludeAllScripts), true, scriptsIncluded,
+                (_) =>
+                {
+                    if (ServicesContainer.instance.Resolve<IPageManager>().ActivePage is not UploadPage uploadPage)
+                        return;
+
+                    uploadPage.SetIncludeAllScripts(uploadAssetData, !scriptsIncluded);
                 });
         }
     }

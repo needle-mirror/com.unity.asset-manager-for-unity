@@ -13,6 +13,6 @@ namespace Unity.Cloud.AssetsEmbedded
         string Description { get; }
 
         [DataMember(Name = "tags")]
-        List<string> Tags { get; }
+        IEnumerable<string> Tags { get; }
     }
 }

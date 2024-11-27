@@ -5,37 +5,13 @@ namespace Unity.Cloud.AssetsEmbedded
 {
     static class FieldsFilterUtilities
     {
-        /// <summary>
-        /// A list of fields that are optional in service requests, but will always be included when an asset is requested.
-        /// </summary>
-        static readonly string[] s_DefaultAssetFields =
-        {
-            "isFrozen",
-            "versionNumber",
-            "changelog",
-            "parentAssetVersion",
-            "parentVersionNumber",
-        };
-
         public delegate void OnFieldFilterSelected(string field);
 
         internal static void Parse(this FieldsFilter fieldsFilter, OnFieldFilterSelected select)
         {
             if (fieldsFilter == null) return;
 
-            if (fieldsFilter.AssetFields.HasFlag(AssetFields.all))
-            {
-                select("*");
-            }
-            else
-            {
-                foreach (var defaultField in s_DefaultAssetFields)
-                {
-                    select(defaultField);
-                }
-                fieldsFilter.AssetFields.Parse(select);
-            }
-
+            fieldsFilter.AssetFields.Parse(select);
             fieldsFilter.DatasetFields.Parse(select, "datasets.");
             fieldsFilter.FileFields.Parse(select, "files.");
 
@@ -100,18 +76,41 @@ namespace Unity.Cloud.AssetsEmbedded
 
         static void Parse(this AssetFields assetFields, OnFieldFilterSelected select)
         {
+            if (assetFields.HasFlag(AssetFields.all))
+            {
+                select("*");
+                return;
+            }
+
             foreach (AssetFields value in Enum.GetValues(typeof(AssetFields)))
             {
-                if (value == AssetFields.all || value == AssetFields.none) continue;
+                if (value is AssetFields.all or AssetFields.none) continue;
                 if (assetFields.HasFlag(value))
                 {
-                    if (value == AssetFields.authoring)
+                    switch (value)
                     {
+                        case AssetFields.versioning:
+                            select("isFrozen");
+                            select("autoSubmit");
+                            select("versionNumber");
+                            select("changeLog");
+                            select("parentAssetVersion");
+                            select("parentVersionNumber");
+                            break;
+                        case AssetFields.labels:
+                            select("labels");
+                            select("archivedLabels");
+                            break;
+                        case AssetFields.previewFile:
+                            select("previewFileDatasetId");
+                            select("previewFile");
+                            break;
+                        case AssetFields.authoring:
                         IncludeAuthoringFields("", select);
-                    }
-                    else
-                    {
+                            break;
+                        default:
                         select(value.ToString());
+                            break;
                     }
                 }
             }

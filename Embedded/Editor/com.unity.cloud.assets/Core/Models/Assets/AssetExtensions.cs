@@ -118,7 +118,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <summary>
         /// Creates a reference between the asset and another asset, where the asset is the source of the reference.
         /// </summary>
-        /// <param name="asset">This asset. </param>
+        /// <param name="asset">An asset. </param>
         /// <param name="targetAssetDescriptor">The descriptor of the asset which is a target. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task whose result is the reference between the assets. </returns>

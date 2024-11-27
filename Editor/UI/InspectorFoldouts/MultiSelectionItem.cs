@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Unity.AssetManager.Core.Editor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     class MultiSelectionItem : VisualElement
     {
@@ -26,10 +27,10 @@ namespace Unity.AssetManager.Editor
             Add(m_FileName);
         }
 
-        public async Task Refresh(IAssetData fileItem)
+        public async Task Refresh(BaseAssetData fileItem)
         {
             m_FileName.text = fileItem.Name;
-            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(fileItem.PrimarySourceFile?.Extension);
+            m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(fileItem.PrimaryExtension);
 
             if (fileItem.PrimarySourceFile != null)
                 return;

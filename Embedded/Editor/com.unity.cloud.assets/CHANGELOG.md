@@ -5,6 +5,53 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2024-11-15
+
+### Changed
+- Updated deprecated documentation.
+
+### Fixed
+- Fixed IAsset.Changelog not being populated.
+
+## [1.5.0] - 2024-10-18
+
+### Added
+- Added `HasCollections` property to `IAssetProject`.
+- Added `CountAssetsAsync` and `CountCollectionsAsync` to `IAssetProject`.
+- Added `AssetState` enum and `State` property to `IAsset`.
+- Added overloaded `FreezeAsync(IAssetFreeze, CancellationToken)` and `CancelFreezeAsync` to `IAsset`.
+
+### Changed
+- Improved sample code snippets.
+- Improved documentation code snippets.
+
+### Deprecated
+- Deprecated `IAsset.IsFrozen`; use `IAsset.State` instead.
+- Deprecated `IAsset.FreezeAsync(string, CancellationToken)`; use `IAsset.FreezeAsync(IAssetFreeze, CancellationToken)` instead.
+
+## [1.4.0] - 2024-09-23
+
+### Added
+- Added `IAssetRepository.EnableProjectForAssetManagerAsync` to enable the Asset Manager feature for a project; this allows a project to be retrieved as an `IAssetProject`.
+- Added documentation for asset to asset references.
+- Added `IAsset.PreviewFileDescriptor`
+- Added `IFile.GetResizedImageDownloadUrlAsync` to get the download url of an image file with a specified max dimension.
+
+### Changed
+- Improved sample code snippets.
+
+### Fixed
+- Fixed bug where organization search returned asset results with missing ProjectId.
+- Fixes missing script in Asset Discovery sample
+
+### Removed
+- [Experimental][Breaking] Removed `StatusDescriptor` and `StatusTransitionDescriptor`. IStatus and IStatusTransition expose separate properties for `StatusFlowDescriptor` and string ids instead.
+
+### Deprecated
+- Deprecated `IAsset.PreviewFile`; use `IAsset.PreviewFileDescriptor` instead.
+- Deprecated `IAsset.IsFrozen`; use `IAsset.State` instead.
+- Deprecated `IAsset.FreezeAsync(string, CancellationToken)`; use `IAsset.FreezeAsync(IAssetFreeze, CancellationToken)` instead.
+
 ## [1.4.0-exp.3] - 2024-08-26
 
 ### Added

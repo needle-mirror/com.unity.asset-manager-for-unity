@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     static partial class UssStyle
     {
@@ -59,9 +60,7 @@ namespace Unity.AssetManager.Editor
         protected static void AddText(VisualElement container, string title, string details, IEnumerable<string> classNames, string name = null)
         {
             if (string.IsNullOrEmpty(details))
-            {
                 return;
-            }
 
             var entry = new DetailsPageEntry(title, details)
             {
@@ -79,8 +78,19 @@ namespace Unity.AssetManager.Editor
             container.Add(entry);
         }
 
+        protected static void AddAssetIdentifier(VisualElement entriesContainer, string title, AssetIdentifier identifier)
+        {
+            if (identifier.IsLocal())
+                return;
+
+            AddText(entriesContainer, title, identifier.AssetId);
+        }
+
         protected void AddUser(VisualElement container, string title, string details, Type searchFilterType, string name = null)
         {
+            if (string.IsNullOrEmpty(details))
+                return;
+
             var entry = new DetailsPageEntry(title)
             {
                 name = name
@@ -103,9 +113,10 @@ namespace Unity.AssetManager.Editor
             CreateProjectChip?.AddProjectChip(chipContainer, projectId);
         }
 
-        protected void AddTags(VisualElement container, string title, IEnumerable<string> tags, string name = null)
+        void AddChips(VisualElement container, string title, IEnumerable<string> chips,
+            Func<string, Chip> chipCreator, string name = null)
         {
-            var enumerable = tags as string[] ?? tags.ToArray();
+            var enumerable = chips as string[] ?? chips.ToArray();
             if (!enumerable.Any())
             {
                 return;
@@ -117,23 +128,53 @@ namespace Unity.AssetManager.Editor
             };
             container.Add(entry);
 
-            var tagsContainer = entry.AddChipContainer();
-            tagsContainer.AddToClassList(UssStyle.FlexWrap);
+            var chipsContainer = entry.AddChipContainer();
+            chipsContainer.AddToClassList(UssStyle.FlexWrap);
 
-            foreach (var tag in enumerable)
+            foreach (var chipText in enumerable)
             {
-                var tagChip = new TagChip(tag);
+                var chip = chipCreator?.Invoke(chipText);
+                chipsContainer.Add(chip);
+            }
+        }
+
+        protected void AddTagChips(VisualElement container, string title, IEnumerable<string> chips,
+            string name = null)
+        {
+            AddChips(container, title,chips, chipText =>
+            {
+                var tagChip = new TagChip(chipText);
                 tagChip.TagChipPointerUpAction += tagText =>
                 {
                     var words = tagText.Split(' ').Where(w => !string.IsNullOrEmpty(w));
                     ApplyFilter?.Invoke(words);
                 };
-                tagsContainer.Add(tagChip);
-            }
+
+                return tagChip;
+            }, name);
         }
 
-        public abstract void OnSelection(IAssetData assetData, bool isLoading);
-        public abstract void RefreshUI(IAssetData assetData, bool isLoading = false);
-        public abstract void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress);
+        protected void AddSelectionChips(VisualElement container, string title, IEnumerable<string> chips,
+            string name = null)
+        {
+            AddChips(container, title,chips, chipText => new Chip(chipText), name);
+        }
+
+        protected void AddToggle(VisualElement container, string title, bool toggleValue, string name = null)
+        {
+            var entry = new DetailsPageEntry(title)
+            {
+                name = name
+            };
+            container.Add(entry);
+
+            var toggle = entry.AddToggle();
+            toggle.value = toggleValue;
+            toggle.SetEnabled(false);
+        }
+
+        public abstract void OnSelection(BaseAssetData assetData);
+        public abstract void RefreshUI(BaseAssetData assetData, bool isLoading = false);
+        public abstract void RefreshButtons(UIEnabledStates enabled, BaseAssetData assetData, BaseOperation operationInProgress);
     }
 }

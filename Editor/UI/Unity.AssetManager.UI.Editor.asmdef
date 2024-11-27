@@ -1,0 +1,22 @@
+{
+  "name": "Unity.AssetManager.UI.Editor",
+  "rootNamespace": "Unity.AssetManager.UI.Editor",
+  "references": [
+    "Unity.Settings.Editor",
+    "Unity.AssetManager.Core.Editor",
+    "Unity.AssetManager.Upload.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

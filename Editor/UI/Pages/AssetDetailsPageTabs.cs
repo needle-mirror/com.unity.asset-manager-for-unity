@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     class AssetDetailsPageTabs : IPageComponent
     {
@@ -73,22 +74,21 @@ namespace Unity.AssetManager.Editor
             SetActiveTab(ActiveTabType);
         }
 
-        public void OnSelection(IAssetData assetData, bool isLoading)
+        public void OnSelection(BaseAssetData assetData)
         {
-            if (!String.IsNullOrEmpty(assetData.Identifier.AssetId)
-                && String.IsNullOrEmpty(assetData.Identifier.PrimarySourceFileGuid))
-            {
-                // This is not a local asset, you can show the tabs
-                UIElementsUtils.Show(m_TabsContainer);
-            }
-            else
+            if (assetData.Identifier.IsLocal())
             {
                 SetActiveTab(TabType.Details);
                 UIElementsUtils.Hide(m_TabsContainer);
             }
+            else
+            {
+                // This is not a local asset, you can show the tabs
+                UIElementsUtils.Show(m_TabsContainer);
+            }
         }
 
-        public void RefreshUI(IAssetData assetData, bool isLoading = false)
+        public void RefreshUI(BaseAssetData assetData, bool isLoading = false)
         {
             foreach (var kvp in m_TabContents)
             {
@@ -125,7 +125,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress)
+        public void RefreshButtons(UIEnabledStates enabled, BaseAssetData assetData, BaseOperation operationInProgress)
         {
             UIElementsUtils.SetDisplay(m_Footer, m_IsFooterVisible && enabled.HasFlag(UIEnabledStates.CanImport));
         }

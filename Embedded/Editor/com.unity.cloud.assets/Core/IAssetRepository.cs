@@ -27,6 +27,14 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<IAssetProject> GetAssetProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken);
 
         /// <summary>
+        /// Enables a pre-existing dashboard project in asset manager.
+        /// </summary>
+        /// <param name="projectDescriptor">The object containing the necessary information for identifying the project. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is an <see cref="IAssetProject"/>. </returns>
+        Task<IAssetProject> EnableProjectForAssetManagerAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
         /// Creates a new <see cref="IAssetProject"/> in the specified organization.
         /// </summary>
         /// <param name="organizationId">The organization to create the project in. </param>

@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Unity.AssetManager.Core.Editor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     abstract class SelectionInspectorPage : VisualElement
     {
@@ -75,7 +76,7 @@ namespace Unity.AssetManager.Editor
 
         public async Task SelectedAsset(List<AssetIdentifier> assets)
         {
-            var data = new List<IAssetData>();
+            var data = new List<BaseAssetData>();
 
             foreach (var asset in assets)
             {
@@ -89,9 +90,14 @@ namespace Unity.AssetManager.Editor
             await SelectAssetDataAsync(data);
         }
 
+        public async Task SelectionCleared()
+        {
+            await SelectAssetDataAsync(null);
+        }
+
         public abstract bool IsVisible(int selectedAssetCount);
 
-        protected abstract Task SelectAssetDataAsync(List<IAssetData> assetData);
+        protected abstract Task SelectAssetDataAsync(IReadOnlyCollection<BaseAssetData> assetData);
 
         protected virtual void OnAttachToPanel(AttachToPanelEvent evt)
         {
@@ -117,6 +123,7 @@ namespace Unity.AssetManager.Editor
         {
             m_PageManager.ActivePage.ClearSelection();
         }
+
         protected abstract void OnOperationProgress(AssetDataOperation operation);
         protected abstract void OnOperationFinished(AssetDataOperation operation);
         protected abstract void OnImportedAssetInfoChanged(AssetChangeArgs args);

@@ -1,6 +1,7 @@
+using Unity.AssetManager.Core.Editor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     class LocalAssetContextMenu : AssetContextMenu
     {
@@ -18,9 +19,17 @@ namespace Unity.AssetManager.Editor
             AddMenuEntry(evt, Constants.ShowInProjectActionText, TargetAssetData != null,
                 (_) =>
                 {
-                    if (TargetAssetData is { PrimarySourceFile: not null } && !string.IsNullOrEmpty(TargetAssetData.PrimarySourceFile.Guid))
+                    if (TargetAssetData is { PrimarySourceFile: null })
                     {
-                        m_AssetDatabaseProxy.PingAssetByGuid(TargetAssetData.PrimarySourceFile.Guid);
+                        return;
+                    }
+
+                    var guid = m_AssetDataManager.GetImportedFileGuid(TargetAssetData.Identifier,
+                        TargetAssetData.PrimarySourceFile.Path);
+
+                    if (!string.IsNullOrEmpty(guid))
+                    {
+                        m_AssetDatabaseProxy.PingAssetByGuid(guid);
                     }
 
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent.ContextMenuItemType.ShowInProject));

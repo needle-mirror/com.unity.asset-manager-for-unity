@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Runtime.Serialization;
 
@@ -19,7 +20,7 @@ namespace Unity.Cloud.AssetsEmbedded
         public IStatusData[] Statuses => GetStatuses();
         public IStatusTransitionData[] Transitions => GetTransitions();
 
-        IStatusData[] GetStatuses() => StatusDatas.Select(x => (IStatusData) x).ToArray();
-        IStatusTransitionData[] GetTransitions() => TransitionDatas.Select(x => (IStatusTransitionData) x).ToArray();
+        IStatusData[] GetStatuses() => StatusDatas?.Select(x => (IStatusData) x).ToArray() ?? Array.Empty<IStatusData>();
+        IStatusTransitionData[] GetTransitions() => TransitionDatas?.Select(x => (IStatusTransitionData) x).ToArray() ?? Array.Empty<IStatusTransitionData>();
     }
 }

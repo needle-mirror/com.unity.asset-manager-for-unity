@@ -3,19 +3,24 @@ namespace Unity.Cloud.AssetsEmbedded
     interface IStatusTransition
     {
         /// <summary>
-        /// The descriptor of the status transition.
+        /// The descriptor of the status flow which owns the transition.
         /// </summary>
-        StatusTransitionDescriptor Descriptor { get; }
+        StatusFlowDescriptor Descriptor { get; }
 
         /// <summary>
-        /// The status from which the transition originates.
+        /// The id of the transition.
         /// </summary>
-        StatusDescriptor FromStatus { get; }
+        string Id { get; }
 
         /// <summary>
-        /// The status to which the transition leads.
+        /// The id of the status from which the transition originates.
         /// </summary>
-        StatusDescriptor ToStatus { get; }
+        string FromStatusId { get; }
+
+        /// <summary>
+        /// The id of the status to which the transition leads.
+        /// </summary>
+        string ToStatusId { get; }
 
         /// <summary>
         /// ???

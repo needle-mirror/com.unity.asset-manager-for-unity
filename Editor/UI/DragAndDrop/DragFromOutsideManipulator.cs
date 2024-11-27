@@ -1,10 +1,12 @@
 using System;
 using System.Linq;
+using Unity.AssetManager.Core.Editor;
+using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     [Serializable]
     class DragFromOutsideManipulator : PointerManipulator
@@ -53,7 +55,7 @@ namespace Unity.AssetManager.Editor
 
             var uploadPage = m_PageManager.ActivePage as UploadPage;
             uploadPage?.AddAssets(DragAndDrop.objectReferences.Where(o =>
-                !string.IsNullOrEmpty(AssetDatabase.GetAssetPath(o))).ToList());
+                !string.IsNullOrEmpty(ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().GetAssetPath(o))).ToList());
         }
 
         void OnDragUpdate(DragUpdatedEvent _)
@@ -73,7 +75,7 @@ namespace Unity.AssetManager.Editor
             }
 
             m_CanDropOnPage = !Array.TrueForAll(DragAndDrop.objectReferences,
-                o => string.IsNullOrEmpty(AssetDatabase.GetAssetPath(o)));
+                o => string.IsNullOrEmpty(ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().GetAssetPath(o)));
         }
     }
 }

@@ -3,7 +3,7 @@ using Unity.Cloud.CommonEmbedded;
 namespace Unity.Cloud.AssetsEmbedded
 {
     /// <summary>
-    /// This struct contains the identifiers for an asset's status.
+    /// This struct contains the identifiers for a status flow.
     /// </summary>
     readonly struct StatusFlowDescriptor
     {

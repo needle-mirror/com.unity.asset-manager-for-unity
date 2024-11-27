@@ -32,6 +32,13 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        public async Task<IAssetProject> EnableProjectForAssetManagerAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        {
+            var projectData = await m_DataSource.EnableProjectAsync(projectDescriptor, cancellationToken);
+            return projectData.From(m_DataSource, projectDescriptor);
+        }
+
+        /// <inheritdoc />
         public async Task<IAssetProject> CreateAssetProjectAsync(OrganizationId organizationId, IAssetProjectCreation projectCreation, CancellationToken cancellationToken)
         {
             var data = new ProjectBaseData

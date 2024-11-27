@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     class CloudAssetContextMenu : AssetContextMenu
     {
@@ -25,6 +27,7 @@ namespace Unity.AssetManager.Editor
         async Task SetupContextMenuEntriesAsync(ContextualMenuPopulateEvent evt)
         {
             ClearMenuEntries(evt);
+            UpdateAllToLatest(evt);
             RemoveFromProjectEntry(evt);
             ShowInProjectEntry(evt);
             ShowInDashboardEntry(evt);
@@ -66,7 +69,7 @@ namespace Unity.AssetManager.Editor
 
         void ImportEntrySingle(ContextualMenuPopulateEvent evt, UIEnabledStates enabled)
         {
-            var status = TargetAssetData.PreviewStatus.FirstOrDefault();
+            var status = AssetDataStatus.GetIStatusFromAssetDataStatusType(TargetAssetData?.PreviewStatus?.FirstOrDefault());
             enabled |= UIEnabledStates.ValidStatus.GetFlag(status == null || !string.IsNullOrEmpty(status.ActionText));
 
             var text = AssetDetailsPageExtensions.GetImportButtonLabel(null, status);
@@ -74,19 +77,19 @@ namespace Unity.AssetManager.Editor
             AddMenuEntry(evt, text, AssetDetailsPageExtensions.IsImportAvailable(enabled),
                 _ =>
                 {
-                    m_AssetImporter.StartImportAsync(new List<IAssetData> {TargetAssetData}, ImportOperation.ImportType.UpdateToLatest);
+                    m_AssetImporter.StartImportAsync(new List<BaseAssetData> {TargetAssetData}, ImportOperation.ImportType.UpdateToLatest);
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(!IsInProject
                         ? GridContextMenuItemSelectedEvent.ContextMenuItemType.Import
                         : GridContextMenuItemSelectedEvent.ContextMenuItemType.Reimport));
                 });
         }
 
-        void ImportEntryMultiple(ContextualMenuPopulateEvent evt, List<IAssetData> selectedAssetData, UIEnabledStates enabled)
+        void ImportEntryMultiple(ContextualMenuPopulateEvent evt, List<BaseAssetData> selectedAssetData, UIEnabledStates enabled)
         {
             var isContainedInvalidStatus = false;
             foreach (var assetData in selectedAssetData)
             {
-                var status = assetData.PreviewStatus.FirstOrDefault();
+                var status = AssetDataStatus.GetIStatusFromAssetDataStatusType(assetData?.PreviewStatus?.FirstOrDefault());
                 if(!(status == null || !string.IsNullOrEmpty(status.ActionText)))
                 {
                     isContainedInvalidStatus = true;
@@ -109,7 +112,7 @@ namespace Unity.AssetManager.Editor
             if (!IsImporting)
                 return;
 
-            AddMenuEntry(evt, L10n.Tr(Constants.CancelImportActionText), true,
+            AddMenuEntry(evt, L10n.Tr(AssetManagerCoreConstants.CancelImportActionText), true,
                 _ =>
                 {
                     m_AssetImporter.CancelImport(TargetAssetData.Identifier, true);
@@ -174,6 +177,44 @@ namespace Unity.AssetManager.Editor
                     m_LinksProxy.OpenAssetManagerDashboard(identifier);
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
                         .ContextMenuItemType.ShowInDashboard));
+                });
+        }
+
+        void UpdateAllToLatest(ContextualMenuPopulateEvent evt)
+        {
+            if (!m_UnityConnectProxy.AreCloudServicesReachable)
+                return;
+
+            var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
+            if (selectedAssetData.Count == 1)
+                return;
+
+            var enabled = m_AssetDataManager.ImportedAssetInfos.Any() && !IsImporting;
+            AddMenuEntry(evt, selectedAssetData.Count > 1 ? Constants.UpdateSelectedToLatestActionText : Constants.UpdateAllToLatestActionText, enabled,
+                (_) =>
+                {
+                    if (selectedAssetData.Count == 0)
+                    {
+                        ProjectInfo selectedProject = null;
+                        CollectionInfo selectedCollection = null;
+
+                        if (m_PageManager.ActivePage is CollectionPage)
+                        {
+                            var projectOrganizationProvider =
+                                ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
+                            selectedProject = projectOrganizationProvider.SelectedProject;
+                            selectedCollection = projectOrganizationProvider.SelectedCollection;
+                        }
+
+                        TaskUtils.TrackException(m_AssetImporter.UpdateAllToLatestAsync(selectedProject, selectedCollection, CancellationToken.None));
+                    }
+                    else
+                    {
+                        TaskUtils.TrackException(m_AssetImporter.UpdateAllToLatestAsync(selectedAssetData, CancellationToken.None));
+                    }
+
+                    AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
+                        .ContextMenuItemType.UpdateAllToLatest));
                 });
         }
     }

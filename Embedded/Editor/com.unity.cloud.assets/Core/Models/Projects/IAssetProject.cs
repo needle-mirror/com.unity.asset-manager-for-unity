@@ -27,6 +27,11 @@ namespace Unity.Cloud.AssetsEmbedded
         IDeserializable Metadata { get; set; }
 
         /// <summary>
+        /// Whether the project has any collections
+        /// </summary>
+        bool HasCollection => false;
+
+        /// <summary>
         /// Retrieves an asset by its ID.
         /// </summary>
         /// <param name="assetId">The id of the asset. </param>
@@ -80,6 +85,13 @@ namespace Unity.Cloud.AssetsEmbedded
         GroupAndCountAssetsQueryBuilder GroupAndCountAssets();
 
         /// <summary>
+        /// Returns the number of assets in the project.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the number of assets in the project. </returns>
+        Task<int> CountAssetsAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
         /// Links the assets to the project.
         /// </summary>
         /// <param name="sourceProjectDescriptor">The id of the project the assets come from. </param>
@@ -101,6 +113,13 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <returns>A <see cref="CollectionQueryBuilder"/>. </returns>
         CollectionQueryBuilder QueryCollections();
+
+        /// <summary>
+        /// Returns the number of collections in the project.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the number of collections in the project. </returns>
+        Task<int> CountCollectionsAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Returns the collection at the specified path.

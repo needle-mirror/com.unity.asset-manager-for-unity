@@ -1,7 +1,8 @@
 using System;
+using Unity.AssetManager.Core.Editor;
 using UnityEngine;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     [Serializable]
     class DraggableObjectToImport : ScriptableObject

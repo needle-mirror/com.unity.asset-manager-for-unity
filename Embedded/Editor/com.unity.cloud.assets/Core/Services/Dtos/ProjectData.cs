@@ -9,6 +9,9 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc/>
         public ProjectId Id { get; }
 
+        /// <inheritdoc/>
+        public bool HasCollection { get; set; }
+
         public ProjectData(string id)
             : this(new ProjectId(id)) { }
 

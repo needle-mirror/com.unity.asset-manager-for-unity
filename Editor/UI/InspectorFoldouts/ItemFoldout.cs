@@ -2,10 +2,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     abstract class ItemFoldout<TData, TBinding> where TBinding : VisualElement // TODO Convert to a VisualElement
     {
@@ -119,7 +120,7 @@ namespace Unity.AssetManager.Editor
             UIElementsUtils.SetDisplay(m_ListView, hasItems);
         }
 
-        protected virtual IList PrepareListItem(IAssetData assetData, IEnumerable<TData> items)
+        protected virtual IList PrepareListItem(BaseAssetData assetData, IEnumerable<TData> items)
         {
             return items.ToList();
         }
@@ -149,7 +150,7 @@ namespace Unity.AssetManager.Editor
             StopPopulating();
         }
 
-        public void Populate(IAssetData assetData, IEnumerable<TData> items)
+        public void Populate(BaseAssetData assetData, IEnumerable<TData> items)
         {
             m_ListView.itemsSource = PrepareListItem(assetData, items);
             m_ListView.makeItem = MakeItem;

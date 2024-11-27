@@ -26,7 +26,7 @@ namespace Unity.Cloud.AssetsEmbedded
             Description = asset.Description;
             Tags = asset.Tags?.ToList() ?? new List<string>();
             Type = asset.Type;
-            PreviewFile = asset.PreviewFile;
+            PreviewFile = asset.PreviewFileDescriptor.Path;
         }
     }
 }

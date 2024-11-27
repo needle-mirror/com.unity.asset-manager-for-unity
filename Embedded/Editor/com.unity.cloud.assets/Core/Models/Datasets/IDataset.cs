@@ -78,7 +78,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>
         /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
-        /// <remarks>Can only be called if the version of the asset is not frozen. </remarks>
+        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task UpdateAsync(IDatasetUpdate datasetUpdate, CancellationToken cancellationToken);
 
         /// <summary>
@@ -90,7 +90,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task whose result is a newly created file. </returns>
         /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
-        /// <remarks>Can only be called if the version of the asset is not frozen. </remarks>
+        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task<IFile> UploadFileAsync(IFileCreation fileCreation, Stream sourceStream, IProgress<HttpProgress> progress, CancellationToken cancellationToken);
 
         /// <summary>
@@ -101,7 +101,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>A task whose result is the linked file. </returns>
         /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
-        /// <remarks>Can only be called if the version of the asset is not frozen. </remarks>
+        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task<IFile> AddExistingFileAsync(string filePath, DatasetId sourceDatasetId, CancellationToken cancellationToken);
 
         /// <summary>
@@ -111,7 +111,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>
         /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
-        /// <remarks>Can only be called if the version of the asset is not frozen. </remarks>
+        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task RemoveFileAsync(string filePath, CancellationToken cancellationToken);
 
         /// <summary>
@@ -150,7 +150,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="transformationCreation">The object containing the information necessary to start a transformation. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
-        /// <remarks>Can only be called if the version of the asset is not frozen. </remarks>
+        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task<ITransformation> StartTransformationAsync(ITransformationCreation transformationCreation, CancellationToken cancellationToken);
 
         /// <summary>

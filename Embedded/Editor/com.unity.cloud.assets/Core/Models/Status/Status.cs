@@ -3,7 +3,9 @@ namespace Unity.Cloud.AssetsEmbedded
     class Status : IStatus
     {
         /// <inheritdoc />
-        public StatusDescriptor Descriptor { get; }
+        public StatusFlowDescriptor Descriptor { get; }
+
+        public string Id { get; }
 
         /// <inheritdoc />
         public string Name { get; set; }
@@ -23,9 +25,10 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public StatusPredicate OutPredicate { get; set; }
 
-        internal Status(StatusDescriptor descriptor)
+        internal Status(StatusFlowDescriptor descriptor, string id)
         {
             Descriptor = descriptor;
+            Id = id;
         }
     }
 }

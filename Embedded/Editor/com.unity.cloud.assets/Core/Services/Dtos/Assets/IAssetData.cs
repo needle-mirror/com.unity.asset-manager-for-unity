@@ -32,25 +32,41 @@ namespace Unity.Cloud.AssetsEmbedded
         /// The version number of the asset.
         /// </summary>
         [DataMember(Name = "versionNumber")]
-        int VersionNumber { get; set; }
+        int VersionNumber
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The change log of this asset version.
         /// </summary>
         [DataMember(Name = "changeLog")]
-        string Changelog { get; set; }
+        string Changelog
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The parent version of the asset.
         /// </summary>
-        [DataMember(Name = "paraentAssetVersion")]
-        AssetVersion ParentVersion { get; set; }
+        [DataMember(Name = "parentAssetVersion")]
+        AssetVersion ParentVersion
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The parent version number of the asset.
         /// </summary>
         [DataMember(Name = "parentVersionNumber")]
-        int ParentVersionNumber { get; set; }
+        int ParentVersionNumber
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The tags of the asset.
@@ -62,13 +78,21 @@ namespace Unity.Cloud.AssetsEmbedded
         /// The labels of the asset.
         /// </summary>
         [DataMember(Name = "labels")]
-        IEnumerable<string> Labels { get; set; }
+        IEnumerable<string> Labels
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The labels of the asset.
         /// </summary>
         [DataMember(Name = "archivedLabels")]
-        IEnumerable<string> ArchivedLabels { get; set; }
+        IEnumerable<string> ArchivedLabels
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The status of the asset.
@@ -89,16 +113,34 @@ namespace Unity.Cloud.AssetsEmbedded
         IEnumerable<ProjectId> LinkedProjectIds { get; set; }
 
         /// <summary>
+        /// The dataset id of the preview file.
+        /// </summary>
+        [DataMember(Name = "previewFileDatasetId")]
+        DatasetId PreviewFileDatasetId
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
+
+        /// <summary>
         /// The preview file ID of the asset.
         /// </summary>
         [DataMember(Name = "previewFile")]
-        string PreviewFile { get; set; }
+        string PreviewFilePath
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The preview file ID of the asset.
         /// </summary>
         [DataMember(Name = "previewFileUrl")]
-        string PreviewFileUrl { get; set; }
+        string PreviewFileUrl
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The files associated with the asset's datasets.
@@ -127,6 +169,13 @@ namespace Unity.Cloud.AssetsEmbedded
 
         [DataMember(Name = "statusFlowName")]
         string StatusFlowName
+        {
+            get => default;
+            set => throw new NotImplementedException();
+        }
+
+        [DataMember(Name = "autoSubmit")]
+        bool AutoSubmit
         {
             get => default;
             set => throw new NotImplementedException();

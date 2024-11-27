@@ -4,6 +4,30 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2024-11-27
+[Added]
+- Ability to include/exclude all scripts inside an asset to avoid eventual compilation errors
+- Add a filter option in In Project page to filter by import status (Up to date, Outdated, Deleted (on Cloud))
+- Add a sorting option in In Project page to sort by import status
+- Reworked upload page to better reflect what's going to be uploaded
+- Upload page will now display the amount of assets and their size before the upload is triggered by the user
+- Update all to latest button in In Project page and in context menu
+- Dependencies are now displaying their version and import status
+- Displaying progress bar during asset's dependencies gathering (Upload)
+- Added a progress bar displaying the computation of upload assets status (New Version, New Asset, and Skip)
+
+[Changed]
+- Add a character limit in the search bar to avoid freeze time in the Editor
+
+[Fixed]
+- Fixed changelogs in the version tabs not displaying properly
+- Avoid duplicated dependencies in Reimport window
+- Properly detect conflicts on file that has moved into another folder
+- Fixed missing some dependencies (like cginc files) during upload
+- Switching target project in upload page after an assembly reload not registering
+- Properly fetching upload status recursively based on dependencies status
+- Fixed wrong option label when asset version is different from the cloud one
+
 ## [1.1.0] - 2024-10-30
 [Added]
 - Ability to create, rename and remove Collections

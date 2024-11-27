@@ -60,7 +60,10 @@ namespace Unity.Cloud.AssetsEmbedded
         public IEnumerable<ProjectId> LinkedProjectIds { get; set; }
 
         /// <inheritdoc />
-        public string PreviewFile { get; set; }
+        public DatasetId PreviewFileDatasetId { get; set; }
+
+        /// <inheritdoc />
+        public string PreviewFilePath { get; set; }
 
         /// <inheritdoc />
         public string PreviewFileUrl { get; set; }
@@ -79,6 +82,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
         /// <inheritdoc />
         public string StatusFlowName { get; set; }
+
+        public bool AutoSubmit { get; set; }
 
         internal AssetData()
             : this(AssetId.None, AssetVersion.None) { }

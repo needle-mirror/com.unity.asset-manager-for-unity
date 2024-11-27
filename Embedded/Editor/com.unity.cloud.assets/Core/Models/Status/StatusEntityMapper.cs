@@ -10,7 +10,7 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             statusFlow.Name = data.Name;
             statusFlow.IsDefault = data.IsDefault;
-            statusFlow.StartStatusDescriptor = new StatusDescriptor(statusFlow.Descriptor, data.StartStatusId);
+            statusFlow.StartStatusId = data.StartStatusId;
             statusFlow.Statuses = data.Statuses?.Select(s => s.From(statusFlow.Descriptor)).ToArray() ?? Array.Empty<IStatus>();
             statusFlow.Transitions = data.Transitions?.Select(t => t.From(statusFlow.Descriptor)).ToArray() ?? Array.Empty<IStatusTransition>();
         }
@@ -27,8 +27,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
         static void MapFrom(this StatusTransition transition, IStatusTransitionData data)
         {
-            transition.FromStatus = new StatusDescriptor(transition.Descriptor.StatusFlowDescriptor, data.FromStatusId);
-            transition.ToStatus = new StatusDescriptor(transition.Descriptor.StatusFlowDescriptor, data.ToStatusId);
+            transition.FromStatusId = data.FromStatusId;
+            transition.ToStatusId = data.ToStatusId;
             transition.ThroughPredicate = new StatusPredicate(data.ThroughPredicate.Id, data.ThroughPredicate.Name);
         }
 
@@ -40,18 +40,16 @@ namespace Unity.Cloud.AssetsEmbedded
             return statusFlow;
         }
 
-        internal static IStatus From(this IStatusData data, StatusFlowDescriptor statusFlowDescriptor)
+        static IStatus From(this IStatusData data, StatusFlowDescriptor statusFlowDescriptor)
         {
-            var descriptor = new StatusDescriptor(statusFlowDescriptor, data.Id);
-            var status = new Status(descriptor);
+            var status = new Status(statusFlowDescriptor, data.Id);
             status.MapFrom(data);
             return status;
         }
 
         static IStatusTransition From(this IStatusTransitionData data, StatusFlowDescriptor statusFlowDescriptor)
         {
-            var descriptor = new StatusTransitionDescriptor(statusFlowDescriptor, data.Id);
-            var transition = new StatusTransition(descriptor);
+            var transition = new StatusTransition(statusFlowDescriptor, data.Id);
             transition.MapFrom(data);
             return transition;
         }

@@ -22,9 +22,9 @@ namespace Unity.Cloud.AssetsEmbedded
         bool IsDefault { get; }
 
         /// <summary>
-        /// The starting status.
+        /// The id of the starting status.
         /// </summary>
-        StatusDescriptor StartStatusDescriptor { get; }
+        string StartStatusId { get; }
 
         /// <summary>
         /// Returns the statuses in the flow.

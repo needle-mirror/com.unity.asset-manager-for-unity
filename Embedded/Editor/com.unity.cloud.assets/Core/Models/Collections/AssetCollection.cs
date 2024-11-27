@@ -15,36 +15,21 @@ namespace Unity.Cloud.AssetsEmbedded
         readonly IAssetDataSource m_DataSource;
 
         /// <inheritdoc />
-        public CollectionDescriptor Descriptor { get; set; }
+        public CollectionDescriptor Descriptor { get; private set; }
 
         /// <inheritdoc />
-        public string Name { get; private set; }
+        public string Name => Descriptor.Path.GetLastComponentOfPath();
 
         /// <inheritdoc />
-        public string Description { get; private set; }
+        public CollectionPath ParentPath => Descriptor.Path.GetParentPath();
 
         /// <inheritdoc />
-        public CollectionPath ParentPath { get; private set; }
+        public string Description { get; set; }
 
-        internal AssetCollection(IAssetDataSource dataSource, CollectionDescriptor descriptor, string name, string description, string parentPath = null)
-            : this(name, description, parentPath)
+        internal AssetCollection(IAssetDataSource dataSource, CollectionDescriptor descriptor)
         {
             m_DataSource = dataSource;
             Descriptor = descriptor;
-        }
-
-        /// <summary>
-        /// Creates and initializes an <see cref="AssetCollection"/>.
-        /// </summary>
-        /// <param name="name">The name of the collection. </param>
-        /// <param name="description">The description of the collection. </param>
-        /// <param name="parentPath">(Optional) The path to the parent collection. </param>
-        /// <exception cref="ArgumentNullException">This exception is thrown if the <paramref name="name"/> or <paramref name="description"/> are null or empty. </exception>
-        internal AssetCollection(string name, string description, string parentPath = null)
-        {
-            Name = name;
-            Description = description;
-            ParentPath = new CollectionPath(parentPath);
         }
 
         /// <inheritdoc />
@@ -57,7 +42,6 @@ namespace Unity.Cloud.AssetsEmbedded
         public async Task RefreshAsync(CancellationToken cancellationToken)
         {
             var data = await m_DataSource.GetCollectionAsync(Descriptor, cancellationToken);
-            Name = data.Name;
             Description = data.Description;
         }
 
@@ -65,7 +49,9 @@ namespace Unity.Cloud.AssetsEmbedded
         public async Task UpdateAsync(IAssetCollectionUpdate assetCollectionUpdate, CancellationToken cancellationToken)
         {
             await m_DataSource.UpdateCollectionAsync(Descriptor, assetCollectionUpdate.From(), cancellationToken);
-            Descriptor = new CollectionDescriptor(Descriptor.ProjectDescriptor, CollectionPath.CombinePaths(ParentPath, assetCollectionUpdate.Name));
+
+            var newPath = CollectionPath.CombinePaths(ParentPath, assetCollectionUpdate.Name);
+            Descriptor = new CollectionDescriptor(Descriptor.ProjectDescriptor, newPath);
         }
 
         /// <inheritdoc />
@@ -96,8 +82,9 @@ namespace Unity.Cloud.AssetsEmbedded
         public async Task MoveToNewPathAsync(CollectionPath newCollectionPath, CancellationToken cancellationToken)
         {
             await m_DataSource.MoveCollectionToNewPathAsync(Descriptor, newCollectionPath, cancellationToken);
-            ParentPath = newCollectionPath;
-            Descriptor = new CollectionDescriptor(Descriptor.ProjectDescriptor, CollectionPath.CombinePaths(ParentPath, Name));
+
+            var newPath = CollectionPath.CombinePaths(newCollectionPath, Name);
+            Descriptor = new CollectionDescriptor(Descriptor.ProjectDescriptor, newPath);
         }
     }
 }

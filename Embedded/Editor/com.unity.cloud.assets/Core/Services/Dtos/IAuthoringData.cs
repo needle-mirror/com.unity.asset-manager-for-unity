@@ -8,15 +8,15 @@ namespace Unity.Cloud.AssetsEmbedded
     interface IAuthoringData
     {
         [DataMember(Name = "createdBy")]
-        string CreatedBy { get; }
+        string CreatedBy => null;
 
         [DataMember(Name = "created")]
-        DateTime? Created { get; }
+        DateTime? Created => null;
 
         [DataMember(Name = "updatedBy")]
-        string UpdatedBy { get; }
+        string UpdatedBy => null;
 
         [DataMember(Name = "updated")]
-        DateTime? Updated { get; }
+        DateTime? Updated => null;
     }
 }

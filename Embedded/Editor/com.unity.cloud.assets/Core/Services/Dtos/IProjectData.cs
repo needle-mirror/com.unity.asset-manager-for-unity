@@ -13,5 +13,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         [DataMember(Name = "id")]
         ProjectId Id { get; }
+
+        [DataMember(Name="hasCollection")]
+        bool HasCollection { get; }
     }
 }

@@ -1,9 +1,10 @@
 using System;
 using System.Threading.Tasks;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     delegate Task<UserChip> CreateUserChip(string userId, Type searchFilterType);
 

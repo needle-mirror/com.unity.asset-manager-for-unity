@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     static partial class UssStyle
     {
@@ -57,7 +58,7 @@ namespace Unity.AssetManager.Editor
         public override bool EnabledWhenDisconnected => false;
         public override VisualElement Root { get; }
 
-        public event Action<string, IEnumerable<IAssetData>> ImportAsset;
+        public event Action<string, IEnumerable<BaseAssetData>> ImportAsset;
 
         public AssetVersionsTab(VisualElement visualElement)
         {
@@ -72,7 +73,7 @@ namespace Unity.AssetManager.Editor
             Root = root;
         }
 
-        public override void OnSelection(IAssetData assetData, bool isLoading)
+        public override void OnSelection(BaseAssetData assetData)
         {
             if (m_CurrentProjectId != assetData.Identifier.ProjectId)
             {
@@ -88,27 +89,13 @@ namespace Unity.AssetManager.Editor
                 m_UIPreferences.SetBool(GetFoldoutKey(assetData), true);
             }
 
-            // If the selected asset is not already loading and there is no loading task already in progress for the current asset identifier
-            // initiate fetching of versions
-            if (!isLoading && (!m_LoadingTask.IsRunning || !m_LoadingTask.Target.Equals(assetData.Identifier)))
-            {
-                ClearLoadingCancellationTokenSource();
-                m_LoadingTaskCancellationTokenSource = new CancellationTokenSource();
-                m_LoadingTask = new LoadingTask(assetData.Identifier, () => LoadVersions(assetData, m_LoadingTaskCancellationTokenSource.Token));
-            }
-
-            // If loading is happening on selection, the UI will refresh when the loading is done
-            // any previous task should be cancelled
-            else if (isLoading && m_LoadingTask.IsRunning)
-            {
-                ClearLoadingCancellationTokenSource();
-                m_LoadingTask = new LoadingTask();
-            }
-
-            // else if the loading task is for the same asset, do nothing; let the existing task handle it
+            ClearLoadingCancellationTokenSource();
+            m_LoadingTaskCancellationTokenSource = new CancellationTokenSource();
+            m_LoadingTask = new LoadingTask(assetData.Identifier,
+                () => LoadVersions(assetData, m_LoadingTaskCancellationTokenSource.Token));
         }
 
-        public override void RefreshUI(IAssetData assetData, bool isLoading = false)
+        public override void RefreshUI(BaseAssetData assetData, bool isLoading = false)
         {
             Root.Clear();
 
@@ -155,7 +142,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        public override void RefreshButtons(UIEnabledStates enabled, IAssetData assetData, BaseOperation operationInProgress)
+        public override void RefreshButtons(UIEnabledStates enabled, BaseAssetData assetData, BaseOperation operationInProgress)
         {
             if (m_LoadingTask.IsRunning)
             {
@@ -169,7 +156,7 @@ namespace Unity.AssetManager.Editor
             }
 
             var assetOperation = operationInProgress as AssetDataOperation;
-            var isEnabled = AssetDetailsPageExtensions.IsImportAvailable(enabled);
+            var isEnabled = enabled.IsImportAvailable();
 
             foreach (var identifier in assetData.Versions.Select(x => x.Identifier))
             {
@@ -202,7 +189,7 @@ namespace Unity.AssetManager.Editor
             m_LoadingTaskCancellationTokenSource = null;
         }
 
-        async Task LoadVersions(IAssetData assetData, CancellationToken cancellationToken)
+        async Task LoadVersions(BaseAssetData assetData, CancellationToken cancellationToken)
         {
             await assetData.RefreshVersionsAsync(CancellationToken.None);
 
@@ -223,22 +210,19 @@ namespace Unity.AssetManager.Editor
             loadingTask.RefreshButtons?.Invoke();
         }
 
-        void TryDisplayLoadingMessage(IAssetData assetData)
+        void TryDisplayLoadingMessage(BaseAssetData assetData)
         {
-            if (!assetData.Versions.Any())
+            if (m_LoadingTask.IsRunning)
             {
-                if (m_LoadingTask.IsRunning)
-                {
-                    AddLoadingText(Root);
-                }
-                else
-                {
-                    AddText(Root, null, $"<i>{L10n.Tr(Constants.StatusErrorText)}</i>");
-                }
+                AddLoadingText(Root);
+            }
+            else if (!assetData.Versions.Any())
+            {
+                AddText(Root, null, $"<i>{L10n.Tr(Constants.StatusErrorText)}</i>");
             }
         }
 
-        Foldout CreateFoldout(IAssetData assetData)
+        Foldout CreateFoldout(BaseAssetData assetData)
         {
             var foldoutContainer = new VisualElement
             {
@@ -290,7 +274,7 @@ namespace Unity.AssetManager.Editor
             return foldout;
         }
 
-        void BeginImport(string importLocation, IAssetData assetData)
+        void BeginImport(string importLocation, BaseAssetData assetData)
         {
             ImportAsset?.Invoke(importLocation, new[] {assetData});
         }
@@ -313,7 +297,7 @@ namespace Unity.AssetManager.Editor
             }
         }
 
-        static string GetFoldoutKey(IAssetData assetData)
+        static string GetFoldoutKey(BaseAssetData assetData)
         {
             return $"foldout:{assetData.Identifier.AssetId}_{assetData.Identifier.Version}";
         }

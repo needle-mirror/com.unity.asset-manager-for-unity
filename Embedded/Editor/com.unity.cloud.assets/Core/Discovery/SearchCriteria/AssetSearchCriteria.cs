@@ -14,7 +14,11 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc cref="AssetVersion"/>
         public SearchCriteria<string> Version { get; } = new(nameof(AssetDescriptor.AssetVersion), "assetVersion");
 
+        /// <inheritdoc cref="IAsset.State"/>
+        public AssetStateSearchCriteria State { get; } = new(nameof(IAsset.State));
+
         /// <inheritdoc cref="IAsset.IsFrozen"/>
+        [Obsolete("Use State instead.")]
         public NullableSearchCriteria<bool> IsFrozen { get; } = new(nameof(IAsset.IsFrozen), "isFrozen");
 
         /// <inheritdoc cref="IAsset.FrozenSequenceNumber"/>
@@ -50,11 +54,11 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc cref="IAsset.ArchivedLabels"/>
         public ListSearchCriteria<string> ArchivedLabels { get; } = new(nameof(IAsset.ArchivedLabels), "archivedLabels");
 
-        /// <inheritdoc cref="Asset.Metadata"/>
-        public MetadataSearchCriteria Metadata { get; } = new(nameof(Asset.Metadata), "metadata");
+        /// <inheritdoc cref="IAsset.Metadata"/>
+        public MetadataSearchCriteria Metadata { get; } = new(nameof(IAsset.Metadata), "metadata");
 
         /// <inheritdoc cref="IAsset.PreviewFile"/>
-        public StringSearchCriteria PreviewFile { get; } = new(nameof(IAsset.PreviewFile), "previewFile");
+        public StringSearchCriteria PreviewFile { get; } = new("PreviewFile", "previewFile");
 
         /// <inheritdoc cref="IAsset.SourceProject"/>
         public SearchCriteria<string> SourceProjectId { get; } = new(nameof(IAsset.SourceProject), "sourceProjectId");

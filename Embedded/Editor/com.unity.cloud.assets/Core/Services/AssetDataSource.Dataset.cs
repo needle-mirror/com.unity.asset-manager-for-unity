@@ -73,7 +73,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 cancellationToken.ThrowIfCancellationRequested();
 
                     var request = getListRequest(next, pageSize);
-                var response = await m_ServiceHttpClient.GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
+                var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
 
                 var jsonContent = await response.GetContentAsString();
                     cancellationToken.ThrowIfCancellationRequested();
@@ -168,7 +168,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 datasetDescriptor.DatasetId,
                 metadataType,
                 keys);
-            return m_ServiceHttpClient.DeleteAsync(GetPublicRequestUri(request), request.ConstructBody(),
+            return RateLimitedServiceClient(request, HttpMethod.Delete).DeleteAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
         }
     }

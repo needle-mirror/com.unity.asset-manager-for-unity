@@ -1,7 +1,10 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Unity.AssetManager.Editor")]
-[assembly: InternalsVisibleTo("Unity.AssetManager.Tests")]
+[assembly: InternalsVisibleTo("Unity.AssetManager.Core.Editor")]
+[assembly: InternalsVisibleTo("Unity.AssetManager.Upload.Editor")]
+[assembly: InternalsVisibleTo("Unity.AssetManager.Core.Editor.Tests")]
+[assembly: InternalsVisibleTo("Unity.AssetManager.UI.Editor.Tests")]
+[assembly: InternalsVisibleTo("Unity.AssetManager.Upload.Editor.Tests")]
 [assembly: InternalsVisibleTo("Unity.Cloud.Assets.Embedded")]
 [assembly: InternalsVisibleTo("Unity.Cloud.Assets.Runtime.Embedded")]
 [assembly: InternalsVisibleTo("Unity.Cloud.Common.Editor.Embedded")]

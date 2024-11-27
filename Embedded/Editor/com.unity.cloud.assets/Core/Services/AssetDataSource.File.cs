@@ -81,8 +81,15 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public async Task<Uri> GetFileDownloadUrlAsync(FileDescriptor fileDescriptor, CancellationToken cancellationToken)
+        public Task<Uri> GetFileDownloadUrlAsync(FileDescriptor fileDescriptor, int? maxDimension, CancellationToken cancellationToken)
         {
+            const int minDimension = 50;
+
+            if (maxDimension is < minDimension)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxDimension), maxDimension, $"The minimum dimension for resize requests is {minDimension}.");
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
 
             var request = new GetFileDownloadUrlRequest(fileDescriptor.ProjectId,
@@ -90,19 +97,13 @@ namespace Unity.Cloud.AssetsEmbedded
                 fileDescriptor.AssetVersion,
                 fileDescriptor.DatasetId,
                 fileDescriptor.Path,
-                null);
-            var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
+                maxDimension);
 
-            var jsonContent = await response.GetContentAsString();
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var dto = JsonSerialization.Deserialize<FileUrl>(jsonContent);
-
-            return GetEscapedUri(dto.Url);
+            return GetFileUrlAsync(request, cancellationToken);
         }
 
         /// <inheritdoc />
-        public async Task<Uri> GetFileUploadUrlAsync(FileDescriptor fileDescriptor, IFileData fileData, CancellationToken cancellationToken)
+        public Task<Uri> GetFileUploadUrlAsync(FileDescriptor fileDescriptor, IFileData fileData, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -112,8 +113,13 @@ namespace Unity.Cloud.AssetsEmbedded
                 fileDescriptor.DatasetId,
                 fileDescriptor.Path,
                 fileData);
-            var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request),
-                ServiceHttpClientOptions.Default(), cancellationToken);
+
+            return GetFileUrlAsync(request, cancellationToken);
+        }
+
+        async Task<Uri> GetFileUrlAsync(ApiRequest request, CancellationToken cancellationToken)
+        {
+            var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
 
             var jsonContent = await response.GetContentAsString();
             cancellationToken.ThrowIfCancellationRequested();

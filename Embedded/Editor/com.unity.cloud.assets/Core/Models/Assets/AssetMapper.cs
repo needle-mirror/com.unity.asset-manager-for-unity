@@ -7,18 +7,14 @@ namespace Unity.Cloud.AssetsEmbedded
 {
     static partial class EntityMapper
     {
-        internal static void MapFrom(this Asset asset, IAssetDataSource assetDataSource, OrganizationId organizationId, IAssetData assetData, FieldsFilter includeFields)
+        internal static void MapFrom(this AssetEntity asset, IAssetDataSource assetDataSource, AssetDescriptor assetDescriptor, IAssetData assetData, FieldsFilter includeFields)
         {
             includeFields ??= new FieldsFilter();
 
+            var organizationId = assetDescriptor.OrganizationId;
+
             asset.m_LinkedProjects = assetData.LinkedProjectIds?.Select(projectId => new ProjectDescriptor(organizationId, projectId)).ToArray() ?? Array.Empty<ProjectDescriptor>();
             asset.SourceProject = new ProjectDescriptor(organizationId, assetData.SourceProjectId);
-
-            asset.IsFrozen = assetData.IsFrozen;
-            asset.FrozenSequenceNumber = assetData.VersionNumber;
-            asset.Changelog = assetData.Changelog;
-            asset.ParentVersion = assetData.ParentVersion;
-            asset.ParentFrozenSequenceNumber = assetData.ParentVersionNumber;
 
             asset.Name = assetData.Name;
             asset.Tags = assetData.Tags ?? Array.Empty<string>();
@@ -26,20 +22,44 @@ namespace Unity.Cloud.AssetsEmbedded
             asset.Type = assetData.Type ?? AssetType.Other;
             asset.Status = assetData.Status;
             asset.StatusName = assetData.Status;
-            asset.StatusFlowDescriptor = new StatusFlowDescriptor(organizationId, assetData.StatusFlowId);
-            asset.Labels = assetData.Labels?.Select(x => new LabelDescriptor(organizationId, x)) ?? Array.Empty<LabelDescriptor>();
-            asset.ArchivedLabels = assetData.ArchivedLabels?.Select(x => new LabelDescriptor(organizationId, x)) ?? Array.Empty<LabelDescriptor>();
 
             if (includeFields.AssetFields.HasFlag(AssetFields.description))
+            {
                 asset.Description = assetData.Description ?? string.Empty;
+            }
+
+            if (includeFields.AssetFields.HasFlag(AssetFields.versioning))
+            {
+                if (assetData.IsFrozen)
+                {
+                    asset.State = AssetState.Frozen;
+                }
+                else if (assetData.AutoSubmit)
+                {
+                    asset.State = AssetState.PendingFreeze;
+                }
+                else
+                {
+                    asset.State = AssetState.Unfrozen;
+                }
+                asset.FrozenSequenceNumber = assetData.VersionNumber;
+                asset.Changelog = assetData.Changelog;
+                asset.ParentVersion = assetData.ParentVersion;
+                asset.ParentFrozenSequenceNumber = assetData.ParentVersionNumber;
+            }
+
+            if (includeFields.AssetFields.HasFlag(AssetFields.labels))
+            {
+                asset.Labels = assetData.Labels?.Select(x => new LabelDescriptor(organizationId, x)) ?? Array.Empty<LabelDescriptor>();
+                asset.ArchivedLabels = assetData.ArchivedLabels?.Select(x => new LabelDescriptor(organizationId, x)) ?? Array.Empty<LabelDescriptor>();
+            }
 
             if (includeFields.AssetFields.HasFlag(AssetFields.previewFile))
-                asset.PreviewFile = assetData.PreviewFile ?? string.Empty;
-
-            if (includeFields.AssetFields.HasFlag(AssetFields.previewFileUrl))
             {
-                Uri.TryCreate(assetData.PreviewFileUrl, UriKind.RelativeOrAbsolute, out var previewFileDownloadUrl);
-                asset.PreviewFileUrl = previewFileDownloadUrl;
+                asset.StatusFlowDescriptor = new StatusFlowDescriptor(organizationId, assetData.StatusFlowId);
+                asset.PreviewFile = assetData.PreviewFilePath ?? string.Empty;
+                var previewFileDatasetDescriptor = new DatasetDescriptor(assetDescriptor, assetData.PreviewFileDatasetId);
+                asset.PreviewFileDescriptor = new FileDescriptor(previewFileDatasetDescriptor, assetData.PreviewFilePath ?? string.Empty);
             }
 
             if (includeFields.AssetFields.HasFlag(AssetFields.authoring))
@@ -50,6 +70,12 @@ namespace Unity.Cloud.AssetsEmbedded
 
             if (includeFields.AssetFields.HasFlag(AssetFields.systemMetadata))
                 asset.SystemMetadataEntity.Properties = assetData.SystemMetadata?.From();
+
+            if (includeFields.AssetFields.HasFlag(AssetFields.previewFileUrl))
+            {
+                Uri.TryCreate(assetData.PreviewFileUrl, UriKind.RelativeOrAbsolute, out var previewFileDownloadUrl);
+                asset.PreviewFileUrl = previewFileDownloadUrl;
+            }
         }
 
         internal static AssetCreateData From(this IAssetCreation assetCreation)
@@ -87,24 +113,30 @@ namespace Unity.Cloud.AssetsEmbedded
             };
         }
 
-        internal static Asset From(this IAssetData data, IAssetDataSource assetDataSource, OrganizationId organizationId, IEnumerable<ProjectId> availableProjects, FieldsFilter includeFields)
+        internal static AssetEntity From(this IAssetData data, IAssetDataSource assetDataSource, OrganizationId organizationId, IEnumerable<ProjectId> availableProjects, FieldsFilter includeFields)
         {
             var validProjects = new HashSet<ProjectId>(availableProjects);
             validProjects.IntersectWith(data.LinkedProjectIds ?? Array.Empty<ProjectId>());
 
-            return data.From(assetDataSource, new ProjectDescriptor(organizationId, validProjects.FirstOrDefault()), includeFields);
+            var projectId = data.SourceProjectId;
+            if (validProjects.Any() && !validProjects.Contains(projectId))
+            {
+                projectId = validProjects.First();
+            }
+
+            return data.From(assetDataSource, new ProjectDescriptor(organizationId, projectId), includeFields);
         }
 
-        internal static Asset From(this IAssetData data, IAssetDataSource assetDataSource, ProjectDescriptor projectDescriptor, FieldsFilter includeFields)
+        internal static AssetEntity From(this IAssetData data, IAssetDataSource assetDataSource, ProjectDescriptor projectDescriptor, FieldsFilter includeFields)
         {
             var descriptor = new AssetDescriptor(projectDescriptor, data.Id, data.Version);
             return data.From(assetDataSource, descriptor, includeFields);
         }
 
-        internal static Asset From(this IAssetData data, IAssetDataSource assetDataSource, AssetDescriptor assetDescriptor, FieldsFilter includeFields)
+        internal static AssetEntity From(this IAssetData data, IAssetDataSource assetDataSource, AssetDescriptor assetDescriptor, FieldsFilter includeFields)
         {
-            var asset = new Asset(assetDataSource, assetDescriptor);
-            asset.MapFrom(assetDataSource, assetDescriptor.OrganizationId, data, includeFields);
+            var asset = new AssetEntity(assetDataSource, assetDescriptor);
+            asset.MapFrom(assetDataSource, assetDescriptor, data, includeFields);
             return asset;
         }
 
@@ -122,7 +154,7 @@ namespace Unity.Cloud.AssetsEmbedded
             return new AssetDescriptor(projectDescriptor, ids.Id, ids.Version);
         }
 
-        internal static AssetData From(this Asset asset)
+        internal static AssetData From(this AssetEntity asset)
         {
             return new AssetData(asset.Descriptor.AssetId, asset.Descriptor.AssetVersion)
             {
@@ -130,7 +162,8 @@ namespace Unity.Cloud.AssetsEmbedded
                 Description = asset.Description,
                 Tags = asset.Tags?.ToList(),
                 Type = asset.Type,
-                PreviewFile = asset.PreviewFile,
+                PreviewFilePath = asset.PreviewFileDescriptor.Path,
+                PreviewFileDatasetId = asset.PreviewFileDescriptor.DatasetId,
                 PreviewFileUrl = asset.PreviewFileUrl?.ToString(),
                 Status = asset.StatusName,
                 Created = asset.AuthoringInfo?.Created,
@@ -145,7 +178,8 @@ namespace Unity.Cloud.AssetsEmbedded
                 ArchivedLabels = asset.ArchivedLabels?.Select(x => x.LabelName),
                 ParentVersion = asset.ParentVersion,
                 ParentVersionNumber = asset.ParentFrozenSequenceNumber,
-                IsFrozen = asset.IsFrozen,
+                IsFrozen = asset.State == AssetState.Frozen,
+                AutoSubmit = asset.State == AssetState.PendingFreeze,
                 VersionNumber = asset.FrozenSequenceNumber,
                 Changelog = asset.Changelog,
             };

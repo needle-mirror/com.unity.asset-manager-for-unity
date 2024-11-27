@@ -11,7 +11,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// AssetRequest Request Object.
         /// </summary>
         /// <param name="organizationId">Genesis ID of the organization</param>
-        public OrganizationRequest(OrganizationId organizationId)
+        protected OrganizationRequest(OrganizationId organizationId)
         {
             m_RequestUrl = $"/organizations/{organizationId}";
         }

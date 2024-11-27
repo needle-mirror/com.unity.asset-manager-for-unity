@@ -26,6 +26,14 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<IProjectData> GetProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken);
 
         /// <summary>
+        /// Enables a project for Asset Manager.
+        /// </summary>
+        /// <param name="projectDescriptor">The object containing the necessary information to identify the project. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task whose result is a project. </returns>
+        Task<IProjectData> EnableProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken);
+
+        /// <summary>
         /// Creates a new project in an organization.
         /// </summary>
         /// <param name="organizationId">The organization id. </param>
@@ -33,6 +41,22 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task whose result is a newly created project. </returns>
         Task<IProjectData> CreateProjectAsync(OrganizationId organizationId, IProjectBaseData projectCreation, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Returns the number of collections in a project.
+        /// </summary>
+        /// <param name="projectDescriptor">The object containing the necessary information to identify the project. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task whose result is the number of collections in the project. </returns>
+        Task<int> GetCollectionCountAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Returns the number of assets in a project.
+        /// </summary>
+        /// <param name="projectDescriptor">The object containing the necessary information to identify the project. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task whose result is the number of assets in the project. </returns>
+        Task<int> GetAssetCountAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken);
 
         /// <summary>
         /// Adds assets to the project.

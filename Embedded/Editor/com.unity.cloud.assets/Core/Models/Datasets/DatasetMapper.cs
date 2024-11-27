@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -10,8 +9,8 @@ namespace Unity.Cloud.AssetsEmbedded
         internal static void MapFrom(this DatasetEntity dataset, IAssetDataSource assetDataSource, IDatasetData datasetData, DatasetFields includeFields)
         {
             dataset.Name = datasetData.Name;
-            dataset.Tags = datasetData.Tags;
-            dataset.SystemTags = datasetData.SystemTags;
+            dataset.Tags = datasetData.Tags ?? Array.Empty<string>();
+            dataset.SystemTags = datasetData.SystemTags ?? Array.Empty<string>();
             dataset.Status = datasetData.Status;
             dataset.IsVisible = datasetData.IsVisible ?? false;
             dataset.WorkflowName = datasetData.WorkflowName;
@@ -38,27 +37,6 @@ namespace Unity.Cloud.AssetsEmbedded
             var dataset = new DatasetEntity(assetDataSource, datasetDescriptor);
             dataset.MapFrom(assetDataSource, datasetData, includeFields);
             return dataset;
-        }
-
-        internal static DatasetData From(this DatasetEntity datasetEntity)
-        {
-            return new DatasetData
-            {
-                DatasetId = datasetEntity.Descriptor.DatasetId,
-                Name = datasetEntity.Name,
-                Description = datasetEntity.Description,
-                CreatedBy = datasetEntity.AuthoringInfo?.CreatedBy.ToString(),
-                Created = datasetEntity.AuthoringInfo?.Created,
-                UpdatedBy = datasetEntity.AuthoringInfo?.UpdatedBy.ToString(),
-                Updated = datasetEntity.AuthoringInfo?.Updated,
-                FileOrder = datasetEntity.FileOrder,
-                Metadata = datasetEntity.MetadataEntity?.From() ?? new Dictionary<string, object>(),
-                Tags = datasetEntity.Tags?.ToList(),
-                SystemTags = datasetEntity.SystemTags,
-                Status = datasetEntity.Status,
-                IsVisible = datasetEntity.IsVisible,
-                WorkflowName = datasetEntity.WorkflowName,
-            };
         }
 
         internal static IDatasetUpdateData From(this IDatasetUpdate dataset)

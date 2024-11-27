@@ -17,6 +17,7 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             m_RequestUrl += "/projects";
 
+            AddParamToQuery("IncludeFields", "hasCollection");
             AddParamToQuery("Page", page.ToString());
             AddParamToQuery("Limit", pageSize.ToString());
         }

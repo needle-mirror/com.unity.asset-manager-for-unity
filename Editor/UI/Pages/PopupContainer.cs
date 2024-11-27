@@ -1,8 +1,9 @@
 using System.Threading.Tasks;
+using Unity.AssetManager.Core.Editor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     class PopupContainer : VisualElement
     {

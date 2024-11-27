@@ -6,6 +6,6 @@ namespace Unity.Cloud.AssetsEmbedded
     struct VersionNumberDto
     {
         [DataMember(Name = "versionNumber")]
-        public int VersionNumber { get; set; }
+        public int? VersionNumber { get; set; }
     }
 }

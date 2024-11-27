@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace Unity.AssetManager.Editor
+namespace Unity.AssetManager.UI.Editor
 {
     /// <summary>
     /// Manipulator that fires a Button Event if you release the pointer without moving it (up as button), or a Drag Event if

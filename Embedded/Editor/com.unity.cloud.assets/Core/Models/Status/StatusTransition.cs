@@ -5,20 +5,23 @@ namespace Unity.Cloud.AssetsEmbedded
     class StatusTransition : IStatusTransition
     {
         /// <inheritdoc />
-        public StatusTransitionDescriptor Descriptor { get; }
+        public StatusFlowDescriptor Descriptor { get; }
+
+        public string Id { get; }
 
         /// <inheritdoc />
-        public StatusDescriptor FromStatus { get; set; }
+        public string FromStatusId { get; set; }
 
         /// <inheritdoc />
-        public StatusDescriptor ToStatus { get; set; }
+        public string ToStatusId { get; set; }
 
         /// <inheritdoc />
         public StatusPredicate ThroughPredicate { get; set; }
 
-        internal StatusTransition(StatusTransitionDescriptor descriptor)
+        internal StatusTransition(StatusFlowDescriptor descriptor, string id)
         {
             Descriptor = descriptor;
+            Id = id;
         }
     }
 }

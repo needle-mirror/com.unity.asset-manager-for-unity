@@ -11,8 +11,8 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             file.m_LinkedDatasets = fileData.DatasetIds?.Select(id => new DatasetDescriptor(assetDescriptor, id)).ToArray() ?? Array.Empty<DatasetDescriptor>();
 
-            file.Tags = fileData.Tags;
-            file.SystemTags = fileData.SystemTags;
+            file.Tags = fileData.Tags ?? Array.Empty<string>();
+            file.SystemTags = fileData.SystemTags ?? Array.Empty<string>();
             file.Status = fileData.Status;
 
             if (includeFields.HasFlag(FileFields.description))
@@ -68,26 +68,6 @@ namespace Unity.Cloud.AssetsEmbedded
 
             var fileDescriptor = new FileDescriptor(new DatasetDescriptor(assetDescriptor, fileData.DatasetIds.First()), fileData.Path);
             return fileData.From(assetDataSource, fileDescriptor, includeFields);
-        }
-
-        internal static FileData From(this FileEntity fileEntity)
-        {
-            return new FileData
-            {
-                Path = fileEntity.Descriptor.Path,
-                Description = fileEntity.Description,
-                Tags = fileEntity.Tags,
-                SystemTags = fileEntity.SystemTags,
-                Metadata = fileEntity.MetadataEntity?.From() ?? new Dictionary<string, object>(),
-                CreatedBy = fileEntity.AuthoringInfo?.CreatedBy.ToString(),
-                Created = fileEntity.AuthoringInfo?.Created,
-                UpdatedBy = fileEntity.AuthoringInfo?.UpdatedBy.ToString(),
-                Updated = fileEntity.AuthoringInfo?.Updated,
-                SizeBytes = fileEntity.SizeBytes,
-                UserChecksum = fileEntity.UserChecksum,
-                DownloadUrl = fileEntity.DownloadUrl?.ToString(),
-                PreviewUrl = fileEntity.PreviewUrl?.ToString()
-            };
         }
 
         internal static IFileBaseData From(this IFileUpdate fileUpdate)
