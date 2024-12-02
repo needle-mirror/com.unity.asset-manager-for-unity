@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "unity": "2022.3",
   "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.",
   "keywords": [
@@ -20,18 +20,18 @@
     "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.2.1"
+    "com.unity.asset-manager-for-unity.tests": "1.2.2"
   },
   "_upm": {
-    "changelog": "[Added]\n- Ability to include/exclude all scripts inside an asset to avoid eventual compilation errors\n- Add a filter option in In Project page to filter by import status (Up to date, Outdated, Deleted (on Cloud))\n- Add a sorting option in In Project page to sort by import status\n- Reworked upload page to better reflect what's going to be uploaded\n- Upload page will now display the amount of assets and their size before the upload is triggered by the user\n- Update all to latest button in In Project page and in context menu\n- Dependencies are now displaying their version and import status\n- Displaying progress bar during asset's dependencies gathering (Upload)\n- Added a progress bar displaying the computation of upload assets status (New Version, New Asset, and Skip)\n\n[Changed]\n- Add a character limit in the search bar to avoid freeze time in the Editor\n\n[Fixed]\n- Fixed changelogs in the version tabs not displaying properly\n- Avoid duplicated dependencies in Reimport window\n- Properly detect conflicts on file that has moved into another folder\n- Fixed missing some dependencies (like cginc files) during upload\n- Switching target project in upload page after an assembly reload not registering\n- Properly fetching upload status recursively based on dependencies status\n- Fixed wrong option label when asset version is different from the cloud one"
+    "changelog": "[Fixed]\n- Fixed assets with recursive dependencies causing a stack overflow error"
   },
   "upmCi": {
-    "footprint": "ad4ebe11ca88ebe8da5779a87613c7f0e3b69cbc"
+    "footprint": "dc461e966698ed1222ad869a5addb65ca00b64d7"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.2/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "be339dbf87f7cebae12df9f5a9b5135282f16f25"
+    "revision": "087aba4cb6f2b0c7b252117d6dcf55a0dde69fed"
   }
 }

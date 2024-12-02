@@ -34,18 +34,33 @@ namespace Unity.AssetManager.Core.Editor
             ?.GetMethod("GetImportedAssetImportDependenciesAsGUIDs",
                 System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
 
-        public static IEnumerable<string> GetValidAssetDependencyGuids(string assetGuid, bool recursive)
+        public static IEnumerable<string> GetValidAssetDependencyGuids(string assetGuid, bool recursive, HashSet<string> processed = null)
         {
+            processed ??= new HashSet<string>();
+
             var dependencies = new HashSet<string>();
 
-            var assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
-
-            foreach (var path in AssetDatabase.GetDependencies(assetPath, false))
+            if (!processed.Add(assetGuid))
             {
+                return dependencies;
+            }
+
+            var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
+            var assetPath = assetDatabaseProxy.GuidToAssetPath(assetGuid);
+
+            foreach (var path in assetDatabaseProxy.GetDependencies(assetPath, false))
+            {
+                var guid = assetDatabaseProxy.AssetPathToGuid(path);
+
+                if (guid == null)
+                    continue;
+
+                if (guid == assetGuid)
+                    continue;
+
                 if (!IsPathInsideAssetsFolder(path))
                     continue;
 
-                var guid = AssetDatabase.AssetPathToGUID(path);
                 dependencies.Add(guid);
             }
 
@@ -71,7 +86,7 @@ namespace Unity.AssetManager.Core.Editor
                 var newDependencies = new HashSet<string>(dependencies);
                 foreach (var dependency in newDependencies)
                 {
-                    dependencies.UnionWith(GetValidAssetDependencyGuids(dependency, true));
+                    dependencies.UnionWith(GetValidAssetDependencyGuids(dependency, true, processed));
                 }
             }
 

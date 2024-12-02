@@ -2,8 +2,8 @@
   "name": "Unity.Cloud.Identity.Embedded",
   "rootNamespace": "Unity.Cloud.Identity",
   "references": [
-    "GUID:cc0ddbe95bbf8a742930c816b8119d76",
-    "GUID:f8ef4886a66583f4aabb000bcd972027"
+    "GUID:dd2d6c248ad776747a7cc7df580b4216",
+    "GUID:7e94c6589871c4244910089045788f81"
   ],
   "includePlatforms": [
     "Editor"

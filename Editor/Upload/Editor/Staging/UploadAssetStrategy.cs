@@ -49,6 +49,9 @@ namespace Unity.AssetManager.Upload.Editor
                 return result;
             }
 
+            // Make sure guid is added to cache to avoid recursive calls
+            cache[guid] = null;
+
             IEnumerable<string> dependencyGuids = null;
 
             var files = new List<string> { guid };
@@ -72,14 +75,23 @@ namespace Unity.AssetManager.Upload.Editor
             {
                 foreach (var dependencyGuid in dependencyGuids)
                 {
+                    if (cache.ContainsKey(dependencyGuid))
+                        continue;
+
                     var dep = GenerateUploadAssetRecursive(ignoredGuids, settings, dependencyGuid, identifiers, identifiers[dependencyGuid], cache);
-                    deps.Add(dep);
+
+                    if (dep != null)
+                    {
+                        // A null result means the asset is being processed in a recursive call
+                        deps.Add(dep);
+                    }
                 }
             }
 
             var assetUploadEntry = new UploadAssetData(identifier, guid, filteredFiles, deps, settings.FilePathMode);
 
-            cache.Add(guid, assetUploadEntry);
+            // NO SONAR
+            cache[guid] = assetUploadEntry;
 
             return assetUploadEntry;
         }
