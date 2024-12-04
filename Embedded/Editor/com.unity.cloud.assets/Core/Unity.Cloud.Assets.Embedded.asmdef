@@ -2,7 +2,7 @@
   "name": "Unity.Cloud.Assets.Embedded",
   "rootNamespace": "Unity.Cloud.Assets",
   "references": [
-    "GUID:dd2d6c248ad776747a7cc7df580b4216"
+    "GUID:b11bd0826e194d547bac73e48f2d65a0"
   ],
   "includePlatforms": [
     "Editor"

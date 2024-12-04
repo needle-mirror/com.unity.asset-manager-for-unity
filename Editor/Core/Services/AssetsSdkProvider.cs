@@ -222,8 +222,20 @@ namespace Unity.AssetManager.Core.Editor
 
         public override void OnEnable()
         {
+            // AMECO-3518
+            ResetServiceAuthorizerAwaitingExchangeOperationState();
+
             Services.AuthenticationStateChanged += OnAuthenticationStateChanged;
             Services.InitAuthenticatedServices();
+        }
+
+        // AMECO-3518 Hack to avoid infinite "Awaiting Unity Hub User Session" loop that can happen after two consecutive domain reloads
+        // Delete this once the fix is inside Identity.
+        void ResetServiceAuthorizerAwaitingExchangeOperationState()
+        {
+            var unityEditorServiceAuthorizerType = typeof(UnityEditorServiceAuthorizer);
+            var field = unityEditorServiceAuthorizerType.GetField("m_AwaitingExchangeOperation", BindingFlags.NonPublic | BindingFlags.Instance);
+            field?.SetValue(UnityEditorServiceAuthorizer.instance, false);
         }
 
         public override void OnDisable()
