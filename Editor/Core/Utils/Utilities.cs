@@ -625,10 +625,5 @@ namespace Unity.AssetManager.Core.Editor
             var localChecksum = await CalculateMD5ChecksumAsync(path, token);
             return checksum == localChecksum;
         }
-
-        public static bool IsDestinationOutsideProject(string path)
-        {
-            return path.ToLower().StartsWith("packages") || path.StartsWith("..");
-        }
     }
 }

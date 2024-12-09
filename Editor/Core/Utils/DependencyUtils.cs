@@ -58,22 +58,19 @@ namespace Unity.AssetManager.Core.Editor
                 if (guid == assetGuid)
                     continue;
 
-                if (!IsPathInsideAssetsFolder(path))
-                    continue;
-
-                dependencies.Add(guid);
+                AddIfValidAssetPath(dependencies, guid, assetDatabaseProxy);
             }
 
             try
             {
                 foreach (var guid in InvokeMethod(s_GetSourceAssetImportDependenciesAsGUIDs, assetPath))
                 {
-                    dependencies.Add(guid);
+                    AddIfValidAssetPath(dependencies, guid, assetDatabaseProxy);
                 }
 
                 foreach (var guid in InvokeMethod(s_GetImportedAssetImportDependenciesAsGUIDs, assetPath))
                 {
-                    dependencies.Add(guid);
+                    AddIfValidAssetPath(dependencies, guid, assetDatabaseProxy);
                 }
             }
             catch (Exception e)
@@ -91,6 +88,25 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return dependencies;
+        }
+
+        static void AddIfValidAssetPath(HashSet<string> dependencies, string guid, IAssetDatabaseProxy assetDatabaseProxy)
+        {
+            if (string.IsNullOrEmpty(guid))
+                return;
+
+            if (dependencies.Contains(guid))
+                return;
+
+            var assetPath = assetDatabaseProxy.GuidToAssetPath(guid);
+
+            if (string.IsNullOrEmpty(assetPath))
+                return;
+
+            if (IsPathInsideAssetsFolder(assetPath))
+            {
+                dependencies.Add(guid);
+            }
         }
 
         public static IEnumerable<string> GetAllScriptGuids()
@@ -113,7 +129,7 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        static bool IsPathInsideAssetsFolder(string assetPath)
+        public static bool IsPathInsideAssetsFolder(string assetPath)
         {
             return assetPath.Replace('\\', '/').ToLower().StartsWith("assets/");
         }

@@ -353,7 +353,7 @@ namespace Unity.AssetManager.Upload.Editor
 
         async Task<AssetDataStatusType> ResolveSelfStatusInternalAsync(string organizationId, string projectId, UploadAssetMode uploadMode, CancellationToken token)
         {
-            if (Utilities.IsDestinationOutsideProject(m_AssetPath))
+            if (!DependencyUtils.IsPathInsideAssetsFolder(m_AssetPath))
             {
                 return AssetDataStatusType.UploadOutside;
             }

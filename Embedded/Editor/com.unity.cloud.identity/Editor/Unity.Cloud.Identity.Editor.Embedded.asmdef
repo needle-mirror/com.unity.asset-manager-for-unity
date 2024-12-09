@@ -2,13 +2,13 @@
   "name": "Unity.Cloud.Identity.Editor.Embedded",
   "rootNamespace": "",
   "references": [
-    "GUID:b11bd0826e194d547bac73e48f2d65a0",
-    "GUID:9a6451d801cd475448d2cb44665a8d6f",
-    "GUID:c6771e8345ec56641b93e9c8527e8ef3",
-    "GUID:64ee08fa3f95f524481f149ba6b51f12",
-    "GUID:1bdac8c9fdf7a3a43a65ead52dbd00fa",
-    "GUID:066eda3b0053a6040a3d599ce344e58e",
-    "GUID:33827dd2517b62a449512f3ca03a9b08"
+    "GUID:180b84aeaa9c9da4a8ad1f35cd75a700",
+    "GUID:f953291ca9671d54396f3f8c1433b1f5",
+    "GUID:aba4206144ab140418116d2ff609c873",
+    "GUID:1a3229173a54aa6489be335f48af32b7",
+    "GUID:f28f70fe2a7724147a66e496918bb659",
+    "GUID:9004f1c3ff4c4a8459372f35881a6aef",
+    "GUID:ad8eb604f00e3bd4c9977d26fdf8e6b5"
   ],
   "includePlatforms": [
     "Editor"
