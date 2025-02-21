@@ -17,7 +17,7 @@ namespace Unity.AssetManager.UI.Editor
             public static readonly string AssetTypeIcon = "asset-preview-asset-type-icon";
             public static readonly string Toggle = "asset-preview-toggle";
             public static readonly string DefaultAssetIcon = "default-asset-icon";
-            public static readonly string ImportedStatus = Constants.GridItemStyleClassName + "-imported_status";
+            public static readonly string ImportedStatus = UssStyle.GridItemStyleClassName + "-imported_status";
             public static readonly string NoThumbnail = "no-thumbnail";
         }
 
@@ -57,6 +57,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             string Description { get; }
             string ActionText { get; }
+            string Details { get; }
             VisualElement CreateVisualTree();
         }
 
@@ -81,6 +82,12 @@ namespace Unity.AssetManager.UI.Editor
         {
             var statusElement = status.CreateVisualTree();
             statusElement.tooltip = L10n.Tr(status.Description);
+
+            if (!string.IsNullOrEmpty(status.Details))
+            {
+                statusElement.tooltip += $"\n\nDetails:\n{status.Details}";
+            }
+
             m_ImportedStatusIcon.Add(statusElement);
         }
 

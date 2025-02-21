@@ -23,7 +23,7 @@ namespace Unity.AssetManager.UI.Editor
     class ReimportWindow : EditorWindow
     {
         static readonly Vector2 k_MinWindowSize = new(350, 50);
-        static readonly string k_WindowTitle = "Reimport";
+        static readonly string k_WindowTitle = "Import";
         const string k_MainDarkUssName = "MainDark";
         const string k_MainLightUssName = "MainLight";
 
@@ -116,34 +116,13 @@ namespace Unity.AssetManager.UI.Editor
             footer.AddToClassList(UssStyle.ReimportWindowFooter);
             rootVisualElement.Add(footer);
 
-            var cancelButton = new Button(() => { Close(); })
+            var cancelButton = new Button(Close)
             {
                 text = L10n.Tr(Constants.ReimportWindowCancel)
             };
             footer.Add(cancelButton);
 
-            var okButton = new Button(() =>
-            {
-                // Need to clear dirty and reimport assets that are going to be replaced to avoid state problems
-                foreach (var foldout in m_ConflictsFoldouts)
-                {
-                    if (foldout.ResolutionSelection == ResolutionSelection.Replace)
-                    {
-                        foreach (var obj in foldout.AssetDataResolutionInfo.DirtyObjects)
-                        {
-                            EditorUtility.ClearDirty(obj);
-                            ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().ImportAsset(ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().GetAssetPath(obj));
-                        }
-                    }
-                }
-
-                m_Resolutions = m_ReimportFoldouts.Select(item => new ResolutionData
-                {
-                    AssetData = item.AssetData,
-                    ResolutionSelection = item.ResolutionSelection
-                });
-                Close();
-            })
+            var okButton = new Button(ConfirmResolutions)
             {
                 text = L10n.Tr(Constants.ReimportWindowImport)
             };
@@ -200,6 +179,49 @@ namespace Unity.AssetManager.UI.Editor
                 var upwardDependencyItem = new UpwardDependencyItem(data);
                 m_UpwardDependenciesContainer.Add(upwardDependencyItem);
             }
+        }
+
+        void ConfirmResolutions()
+        {
+            var assetDatabase = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
+
+            try
+            {
+                // Wait for all import operations to initiate before allowing the database to refresh.
+                assetDatabase.StartAssetEditing();
+
+                // Need to clear dirty and reimport assets that are going to be replaced to avoid state problems
+                foreach (var foldout in m_ConflictsFoldouts)
+                {
+                    if (foldout.ResolutionSelection == ResolutionSelection.Replace)
+                    {
+                        foreach (var obj in foldout.AssetDataResolutionInfo.DirtyObjects)
+                        {
+                            EditorUtility.ClearDirty(obj);
+
+                            var assetPath = assetDatabase.GetAssetPath(obj);
+
+                            if (!assetPath.EndsWith(".shader"))
+                            {
+                                assetDatabase.ImportAsset(assetPath);
+                            }
+                        }
+                    }
+                }
+
+                assetDatabase.StopAssetEditing();
+            }
+            catch (Exception e)
+            {
+                Utilities.DevLogException(e);
+            }
+
+            m_Resolutions = m_ReimportFoldouts.Select(item => new ResolutionData
+            {
+                AssetData = item.AssetData,
+                ResolutionSelection = item.ResolutionSelection
+            });
+            Close();
         }
     }
 }

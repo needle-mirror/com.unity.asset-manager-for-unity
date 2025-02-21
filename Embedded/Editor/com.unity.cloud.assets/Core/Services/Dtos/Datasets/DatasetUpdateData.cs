@@ -8,8 +8,5 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         /// <inheritdoc />
         public IEnumerable<string> FileOrder { get; set; }
-
-        /// <inheritdoc />
-        public bool? IsVisible { get; set; }
     }
 }

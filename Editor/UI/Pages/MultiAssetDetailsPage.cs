@@ -45,7 +45,7 @@ namespace Unity.AssetManager.UI.Editor
 
         readonly Dictionary<FoldoutName, MultiSelectionFoldout> m_Foldouts = new();
 
-        Button m_RemoveImportButton;
+        RemoveButton m_RemoveButton;
         VisualElement m_FooterContainer;
         OperationProgressBar m_OperationProgressBar;
 
@@ -108,18 +108,21 @@ namespace Unity.AssetManager.UI.Editor
             m_OperationProgressBar = new OperationProgressBar(CancelOrClearImport);
             m_FooterContainer.contentContainer.hierarchy.Add(m_OperationProgressBar);
 
-            m_RemoveImportButton = new Button
+            m_RemoveButton = new RemoveButton(true)
             {
                 text = L10n.Tr(Constants.RemoveAllFromProjectActionText),
+                tooltip = L10n.Tr(Constants.RemoveAllFromProjectToolTip),
                 name = k_MultiSelectionRemoveName
             };
-            m_RemoveImportButton.AddToClassList(k_BigButtonClassName);
-            m_FooterContainer.contentContainer.hierarchy.Add(m_RemoveImportButton);
+            m_RemoveButton.RemoveWithExclusiveDependencies += RemoveAllFromLocalProject;
+            m_RemoveButton.RemoveOnlySelected += RemoveSelectedFromLocalProject;
+            m_RemoveButton.StopTracking += StopTracking;
+            m_RemoveButton.StopTrackingOnlySelected += StopTrackingOnlySelected;
 
-            m_RemoveImportButton.clicked += RemoveAllFromLocalProject;
+            m_FooterContainer.contentContainer.hierarchy.Add(m_RemoveButton);
 
             // We need to manually refresh once to make sure the UI is updated when the window is opened.
-            if(m_PageManager.ActivePage == null)
+            if (m_PageManager.ActivePage == null)
                 return;
 
             m_SelectedAssetsData.Selection = m_AssetDataManager.GetAssetsData(m_PageManager.ActivePage.SelectedAssets);
@@ -239,9 +242,15 @@ namespace Unity.AssetManager.UI.Editor
             m_TitleLabel.text = L10n.Tr(m_SelectedAssetsData.Selection.Count + " " + Constants.AssetsSelectedTitle);
 
             // Refresh RemoveImportButton
-            var removable = m_SelectedAssetsData.Selection.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
-            m_RemoveImportButton.SetEnabled(removable.Count > 0);
-            m_RemoveImportButton.text = $"{L10n.Tr(Constants.RemoveAllFromProjectActionText)} ({removable.Count})";
+            if (m_PageManager.ActivePage is not UploadPage)
+            {
+                var removable = m_SelectedAssetsData.Selection.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
+                var isEnabled = removable.Count > 0;
+                m_RemoveButton.SetEnabled(isEnabled);
+                m_RemoveButton.text = isEnabled ?
+                    $"{L10n.Tr(Constants.RemoveAllFromProjectActionText)} ({m_AssetDataManager.FindExclusiveDependencies(removable.Select(x => x.Identifier)).Count})" :
+                    L10n.Tr(Constants.RemoveAllFromProjectActionText);
+            }
 
             // Refresh ProgressBar
             bool atLeastOneProcess = false;
@@ -268,6 +277,7 @@ namespace Unity.AssetManager.UI.Editor
 
             RefreshFoldoutUI();
             RefreshTitleAndButtons();
+            RefreshUploadMetadataContainer();
         }
 
         void RefreshFoldoutUI()
@@ -318,7 +328,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void RefreshAssetPageFoldoutUI()
         {
-            UIElementsUtils.SetDisplay(m_RemoveImportButton, true);
+            UIElementsUtils.SetDisplay(m_RemoveButton, true);
 
             ClearFoldout(FoldoutName.UploadRemoved);
             ClearFoldout(FoldoutName.UploadIgnored);
@@ -330,7 +340,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void RefreshUploadPageFoldoutUI()
         {
-            UIElementsUtils.SetDisplay(m_RemoveImportButton, false);
+            UIElementsUtils.SetDisplay(m_RemoveButton, false);
 
             ClearFoldout(FoldoutName.Unimported);
             ClearFoldout(FoldoutName.Imported);
@@ -360,20 +370,12 @@ namespace Unity.AssetManager.UI.Editor
 
         void IgnoreUploadAssets()
         {
-            // Similar code to UploadContextMenu.IgnoreAssetEntry, find a way to reuse it
-            foreach (var assetData in m_SelectedAssetsData.Selection.Cast<UploadAssetData>().Where(x => x.CanBeIgnored && !x.IsIgnored).ToList())
-            {
-                m_PageManager.ActivePage.ToggleAsset(assetData.Identifier, assetData.IsIgnored);
-            }
+            m_PageManager.ActivePage.ToggleAsset(m_SelectedAssetsData.Selection.Cast<UploadAssetData>().Where(x => x.CanBeIgnored && !x.IsIgnored).Select(a => a.Identifier).FirstOrDefault(), false);
         }
 
         void IncludeUploadAssets()
         {
-            // Similar code to UploadContextMenu.IgnoreAssetEntry, find a way to reuse it
-            foreach (var assetData in m_SelectedAssetsData.Selection.Cast<UploadAssetData>().Where(x => x.CanBeIgnored && x.IsIgnored).ToList())
-            {
-                m_PageManager.ActivePage.ToggleAsset(assetData.Identifier, assetData.IsIgnored);
-            }
+            m_PageManager.ActivePage.ToggleAsset(m_SelectedAssetsData.Selection.Cast<UploadAssetData>().Where(x => x.CanBeIgnored && x.IsIgnored).Select(a => a.Identifier).FirstOrDefault(), true);
         }
 
         void ImportListAsync(List<BaseAssetData> assetsData)
@@ -415,15 +417,16 @@ namespace Unity.AssetManager.UI.Editor
 
         void RemoveAllFromLocalProject()
         {
-            var importedAssets = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x)).ToList();
+            var importedAssetIdentifiers = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x)).ToList();
 
-            AnalyticsSender.SendEvent(importedAssets.Count > 1
+            AnalyticsSender.SendEvent(importedAssetIdentifiers.Count > 1
                 ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.RemoveAll)
                 : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Remove));
 
             try
             {
-                m_AssetImporter.RemoveImports(importedAssets, true);
+                var removeAssets = m_AssetDataManager.FindExclusiveDependencies(importedAssetIdentifiers);
+                m_AssetImporter.RemoveImports(removeAssets.ToList(), true);
             }
             catch (Exception e)
             {
@@ -432,44 +435,61 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        class AssetDataSelection
+        void RemoveSelectedFromLocalProject()
         {
-            public Action<BaseAssetData, AssetDataEventType> AssetDataChanged;
+            var importedAssetIdentifiers = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x)).ToList();
 
-            List<BaseAssetData> m_Selection = new();
+            AnalyticsSender.SendEvent(importedAssetIdentifiers.Count > 1
+                ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.RemoveSelectedAll)
+                : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.RemoveSelected));
 
-            public IReadOnlyCollection<BaseAssetData> Selection
+            try
             {
-                get => m_Selection;
-                set
-                {
-                    Clear();
-
-                    m_Selection = value.ToList();
-
-                    foreach (var assetData in m_Selection)
-                    {
-                        assetData.AssetDataChanged += OnAssetDataEvent;
-                    }
-                }
+                m_AssetImporter.RemoveImports(importedAssetIdentifiers, true);
             }
-
-            void OnAssetDataEvent(BaseAssetData assetData, AssetDataEventType eventType)
+            catch (Exception e)
             {
-                AssetDataChanged?.Invoke(assetData, eventType);
+                Debug.LogException(e);
+                throw;
             }
+        }
 
-            public bool Exists(Func<BaseAssetData, bool> func)
+        void StopTracking()
+        {
+            var importedAssetIdentifiers = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x)).ToList();
+
+            AnalyticsSender.SendEvent(importedAssetIdentifiers.Count > 1
+                ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.StopTrackingAll)
+                : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.StopTracking));
+
+            try
             {
-                return m_Selection.Exists(x => func(x));
+                var removeAssets = m_AssetDataManager.FindExclusiveDependencies(importedAssetIdentifiers);
+                m_AssetImporter.StopTrackingAssets(removeAssets.ToList());
             }
-
-            public void Clear()
+            catch (Exception e)
             {
-                foreach (var assetData in m_Selection)
-                {
-                    assetData.AssetDataChanged -= OnAssetDataEvent;
-                }
+                Debug.LogException(e);
+                throw;
+            }
+        }
+
+        void StopTrackingOnlySelected()
+        {
+            var importedAssetIdentifiers = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x)).ToList();
+
+            AnalyticsSender.SendEvent(importedAssetIdentifiers.Count > 1
+                ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.StopTrackingSelectedAll)
+                : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.StopTrackingSelected));
+
+            try
+            {
+                m_AssetImporter.StopTrackingAssets(importedAssetIdentifiers);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                throw;
             }
         }
     }

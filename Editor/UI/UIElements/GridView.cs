@@ -193,7 +193,7 @@ namespace Unity.AssetManager.UI.Editor
         /// </param>
         internal GridView(Func<VisualElement> makeItem, Action<VisualElement, int> bindItem) : this()
         {
-            AddToClassList(Constants.GridViewStyleClassName);
+            AddToClassList(UssStyle.GridViewStyleClassName);
 
             MakeItem = makeItem;
             BindItem = bindItem;
@@ -213,7 +213,7 @@ namespace Unity.AssetManager.UI.Editor
         /// </param>
         internal GridView(IList itemsSource, Func<VisualElement> makeItem, Action<VisualElement, int> bindItem) : this()
         {
-            AddToClassList(Constants.GridViewStyleClassName);
+            AddToClassList(UssStyle.GridViewStyleClassName);
 
             m_ItemsSource = itemsSource;
 
@@ -223,7 +223,6 @@ namespace Unity.AssetManager.UI.Editor
 
         public void OnBeforeSerialize()
         {
-            /* Do Nothing */
         }
 
         public void OnAfterDeserialize()
@@ -800,7 +799,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void SetupDummyItemElement(VisualElement item)
         {
-            item.AddToClassList(Constants.GridViewDummyItemUssClassName);
+            item.AddToClassList(UssStyle.GridViewDummyItemUssClassName);
         }
 
         internal void ScrollToRecycledRowOfItem(AssetIdentifier assetIdentifier)

@@ -16,21 +16,28 @@ namespace Unity.Cloud.AssetsEmbedded
         [DataMember(Name = "inputFiles")]
         string[] m_InputFiles;
 
-        public StartTransformationRequest(string workflowType, IEnumerable<string> inputFiles, Dictionary<string, string> parameters,
+        [DataMember(Name="extraParameters")]
+        Dictionary<string, object> m_ExtraParameters;
+
+        public StartTransformationRequest(string workflowType, IEnumerable<string> inputFiles, Dictionary<string, object> parameters,
             ProjectId projectId, AssetId assetId, AssetVersion assetVersion, DatasetId datasetId)
             : base(projectId, assetId, assetVersion, datasetId)
         {
             m_RequestUrl += $"/transformations/start/{workflowType}";
 
-            if (parameters != null)
+            m_InputFiles = inputFiles?.ToArray();
+
+            if (parameters is {Count: > 0})
             {
+                m_ExtraParameters = new Dictionary<string, object>();
                 foreach (var kvp in parameters)
                 {
-                    AddParamToQuery(kvp.Key, kvp.Value);
+                    if (kvp.Value != null)
+                    {
+                        m_ExtraParameters.Add(kvp.Key, kvp.Value);
+                    }
                 }
             }
-
-            m_InputFiles = inputFiles?.ToArray();
         }
 
         public override HttpContent ConstructBody()

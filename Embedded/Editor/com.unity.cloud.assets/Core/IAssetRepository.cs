@@ -12,6 +12,11 @@ namespace Unity.Cloud.AssetsEmbedded
     interface IAssetRepository
     {
         /// <summary>
+        /// The caching configuration for the asset repository entities.
+        /// </summary>
+        AssetRepositoryCacheConfiguration CacheConfiguration => throw new NotImplementedException();
+
+        /// <summary>
         /// Returns a builder to create a query to search an organization's <see cref="IAssetProject"/>.
         /// </summary>
         /// <param name="organizationId">The id of the organization. </param>
@@ -35,6 +40,14 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<IAssetProject> EnableProjectForAssetManagerAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
+        /// Enables a pre-existing dashboard project in asset manager.
+        /// </summary>
+        /// <param name="projectDescriptor">The object containing the necessary information for identifying the project. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task with no result. </returns>
+        Task EnableProjectForAssetManagerLiteAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
         /// Creates a new <see cref="IAssetProject"/> in the specified organization.
         /// </summary>
         /// <param name="organizationId">The organization to create the project in. </param>
@@ -42,6 +55,15 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task whose result is the new <see cref="IAssetProject"/>. </returns>
         Task<IAssetProject> CreateAssetProjectAsync(OrganizationId organizationId, IAssetProjectCreation projectCreation, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Creates a new project in the specified organization.
+        /// </summary>
+        /// <param name="organizationId">The organization to create the project in. </param>
+        /// <param name="projectCreation">The object containing the necessary information to create a new project. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the new project's <see cref="ProjectDescriptor"/>. </returns>
+        Task<ProjectDescriptor> CreateAssetProjectLiteAsync(OrganizationId organizationId, IAssetProjectCreation projectCreation, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Gets an <see cref="IAssetCollection"/>.
@@ -146,6 +168,15 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<IFieldDefinition> CreateFieldDefinitionAsync(OrganizationId organizationId, IFieldDefinitionCreation fieldDefinitionCreation, CancellationToken cancellationToken);
 
         /// <summary>
+        /// Creates a new field definition within an organization.
+        /// </summary>
+        /// <param name="organizationId">The id of the organization in which to add the field definitino. </param>
+        /// <param name="fieldDefinitionCreation">The object containing the necessary information to create a field definition.</param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the newly created field definition's <see cref="FieldDefinitionDescriptor"/>. </returns>
+        Task<FieldDefinitionDescriptor> CreateFieldDefinitionLiteAsync(OrganizationId organizationId, IFieldDefinitionCreation fieldDefinitionCreation, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
         /// Deletes an <see cref="IFieldDefinition"/>.
         /// </summary>
         /// <param name="fieldDefinitionDescriptor">The descriptor containing the indentifiers for the field definition. </param>
@@ -161,6 +192,15 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task whose result is an <see cref="ILabel"/>. </returns>
         Task<ILabel> CreateLabelAsync(OrganizationId organizationId, ILabelCreation labelCreation, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
+        /// Creates a new label within an organization.
+        /// </summary>
+        /// <param name="organizationId">The id of the organization in which to add the label. </param>
+        /// <param name="labelCreation">The object containing the necessary information to create a label. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the new label's <see cref="LabelDescriptor"/>. </returns>
+        Task<LabelDescriptor> CreateLabelLiteAsync(OrganizationId organizationId, ILabelCreation labelCreation, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Returns a builder to create a query to search an organization's labels.
@@ -198,6 +238,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <remarks>To serialize an asset use <see cref="IAsset.Serialize"/>. </remarks>
         /// <param name="jsonSerialization">The serialized JSON string of an asset. </param>
         /// <returns>An <see cref="IAsset"/>. </returns>
+        [Obsolete("IAsset serialization is no longer supported.")]
         IAsset DeserializeAsset(string jsonSerialization);
     }
 }

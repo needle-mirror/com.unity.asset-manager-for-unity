@@ -33,7 +33,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="fieldCreation">The object containing the necessary information to create a field definition. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task whose result is a newly created field. </returns>
-        Task<IFieldDefinitionData> CreateFieldDefinitionAsync(OrganizationId organizationId, IFieldDefinitionCreateData fieldCreation, CancellationToken cancellationToken);
+        Task<FieldDefinitionDescriptor> CreateFieldDefinitionAsync(OrganizationId organizationId, IFieldDefinitionCreateData fieldCreation, CancellationToken cancellationToken);
 
         /// <summary>
         /// Deletes the specified field definition.

@@ -19,6 +19,7 @@ namespace Unity.AssetManager.Upload.Editor
         IReadOnlyCollection<string> Tags { get; }
         IReadOnlyCollection<IUploadFile> Files { get; }
         IReadOnlyCollection<AssetIdentifier> Dependencies { get; }
+        IReadOnlyCollection<IMetadata> Metadata { get; }
 
         AssetIdentifier LocalIdentifier { get; }
 
@@ -76,6 +77,9 @@ namespace Unity.AssetManager.Upload.Editor
         List<AssetIdentifier> m_Dependencies;
 
         [SerializeField]
+        List<IMetadata> m_Metadata;
+
+        [SerializeField]
         AssetType m_AssetType;
 
         [SerializeField]
@@ -94,6 +98,7 @@ namespace Unity.AssetManager.Upload.Editor
         public IReadOnlyCollection<string> Tags => m_Tags;
         public IReadOnlyCollection<IUploadFile> Files => m_Files;
         public IReadOnlyCollection<AssetIdentifier> Dependencies => m_Dependencies;
+        public IReadOnlyCollection<IMetadata> Metadata => m_Metadata;
 
         public AssetIdentifier ExistingAssetIdentifier => m_OriginalAssetData;
         public ProjectIdentifier TargetProject => m_TargetProject;
@@ -101,7 +106,7 @@ namespace Unity.AssetManager.Upload.Editor
 
         public UploadAsset(string name, string previewGuid, AssetIdentifier localIdentifier, AssetType assetType,
             IEnumerable<IUploadFile> files, IEnumerable<string> tags, IEnumerable<AssetIdentifier> dependencies,
-            AssetIdentifier originalAssetData, ProjectIdentifier targetProject, string targetCollection)
+            IEnumerable<IMetadata> metadata, AssetIdentifier originalAssetData, ProjectIdentifier targetProject, string targetCollection)
         {
             m_Name = name;
             m_PreviewGuid = previewGuid;
@@ -112,6 +117,7 @@ namespace Unity.AssetManager.Upload.Editor
             m_Files = files.ToList();
 
             m_Dependencies = dependencies != null ? dependencies.ToList() : new List<AssetIdentifier>();
+            m_Metadata = metadata != null ? metadata.ToList() : new List<IMetadata>();
 
             m_OriginalAssetData = originalAssetData;
             m_TargetProject = targetProject;

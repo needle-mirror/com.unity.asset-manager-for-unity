@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,32 +21,28 @@ namespace Unity.AssetManager.UI.Editor
             return Task.FromResult(m_Selections);
         }
 
-        public override async Task<bool> Contains(BaseAssetData assetData)
+        public override async Task<bool> Contains(BaseAssetData assetData, CancellationToken token = default)
         {
-            if (SelectedFilter == null)
+            await Task.CompletedTask;
+
+            if (SelectedFilters == null || !SelectedFilters.Any())
             {
                 return true;
             }
 
-            await assetData.GetPreviewStatusAsync();
-            var comparisonResult = assetData.PreviewStatus.FirstOrDefault();
-
-            return comparisonResult == Map(SelectedFilter);
+            var status = assetData.AssetDataAttributeCollection?.GetAttribute<ImportAttribute>()?.Status;
+            return status.HasValue && SelectedFilters.Any(selectedFilter => status == Map(selectedFilter));
         }
 
-        AssetDataStatusType Map(string importStatus)
+        static ImportAttribute.ImportStatus Map(string importStatus)
         {
-            switch (importStatus)
+            return importStatus switch
             {
-                case Constants.UpToDate:
-                    return AssetDataStatusType.UpToDate;
-                case Constants.Outdated:
-                    return AssetDataStatusType.OutOfDate;
-                case Constants.Deleted:
-                    return AssetDataStatusType.Error;
-                default:
-                    return AssetDataStatusType.None;
-            }
+                Constants.UpToDate => ImportAttribute.ImportStatus.UpToDate,
+                Constants.Outdated => ImportAttribute.ImportStatus.OutOfDate,
+                Constants.Deleted => ImportAttribute.ImportStatus.ErrorSync,
+                _ => ImportAttribute.ImportStatus.NoImport
+            };
         }
     }
 }

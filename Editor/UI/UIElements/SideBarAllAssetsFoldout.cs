@@ -9,9 +9,11 @@ namespace Unity.AssetManager.UI.Editor
     {
         readonly Image m_AllAssetsImage;
 
-        internal SideBarAllAssetsFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IStateManager stateManager,
-            IProjectOrganizationProvider projectOrganizationProvider, string foldoutName)
-            : base(unityConnectProxy, pageManager, stateManager, projectOrganizationProvider, foldoutName)
+        internal SideBarAllAssetsFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager,
+            IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            string foldoutName)
+            : base(unityConnectProxy, pageManager, stateManager, messageManager, projectOrganizationProvider,
+                foldoutName)
         {
             RegisterCallback<PointerDownEvent>(e =>
             {

@@ -76,7 +76,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="assetCreation">The object containing the necessary information to create an <see cref="IAssetData"/>. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task whose result is an <see cref="IAssetData"/>. </returns>
-        Task<IAssetData> CreateAssetAsync(ProjectDescriptor projectDescriptor, IAssetCreateData assetCreation, CancellationToken cancellationToken);
+        Task<AssetDescriptor> CreateAssetAsync(ProjectDescriptor projectDescriptor, IAssetCreateData assetCreation, CancellationToken cancellationToken);
 
         /// <summary>
         /// Updates an asset.
@@ -169,9 +169,10 @@ namespace Unity.Cloud.AssetsEmbedded
         Task RemoveAssetMetadataAsync(AssetDescriptor assetDescriptor, string metadataType, IEnumerable<string> keys, CancellationToken cancellationToken);
 
         /// <summary>
-        /// Implement this method to get the service url.
+        /// Implement this method to get the service request url for a relative path.
         /// </summary>
-        /// <returns>A <see cref="Uri"/>. </returns>
-        Uri GetServiceUrl();
+        /// <param name="relativePath">The relative path of the requested resource.</param>
+        /// <returns>A <see cref="Uri"/>.</returns>
+        Uri GetServiceRequestUrl(string relativePath);
     }
 }

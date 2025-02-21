@@ -1,3 +1,4 @@
+using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
@@ -7,7 +8,9 @@ namespace Unity.AssetManager.UI.Editor
 {
     class UploadContextMenu : AssetContextMenu
     {
-        public UploadContextMenu(IUnityConnectProxy unityConnectProxy, IAssetDataManager assetDataManager, IAssetImporter assetImporter, ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy, IPageManager pageManager)
+        public UploadContextMenu(IUnityConnectProxy unityConnectProxy, IAssetDataManager assetDataManager,
+            IAssetImporter assetImporter, ILinksProxy linksProxy, IAssetDatabaseProxy assetDatabaseProxy,
+            IPageManager pageManager)
             : base(unityConnectProxy, assetDataManager, assetImporter, linksProxy, assetDatabaseProxy, pageManager) { }
 
         public override void SetupContextMenuEntries(ContextualMenuPopulateEvent evt)
@@ -36,13 +39,17 @@ namespace Unity.AssetManager.UI.Editor
             if (!uploadAssetData.CanBeIgnored)
                 return;
 
-            AddMenuEntry(evt, L10n.Tr(Constants.IgnoreAsset), true, uploadAssetData.IsIgnored,
+            var selectedAssets = m_PageManager.ActivePage.SelectedAssets;
+            var isTargetSelected = selectedAssets.Contains(uploadAssetData.Identifier);
+
+            AddMenuEntry(evt, isTargetSelected ? L10n.Tr(Constants.IgnoreSelectedAssets) : L10n.Tr(Constants.IgnoreAsset), true, uploadAssetData.IsIgnored,
                 (_) =>
                 {
                     if (ServicesContainer.instance.Resolve<IPageManager>().ActivePage is not UploadPage uploadPage)
                         return;
 
                     uploadPage.ToggleAsset(uploadAssetData.Identifier, uploadAssetData.IsIgnored);
+
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent.ContextMenuItemType.IgnoreUploadedAsset));
                 });
         }

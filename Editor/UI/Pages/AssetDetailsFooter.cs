@@ -17,10 +17,11 @@ namespace Unity.AssetManager.UI.Editor
     {
         readonly ImportButton m_ImportButton;
         readonly Button m_ShowInProjectBrowserButton;
-        readonly Button m_RemoveImportButton;
+        readonly RemoveButton m_RemoveButton;
         readonly OperationProgressBar m_OperationProgressBar;
         readonly VisualElement m_FooterVisualElement;
         readonly IPageManager m_PageManager;
+        readonly IAssetDataManager m_AssetDataManager;
 
         public VisualElement ButtonsContainer { get; }
 
@@ -28,12 +29,16 @@ namespace Unity.AssetManager.UI.Editor
         public event Action<string, IEnumerable<BaseAssetData>> ImportAsset;
         public event Action HighlightAsset;
         public event Func<bool> RemoveAsset;
+        public event Func<bool> RemoveOnlySelectedAsset;
+        public event Func<bool> StopTracking;
+        public event Func<bool> StopTrackingOnlySelected;
 
         public AssetDetailsFooter(VisualElement visualElement)
         {
             m_FooterVisualElement = visualElement.Q("footer");
 
             m_PageManager = ServicesContainer.instance.Resolve<IPageManager>();
+            m_AssetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
 
             var operationsContainer = new VisualElement();
             operationsContainer.AddToClassList(UssStyle.DetailsPageFooterContainer);
@@ -52,11 +57,17 @@ namespace Unity.AssetManager.UI.Editor
             m_ImportButton.focusable = false;
             ButtonsContainer.Add(m_ImportButton);
             m_ShowInProjectBrowserButton = CreateBigButton(ButtonsContainer, Constants.ShowInProjectActionText);
-            m_RemoveImportButton = CreateBigButton(ButtonsContainer, Constants.RemoveFromProjectActionText);
+            m_RemoveButton = new RemoveButton(false);
+            m_RemoveButton.text = L10n.Tr(Constants.RemoveFromProjectActionText);
+            m_RemoveButton.focusable = false;
+            ButtonsContainer.Add(m_RemoveButton);
 
             m_ImportButton.RegisterCallback(BeginImport);
             m_ShowInProjectBrowserButton.clicked += ShowInProjectBrowser;
-            m_RemoveImportButton.clicked += RemoveFromProject;
+            m_RemoveButton.RemoveWithExclusiveDependencies += RemoveFromProject;
+            m_RemoveButton.RemoveOnlySelected += RemoveOnlySelectedFromProject;
+            m_RemoveButton.StopTracking += OnStopTracking;
+            m_RemoveButton.StopTrackingOnlySelected += OnStopTrackingOnlySelected;
         }
 
         public void OnSelection(BaseAssetData assetData)
@@ -72,7 +83,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             var isEnabled = enabled.IsImportAvailable();
 
-            m_ImportButton.text = AssetDetailsPageExtensions.GetImportButtonLabel(operationInProgress, AssetDataStatus.GetIStatusFromAssetDataStatusType(assetData?.PreviewStatus?.FirstOrDefault()));
+            m_ImportButton.text = AssetDetailsPageExtensions.GetImportButtonLabel(operationInProgress, AssetDataStatus.GetIStatusFromImportAttributes(assetData?.AssetDataAttributeCollection));
             m_ImportButton.tooltip = AssetDetailsPageExtensions.GetImportButtonTooltip(operationInProgress, enabled);
             m_ImportButton.SetEnabled(isEnabled);
 
@@ -81,8 +92,12 @@ namespace Unity.AssetManager.UI.Editor
                 ? L10n.Tr(Constants.ShowInProjectButtonToolTip)
                 : L10n.Tr(Constants.ShowInProjectButtonDisabledToolTip);
 
-            m_RemoveImportButton.SetEnabled(enabled.HasFlag(UIEnabledStates.InProject) && !enabled.HasFlag(UIEnabledStates.IsImporting));
-            m_RemoveImportButton.tooltip = enabled.HasFlag(UIEnabledStates.InProject)
+            var isRemoveEnabled = enabled.HasFlag(UIEnabledStates.InProject) && !enabled.HasFlag(UIEnabledStates.IsImporting);
+            m_RemoveButton.text = isRemoveEnabled ?
+                $"{L10n.Tr(Constants.RemoveFromProjectActionText)} ({m_AssetDataManager.FindExclusiveDependencies(new List<AssetIdentifier>{assetData?.Identifier}).Count})" :
+                L10n.Tr(Constants.RemoveFromProjectActionText);
+            m_RemoveButton.SetEnabled(isRemoveEnabled);
+            m_RemoveButton.tooltip = enabled.HasFlag(UIEnabledStates.InProject)
                 ? L10n.Tr(Constants.RemoveFromProjectButtonToolTip)
                 : L10n.Tr(Constants.RemoveFromProjectButtonDisabledToolTip);
 
@@ -133,13 +148,69 @@ namespace Unity.AssetManager.UI.Editor
 
         void RemoveFromProject()
         {
-            m_RemoveImportButton.SetEnabled(false);
+            m_RemoveButton.SetEnabled(false);
             m_ShowInProjectBrowserButton.SetEnabled(false);
 
             if (!RemoveAsset?.Invoke() ?? false)
             {
-                m_RemoveImportButton.SetEnabled(true);
+                m_RemoveButton.SetEnabled(true);
                 m_ShowInProjectBrowserButton.SetEnabled(true);
+            }
+            else
+            {
+                m_RemoveButton.text = L10n.Tr(Constants.RemoveFromProjectActionText);
+                m_RemoveButton.tooltip = L10n.Tr(Constants.RemoveFromProjectButtonDisabledToolTip);
+            }
+        }
+
+        void RemoveOnlySelectedFromProject()
+        {
+            m_RemoveButton.SetEnabled(false);
+            m_ShowInProjectBrowserButton.SetEnabled(false);
+
+            if (!RemoveOnlySelectedAsset?.Invoke() ?? false)
+            {
+                m_RemoveButton.SetEnabled(true);
+                m_ShowInProjectBrowserButton.SetEnabled(true);
+            }
+            else
+            {
+                m_RemoveButton.text = L10n.Tr(Constants.RemoveFromProjectActionText);
+                m_RemoveButton.tooltip = L10n.Tr(Constants.RemoveFromProjectButtonDisabledToolTip);
+            }
+        }
+
+        void OnStopTracking()
+        {
+            m_RemoveButton.SetEnabled(false);
+            m_ShowInProjectBrowserButton.SetEnabled(false);
+
+            if (!StopTracking?.Invoke() ?? false)
+            {
+                m_RemoveButton.SetEnabled(true);
+                m_ShowInProjectBrowserButton.SetEnabled(true);
+            }
+            else
+            {
+                m_RemoveButton.text = L10n.Tr(Constants.RemoveFromProjectActionText);
+                m_RemoveButton.tooltip = L10n.Tr(Constants.RemoveFromProjectButtonDisabledToolTip);
+            }
+        }
+
+        void OnStopTrackingOnlySelected()
+        {
+            m_RemoveButton.SetEnabled(false);
+            m_ShowInProjectBrowserButton.SetEnabled(false);
+
+            if (!StopTrackingOnlySelected?.Invoke() ?? false)
+            {
+                m_RemoveButton.SetEnabled(true);
+                m_ShowInProjectBrowserButton.SetEnabled(true);
+            }
+            else
+            {
+                m_RemoveButton.text = L10n.Tr(Constants.RemoveFromProjectActionText);
+                m_RemoveButton.tooltip = L10n.Tr(Constants.RemoveFromProjectButtonDisabledToolTip);
             }
         }
     }

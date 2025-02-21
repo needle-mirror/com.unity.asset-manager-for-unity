@@ -19,6 +19,8 @@ namespace Unity.AssetManager.UI.Editor
 
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly IMessageManager m_MessageManager;
+
         readonly VisualElement m_TextInput;
 
         bool m_Focused;
@@ -29,10 +31,12 @@ namespace Unity.AssetManager.UI.Editor
         TextField m_SearchTextField;
         ToolbarSearchField m_ToolbarSearchField;
 
-        public SearchBar(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
+        public SearchBar(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            IMessageManager messageManager)
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_MessageManager = messageManager;
 
             var windowContent = UIElementsUtils.LoadUXML(k_SearchBarAssetName);
             windowContent.CloneTree(this);
@@ -74,8 +78,14 @@ namespace Unity.AssetManager.UI.Editor
 
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.SearchFiltersChanged += OnPageSearchFiltersChanged;
+            m_PageManager.LoadingStatusChanged += OnPageManagerLoadingStatusChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
-            Refresh(m_PageManager.ActivePage);
+            m_MessageManager.GridViewMessageSet += OnGridViewMessageSet;
+            m_MessageManager.GridViewMessageCleared += OnGridViewMessageCleared;
+
+            var activePage = m_PageManager.ActivePage;
+            Refresh(activePage);
+            InitDisplay(activePage);
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
@@ -91,7 +101,10 @@ namespace Unity.AssetManager.UI.Editor
 
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_PageManager.SearchFiltersChanged -= OnPageSearchFiltersChanged;
+            m_PageManager.LoadingStatusChanged -= OnPageManagerLoadingStatusChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+            m_MessageManager.GridViewMessageSet -= OnGridViewMessageSet;
+            m_MessageManager.GridViewMessageCleared -= OnGridViewMessageCleared;
         }
 
         void OnPageSearchFiltersChanged(IPage page, IEnumerable<string> searchFilters)
@@ -102,9 +115,21 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
+        void OnPageManagerLoadingStatusChanged(IPage page, bool isLoading)
+        {
+            if (!m_PageManager.IsActivePage(page))
+                return;
+
+            if (!isLoading)
+            {
+                InitDisplay(page);
+            }
+        }
+
         void OnActivePageChanged(IPage page)
         {
             Refresh(page);
+            InitDisplay(page);
         }
 
         void OnFocusIn(FocusInEvent evt)
@@ -127,20 +152,35 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
+        void OnGridViewMessageSet(Message _)
+        {
+            Refresh(m_PageManager.ActivePage);
+        }
+
+        void OnGridViewMessageCleared()
+        {
+            Refresh(m_PageManager.ActivePage);
+        }
+
+        void InitDisplay(IPage page)
+        {
+            var isAssetListEmpty = !(page != null && page.AssetList != null && page.AssetList.Any());
+            var isSearchBarFilled = page != null && page.PageFilters.SearchFilters.Any();
+            var isFilterSelected = page != null && page.PageFilters.SelectedFilters != null && page.PageFilters.SelectedFilters.Any();
+            var display = m_ProjectOrganizationProvider.SelectedOrganization != null && (!isAssetListEmpty || isSearchBarFilled || isFilterSelected);
+            UIElementsUtils.SetDisplay(m_RefreshButton,  display);
+            UIElementsUtils.SetDisplay(m_ToolbarSearchField, display);
+
+            var isFiltersSelectedWithoutResult = isAssetListEmpty && isFilterSelected && !isSearchBarFilled;
+            m_RefreshButton?.SetEnabled(!isFiltersSelectedWithoutResult);
+            m_ToolbarSearchField?.SetEnabled(!isFiltersSelectedWithoutResult);
+        }
+
         void Refresh(IPage page)
         {
             if (page == null)
                 return;
 
-            if (!string.IsNullOrWhiteSpace(m_ProjectOrganizationProvider.MessageData.Message))
-            {
-                UIElementsUtils.Hide(m_RefreshButton);
-                UIElementsUtils.Hide(m_ToolbarSearchField);
-                return;
-            }
-
-            UIElementsUtils.Show(m_RefreshButton);
-            UIElementsUtils.Show(m_ToolbarSearchField);
             m_SearchChipsContainer.Clear();
             m_ToolbarSearchField.SetValueWithoutNotify(string.Empty);
             foreach (var filter in page.PageFilters.SearchFilters)

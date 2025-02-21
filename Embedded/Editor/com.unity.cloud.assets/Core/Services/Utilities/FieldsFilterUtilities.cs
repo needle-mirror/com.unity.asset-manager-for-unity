@@ -19,6 +19,11 @@ namespace Unity.Cloud.AssetsEmbedded
                 fieldsFilter.AssetFields.HasFlag(AssetFields.metadata),
                 fieldsFilter.DatasetFields.HasFlag(DatasetFields.metadata),
                 fieldsFilter.FileFields.HasFlag(FileFields.metadata));
+
+            fieldsFilter.SystemMetadataFields.Select(select, "systemMetadata",
+                fieldsFilter.AssetFields.HasFlag(AssetFields.systemMetadata),
+                fieldsFilter.DatasetFields.HasFlag(DatasetFields.systemMetadata),
+                fieldsFilter.FileFields.HasFlag(FileFields.systemMetadata));
         }
 
         internal static void Parse(this FileFields fileFields, OnFieldFilterSelected select, string prefix = "")
@@ -59,7 +64,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
             foreach (DatasetFields value in Enum.GetValues(typeof(DatasetFields)))
             {
-                if (value is DatasetFields.all or DatasetFields.none or DatasetFields.files) continue;
+                if (value is DatasetFields.all or DatasetFields.none) continue;
                 if (datasetFields.HasFlag(value))
                 {
                     if (value == DatasetFields.authoring)
@@ -106,10 +111,10 @@ namespace Unity.Cloud.AssetsEmbedded
                             select("previewFile");
                             break;
                         case AssetFields.authoring:
-                        IncludeAuthoringFields("", select);
+                            IncludeAuthoringFields("", select);
                             break;
                         default:
-                        select(value.ToString());
+                            select(value.ToString());
                             break;
                     }
                 }

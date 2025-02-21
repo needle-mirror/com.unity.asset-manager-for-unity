@@ -7,37 +7,66 @@ namespace Unity.Cloud.AssetsEmbedded
     class LabelEntity : ILabel
     {
         readonly IAssetDataSource m_AssetDataSource;
+        readonly AssetRepositoryCacheConfiguration m_DefaultCacheConfiguration;
 
         /// <inheritdoc/>
         public LabelDescriptor Descriptor { get; private set; }
 
         /// <inheritdoc/>
-        public string Description { get; set; }
+        public string Description => Properties.Description;
 
         /// <inheritdoc/>
-        public bool IsSystemLabel { get; set; }
+        public bool IsSystemLabel => Properties.IsSystemLabel;
 
         /// <inheritdoc/>
-        public bool IsAssignable { get; set; }
+        public bool IsAssignable => Properties.IsAssignable;
 
         /// <inheritdoc/>
-        public Color DisplayColor { get; set; }
+        public Color DisplayColor => Properties.DisplayColor ?? Color.White;
 
         /// <inheritdoc/>
-        public AuthoringInfo AuthoringInfo { get; set; }
+        public AuthoringInfo AuthoringInfo => Properties.AuthoringInfo;
 
-        public LabelEntity(IAssetDataSource assetDataSource, LabelDescriptor descriptor)
+        /// <inheritdoc/>
+        public LabelCacheConfiguration CacheConfiguration { get; }
+
+        internal LabelProperties Properties { get; set; }
+
+        public LabelEntity(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, LabelDescriptor descriptor, LabelCacheConfiguration? cacheConfigurationOverride = null)
         {
             m_AssetDataSource = assetDataSource;
+            m_DefaultCacheConfiguration = defaultCacheConfiguration;
             Descriptor = descriptor;
+
+            CacheConfiguration = cacheConfigurationOverride ?? new LabelCacheConfiguration(m_DefaultCacheConfiguration);
+        }
+
+        /// <inheritdoc/>
+        public Task<ILabel> WithCacheConfigurationAsync(LabelCacheConfiguration labelCacheConfiguration, CancellationToken cancellationToken)
+        {
+            return GetConfiguredAsync(m_AssetDataSource, m_DefaultCacheConfiguration, Descriptor, labelCacheConfiguration, cancellationToken);
         }
 
         /// <inheritdoc/>
         public async Task RefreshAsync(CancellationToken cancellationToken)
         {
-            var data = await m_AssetDataSource.GetLabelAsync(Descriptor, cancellationToken);
-            if (data != null)
+            if (CacheConfiguration.HasCachingRequirements)
+            {
+                var data = await m_AssetDataSource.GetLabelAsync(Descriptor, cancellationToken);
                 this.MapFrom(data);
+            }
+        }
+
+        /// <inheritdoc/>
+        public async Task<LabelProperties> GetPropertiesAsync(CancellationToken cancellationToken)
+        {
+            if (CacheConfiguration.CacheProperties)
+            {
+                return Properties;
+            }
+
+            var data = await m_AssetDataSource.GetLabelAsync(Descriptor, cancellationToken);
+            return data.From();
         }
 
         /// <inheritdoc/>
@@ -66,6 +95,21 @@ namespace Unity.Cloud.AssetsEmbedded
         public Task UnarchiveAsync(CancellationToken cancellationToken)
         {
             return m_AssetDataSource.UpdateLabelStatusAsync(Descriptor, false, cancellationToken);
+        }
+
+        /// <summary>
+        /// Returns a label configured with the specified cache configuration.
+        /// </summary>
+        internal static async Task<ILabel> GetConfiguredAsync(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, LabelDescriptor descriptor, LabelCacheConfiguration? configuration, CancellationToken cancellationToken)
+        {
+            var label = new LabelEntity(dataSource, defaultCacheConfiguration, descriptor, configuration);
+
+            if (label.CacheConfiguration.HasCachingRequirements)
+            {
+                await label.RefreshAsync(cancellationToken);
+            }
+
+            return label;
         }
     }
 }

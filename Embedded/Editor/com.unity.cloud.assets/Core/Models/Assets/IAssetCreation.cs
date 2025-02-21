@@ -8,6 +8,9 @@ namespace Unity.Cloud.AssetsEmbedded
         AssetType Type { get; }
 
         /// <inheritdoc cref="IAsset.Metadata"/>
+        /// <remarks>
+        /// The keys must represent existing <see cref="FieldDefinitionDescriptor.FieldKey"/>.
+        /// </remarks>
         Dictionary<string, MetadataValue> Metadata { get; }
 
         /// <summary>

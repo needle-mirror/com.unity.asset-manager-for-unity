@@ -15,8 +15,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
         internal override void Include(Dictionary<string, object> includedValues, string prefix = "")
         {
-            m_Included.Validate();
-            if (m_Included.Conditions.Count > 0)
+            if (m_Included.Validate())
             {
                 includedValues.Add(SearchKey.BuildSearchKey(prefix), m_Included);
             }
@@ -25,7 +24,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc/>
         public override void Clear()
         {
-            m_Included.Conditions.Clear();
+            m_Included.Clear();
         }
 
         /// <summary>
@@ -33,10 +32,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <param name="range">The range to consider. </param>
         /// <param name="value">The threshold value. </param>
-        public void WithValue(SearchConditionRange range, T value)
-        {
-            m_Included.AddCondition(new SearchConditionValue(range, value));
-        }
+        public void WithValue(SearchConditionRange range, T value) => WithValue(range.ToString(), value);
 
         /// <summary>
         /// Sets the value of the conditional criteria.
@@ -44,25 +40,30 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="value">The threshold value. </param>
         public void WithValueGreaterThan(T value)
         {
-            WithValue(SearchConditionRange.GreaterThan, value);
+            WithValue(SearchConditionValue.GreaterThan, value);
         }
 
         /// <inheritdoc cref="WithValueGreaterThan"/>
         public void WithValueGreaterThanOrEqualTo(T value)
         {
-            WithValue(SearchConditionRange.GreaterThanOrEqual, value);
+            WithValue(SearchConditionValue.GreaterThanOrEqual, value);
         }
 
         /// <inheritdoc cref="WithValueGreaterThan"/>
         public void WithValueLessThan(T value)
         {
-            WithValue(SearchConditionRange.LessThan, value);
+            WithValue(SearchConditionValue.LessThan, value);
         }
 
         /// <inheritdoc cref="WithValueGreaterThan"/>
         public void WithValueLessThanOrEqualTo(T value)
         {
-            WithValue(SearchConditionRange.LessThanOrEqual, value);
+            WithValue(SearchConditionValue.LessThanOrEqual, value);
+        }
+
+        void WithValue(string relationalOperator, T value)
+        {
+            m_Included.AddCondition(new SearchConditionValue(relationalOperator, value));
         }
     }
 }

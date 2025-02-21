@@ -8,7 +8,6 @@ namespace Unity.AssetManager.UI.Editor
         public const string Processing = "Processing...";
         public const string ComparingAssetsWithCloud = "Comparing assets with Cloud...";
 
-
         public const string CategoriesScrollViewUssName = "categories-scrollView";
 
         public const int DefaultPageSize = 50;
@@ -18,6 +17,15 @@ namespace Unity.AssetManager.UI.Editor
         public const string UpToDate = "Up to date";
         public const string Outdated = "Outdated";
         public const string Deleted = "Deleted (on cloud)";
+        public const string PrimaryMetadata = "PRIMARY METADATA";
+        public const string CustomMetadata = "CUSTOM METADATA";
+        public const string FromText = "From";
+        public const string ToText = "To";
+        public const string Clear = "Clear";
+        public const string Apply = "Apply";
+        public const string EnterText = "Enter text :";
+        public const string EnterNumberText = "Enter number :";
+        public const string EnterUrlText = "Enter hyperlink label :";
 
         // Sort
         public const string Sort = "Sort by:";
@@ -27,11 +35,15 @@ namespace Unity.AssetManager.UI.Editor
         public const string InProjectTabLabel = "In Project";
         public const string UploadTabLabel = "Upload";
 
+        // In Project
+        public const string InProjectTitle = "Locally Imported Assets";
+
         // Upload
         public const string IgnoreAll = "Ignore All";
         public const string IncludeAll = "Include All";
         public const string RemoveAll = "Remove All";
         public const string IgnoreAsset = "Ignore Asset";
+        public const string IgnoreSelectedAssets = "Ignore Selected Assets";
         public const string RemoveAsset = "Remove Asset";
         public const string IncludeAsset = "Include Asset";
         public const string IncludeAllScripts = "Include All Scripts";
@@ -67,10 +79,18 @@ namespace Unity.AssetManager.UI.Editor
         public const string UploadSettingsReset = "Reset to default";
         public const string ScalingIssuesMessage = "Uploading {0}+ assets may reach scaling issues. Try to upload less than {0} assets at the time for better results.";
         public const int ScalingIssuesThreshold = 100;
+        public const string UnexpectedFieldDefinitionType = "Unexpected field definition type was encountered.";
+        public const string UrlLabel = "URL";
+        public const string InvalidUrlFormat = "URL format is invalid";
+        public const string HyperlinkLabel = "Hyperlink Label";
         public const string DateLabel = "Date (YYYY/MM/DD)";
         public const string TimeLabel = "Time (hh:mm)";
         public const string InvalidYearLabel = "Year must be between 1 and 9999";
         public const string UnexpectedTimestampFormat = "Unexpected timestamp format encountered.";
+        public const string NoProjectSelected = "No project selected";
+        public const string UploadMetadata = "Upload Metadata";
+        public const string AddCustomField = "Add custom field";
+        public const string MetadataPartialEditing = "Metadata that are only one some of the selected assets cannot be multi-edited.";
 
         // Preview Status
         public const string ImportedText = "Asset is imported";
@@ -85,6 +105,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string UploadNewVersionText = "This asset will add a new version in its cloud version";
         public const string UploadDuplicateText = "This asset already exists on the cloud but a new cloud asset will be uploaded";
         public const string UploadOutsideText = "This asset is outside the Assets folder and cannot be uploaded";
+        public const string UploadSourceControlledText = "This asset is source controlled and cannot be re-uploaded";
 
         // AssetDetailsView Asset info
         public const string AssetIdText = "Asset Id";
@@ -109,7 +130,6 @@ namespace Unity.AssetManager.UI.Editor
         public const string AssetTypeText = "Asset Type";
         public const string StatusText = "Status";
         public const string SourceFilesText = "Source Files";
-        public const string UVCSFilesText = "UVCS Files";
         public const string NoFilesText = "No files were found in this asset.";
         public const string SameFileNamesText = "Files of the same name were found in this asset. Unity does not support files with the same name.";
         public const string DependenciesText = "Dependencies";
@@ -117,6 +137,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string ServiceAccountText = "Service Account";
         public const string LatestTagText = "Latest";
         public const string ImportedTagText = "Imported";
+        public const string VCSChipTooltip = "Those files are version controlled";
 
         // AssetDetailsView Asset status
         public const string AssetDraftStatus = "Draft";
@@ -126,7 +147,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string AssetPublishedStatus = "Published";
         public const string AssetWithdrawnStatus = "Withdrawn";
 
-        // AssetDetailsView Import action text
+        // AssetDetailsView actions text
         public const string ImportActionText = "Import";
         public const string ImportToActionText = "Import To";
         public const string ImportButtonTooltip = "Imports all associated files of the Cloud Asset into your Unity project";
@@ -136,26 +157,30 @@ namespace Unity.AssetManager.UI.Editor
         public const string ImportLocationTitle = "Choose import location";
         public const string RemoveFromProjectActionText = "Remove From Project";
         public const string RemoveAllFromProjectActionText = "Remove All From Local Project";
+        public const string RemoveAssetOnlyText = "Remove Asset (Ignore dependencies)";
+        public const string RemoveAssetsOnlyText = "Remove Assets (Ignore dependencies)";
+        public const string StopTrackingAssetOnlyActionText = "Stop Tracking Asset (Ignore dependencies)";
+        public const string StopTrackingAssetsOnlyActionText = "Stop Tracking Assets (Ignore dependencies)";
+        public const string StopTrackingAssetActionText = "Stop Tracking Asset And Exclusive Dependencies";
+        public const string StopTrackingAssetsActionText = "Stop Tracking Assets And Exclusive Dependencies";
+        public const string UntrackAssetActionText = "Stop Tracking Asset";
+        public const string UntrackAssetsActionText = "Stop Tracking Assets";
         public const string ClearImportActionText = "Clear All Finished Imports";
         public const string ShowInProjectActionText = "Show In Project";
         public const string ShowInProjectButtonToolTip = "Pings the Asset in an active Project window";
         public const string ShowInProjectButtonDisabledToolTip = "This Asset has not yet been imported";
         public const string ShowInDashboardActionText = "Show In Dashboard";
         public const string AssetsSelectedTitle = "Assets Selected";
-
         public const string ImportingText = "Importing";
         public const string ImportAllSelectedActionText = "Import All Selected";
         public const string RemoveFromProjectAllSelectedActionText = "Remove All Selected From Project";
-        public const string RemoveFromProjectButtonToolTip = "Removes the asset from your Unity project";
+        public const string RemoveAllFromProjectToolTip = "Remove all selected assets and their exclusive dependencies from your Unity project";
+        public const string RemoveFromProjectButtonToolTip = "Removes the asset and its exlcusive dependencies from your Unity project";
         public const string RemoveFromProjectButtonDisabledToolTip = "There is nothing to remove from the project.";
         public const string ImportButtonDisabledToolTip = "There is nothing to import.";
         public const string ImportNoPermissionMessage = "You don’t have permissions to import this asset. \nSee your role from the project settings page on \nthe Asset Manager dashboard.";
 
         // Grid View
-        public const string GridViewStyleClassName = "grid-view";
-        public const string GridViewRowStyleClassName = GridViewStyleClassName + "--row";
-        public const string GridViewDummyItemUssClassName = GridViewStyleClassName + "--item-dummy";
-        public const string GridItemStyleClassName = "grid-view--item";
         public const string EmptyCollectionsText = "This collection has no assets, use the Asset Manager dashboard to link your assets to a collection.";
         public const string EmptyInProjectText = "Your imported assets will be shown here.";
         public const string EmptyProjectText = "The selected project is empty. To add assets, right click on any asset in project window and select upload to asset manager.";
@@ -163,8 +188,11 @@ namespace Unity.AssetManager.UI.Editor
         public const string NoResultsText = "No results found";
         public const string NoResultsForText = "No results found for";
 
+        public const string UpdateAllText = "Update All";
         public const string UpdateAllToLatestActionText = "Update All To Latest";
         public const string UpdateSelectedToLatestActionText = "Update Selected To Latest";
+        public const string UpdateProjectToLatestActionText = "Update All Imported Assets From This Project";
+        public const string UpdateCollectionToLatestActionText = "Update All Imported Assets From This Collection";
 
         // Permissions
         public const string ImportPermission = "amc.assets.download";
@@ -189,6 +217,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string ImportDefaultLocation = "Default import location";
         public const string ImportCreateSubfolders = "Create subfolder on import";
         public const string ImportCreateSubfoldersTooltip = "Enabling this option will automatically generate a folder named after the cloud asset and import files within it";
+        public const string ImportKeepHigherVersion = "Avoid rolling back versions of dependencies";
+        public const string ImportKeepHigherVersionTooltip = "Enabling this option will keep by default the higher version of a dependency when importing";
 
         public const string CacheSettingsTitle = "Cache Settings";
         public const string CacheLocationTitle = "Cache location";

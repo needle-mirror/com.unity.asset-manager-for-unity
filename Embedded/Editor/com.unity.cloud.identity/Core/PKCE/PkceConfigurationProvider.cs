@@ -59,15 +59,9 @@ namespace Unity.Cloud.IdentityEmbedded
                 ProxyLoginCompletedRoute = $"{serviceDomainHost}/app-linking/v1/login/completed/",
                 ProxySignOutCompletedRoute = $"{serviceDomainHost}/app-linking/v1/signout/completed/",
                 LoginUrl = $"https://{genesisSubdomain}.unity.com/v1/oauth2/authorize",
-#if EXPERIMENTAL_WEBGL_PROXY
-                TokenUrl = $"https://{serviceDomainHost}/app-linking/v1alpha1/token",
-                RefreshTokenUrl = $"https://{serviceDomainHost}/app-linking/v1alpha1/token",
-                LogoutUrl = $"https://{serviceDomainHost}/app-linking/v1alpha1/token/revoke",
-#else
-                TokenUrl = $"https://{genesisSubdomain}.unity.com/v1/oauth2/token",
-                RefreshTokenUrl = $"https://{genesisSubdomain}.unity.com/v1/oauth2/token",
-                LogoutUrl = $"https://{genesisSubdomain}.unity.com/v1/oauth2/revoke",
-#endif
+                TokenUrl = $"https://{serviceDomainHost}/app-linking/v1/token",
+                RefreshTokenUrl = $"https://{serviceDomainHost}/app-linking/v1/token",
+                LogoutUrl = $"https://{serviceDomainHost}/app-linking/v1/token/revoke",
                 SignOutUrl = $"https://{genesisSubdomain}.unity.com/v1/oauth2/end-session?post_logout_redirect_uri=",
                 UserInfoUrl = $"https://{genesisSubdomain}.unity.com/v1/users/current/openid",
                 CustomLoginParams = ""

@@ -39,24 +39,6 @@ namespace Unity.Cloud.IdentityEmbedded
 
         async Task<RangeResultsJson<ProjectJson>> GetOrganizationProjects(string rangeRequestPath, CancellationToken cancellationToken)
         {
-#if EXPERIMENTAL_WEBGL_PROXY
-            var url = m_ServiceHostResolver.GetResolvedRequestUri("/app-linking/v1alpha1/core");
-            if (m_GetRequestResponseCache.TryGetRequestResponseFromCache(rangeRequestPath, out RangeResultsJson<ProjectJson> value))
-            {
-                return value;
-            }
-
-            var coreApiRequest = new CoreApiRequestParams
-            {
-                Path = rangeRequestPath,
-                Method = "Get",
-            };
-            var content = new StringContent(JsonSerialization.Serialize(coreApiRequest), Encoding.UTF8, "application/json");
-            var response = await m_ServiceHttpClient.PostAsync(url, content, cancellationToken: cancellationToken);
-
-            var deserializedResponse = await response.JsonDeserializeAsync<RangeResultsJson<ProjectJson>>();
-            return m_GetRequestResponseCache.AddGetRequestResponseToCache(rangeRequestPath, deserializedResponse);
-#else
             var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
             var url = internalServiceHostResolver.GetResolvedRequestUri($"/{rangeRequestPath}");
             if (m_GetRequestResponseCache.TryGetRequestResponseFromCache(url, out RangeResultsJson<ProjectJson> value))
@@ -66,7 +48,6 @@ namespace Unity.Cloud.IdentityEmbedded
             var response = await m_ServiceHttpClient.GetAsync(url, cancellationToken: cancellationToken);
             var deserializedResponse = await response.JsonDeserializeAsync<RangeResultsJson<ProjectJson>>();
             return m_GetRequestResponseCache.AddGetRequestResponseToCache(url, deserializedResponse);
-#endif
         }
 
     }

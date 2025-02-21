@@ -75,19 +75,17 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc/>
-        public async Task<IProjectData> EnableProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        public Task EnableProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var request = ProjectRequest.GetEnableProjectRequest(projectDescriptor.ProjectId);
-            await RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
+            return RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
-
-            return await GetProjectAsync(projectDescriptor, cancellationToken);
         }
 
         /// <inheritdoc/>
-        public async Task<IProjectData> CreateProjectAsync(OrganizationId organizationId, IProjectBaseData projectCreation, CancellationToken cancellationToken)
+        public async Task<ProjectDescriptor> CreateProjectAsync(OrganizationId organizationId, IProjectBaseData projectCreation, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -100,11 +98,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
             var projectDto = IsolatedSerialization.DeserializeWithDefaultConverters<CreatedProjectDto>(jsonContent);
 
-            return new ProjectData(projectDto.Id)
-            {
-                Name = projectCreation.Name,
-                Metadata = projectCreation.Metadata
-            };
+            return new ProjectDescriptor(organizationId, new ProjectId(projectDto.Id));
         }
 
         /// <inheritdoc/>

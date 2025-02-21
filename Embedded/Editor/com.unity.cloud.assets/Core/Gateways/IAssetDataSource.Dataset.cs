@@ -8,7 +8,7 @@ namespace Unity.Cloud.AssetsEmbedded
 {
     partial interface IAssetDataSource
     {
-        Task<IDatasetData> CreateDatasetAsync(AssetDescriptor assetDescriptor, IDatasetBaseData datasetCreation, CancellationToken cancellationToken);
+        Task<DatasetDescriptor> CreateDatasetAsync(AssetDescriptor assetDescriptor, IDatasetBaseData datasetCreation, CancellationToken cancellationToken);
 
         IAsyncEnumerable<IDatasetData> ListDatasetsAsync(AssetDescriptor assetDescriptor, Range range, FieldsFilter includedFieldsFilter, CancellationToken cancellationToken);
 

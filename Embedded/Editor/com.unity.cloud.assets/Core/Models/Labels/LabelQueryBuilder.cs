@@ -12,15 +12,29 @@ namespace Unity.Cloud.AssetsEmbedded
     sealed class LabelQueryBuilder
     {
         readonly IAssetDataSource m_DataSource;
+        readonly AssetRepositoryCacheConfiguration m_DefaultCacheConfiguration;
         readonly OrganizationId m_OrganizationId;
 
+        LabelCacheConfiguration? m_CacheConfiguration;
         LabelSearchFilter m_Filter;
         Range m_Range = Range.All;
 
-        internal LabelQueryBuilder(IAssetDataSource dataSource, OrganizationId organizationId)
+        internal LabelQueryBuilder(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, OrganizationId organizationId)
         {
             m_DataSource = dataSource;
+            m_DefaultCacheConfiguration = defaultCacheConfiguration;
             m_OrganizationId = organizationId;
+        }
+
+        /// <summary>
+        /// Sets an override to the default cache configuration for the query.
+        /// </summary>
+        /// <param name="labelCacheConfiguration">The configuration to apply when populating the labels. </param>
+        /// <returns>The calling <see cref="AssetProjectQueryBuilder"/>. </returns>
+        public LabelQueryBuilder WithCacheConfiguration(LabelCacheConfiguration labelCacheConfiguration)
+        {
+            m_CacheConfiguration = labelCacheConfiguration;
+            return this;
         }
 
         /// <summary>
@@ -66,7 +80,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 cancellationToken);
             await foreach (var result in results)
             {
-                yield return result.From(m_DataSource, m_OrganizationId);
+                yield return result.From(m_DataSource, m_DefaultCacheConfiguration, m_OrganizationId, m_CacheConfiguration);
             }
         }
     }

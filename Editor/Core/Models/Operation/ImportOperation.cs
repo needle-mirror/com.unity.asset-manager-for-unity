@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.AssetManager.Core.Editor;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -23,21 +21,24 @@ namespace Unity.AssetManager.Core.Editor
         public interface IFileDownload
         {
             public string DownloadPath { get; }
+            public string OriginalPath { get; }
             public string Error { get; }
         }
 
         class FileDownloadRequests : IFileDownload
         {
             public string DownloadPath { get; }
+            public string OriginalPath { get; }
             public string Error => m_WebRequest.error;
 
             public UnityWebRequest WebRequest => m_WebRequest;
 
             readonly UnityWebRequest m_WebRequest;
 
-            public FileDownloadRequests(string downloadPath, UnityWebRequest webRequest)
+            public FileDownloadRequests(string downloadPath, string originalPath, UnityWebRequest webRequest)
             {
                 DownloadPath = downloadPath;
+                OriginalPath = originalPath;
                 m_WebRequest = webRequest;
             }
         }
@@ -47,9 +48,13 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeReference]
         BaseAssetData m_AssetData;
 
-        public DateTime StartTime;
-        public string TempDownloadPath;
-        public string DestinationPath;
+        readonly DateTime m_StartTime;
+        readonly string m_TempDownloadPath;
+        readonly Dictionary<string, string> m_DestinationPathPerFile;
+        readonly string m_DefaultDestinationPath;
+
+        public DateTime StartTime => m_StartTime;
+        public string TempDownloadPath => m_TempDownloadPath;
 
         public BaseAssetData AssetData => m_AssetData;
         AssetData TypedAssetData => m_AssetData as AssetData; // keep this one private
@@ -88,9 +93,13 @@ namespace Unity.AssetManager.Core.Editor
 
         float m_LastReportedProgress = 0f;
 
-        public ImportOperation(BaseAssetData assetData)
+        public ImportOperation(BaseAssetData assetData, string tempDownloadPath, Dictionary<string, string> destinationPathPerFile, string defaultDestinationPath)
         {
             m_AssetData = assetData;
+            m_TempDownloadPath = tempDownloadPath;
+            m_DestinationPathPerFile = destinationPathPerFile;
+            m_StartTime = DateTime.Now;
+            m_DefaultDestinationPath = defaultDestinationPath;
         }
 
         public async Task ImportAsync(CancellationToken token = default)
@@ -109,13 +118,36 @@ namespace Unity.AssetManager.Core.Editor
 
                 fetchDownloadUrlsOperation.Finish(OperationStatus.Success);
 
+                if (downloadUrls.Count == 0)
+                {
+                    Utilities.DevLog($"Nothing to download from asset '{TypedAssetData?.Name}'.");
+                    Finish(OperationStatus.Success);
+                    return;
+                }
+
                 foreach (var (filePath, url) in downloadUrls)
                 {
-                    var tempPath = Path.Combine(TempDownloadPath, filePath);
-                    m_DownloadRequests.Add(new FileDownloadRequests(tempPath, CreateFileDownloadRequest(url.AbsoluteUri, tempPath)));
+                    // If the file is already in the project, use the existing path in case it was moved
+                    if (!m_DestinationPathPerFile.TryGetValue(filePath, out var destinationPath))
+                    {
+                        // If the file is not found, it might be a metafile, so we try to find the destination path without the meta extension
+                        if (MetafilesHelper.IsMetafile(filePath) &&
+                            m_DestinationPathPerFile.TryGetValue(MetafilesHelper.RemoveMetaExtension(filePath), out var destinationPathWithoutMeta))
+                        {
+                            destinationPath = $"{destinationPathWithoutMeta}{MetafilesHelper.MetaFileExtension}";
+                        }
+                        else
+                        {
+                            // Otherwise, we use the path from the default destination path
+                            destinationPath = Path.Combine(m_DefaultDestinationPath, filePath);
+                        }
+                    }
+
+                    var tempPath = Path.Combine(TempDownloadPath, destinationPath);
+                    m_DownloadRequests.Add(new FileDownloadRequests(tempPath, filePath, CreateFileDownloadRequest(url.AbsoluteUri, tempPath)));
                 }
             }
-            catch(TaskCanceledException)
+            catch (TaskCanceledException)
             {
                 fetchDownloadUrlsOperation.Finish(OperationStatus.None);
                 throw;

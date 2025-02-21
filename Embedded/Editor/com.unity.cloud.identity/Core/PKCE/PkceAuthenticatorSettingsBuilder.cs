@@ -17,6 +17,7 @@ namespace Unity.Cloud.IdentityEmbedded
         IPkceConfigurationProvider m_PkceConfigurationProvider;
         IPkceRequestHandler m_PkceRequestHandler;
         IAccessTokenExchanger<string, UnityServicesToken> m_AccessTokenExchanger;
+        IJwtDecoder m_JwtDecoder;
 
         /// <summary>
         /// Creates a <see cref="PkceAuthenticatorSettingsBuilder"/> that builds a <see cref="PkceAuthenticatorSettings"/> to inject into the <see cref="PkceAuthenticator"/>.
@@ -153,6 +154,20 @@ namespace Unity.Cloud.IdentityEmbedded
         }
 
         /// <summary>
+        /// Adds a <see cref="IJwtDecoder"/> to the authenticator settings.
+        /// </summary>
+        /// <param name="jwtDecoder">The <see cref="IJwtDecoder"/> to add to the authenticator settings.</param>
+        /// <returns>The modified <see cref="PkceAuthenticatorSettingsBuilder"/>.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if any parameter is null.</exception>
+        public PkceAuthenticatorSettingsBuilder AddJwtDecoder(IJwtDecoder jwtDecoder)
+        {
+            ThrowIfNull(jwtDecoder, nameof(jwtDecoder));
+
+            m_JwtDecoder = jwtDecoder;
+            return this;
+        }
+
+        /// <summary>
         /// Builds the <see cref="PkceAuthenticatorSettings"/> to inject into the <see cref="PkceAuthenticator"/>.
         /// </summary>
         /// <returns>
@@ -160,6 +175,9 @@ namespace Unity.Cloud.IdentityEmbedded
         /// </returns>
         public PkceAuthenticatorSettings Build()
         {
+            // Backward compatibility
+            m_JwtDecoder ??= new JwtDecoder();
+
             ValidateRequiredSettings();
 
             return new PkceAuthenticatorSettings(
@@ -170,7 +188,8 @@ namespace Unity.Cloud.IdentityEmbedded
                 m_ServiceHostResolver,
                 m_HttpClient,
                 m_AppIdProvider,
-                m_AppNamespaceProvider
+                m_AppNamespaceProvider,
+                m_JwtDecoder
                 );
         }
 
@@ -189,6 +208,7 @@ namespace Unity.Cloud.IdentityEmbedded
             ValidateRequiredSetting(m_AccessTokenExchanger, ref missingSettingsMessage, ref settingsAreMissing);
             ValidateRequiredSetting(m_PkceRequestHandler, ref missingSettingsMessage, ref settingsAreMissing);
             ValidateRequiredSetting(m_AppNamespaceProvider, ref missingSettingsMessage, ref settingsAreMissing);
+            ValidateRequiredSetting(m_JwtDecoder, ref missingSettingsMessage, ref settingsAreMissing);
 
             // If any settings are missing, throw an exception.
             if (settingsAreMissing)

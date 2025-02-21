@@ -12,6 +12,7 @@ namespace Unity.Cloud.AssetsEmbedded
     sealed class VersionQueryBuilder
     {
         readonly IAssetDataSource m_AssetDataSource;
+        readonly CacheConfigurationWrapper m_CacheConfiguration;
         readonly ProjectDescriptor m_ProjectDescriptor;
         readonly AssetId m_AssetId;
 
@@ -20,11 +21,23 @@ namespace Unity.Cloud.AssetsEmbedded
         string m_SortingField = "versionNumber";
         SortingOrder m_SortingOrder = SortingOrder.Ascending;
 
-        internal VersionQueryBuilder(IAssetDataSource dataSource, ProjectDescriptor projectDescriptor, AssetId assetId)
+        internal VersionQueryBuilder(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, ProjectDescriptor projectDescriptor, AssetId assetId)
         {
             m_AssetDataSource = dataSource;
+            m_CacheConfiguration = new CacheConfigurationWrapper(defaultCacheConfiguration);
             m_ProjectDescriptor = projectDescriptor;
             m_AssetId = assetId;
+        }
+
+        /// <summary>
+        /// Sets an override to the default cache configuration for assets.
+        /// </summary>
+        /// <param name="assetCacheConfiguration">The configuration to apply when populating the assets. </param>
+        /// <returns>The calling <see cref="VersionQueryBuilder"/>. </returns>
+        public VersionQueryBuilder WithCacheConfiguration(AssetCacheConfiguration assetCacheConfiguration)
+        {
+            m_CacheConfiguration.SetAssetConfiguration(assetCacheConfiguration);
+            return this;
         }
 
         /// <summary>
@@ -69,7 +82,9 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <returns>An async enumeration of <see cref="IAsset"/> with the same <see cref="AssetId"/>. </returns>
         public async IAsyncEnumerable<IAsset> ExecuteAsync([EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var parameters = new SearchRequestParameters(FieldsFilter.DefaultAssetIncludes)
+            var fieldsFilter = m_CacheConfiguration.GetAssetFieldsFilter();
+
+            var parameters = new SearchRequestParameters(fieldsFilter)
             {
                 Filter = m_AssetSearchFilter?.From(),
                 Pagination = new SearchRequestPagination(m_SortingField, m_SortingOrder),
@@ -79,7 +94,7 @@ namespace Unity.Cloud.AssetsEmbedded
             var results = m_AssetDataSource.ListAssetVersionsAsync(m_ProjectDescriptor, m_AssetId, parameters, cancellationToken);
             await foreach (var result in results)
             {
-                yield return result.From(m_AssetDataSource, m_ProjectDescriptor, FieldsFilter.DefaultAssetIncludes);
+                yield return result.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, m_ProjectDescriptor, fieldsFilter, m_CacheConfiguration.AssetConfiguration);
             }
         }
     }

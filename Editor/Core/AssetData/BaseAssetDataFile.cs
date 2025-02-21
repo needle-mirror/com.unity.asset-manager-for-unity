@@ -56,7 +56,7 @@ namespace Unity.AssetManager.Core.Editor
         public IReadOnlyCollection<string> Tags
         {
             get => m_Tags;
-            protected set => m_Tags = new List<string>(value?.ToArray() ?? Array.Empty<string>());  // Assigning the new value directly
+            protected set => m_Tags = value?.ToList();
         }
 
         public long FileSize

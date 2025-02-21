@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
@@ -34,10 +33,12 @@ namespace Unity.Cloud.AssetsEmbedded
             var filter = new AssetSearchFilter();
             filter.Include().FrozenSequenceNumber.WithValue(frozenSequenceNumber);
 
+#pragma warning disable 618
             var query = asset.QueryVersions()
                 .SelectWhereMatchesFilter(filter)
                 .LimitTo(new Range(0, 1))
                 .ExecuteAsync(cancellationToken);
+#pragma warning restore 618
 
             IAsset version = null;
 
@@ -91,9 +92,10 @@ namespace Unity.Cloud.AssetsEmbedded
         public static async Task AddTagsAsync(this IAsset asset, IEnumerable<string> tagsToAdd, CancellationToken cancellationToken)
         {
             await asset.RefreshAsync(cancellationToken);
+            var properties = await asset.GetPropertiesAsync(cancellationToken);
             var update = new AssetUpdate
             {
-                Tags = asset.Tags.Union(tagsToAdd).ToList()
+                Tags = properties.Tags.Union(tagsToAdd).ToList()
             };
             await asset.UpdateAsync(update, cancellationToken);
         }
@@ -108,9 +110,10 @@ namespace Unity.Cloud.AssetsEmbedded
         public static async Task RemoveTagsAsync(this IAsset asset, IEnumerable<string> tagsToRemove, CancellationToken cancellationToken)
         {
             await asset.RefreshAsync(cancellationToken);
+            var properties = await asset.GetPropertiesAsync(cancellationToken);
             var update = new AssetUpdate
             {
-                Tags = asset.Tags.Except(tagsToRemove).ToList()
+                Tags = properties.Tags.Except(tagsToRemove).ToList()
             };
             await asset.UpdateAsync(update, cancellationToken);
         }
@@ -129,10 +132,34 @@ namespace Unity.Cloud.AssetsEmbedded
 
         static async Task<IDataset> GetDatasetAsync(this IAsset asset, string systemTag, CancellationToken cancellationToken)
         {
+            // Get a handle on the original cache configuration of the asset.
+            var assetCacheConfiguration = asset.CacheConfiguration;
+
+            // To reduce the number of requests, we check if the asset has the required cache configuration.
+            if (!assetCacheConfiguration.DatasetCacheConfiguration.CacheProperties)
+            {
+                var configuration = new AssetCacheConfiguration
+                {
+                    CacheDatasetList = true,
+                    DatasetCacheConfiguration = new DatasetCacheConfiguration {CacheProperties = true}
+                };
+
+                asset = await asset.WithCacheConfigurationAsync(configuration, cancellationToken);
+            }
+
+            // This request is synchronous as we have already cached the dataset list.
             await foreach (var dataset in asset.ListDatasetsAsync(Range.All, cancellationToken))
             {
-                if (dataset.SystemTags != null && dataset.SystemTags.Contains(systemTag))
+                // This request is synchronous as we have already cached the dataset properties.
+                var properties = await dataset.GetPropertiesAsync(cancellationToken);
+                if (properties.SystemTags != null && properties.SystemTags.Contains(systemTag))
                 {
+                    // If we had to update the cache configuration to batch requests, we ensure the dataset is returned with the original configuration.
+                    if (!assetCacheConfiguration.DatasetCacheConfiguration.Equals(dataset.CacheConfiguration))
+                    {
+                        return await dataset.WithCacheConfigurationAsync(assetCacheConfiguration.DatasetCacheConfiguration, cancellationToken);
+                    }
+
                     return dataset;
                 }
             }

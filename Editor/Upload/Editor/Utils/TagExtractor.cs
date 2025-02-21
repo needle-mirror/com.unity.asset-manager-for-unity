@@ -9,7 +9,7 @@ namespace Unity.AssetManager.Upload.Editor
 {
     static class TagExtractor
     {
-        public static IEnumerable<string> ExtractFromAsset(string assetPath)
+        public static ISet<string> ExtractFromAsset(string assetPath)
         {
             var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
             var asset = assetDatabaseProxy.LoadAssetAtPath(assetPath);

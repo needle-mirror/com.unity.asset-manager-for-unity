@@ -49,6 +49,11 @@ namespace Unity.Cloud.IdentityEmbedded
         internal readonly IAppNamespaceProvider AppNamespaceProvider;
 
         /// <summary>
+        /// The <see cref="IJwtDecoder"/> to use for PKCE authentication.
+        /// </summary>
+        internal readonly IJwtDecoder JwtDecoder;
+
+        /// <summary>
         /// Creates a <see cref="PkceAuthenticatorSettings"/> to inject in a <see cref="PkceAuthenticator"/>.
         /// </summary>
         internal PkceAuthenticatorSettings(
@@ -59,7 +64,8 @@ namespace Unity.Cloud.IdentityEmbedded
             IServiceHostResolver serviceHostResolver,
             IHttpClient httpClient,
             IAppIdProvider appIdProvider,
-            IAppNamespaceProvider appNamespaceProvider
+            IAppNamespaceProvider appNamespaceProvider,
+            IJwtDecoder jwtDecoder
             )
         {
             AuthenticationPlatformSupport = authenticationPlatformSupport;
@@ -70,6 +76,7 @@ namespace Unity.Cloud.IdentityEmbedded
             HttpClient = httpClient;
             AppIdProvider = appIdProvider;
             AppNamespaceProvider = appNamespaceProvider;
+            JwtDecoder = jwtDecoder;
         }
     }
 }

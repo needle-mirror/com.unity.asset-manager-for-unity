@@ -6,256 +6,192 @@ namespace Unity.AssetManager.Core.Editor
 {
     interface IMetadata
     {
+        public string FieldKey { get; }
         public string Name { get; }
-
+        public MetadataFieldType Type { get; }
         public object GetValue();
+
+        public IMetadata Clone();
     }
 
-    [Serializable]
-    class TextMetadata : IMetadata
+    abstract class MetadataBase<T> : IMetadata
     {
+        [SerializeField]
+        string m_FieldKey;
+
         [SerializeField]
         string m_Name;
 
         [SerializeField]
-        string m_Value;
+        MetadataFieldType m_Type;
 
+        [SerializeField]
+        T m_Value;
+
+        public string FieldKey => m_FieldKey;
         public string Name => m_Name;
-        public string Value => m_Value;
+        public MetadataFieldType Type => m_Type;
 
-        public TextMetadata(string name, string value)
+        public T Value
         {
+            get => m_Value;
+            set => m_Value = value;
+        }
+
+        protected MetadataBase(MetadataFieldType type, string fieldKey, string name, T value)
+        {
+            m_FieldKey = fieldKey;
+            m_Type = type;
             m_Name = name;
             m_Value = value;
         }
 
-        public object GetValue() => Value;
-
-        public override string ToString()
+        public IMetadata Clone()
         {
-            return Value;
+            return Activator.CreateInstance(GetType(), m_FieldKey, m_Name, m_Value) as IMetadata;
+        }
+
+        public object GetValue() => m_Value;
+    }
+
+    [Serializable]
+    class TextMetadata : MetadataBase<string>
+    {
+        public TextMetadata(string fieldKey, string name, string value)
+            : base(MetadataFieldType.Text, fieldKey, name, value)
+        {
         }
     }
 
     [Serializable]
-    class BooleanMetadata : IMetadata
+    class BooleanMetadata : MetadataBase<bool>
     {
-        [SerializeField]
-        string m_Name;
-
-        [SerializeField]
-        bool m_Value;
-
-        public string Name => m_Name;
-        public bool Value => m_Value;
-
-        public BooleanMetadata(string name, bool value)
+        public BooleanMetadata(string fieldKey, string name, bool value)
+            : base(MetadataFieldType.Boolean, fieldKey, name, value)
         {
-            m_Name = name;
-            m_Value = value;
-        }
-
-        public string GetName() => Name;
-
-        public object GetValue() => Value;
-
-        public override string ToString()
-        {
-            return Value.ToString();
         }
     }
 
     [Serializable]
-    class NumberMetadata : IMetadata
+    class NumberMetadata : MetadataBase<double>
     {
-        [SerializeField]
-        string m_Name;
-
-        [SerializeField]
-        double m_Value;
-
-        public string Name => m_Name;
-        public double Value => m_Value;
-
-        public NumberMetadata(string name, double value)
+        public NumberMetadata(string fieldKey, string name, double value)
+            : base(MetadataFieldType.Number, fieldKey, name, value)
         {
-            m_Name = name;
-            m_Value = value;
-        }
-
-        public string GetName() => Name;
-
-        public object GetValue() => Value;
-
-        public override string ToString()
-        {
-            var valueAsString = Value.ToString("G");
-
-            if (string.IsNullOrWhiteSpace(valueAsString))
-            {
-                valueAsString = "0";
-            }
-
-            if (valueAsString.StartsWith('.'))
-            {
-                valueAsString = valueAsString.Insert(0, "0");
-            }
-            else if (valueAsString.EndsWith('.'))
-            {
-                valueAsString = valueAsString.Insert(valueAsString.Length, "0");
-            }
-
-            if (double.TryParse(valueAsString, out var parsedNumber))
-            {
-                return parsedNumber.ToString();
-            }
-
-            return "Invalid number";
         }
     }
 
     [Serializable]
-    class UrlMetadata : IMetadata
+    struct UriEntry : ISerializationCallbackReceiver
     {
         [SerializeField]
-        string m_Name;
+        string m_SerializedUri;
 
         [SerializeField]
-        Uri m_Value;
+        string m_Label;
 
-        public string Name => m_Name;
-        public Uri Value => m_Value;
+        public Uri Uri { get; set; }
 
-        public UrlMetadata(string name, Uri value)
+        public string Label
         {
-            m_Name = name;
-            m_Value = value;
+            get => m_Label;
+            set => m_Label = value;
         }
 
-        public string GetName() => Name;
-
-        public object GetValue() => Value;
-
-        public override string ToString()
+        public UriEntry(Uri uri, string label)
         {
-            if (Uri.TryCreate(Value.ToString(), UriKind.Absolute, out var uri))
-            {
-                return uri.ToString();
-            }
+            Uri = uri;
+            m_Label = label;
+            m_SerializedUri = null;
+        }
 
-            return "Invalid URL";
+        public void OnBeforeSerialize()
+        {
+            m_SerializedUri = Uri?.ToString();
+        }
+
+        public void OnAfterDeserialize()
+        {
+            if (string.IsNullOrEmpty(m_SerializedUri))
+                return;
+
+            Uri = new Uri(m_SerializedUri);
+        }
+    }
+
+
+    [Serializable]
+    class UrlMetadata : MetadataBase<UriEntry>
+    {
+        public UrlMetadata(string fieldKey, string name, UriEntry value)
+            : base(MetadataFieldType.Url, fieldKey, name, value)
+        {
         }
     }
 
     [Serializable]
-    class TimestampMetadata : IMetadata
+    struct DateTimeEntry : ISerializationCallbackReceiver
     {
         [SerializeField]
-        string m_Name;
+        long m_SerializedDataTime;
 
         [SerializeField]
-        DateTime m_Value;
+        DateTimeKind m_SerializedDataTimeKind;
 
-        public string Name => m_Name;
-        public DateTime Value => m_Value;
+        public DateTime DateTime { get; set; }
 
-        public TimestampMetadata(string name, DateTime value)
+        public DateTimeEntry(DateTime dateTime)
         {
-            m_Name = name;
-            m_Value = value;
+            DateTime = dateTime;
+            m_SerializedDataTime = 0;
+            m_SerializedDataTimeKind = DateTimeKind.Unspecified;
         }
 
-        public string GetName() => Name;
-
-        public object GetValue() => Value;
-
-        public override string ToString()
+        public void OnBeforeSerialize()
         {
-            return Utilities.DatetimeToString(Value);
+            m_SerializedDataTime = DateTime.Ticks;
+            m_SerializedDataTimeKind = DateTime.Kind;
+        }
+
+        public void OnAfterDeserialize()
+        {
+            DateTime = new DateTime(m_SerializedDataTime, m_SerializedDataTimeKind);
         }
     }
 
     [Serializable]
-    class UserMetadata : IMetadata
+    class TimestampMetadata : MetadataBase<DateTimeEntry>
     {
-        [SerializeField]
-        string m_Name;
-
-        [SerializeField]
-        string m_Value;
-
-        public string Name => m_Name;
-        public string Value => m_Value;
-
-        public UserMetadata(string name, string value)
+        public TimestampMetadata(string fieldKey, string name, DateTimeEntry value)
+            : base(MetadataFieldType.Timestamp, fieldKey, name, value)
         {
-            m_Name = name;
-            m_Value = value;
-        }
-
-        public string GetName() => Name;
-
-        public object GetValue() => Value;
-
-        public override string ToString()
-        {
-            return Value;
         }
     }
 
     [Serializable]
-    class SingleSelectionMetadata : IMetadata
+    class UserMetadata : MetadataBase<string>
     {
-        [SerializeField]
-        string m_Name;
-
-        [SerializeField]
-        string m_Value;
-
-        public string Name => m_Name;
-        public string Value => m_Value;
-
-        public SingleSelectionMetadata(string name, string value)
+        public UserMetadata(string fieldKey, string name, string value)
+            : base(MetadataFieldType.User, fieldKey, name, value)
         {
-            m_Name = name;
-            m_Value = value;
-        }
-
-        public string GetName() => Name;
-
-        public object GetValue() => Value;
-
-        public override string ToString()
-        {
-            return Value;
         }
     }
 
     [Serializable]
-    class MultiSelectionMetadata : IMetadata
+    class SingleSelectionMetadata : MetadataBase<string>
     {
-        [SerializeField]
-        string m_Name;
-
-        [SerializeField]
-        List<string> m_Value;
-
-        public string Name => m_Name;
-        public  List<string> Value => m_Value;
-
-        public string GetName() => Name;
-
-        public MultiSelectionMetadata(string name, List<string> value)
+        public SingleSelectionMetadata(string fieldKey, string name, string value)
+            : base(MetadataFieldType.SingleSelection, fieldKey, name, value)
         {
-            m_Name = name;
-            m_Value = value;
         }
+    }
 
-        public object GetValue() => Value;
-
-        public override string ToString()
+    [Serializable]
+    class MultiSelectionMetadata : MetadataBase<List<string>>
+    {
+        public MultiSelectionMetadata(string fieldKey, string name, List<string> value)
+            : base(MetadataFieldType.MultiSelection, fieldKey, name, value)
         {
-            return string.Join(", ", Value);
         }
     }
 }

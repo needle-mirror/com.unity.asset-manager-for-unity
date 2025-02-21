@@ -15,11 +15,14 @@ namespace Unity.AssetManager.UI.Editor
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly VisualElement m_DraglineAnchor;
         readonly IStateManager m_StateManager;
+        readonly IMessageManager m_MessageManager;
         readonly IUnityConnectProxy m_UnityConnectProxy;
 
         VisualElement m_Sidebar;
         VisualElement m_CollapsedSidebar;
-        float m_DraglineHorizontalPosition;
+        VisualElement m_SidebarContent;
+
+        float m_DragLineHorizontalPosition;
         VisualElement m_AllAssetsButton;
 
         static bool IsCollapsed
@@ -28,18 +31,20 @@ namespace Unity.AssetManager.UI.Editor
             set => EditorPrefs.SetBool(k_IsSidebarCollapsedPrefKey, value);
         }
 
-        public SideBar(IUnityConnectProxy unityConnectProxy, IStateManager stateManager, IPageManager pageManager,
+        public SideBar(IUnityConnectProxy unityConnectProxy, IStateManager stateManager,
+            IPageManager pageManager, IMessageManager messageManager,
             IProjectOrganizationProvider projectOrganizationProvider,
             TwoPaneSplitView categoriesSplitView)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_StateManager = stateManager;
             m_PageManager = pageManager;
+            m_MessageManager = messageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             // We need this to hide/show the draggable line between the panes.
             m_DraglineAnchor = categoriesSplitView.Q("unity-dragline-anchor");
-            m_DraglineHorizontalPosition = categoriesSplitView.fixedPaneInitialDimension;
+            m_DragLineHorizontalPosition = categoriesSplitView.fixedPaneInitialDimension;
 
             if (IsCollapsed)
             {
@@ -52,6 +57,11 @@ namespace Unity.AssetManager.UI.Editor
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+        }
+
+        public void SetContentEnabled(bool enabled)
+        {
+            m_SidebarContent?.SetEnabled(enabled);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
@@ -98,7 +108,11 @@ namespace Unity.AssetManager.UI.Editor
 
             sidebar.Add(topSection);
             sidebar.Add(new HorizontalSeparator());
-            sidebar.Add(new SidebarContent(m_UnityConnectProxy, m_ProjectOrganizationProvider, m_PageManager, m_StateManager));
+
+            m_SidebarContent = new SidebarContent(m_UnityConnectProxy, m_ProjectOrganizationProvider,
+                m_PageManager, m_StateManager, m_MessageManager);
+
+            sidebar.Add(m_SidebarContent);
 
             return sidebar;
         }
@@ -140,7 +154,7 @@ namespace Unity.AssetManager.UI.Editor
 
             UIElementsUtils.Hide(m_CollapsedSidebar);
             UIElementsUtils.Show(m_DraglineAnchor);
-            m_DraglineAnchor.style.left = new Length(m_DraglineHorizontalPosition, LengthUnit.Pixel);
+            m_DraglineAnchor.style.left = new Length(m_DragLineHorizontalPosition, LengthUnit.Pixel);
 
             AddToClassList("expanded-sidebar");
             RemoveFromClassList("collapsed-sidebar");
@@ -152,7 +166,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             if (!float.IsNaN(resolvedStyle.width))
             {
-                m_DraglineHorizontalPosition = resolvedStyle.width;
+                m_DragLineHorizontalPosition = resolvedStyle.width;
             }
 
             if (m_CollapsedSidebar == null)

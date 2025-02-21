@@ -17,41 +17,49 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <summary>
         /// The name of the dataset.
         /// </summary>
+        [Obsolete("Use DatasetProperties.Name instead.")]
         string Name { get; }
 
         /// <summary>
         /// A description of the dataset.
         /// </summary>
+        [Obsolete("Use DatasetProperties.Description instead.")]
         string Description { get; }
 
         /// <summary>
         /// The user tags of the dataset.
         /// </summary>
+        [Obsolete("Use DatasetProperties.Tags instead.")]
         IEnumerable<string> Tags { get; }
 
         /// <summary>
         /// The system tags of the dataset.
         /// </summary>
+        [Obsolete("Use DatasetProperties.SystemTags instead.")]
         IEnumerable<string> SystemTags { get; }
 
         /// <summary>
         /// The status of the dataset.
         /// </summary>
+        [Obsolete("Use DatasetProperties.StatusName instead.")]
         string Status { get; }
 
         /// <summary>
         /// The authoring info of the dataset.
         /// </summary>
+        [Obsolete("Use DatasetProperties.AuthoringInfo instead.")]
         AuthoringInfo AuthoringInfo { get; }
 
         /// <summary>
         /// The order of the files in the dataset.
         /// </summary>
+        [Obsolete("Use DatasetProperties.FileOrder instead.")]
         IEnumerable<string> FileOrder { get; }
 
         /// <summary>
         /// Indicates whether the dataset is visible or not.
         /// </summary>
+        [Obsolete("Use DatasetProperties.IsVisible instead.")]
         bool IsVisible { get; }
 
         /// <summary>
@@ -65,11 +73,32 @@ namespace Unity.Cloud.AssetsEmbedded
         IReadOnlyMetadataContainer SystemMetadata => throw new NotImplementedException();
 
         /// <summary>
+        /// The caching configuration for the dataset.
+        /// </summary>
+        DatasetCacheConfiguration CacheConfiguration => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns a dataset configured with the specified caching configurations.
+        /// </summary>
+        /// <param name="datasetConfiguration">The caching configuration for the dataset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is an <see cref="IDataset"/> with cached values specified by the caching configurations. </returns>
+        Task<IDataset> WithCacheConfigurationAsync(DatasetCacheConfiguration datasetConfiguration, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        /// <summary>
         /// Refreshes the dataset with the specified fields.
         /// </summary>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>
         Task RefreshAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Returns the properties of the dataset.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the <see cref="DatasetProperties"/> of the dataset. </returns>
+        Task<DatasetProperties> GetPropertiesAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Updates the dataset.
@@ -94,6 +123,18 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<IFile> UploadFileAsync(IFileCreation fileCreation, Stream sourceStream, IProgress<HttpProgress> progress, CancellationToken cancellationToken);
 
         /// <summary>
+        /// Creates and uploads a new file to the dataset.
+        /// </summary>
+        /// <param name="fileCreation">The object containing the necessary information to create a new file. </param>
+        /// <param name="sourceStream">The stream from which to upload the new file. </param>
+        /// <param name="progress">The progress of the upload. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is a newly created file. </returns>
+        /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
+        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
+        Task<FileDescriptor> UploadFileLiteAsync(IFileCreation fileCreation, Stream sourceStream, IProgress<HttpProgress> progress, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
         /// Adds a file from the specified dataset to the current dataset.
         /// </summary>
         /// <param name="filePath">The path to the file. </param>
@@ -103,6 +144,17 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
         /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task<IFile> AddExistingFileAsync(string filePath, DatasetId sourceDatasetId, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Adds a file from the specified dataset to the current dataset.
+        /// </summary>
+        /// <param name="filePath">The path to the file. </param>
+        /// <param name="sourceDatasetId">The id of the source dataset.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task with no result. </returns>
+        /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
+        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
+        Task AddExistingFileLiteAsync(string filePath, DatasetId sourceDatasetId, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Removes a file from the dataset.
@@ -152,6 +204,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
         /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task<ITransformation> StartTransformationAsync(ITransformationCreation transformationCreation, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Start a transformation on the dataset.
+        /// </summary>
+        /// <param name="transformationCreation">The object containing the information necessary to start a transformation. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is a new <see cref="TransformationDescriptor"/>. </returns>
+        /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
+        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
+        Task<TransformationDescriptor> StartTransformationLiteAsync(ITransformationCreation transformationCreation, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Returns the transformations on the dataset.

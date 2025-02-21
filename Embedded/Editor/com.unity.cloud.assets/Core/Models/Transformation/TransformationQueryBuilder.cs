@@ -12,15 +12,29 @@ namespace Unity.Cloud.AssetsEmbedded
     class TransformationQueryBuilder
     {
         readonly IAssetDataSource m_DataSource;
+        readonly AssetRepositoryCacheConfiguration m_DefaultCacheConfiguration;
         readonly ProjectDescriptor m_ProjectDescriptor;
 
+        TransformationCacheConfiguration? m_TransformationCacheConfiguration;
         TransformationSearchFilter m_SearchFilter;
         Range m_Range = Range.All;
 
-        internal TransformationQueryBuilder(IAssetDataSource dataSource, ProjectDescriptor projectDescriptor)
+        internal TransformationQueryBuilder(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, ProjectDescriptor projectDescriptor)
         {
             m_DataSource = dataSource;
+            m_DefaultCacheConfiguration = defaultCacheConfiguration;
             m_ProjectDescriptor = projectDescriptor;
+        }
+
+        /// <summary>
+        /// Sets an override to the default cache configuration for the query.
+        /// </summary>
+        /// <param name="transformationCacheConfiguration">The configuration to apply when populating the transformations. </param>
+        /// <returns>The calling <see cref="TransformationQueryBuilder"/>. </returns>
+        public TransformationQueryBuilder WithCacheConfiguration(TransformationCacheConfiguration transformationCacheConfiguration)
+        {
+            m_TransformationCacheConfiguration = transformationCacheConfiguration;
+            return this;
         }
 
         /// <summary>
@@ -71,7 +85,7 @@ namespace Unity.Cloud.AssetsEmbedded
             {
                 if (cancellationToken.IsCancellationRequested) yield break;
 
-                yield return results[i].From(m_DataSource, m_ProjectDescriptor);
+                yield return results[i].From(m_DataSource, m_DefaultCacheConfiguration, m_ProjectDescriptor, m_TransformationCacheConfiguration);
             }
         }
     }

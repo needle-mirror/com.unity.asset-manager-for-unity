@@ -55,25 +55,34 @@ namespace Unity.AssetManager.UI.Editor
             assetName.AddToClassList(UssStyle.ReimportFoldoutAssetName);
             headerTextContainer.Add(assetName);
 
+            var selections = GetSelections(assetDataResolutionInfo);
             var current = assetDataResolutionInfo.CurrentVersion <= 0 ? L10n.Tr(Constants.PendingVersionText) : $"{L10n.Tr(Constants.VersionText)} {assetDataResolutionInfo.CurrentVersion}";
             var destination = assetDataResolutionInfo.AssetData.SequenceNumber <= 0 ? L10n.Tr(Constants.PendingVersionText) : $"{L10n.Tr(Constants.VersionText)} {assetDataResolutionInfo.AssetData.SequenceNumber}";
+
+            // When importing the asset for the first time, the current version is not available
+            if (selections == k_ImportAssetSelections)
+            {
+                current = "_";
+            }
+
             string version = $" - {current} > {destination}";
             var versionsLabel = new Label(version);
             headerTextContainer.Add(versionsLabel);
 
-            var conflicts = assetDataResolutionInfo.FileConflicts;
-            if (conflicts.Any())
+            if (assetDataResolutionInfo.HasConflicts)
             {
-                 var conflictCount = new Label($" ({conflicts.Count} {L10n.Tr(Constants.Conflicts)})");
-                 headerTextContainer.Add(conflictCount);
+                var conflictCount = new Label($" ({assetDataResolutionInfo.ConflictCount} {L10n.Tr(Constants.Conflicts)})");
+                headerTextContainer.Add(conflictCount);
             }
 
-            var selections = GetSelections(assetDataResolutionInfo);
+            var settingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
 
+            var isSkippedByDefault = selections == k_ReImportAssetSelections ||
+                (settingsManager.IsKeepHigherVersionEnabled && selections == k_UpdatedAssetSelections && assetDataResolutionInfo.CurrentVersion > assetDataResolutionInfo.AssetData.SequenceNumber);
             var resolveDropDown = new DropdownField()
             {
                 choices = selections,
-                index = selections == k_ReImportAssetSelections ? 1 : 0
+                index = isSkippedByDefault ? 1 : 0
             };
             resolveDropDown.RegisterValueChangedCallback(v =>
             {
@@ -88,7 +97,7 @@ namespace Unity.AssetManager.UI.Editor
             foreach (var file in m_AssetData.SourceFiles)
             {
                 // Hide meta files unless they are in conflict
-                if(file.Extension == ".meta" && !conflicts.Contains(file))
+                if (file.Extension == ".meta" && !assetDataResolutionInfo.ExistsConflict(file))
                     continue;
 
                 var entry = new VisualElement();
@@ -100,7 +109,7 @@ namespace Unity.AssetManager.UI.Editor
                 nameLabel.tooltip = path;
                 entry.Add(nameLabel);
 
-                if (conflicts.Contains(file))
+                if (assetDataResolutionInfo.ExistsConflict(file))
                 {
                     var status = new VisualElement();
                     status.AddToClassList(UssStyle.ReimportFoldoutContentEntry + k_WarningStatus);
@@ -115,7 +124,7 @@ namespace Unity.AssetManager.UI.Editor
         static List<string> GetSelections(AssetDataResolutionInfo assetDataResolutionInfo)
         {
             List<string> selections;
-            if (assetDataResolutionInfo.FileConflicts.Any())
+            if (assetDataResolutionInfo.HasConflicts)
             {
                 selections = k_ConflictSelections;
             }
@@ -123,14 +132,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 if (assetDataResolutionInfo.HasChanges)
                 {
-                    if (assetDataResolutionInfo.IsLatestVersion)
-                    {
-                        selections = k_ImportAssetSelections;
-                    }
-                    else
-                    {
-                        selections = k_UpdatedAssetSelections;
-                    }
+                    selections = k_UpdatedAssetSelections;
                 }
                 else
                 {

@@ -5,14 +5,15 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
+using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
     class AllAssetsPage : BasePage
     {
         public AllAssetsPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
-            IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider, pageManager) { }
+            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager, IPageManager pageManager)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager) { }
 
         public override bool DisplayBreadcrumbs => true;
 
@@ -44,20 +45,25 @@ namespace Unity.AssetManager.UI.Editor
         {
             if (!AssetList.Any() && !PageFilters.SearchFilters.Any())
             {
-                SetMessageData(L10n.Tr(Constants.EmptyAllAssetsText),
-                    RecommendedAction.OpenAssetManagerDashboardLink);
+                SetPageMessage(new Message(L10n.Tr(Constants.EmptyAllAssetsText),
+                    RecommendedAction.OpenAssetManagerDashboardLink));
             }
-            else if (PageFilters.SearchFilters.Any() && !AssetList.Any())
+            else if (!AssetList.Any() && PageFilters.SearchFilters.Any())
             {
-                SetMessageData(
-                    L10n.Tr("No results found for \"" + string.Join(", ", PageFilters.SearchFilters) + "\""),
-                    RecommendedAction.None);
+                SetPageMessage(new Message(L10n.Tr("No results found for \"" +
+                    string.Join(", ", PageFilters.SearchFilters) + "\"")));
             }
             else
             {
                 PageFilters.EnableFilters();
-                SetMessageData(string.Empty, RecommendedAction.None);
+
+                m_MessageManager.ClearAllMessages();
             }
+        }
+
+        protected override List<CustomMetadataFilter> InitCustomMetadataFilters()
+        {
+            return GetOrganizationCustomMetadataFilter();
         }
     }
 }

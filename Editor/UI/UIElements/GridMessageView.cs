@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine;
@@ -13,21 +14,28 @@ namespace Unity.AssetManager.UI.Editor
 
     class GridMessageView : ScrollView, IGridMessageView
     {
-        readonly IPageManager m_PageManager;
-        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly IMessageManager m_MessageManager;
 
         readonly Label m_MessageLabel;
         readonly MessageActionButton m_MessageActionButton;
 
-        public GridMessageView(IPageManager pageManager,
-            IProjectOrganizationProvider projectOrganizationProvider, ILinksProxy linksProxy)
-        {
-            m_PageManager = pageManager;
-            m_ProjectOrganizationProvider = projectOrganizationProvider;
+        Message m_CurrentMessage;
 
+        public GridMessageView(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            ILinksProxy linksProxy, IMessageManager messageManager)
+        {
             m_MessageLabel = new Label();
             m_MessageActionButton =
                 new MessageActionButton(pageManager, projectOrganizationProvider, linksProxy);
+
+            m_MessageManager = messageManager;
+
+            // This is necessary to survive domain reloads
+            if (m_MessageManager.GridViewMessage != null &&
+                !string.IsNullOrEmpty(m_MessageManager.GridViewMessage.Content))
+            {
+                m_CurrentMessage = m_MessageManager.GridViewMessage;
+            }
 
             Add(m_MessageLabel);
             Add(m_MessageActionButton);
@@ -39,69 +47,48 @@ namespace Unity.AssetManager.UI.Editor
         // Returns true if error view is visible, otherwise returns false
         public bool Refresh()
         {
-            // Prioritize ProjectOrganizationProvider message, if any
-            var hasProjectOrganizationProviderMessage =
-                m_ProjectOrganizationProvider.MessageData?.IsPageScope;
-
-            if (!string.IsNullOrEmpty(m_ProjectOrganizationProvider.MessageData?.Message) &&
-                hasProjectOrganizationProviderMessage != null &&
-                (bool)hasProjectOrganizationProviderMessage)
+            if (m_CurrentMessage == null)
             {
-                DisplayMessage(m_ProjectOrganizationProvider.MessageData);
-                return true;
+                UIElementsUtils.Hide(this);
+
+                return false;
             }
 
-            // Then show PageManager message, if any
-            var hasPageManagerMessage =
-                m_PageManager.ActivePage?.MessageData.IsPageScope;
+            DisplayMessage(m_CurrentMessage);
 
-            if (!string.IsNullOrEmpty(m_PageManager.ActivePage?.MessageData.Message) &&
-                hasPageManagerMessage != null &&
-                (bool)hasPageManagerMessage)
-            {
-                DisplayMessage(m_PageManager.ActivePage?.MessageData);
-                return true;
-            }
-
-            UIElementsUtils.Hide(this);
-            return false;
+            return true;
         }
 
-        void DisplayMessage(MessageData messageData)
+        void DisplayMessage(Message message)
         {
             UIElementsUtils.Show(this);
 
-            m_MessageLabel.text = L10n.Tr(messageData.Message);
-            m_MessageActionButton.SetRecommendedAction(messageData.RecommendedAction);
+            m_MessageLabel.text = L10n.Tr(message.Content);
+            m_MessageActionButton.SetRecommendedAction(message.RecommendedAction);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            m_PageManager.MessageThrown += OnPageManagerMessageThrown;
-            m_ProjectOrganizationProvider.MessageThrown += OnProjectOrganizationProviderMessageThrown;
+            m_MessageManager.GridViewMessageSet += OnGridViewMessageSet;
+            m_MessageManager.GridViewMessageCleared += OnGridViewMessageCleared;
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            m_PageManager.MessageThrown -= OnPageManagerMessageThrown;
-            m_ProjectOrganizationProvider.MessageThrown -= OnProjectOrganizationProviderMessageThrown;
+            m_MessageManager.GridViewMessageSet -= OnGridViewMessageSet;
+            m_MessageManager.GridViewMessageCleared -= OnGridViewMessageCleared;
         }
 
-        void OnPageManagerMessageThrown(IPage _, MessageData messageData)
+        void OnGridViewMessageSet(Message message)
         {
-            if (messageData.IsPageScope)
-            {
-                DisplayMessage(messageData);
-            }
+            m_CurrentMessage = message;
+            Refresh();
         }
 
-        void OnProjectOrganizationProviderMessageThrown(MessageData messageData)
+        void OnGridViewMessageCleared()
         {
-            if (messageData.IsPageScope)
-            {
-                DisplayMessage(messageData);
-            }
+            m_CurrentMessage = null;
+            Refresh();
         }
-
     }
 }

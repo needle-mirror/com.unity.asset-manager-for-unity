@@ -8,7 +8,7 @@ namespace Unity.Cloud.AssetsEmbedded
     class GetTransformationRequest : DatasetRequest
     {
         public GetTransformationRequest(TransformationId transformationId, ProjectId projectId, AssetId assetId, AssetVersion assetVersion, DatasetId datasetId)
-            : base(projectId, assetId, assetVersion, datasetId, null)
+            : base(projectId, assetId, assetVersion, datasetId)
         {
             m_RequestUrl += $"/transformations/{transformationId}";
         }

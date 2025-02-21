@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -12,7 +11,7 @@ namespace Unity.Cloud.AssetsEmbedded
     partial class AssetDataSource
     {
         /// <inheritdoc />
-        public async Task<IPendingFileData> CreateFileAsync(DatasetDescriptor datasetDescriptor, IFileCreateData fileCreation, CancellationToken cancellationToken)
+        public async Task<Uri> CreateFileAsync(DatasetDescriptor datasetDescriptor, IFileCreateData fileCreation, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -25,15 +24,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
             var dto = JsonSerialization.Deserialize<UploadUrlDto>(jsonContent);
 
-            return new PendingFileData
-            {
-                Path = fileCreation.Path,
-                Description = fileCreation.Description,
-                Metadata = fileCreation.Metadata,
-                Tags = fileCreation.Tags != null ? new List<string>(fileCreation.Tags) : new List<string>(),
-                UserChecksum = fileCreation.UserChecksum,
-                UploadUrl = GetEscapedUri(dto.UploadUrl)
-            };
+            var uploadUrl = Uri.TryCreate(dto.UploadUrl, UriKind.Absolute, out var uri) ? uri : null;
+            return uploadUrl;
         }
 
         /// <inheritdoc />
@@ -73,6 +65,7 @@ namespace Unity.Cloud.AssetsEmbedded
             var request = new FileRequest(fileDescriptor.ProjectId,
                 fileDescriptor.AssetId,
                 fileDescriptor.AssetVersion,
+                fileDescriptor.DatasetId,
                 fileDescriptor.Path,
                 fileUpdate);
 
@@ -132,41 +125,15 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public Task FinalizeFileUploadAsync(FileDescriptor fileDescriptor, bool disableAutomaticTransformations, CancellationToken cancellationToken)
         {
-#if INTERNAL_ASSETS_V2_LABEL
-            var request = new FinalizeFileUploadRequestV2(fileDescriptor.ProjectId,
+            var request = new FinalizeFileUploadRequest(fileDescriptor.ProjectId,
                 fileDescriptor.AssetId,
                 fileDescriptor.AssetVersion,
                 fileDescriptor.DatasetId,
-                fileDescriptor.Path,
-                disableAutomaticTransformations);
-
-            var url = m_PublicServiceHostResolver.GetResolvedRequestUri(request.ConstructUrl("/assets/v2"));
-
-            return RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(url, request.ConstructBody(),
-                ServiceHttpClientOptions.Default(), cancellationToken);
-
-#elif INTERNAL_ASSETS_V2_URL
-            var request = new FinalizeFileUploadRequestV2(fileDescriptor.ProjectId,
-                fileDescriptor.AssetId,
-                fileDescriptor.AssetVersion,
-                fileDescriptor.DatasetId,
-                fileDescriptor.Path,
-                disableAutomaticTransformations);
-
-            var url = m_PublicServiceHostResolver.GetResolvedRequestUri(request.ConstructUrl("/assets/v2alpha1"));
-
-            return RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(url, request.ConstructBody(),
-                ServiceHttpClientOptions.Default(), cancellationToken);
-#else
-            var request = new FinalizeFileUploadRequestV1(fileDescriptor.ProjectId,
-                fileDescriptor.AssetId,
-                fileDescriptor.AssetVersion,
                 fileDescriptor.Path,
                 disableAutomaticTransformations);
 
             return RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
-#endif
         }
 
         /// <inheritdoc />

@@ -8,33 +8,58 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         internal static void MapFrom(this DatasetEntity dataset, IAssetDataSource assetDataSource, IDatasetData datasetData, DatasetFields includeFields)
         {
-            dataset.Name = datasetData.Name;
-            dataset.Tags = datasetData.Tags ?? Array.Empty<string>();
-            dataset.SystemTags = datasetData.SystemTags ?? Array.Empty<string>();
-            dataset.Status = datasetData.Status;
-            dataset.IsVisible = datasetData.IsVisible ?? false;
-            dataset.WorkflowName = datasetData.WorkflowName;
+            if (dataset.CacheConfiguration.CacheProperties)
+                dataset.Properties = datasetData.From(includeFields);
+
+            if (includeFields.HasFlag(DatasetFields.metadata))
+                dataset.MetadataEntity.Properties = datasetData.Metadata?.From(assetDataSource, dataset.Descriptor.OrganizationId) ?? new Dictionary<string, MetadataObject>();
+            if (includeFields.HasFlag(DatasetFields.systemMetadata))
+                dataset.SystemMetadataEntity.Properties = datasetData.SystemMetadata?.From() ?? new Dictionary<string, MetadataObject>();
+
+            dataset.Files.Clear();
+            dataset.FileMap.Clear();
+
+            if (includeFields.HasFlag(DatasetFields.files) && datasetData.Files != null)
+            {
+                foreach (var file in datasetData.Files)
+                {
+                    dataset.Files.Add(file);
+                    dataset.FileMap[file.Path] = file;
+                }
+            }
+        }
+
+        internal static DatasetProperties From(this IDatasetData datasetData, DatasetFields includeFields)
+        {
+            var datasetProperties = new DatasetProperties
+            {
+                Name = datasetData.Name,
+                Tags = datasetData.Tags ?? Array.Empty<string>(),
+                SystemTags = datasetData.SystemTags ?? Array.Empty<string>(),
+                StatusName = datasetData.Status,
+                IsVisible = datasetData.IsVisible ?? false,
+            };
 
             if (includeFields.HasFlag(DatasetFields.description))
-                dataset.Description = datasetData.Description;
+                datasetProperties.Description = datasetData.Description;
             if (includeFields.HasFlag(DatasetFields.authoring))
-                dataset.AuthoringInfo = new AuthoringInfo(datasetData.CreatedBy, datasetData.Created, datasetData.UpdatedBy, datasetData.Updated);
-            if (includeFields.HasFlag(DatasetFields.metadata))
-                dataset.MetadataEntity.Properties = datasetData.Metadata?.From(assetDataSource, dataset.Descriptor.OrganizationId);
-            if (includeFields.HasFlag(DatasetFields.systemMetadata))
-                dataset.SystemMetadataEntity.Properties = datasetData.SystemMetadata?.From();
+                datasetProperties.AuthoringInfo = new AuthoringInfo(datasetData.CreatedBy, datasetData.Created, datasetData.UpdatedBy, datasetData.Updated);
             if (includeFields.HasFlag(DatasetFields.filesOrder))
-                dataset.FileOrder = datasetData.FileOrder;
+                datasetProperties.FileOrder = datasetData.FileOrder;
+
+            return datasetProperties;
         }
 
-        internal static DatasetEntity From(this IDatasetData datasetData, IAssetDataSource assetDataSource, AssetDescriptor assetDescriptor, DatasetFields includeFields)
+        internal static DatasetEntity From(this IDatasetData datasetData, IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            AssetDescriptor assetDescriptor, DatasetFields includeFields, DatasetCacheConfiguration? cacheConfigurationOverride = null)
         {
-            return datasetData.From(assetDataSource, new DatasetDescriptor(assetDescriptor, datasetData.DatasetId), includeFields);
+            return datasetData.From(assetDataSource, defaultCacheConfiguration, new DatasetDescriptor(assetDescriptor, datasetData.DatasetId), includeFields, cacheConfigurationOverride);
         }
 
-        internal static DatasetEntity From(this IDatasetData datasetData, IAssetDataSource assetDataSource, DatasetDescriptor datasetDescriptor, DatasetFields includeFields)
+        internal static DatasetEntity From(this IDatasetData datasetData, IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            DatasetDescriptor datasetDescriptor, DatasetFields includeFields, DatasetCacheConfiguration? cacheConfigurationOverride = null)
         {
-            var dataset = new DatasetEntity(assetDataSource, datasetDescriptor);
+            var dataset = new DatasetEntity(assetDataSource, defaultCacheConfiguration, datasetDescriptor, cacheConfigurationOverride);
             dataset.MapFrom(assetDataSource, datasetData, includeFields);
             return dataset;
         }
@@ -58,7 +83,8 @@ namespace Unity.Cloud.AssetsEmbedded
                 Name = dataset.Name,
                 Description = dataset.Description,
                 Metadata = dataset.Metadata?.ToObjectDictionary() ?? new Dictionary<string, object>(),
-                Tags = dataset.Tags ?? new List<string>(),// WORKAROUND until backend supports null metadata
+                Tags = dataset.Tags ?? new List<string>(), // WORKAROUND until backend supports null metadata
+                IsVisible = dataset.IsVisible,
             };
         }
     }

@@ -9,30 +9,30 @@ namespace Unity.AssetManager.UI.Editor
     {
         readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly IPageManager m_PageManager;
-        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
         readonly MessageActionButton m_MessageActionButton;
 
-        MessageData m_MessageData;
+        HelpBoxMessage m_HelpBoxMessage;
 
         static readonly string k_NoConnectionMessage = L10n.Tr("You are offline.");
         static readonly string k_ServiceNotReachableMessage = L10n.Tr("Cannot reach Unity Cloud Services.");
         static readonly string k_NoConnectionUploadPageMessage = L10n.Tr("Connect to the internet to upload your assets.");
 
-        public ActionHelpBox(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
+        public ActionHelpBox(IUnityConnectProxy unityConnectProxy, IPageManager pageManager,
+            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
             ILinksProxy linksProxy)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_PageManager = pageManager;
-            m_ProjectOrganizationProvider = projectOrganizationProvider;
+
             m_MessageActionButton = new MessageActionButton(pageManager, projectOrganizationProvider,
                 linksProxy);
 
             Add(m_MessageActionButton);
 
             m_PageManager.ActivePageChanged += OnActivePageChanged;
-            m_PageManager.MessageThrown += OnPageManagerMessageThrown;
-            m_ProjectOrganizationProvider.MessageThrown += OnProjectOrganizationProviderMessageThrown;
+            messageManager.HelpBoxMessageSet += OnHelpBoxMessageSet;
+            messageManager.HelpBoxMessageCleared += OnHelpBoxMessageCleared;
         }
 
         public void Refresh()
@@ -55,38 +55,37 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            if (m_MessageData == null)
+            if (m_HelpBoxMessage == null)
             {
                 UIElementsUtils.Hide(this);
                 return;
             }
 
-            messageType = m_MessageData.MessageType;
-            var hasErrorMessage = !string.IsNullOrEmpty(m_MessageData.Message);
-            var isPageScope = m_MessageData.IsPageScope;
+            messageType = m_HelpBoxMessage.MessageType;
+            var hasErrorMessage = !string.IsNullOrEmpty(m_HelpBoxMessage.Content);
 
-            if (!hasErrorMessage || isPageScope)
+            if (!hasErrorMessage)
             {
                 UIElementsUtils.Hide(this);
                 return;
             }
 
-            text = m_MessageData.Message;
-            m_MessageActionButton.SetRecommendedAction(m_MessageData.RecommendedAction);
+            text = m_HelpBoxMessage.Content;
+            m_MessageActionButton.SetRecommendedAction(m_HelpBoxMessage.RecommendedAction);
             m_MessageActionButton.visible = true;
 
             UIElementsUtils.Show(this);
         }
 
-        void OnPageManagerMessageThrown(IPage _, MessageData messageData)
+        void OnHelpBoxMessageSet(HelpBoxMessage helpBoxMessage)
         {
-            m_MessageData = messageData;
+            m_HelpBoxMessage = helpBoxMessage;
             Refresh();
         }
 
-        void OnProjectOrganizationProviderMessageThrown(MessageData messageData)
+        void OnHelpBoxMessageCleared()
         {
-            m_MessageData = messageData;
+            m_HelpBoxMessage = null;
             Refresh();
         }
 

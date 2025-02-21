@@ -4,8 +4,6 @@
             <ui:Label name="titleLabel" />
         </ui:VisualElement>
         <ui:ScrollView>
-
-
             <ui:Foldout name="importSettingsFoldout" class="settings-foldout">
                 <ui:VisualElement class="import-settings-container">
                     <ui:VisualElement class="flex-row">
@@ -21,6 +19,10 @@
                     <ui:VisualElement class="flex-row">
                         <ui:Label name="importSettingsCreateSubfolderLabel" class="import-setting-name" />
                         <ui:Toggle name="subfolderCreationToggle" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="flex-row">
+                        <ui:Label name="importSettingsKeepHigherVersionLabel" class="import-setting-name" />
+                        <ui:Toggle name="keepHigherVersionToggle" />
                     </ui:VisualElement>
                 </ui:VisualElement>
             </ui:Foldout>

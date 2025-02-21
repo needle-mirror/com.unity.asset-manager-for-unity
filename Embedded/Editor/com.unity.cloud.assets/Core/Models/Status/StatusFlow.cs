@@ -12,14 +12,15 @@ namespace Unity.Cloud.AssetsEmbedded
         public StatusFlowDescriptor Descriptor { get; }
 
         /// <inheritdoc />
-        public string Name { get; set; }
+        public string Name => Properties.Name;
 
         /// <inheritdoc />
-        public bool IsDefault { get; set; }
+        public bool IsDefault => Properties.IsDefault;
 
         /// <inheritdoc />
-        public string StartStatusId { get; set; }
+        public string StartStatusId => Properties.StartStatusId;
 
+        internal StatusFlowProperties Properties { get; set; }
         internal IStatus[] Statuses { get; set; } = Array.Empty<IStatus>();
         internal IStatusTransition[] Transitions { get; set; } = Array.Empty<IStatusTransition>();
 
@@ -31,8 +32,6 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async IAsyncEnumerable<IStatus> ListStatusesAsync(Range range, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
-
             var (offset, length) = range.GetOffsetAndLength(Statuses.Length);
 
             for (var i = offset; i < offset + length && i < Statuses.Length; i++)
@@ -41,13 +40,13 @@ namespace Unity.Cloud.AssetsEmbedded
 
                 yield return Statuses[i];
             }
+
+            await Task.CompletedTask;
         }
 
         /// <inheritdoc />
         public async IAsyncEnumerable<IStatusTransition> ListTransitionsAsync(Range range, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
-
             var (offset, length) = range.GetOffsetAndLength(Transitions.Length);
 
             for (var i = offset; i < offset + length && i < Transitions.Length; i++)
@@ -56,6 +55,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
                 yield return Transitions[i];
             }
+
+            await Task.CompletedTask;
         }
     }
 }

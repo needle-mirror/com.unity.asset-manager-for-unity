@@ -81,7 +81,7 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc/>
-        public async Task<ILabelData> CreateLabelAsync(OrganizationId organizationId, ILabelBaseData labelCreation, CancellationToken cancellationToken)
+        public async Task<LabelDescriptor> CreateLabelAsync(OrganizationId organizationId, ILabelBaseData labelCreation, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -98,12 +98,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 k_Logger.LogWarning($"The created label name '{createdLabel.Name}' does not match the requested label name '{labelCreation.Name}' when URL escaped as '{Uri.EscapeDataString(labelCreation.Name)}'.");
             }
 
-            return new LabelData
-            {
-                Name = labelCreation.Name,
-                Description = labelCreation.Description,
-                DisplayColor = labelCreation.DisplayColor
-            };
+            return new LabelDescriptor(organizationId, createdLabel.Name);
         }
 
         /// <inheritdoc/>

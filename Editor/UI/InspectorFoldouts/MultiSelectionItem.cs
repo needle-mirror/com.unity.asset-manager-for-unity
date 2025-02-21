@@ -37,13 +37,7 @@ namespace Unity.AssetManager.UI.Editor
 
             var tasks = new List<Task>
             {
-                fileItem.ResolvePrimaryExtensionAsync((identifier, extension) =>
-                {
-                    if (!identifier.Equals(fileItem.Identifier))
-                        return;
-
-                    m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(extension);
-                })
+                fileItem.ResolveDatasetsAsync()
             };
 
             await TaskUtils.WaitForTasksWithHandleExceptions(tasks);

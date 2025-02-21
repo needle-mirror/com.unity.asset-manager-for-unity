@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
@@ -11,29 +10,21 @@ namespace Unity.AssetManager.UI.Editor
         public override string DisplayName => L10n.Tr(Constants.LastEditByText);
         protected override AssetSearchGroupBy GroupBy => AssetSearchGroupBy.UpdatedBy;
 
-        List<UserInfo> m_UserInfos;
-
-        public UpdatedByFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
-            : base(page, projectOrganizationProvider) { }
+        public UpdatedByFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
+            : base(page, projectOrganizationProvider, assetsProvider) { }
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
-            var userInfo = m_UserInfos?.FirstOrDefault(u => u.Name == SelectedFilter);
-
-            assetSearchFilter.UpdatedBy = userInfo?.UserId ??
-                (SelectedFilter == L10n.Tr("Service Account") ? "System" : SelectedFilter);
+            TaskUtils.TrackException(ResetSelectedFilterAsync(assetSearchFilter));
         }
 
-        protected override void IncludeFilter(string selection)
+        protected override void IncludeFilter(List<string> selectedFilters)
         {
-            var userInfo = m_UserInfos?.FirstOrDefault(u => u.Name == selection);
-            m_Page.PageFilters.AssetSearchFilter.UpdatedBy = userInfo?.UserId ??
-                (selection == L10n.Tr("Service Account") ? "System" : selection);
+            TaskUtils.TrackException(IncludeFilterAsync(selectedFilters));
         }
 
         protected override void ClearFilter()
         {
-            m_UserInfos = null;
             m_Page.PageFilters.AssetSearchFilter.UpdatedBy = null;
         }
 
@@ -41,44 +32,64 @@ namespace Unity.AssetManager.UI.Editor
         {
             var selections = await base.GetSelectionsAsync();
 
-            if (m_UserInfos != null)
-            {
-                return GetSelectionNames(selections);
-            }
+            var selectionNames = await GetSelectionNamesAsync(selections);
 
-            await m_ProjectOrganizationProvider.SelectedOrganization.GetUserInfosAsync(userInfos =>
-            {
-                m_UserInfos = userInfos;
-            });
-
-            while (m_UserInfos == null)
-            {
-                await Task.Delay(100);
-            }
-
-            return GetSelectionNames(selections);
+            return selectionNames;
         }
 
-        List<string> GetSelectionNames(List<string> selections)
+        async Task<List<string>> GetSelectionNamesAsync(List<string> selections)
         {
             var selectionNames = new List<string>();
 
-            if (m_UserInfos != null)
+            var userName = await m_ProjectOrganizationProvider.SelectedOrganization.GetUserNamesAsync(selections);
+
+            for(var i=0; i<selections.Count; i++)
             {
-                foreach (var selection in selections)
+                var selectionName = selections[i] == "System" ? L10n.Tr("Service Account") : userName[i];
+                if (!string.IsNullOrEmpty(selectionName))
                 {
-                    var userInfo = m_UserInfos.FirstOrDefault(u => u.UserId == selection);
-                    var selectionName =
-                        userInfo?.Name ?? (selection == "System" ? L10n.Tr("Service Account") : selection);
-                    if (!string.IsNullOrEmpty(selectionName))
-                    {
-                        selectionNames.Add(selectionName);
-                    }
+                    selectionNames.Add(selectionName);
                 }
             }
 
             selectionNames.Sort();
             return selectionNames;
+        }
+
+        async Task<string> GetSelectionId(string selection)
+        {
+            var userId = await m_ProjectOrganizationProvider.SelectedOrganization.GetUserIdAsync(selection);
+            return  userId ?? (selection == L10n.Tr("Service Account") ? "System" : selection);
+        }
+
+        async Task ResetSelectedFilterAsync(AssetSearchFilter assetSearchFilter)
+        {
+            var userIds = new List<string>();
+            if (SelectedFilters != null)
+            {
+                foreach (var selectedFilter in SelectedFilters)
+                {
+                    userIds.Add(await GetSelectionId(selectedFilter));
+                }
+            }
+
+            assetSearchFilter.UpdatedBy = userIds;
+        }
+
+        async Task IncludeFilterAsync(List<string> selection)
+        {
+            if(selection == null)
+            {
+                m_Page.PageFilters.AssetSearchFilter.UpdatedBy = null;
+                return;
+            }
+
+            var userIds = new List<string>();
+            foreach (var selectedFilter in selection)
+            {
+                userIds.Add(await GetSelectionId(selectedFilter));
+            }
+            m_Page.PageFilters.AssetSearchFilter.UpdatedBy = userIds;
         }
     }
 }

@@ -224,16 +224,20 @@ namespace Unity.AssetManager.Core.Editor
             return 0; // lowest priority
         }
 
-        public static Regex GetRegexForExtensions(UnityAssetType type)
+        public static Regex GetRegexForExtensions(List<UnityAssetType> types)
         {
             var pattern = string.Empty;
-            var extensions = k_UnityTypeDescriptors.Find(x => x.Type == type)?.Extensions;
 
-            if (extensions != null)
+            foreach (var type in types)
             {
-                foreach (var extension in extensions)
+                var extensions = k_UnityTypeDescriptors.Find(x => x.Type == type)?.Extensions;
+
+                if (extensions != null)
                 {
-                    pattern += $"|{extension}";
+                    foreach (var extension in extensions)
+                    {
+                        pattern += $"|{extension}";
+                    }
                 }
             }
 
@@ -244,7 +248,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public static bool IsSupportingPreviewGeneration(string extension)
         {
-            return k_ImageFormatsSupportingPreviewGeneration.Contains(extension);
+            return k_ImageFormatsSupportingPreviewGeneration.Contains(extension.ToLower());
         }
 
         static void InitializeExtensionToUnityTypeDescriptor()

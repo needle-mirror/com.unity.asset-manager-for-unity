@@ -5,6 +5,24 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2024-10-18
+
+### Changed
+- Minor documentation updates
+
+## [1.3.0] - 2024-09-23
+
+### Added
+- `IJwtDecoder` interface and `JwtToken` class.
+- WebGL platform support.
+
+### Changed
+- `PkceAuthenticatorSettingsBuilder` has a new `JwtDecoder` property and a new `AddJwtDecoder` method.
+- `UnityEditorServiceAuthorizer.OverrideUnityEditorServiceAuthorizer` method accepts a new `IJwtDecoder` parameter.
+
+### Removed
+- EXPERIMENTAL_WEBGL_PROXY compile flag.
+
 ## [1.2.1] - 2024-08-26
 
 ### Fixed

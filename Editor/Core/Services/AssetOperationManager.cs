@@ -16,6 +16,7 @@ namespace Unity.AssetManager.Core.Editor
         void PauseAllOperations();
         void ResumeAllOperations();
         void RegisterOperation(AssetDataOperation operation);
+        void ClearOperation(TrackedAssetIdentifier identifier);
         void ClearFinishedOperations();
     }
 
@@ -84,7 +85,7 @@ namespace Unity.AssetManager.Core.Editor
             m_Operations[identifier] = operation;
         }
 
-        void ClearOperation(TrackedAssetIdentifier identifier)
+        public void ClearOperation(TrackedAssetIdentifier identifier)
         {
             if(m_Operations.TryGetValue(identifier, out var operation))
             {

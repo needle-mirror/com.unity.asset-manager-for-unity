@@ -1,9 +1,10 @@
+using System;
 using System.Collections.Generic;
-using System.Drawing;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
-    sealed class GenericPolygonTargetTransformation : ITransformationCreation
+    [Obsolete("Use OptimizeAndConvertFreeTransformation or OptimizeAndConvertProTransformation instead.")]
+sealed class GenericPolygonTargetTransformation : ITransformationCreation
     {
         /// <summary>
         /// The output folder.

@@ -14,62 +14,65 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc cref="AssetVersion"/>
         public SearchCriteria<string> Version { get; } = new(nameof(AssetDescriptor.AssetVersion), "assetVersion");
 
-        /// <inheritdoc cref="IAsset.State"/>
-        public AssetStateSearchCriteria State { get; } = new(nameof(IAsset.State));
+        /// <inheritdoc cref="AssetProperties.State"/>
+        public AssetStateSearchCriteria State { get; } = new(nameof(AssetProperties.State));
 
         /// <inheritdoc cref="IAsset.IsFrozen"/>
         [Obsolete("Use State instead.")]
         public NullableSearchCriteria<bool> IsFrozen { get; } = new(nameof(IAsset.IsFrozen), "isFrozen");
 
-        /// <inheritdoc cref="IAsset.FrozenSequenceNumber"/>
-        public NullableSearchCriteria<int> FrozenSequenceNumber { get; } = new(nameof(IAsset.FrozenSequenceNumber), "versionNumber");
+        /// <inheritdoc cref="AssetProperties.FrozenSequenceNumber"/>
+        public NullableSearchCriteria<int> FrozenSequenceNumber { get; } = new(nameof(AssetProperties.FrozenSequenceNumber), "versionNumber");
 
-        /// <inheritdoc cref="IAsset.ParentVersion"/>
-        public SearchCriteria<string> ParentVersion { get; } = new(nameof(IAsset.ParentVersion), "parentAssetVersion");
+        /// <inheritdoc cref="AssetProperties.ParentVersion"/>
+        public SearchCriteria<string> ParentVersion { get; } = new(nameof(AssetProperties.ParentVersion), "parentAssetVersion");
 
-        /// <inheritdoc cref="IAsset.ParentFrozenSequenceNumber"/>
-        public NullableSearchCriteria<int> ParentFrozenSequenceNumber { get; } = new(nameof(IAsset.ParentFrozenSequenceNumber), "parentVersionNumber");
+        /// <inheritdoc cref="AssetProperties.ParentFrozenSequenceNumber"/>
+        public NullableSearchCriteria<int> ParentFrozenSequenceNumber { get; } = new(nameof(AssetProperties.ParentFrozenSequenceNumber), "parentVersionNumber");
 
-        /// <inheritdoc cref="IAsset.Name"/>
-        public StringSearchCriteria Name { get; } = new(nameof(IAsset.Name), "name");
+        /// <inheritdoc cref="AssetProperties.Name"/>
+        public StringSearchCriteria Name { get; } = new(nameof(AssetProperties.Name), "name");
 
-        /// <inheritdoc cref="IAsset.Description"/>
-        public StringSearchCriteria Description { get; } = new(nameof(IAsset.Description), "description");
+        /// <inheritdoc cref="AssetProperties.Description"/>
+        public StringSearchCriteria Description { get; } = new(nameof(AssetProperties.Description), "description");
 
-        /// <inheritdoc cref="IAsset.Type"/>
-        public AssetTypeSearchCriteria Type { get; } = new(nameof(IAsset.Type));
+        /// <inheritdoc cref="AssetProperties.Type"/>
+        public AssetTypeSearchCriteria Type { get; } = new(nameof(AssetProperties.Type));
 
-        /// <inheritdoc cref="IAsset.StatusName"/>
+        /// <inheritdoc cref="AssetProperties.StatusName"/>
         public SearchCriteria<string> Status { get; } = new("Status", "status");
 
-        /// <inheritdoc cref="IAsset.Tags"/>
-        public ListSearchCriteria<string> Tags { get; } = new(nameof(IAsset.Tags), "tags");
+        /// <inheritdoc cref="AssetProperties.Tags"/>
+        public ListSearchCriteria<string> Tags { get; } = new(nameof(AssetProperties.Tags), "tags");
 
-        /// <inheritdoc cref="IAsset.SystemTags"/>
-        public ListSearchCriteria<string> SystemTags { get; } = new(nameof(IAsset.SystemTags), "systemTags");
+        /// <inheritdoc cref="AssetProperties.SystemTags"/>
+        public ListSearchCriteria<string> SystemTags { get; } = new(nameof(AssetProperties.SystemTags), "systemTags");
 
-        /// <inheritdoc cref="IAsset.Labels"/>
-        public ListSearchCriteria<string> Labels { get; } = new(nameof(IAsset.Labels), "labels");
+        /// <inheritdoc cref="AssetProperties.Labels"/>
+        public ListSearchCriteria<string> Labels { get; } = new(nameof(AssetProperties.Labels), "labels");
 
-        /// <inheritdoc cref="IAsset.ArchivedLabels"/>
-        public ListSearchCriteria<string> ArchivedLabels { get; } = new(nameof(IAsset.ArchivedLabels), "archivedLabels");
+        /// <inheritdoc cref="AssetProperties.ArchivedLabels"/>
+        public ListSearchCriteria<string> ArchivedLabels { get; } = new(nameof(AssetProperties.ArchivedLabels), "archivedLabels");
 
         /// <inheritdoc cref="IAsset.Metadata"/>
         public MetadataSearchCriteria Metadata { get; } = new(nameof(IAsset.Metadata), "metadata");
 
-        /// <inheritdoc cref="IAsset.PreviewFile"/>
+        /// <inheritdoc cref="IAsset.SystemMetadata"/>
+        public MetadataSearchCriteria SystemMetadata { get; } = new(nameof(IAsset.SystemMetadata), "systemMetadata");
+
+        /// <inheritdoc cref="AssetProperties.PreviewFileDescriptor"/>
         public StringSearchCriteria PreviewFile { get; } = new("PreviewFile", "previewFile");
 
-        /// <inheritdoc cref="IAsset.SourceProject"/>
-        public SearchCriteria<string> SourceProjectId { get; } = new(nameof(IAsset.SourceProject), "sourceProjectId");
+        /// <inheritdoc cref="AssetProperties.SourceProject"/>
+        public SearchCriteria<string> SourceProjectId { get; } = new(nameof(AssetProperties.SourceProject), "sourceProjectId");
 
-        /// <inheritdoc cref="IAsset.AuthoringInfo"/>
-        public AuthoringInfoSearchFilter AuthoringInfo { get; } = new(nameof(IAsset.AuthoringInfo), string.Empty);
+        /// <inheritdoc cref="AssetProperties.AuthoringInfo"/>
+        public AuthoringInfoSearchFilter AuthoringInfo { get; } = new(nameof(AssetProperties.AuthoringInfo), string.Empty);
 
-        /// <inheritdoc cref="IFile"/>
+        /// <inheritdoc cref="FileProperties"/>
         public FileSearchCriteria Files { get; } = new("Files", "files");
 
-        /// <inheritdoc cref="IDataset"/>
+        /// <inheritdoc cref="DatasetProperties"/>
         public DatasetSearchCriteria Datasets { get; } = new("Datasets", "datasets");
 
         internal AssetSearchCriteria()

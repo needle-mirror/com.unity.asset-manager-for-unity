@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -7,26 +7,11 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Core.Editor
 {
-    enum AssetDataStatusType
-    {
-        None,
-        Imported,
-        UpToDate,
-        OutOfDate,
-        Error,
-        Linked,
-        UploadAdd,
-        UploadSkip,
-        UploadOverride,
-        UploadDuplicate,
-        UploadOutside
-    }
-
     enum AssetDataEventType
     {
         None,
         ThumbnailChanged,
-        PreviewStatusChanged,
+        AssetDataAttributesChanged,
         PrimaryFileChanged,
         ToggleValueChanged
     }
@@ -53,13 +38,12 @@ namespace Unity.AssetManager.Core.Editor
         public abstract string UpdatedBy { get; }
 
         public abstract IEnumerable<AssetIdentifier> Dependencies { get; }
-        public abstract IEnumerable<BaseAssetDataFile> UVCSFiles { get; }
         public abstract IEnumerable<BaseAssetData> Versions { get; }
-        public abstract List<IMetadata> Metadata { get; set; }
+        public abstract IEnumerable<AssetLabel> Labels { get; }
 
         public abstract Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null, CancellationToken token = default);
-        public abstract Task GetPreviewStatusAsync(Action<AssetIdentifier, IEnumerable<AssetDataStatusType>> callback = null, CancellationToken token = default);
-        public abstract Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback = null, CancellationToken token = default);
+        public abstract Task GetAssetDataAttributesAsync(Action<AssetIdentifier, AssetDataAttributeCollection> callback = null, CancellationToken token = default);
+        public abstract Task ResolveDatasetsAsync(CancellationToken token = default);
 
         public abstract Task RefreshPropertiesAsync(CancellationToken token = default);
         public abstract Task RefreshVersionsAsync(CancellationToken token = default);
@@ -67,33 +51,25 @@ namespace Unity.AssetManager.Core.Editor
 
         public string PrimaryExtension => m_PrimarySourceFile?.Extension;
 
+        protected const string k_Source = "Source";
+        protected const string k_NotSynced = "NotSynced";
+
         [SerializeField]
         TextureReference m_Thumbnail = new();
 
-        [SerializeField]
-        List<AssetDataStatusType> m_PreviewStatus;
+        [SerializeReference]
+        AssetDataAttributeCollection m_AssetDataAttributeCollection;
 
         [SerializeReference]
-        BaseAssetDataFile m_PrimarySourceFile;
+        protected BaseAssetDataFile m_PrimarySourceFile;
 
         [SerializeReference]
-        List<BaseAssetDataFile> m_SourceFiles = new();
+        protected List<AssetDataset> m_Datasets = new();
 
-        public virtual IEnumerable<BaseAssetDataFile> SourceFiles
-        {
-            get => m_SourceFiles;
-            protected set
-            {
-                m_SourceFiles = value?.ToList();
+        [SerializeReference]
+        protected MetadataContainer m_Metadata = new();
 
-                m_PrimarySourceFile = m_SourceFiles
-                    ?.FilterUsableFilesAsPrimaryExtensions()
-                    .OrderBy(x => x, new AssetDataFileComparerByExtension())
-                    .LastOrDefault();
-
-                InvokeEvent(AssetDataEventType.PrimaryFileChanged);
-            }
-        }
+        public IEnumerable<BaseAssetDataFile> SourceFiles => Datasets.FirstOrDefault(d => d.SystemTags.Contains(k_Source))?.Files;
 
         public virtual Texture2D Thumbnail
         {
@@ -116,21 +92,41 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public virtual IEnumerable<AssetDataStatusType> PreviewStatus
+        public IMetadataContainer Metadata => m_Metadata;
+
+        public void SetMetadata(IEnumerable<IMetadata> metadata)
         {
-            get => m_PreviewStatus;
-            protected set
+            m_Metadata.Set(metadata);
+        }
+
+        public void CopyMetadata(IMetadataContainer metadataContainer)
+        {
+            // Clone the original IMetadata instead of using the reference so that the original is not modified when modifying this UploadAssetData in the UI
+            m_Metadata.Set(metadataContainer.Select(m => m.Clone()));
+        }
+
+        public virtual AssetDataAttributeCollection AssetDataAttributeCollection
+        {
+            get => m_AssetDataAttributeCollection;
+            set
             {
-                m_PreviewStatus = value?.ToList();
-                InvokeEvent(AssetDataEventType.PreviewStatusChanged);
+                m_AssetDataAttributeCollection = value;
+                InvokeEvent(AssetDataEventType.AssetDataAttributesChanged);
             }
+        }
+
+        // Virtual to allow overriding in test classes
+        public virtual IEnumerable<AssetDataset> Datasets
+        {
+            get => m_Datasets;
+            set => m_Datasets = value?.ToList();
         }
 
         public BaseAssetDataFile PrimarySourceFile => m_PrimarySourceFile;
 
-        public void ResetPreviewStatus()
+        public virtual void ResetAssetDataAttributes()
         {
-            PreviewStatus = Array.Empty<AssetDataStatusType>();
+            AssetDataAttributeCollection = null;
         }
 
         protected void InvokeEvent(AssetDataEventType eventType)
@@ -146,6 +142,21 @@ namespace Unity.AssetManager.Core.Editor
         public virtual void RemoveFile(BaseAssetDataFile assetDataFile)
         {
             // Do nothing
+        }
+
+        public void ResolvePrimaryExtension()
+        {
+            if (m_Datasets == null || !m_Datasets.Any())
+                return;
+
+            var sourceDataset = Datasets.FirstOrDefault(d => d.SystemTags.Contains(k_Source));
+            var sourceFiles = sourceDataset?.Files?.ToList();
+            m_PrimarySourceFile = sourceFiles
+                ?.FilterUsableFilesAsPrimaryExtensions()
+                .OrderBy(x => x, new AssetDataFileComparerByExtension())
+                .LastOrDefault();
+
+            InvokeEvent(AssetDataEventType.PrimaryFileChanged);
         }
     }
 

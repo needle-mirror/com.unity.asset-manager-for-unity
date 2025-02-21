@@ -15,6 +15,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IEditorUtilityProxy m_EditorUtilityProxy;
         readonly IPageManager m_PageManager;
         readonly IStateManager m_StateManager;
+        readonly IMessageManager m_MessageManager;
         readonly CollectionInfo m_CollectionInfo;
 
         VisualElement m_Target;
@@ -22,13 +23,15 @@ namespace Unity.AssetManager.UI.Editor
         bool IsEnabled => m_UnityConnectProxy.AreCloudServicesReachable && m_CollectionInfo != null;
 
         public CollectionContextMenu(CollectionInfo collectionInfo, IUnityConnectProxy unityConnectProxy,
-            IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager, IStateManager stateManager)
+            IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager,
+            IStateManager stateManager, IMessageManager messageManager)
         {
             m_CollectionInfo = collectionInfo;
             m_UnityConnectProxy = unityConnectProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_PageManager = pageManager;
             m_StateManager = stateManager;
+            m_MessageManager = messageManager;
             m_EditorUtilityProxy = ServicesContainer.instance.Resolve<IEditorUtilityProxy>();
         }
 
@@ -67,8 +70,8 @@ namespace Unity.AssetManager.UI.Editor
                 name = $"{Constants.CollectionDefaultName} ({index++})";
             }
 
-            var newFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager, m_ProjectOrganizationProvider,
-                name, projectInfo, m_CollectionInfo.GetFullPath());
+            var newFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
+                m_MessageManager, m_ProjectOrganizationProvider, name, projectInfo, m_CollectionInfo.GetFullPath());
             m_Target.Add(newFoldout);
             newFoldout.StartNaming();
         }
@@ -104,8 +107,8 @@ namespace Unity.AssetManager.UI.Editor
                     var serviceExceptionInfo = ServiceExceptionHelper.GetServiceExceptionInfo(e);
                     if (serviceExceptionInfo != null)
                     {
-                        m_PageManager.ActivePage.SetMessageData(e.Message, RecommendedAction.None, false,
-                            HelpBoxMessageType.Error);
+                        m_MessageManager.SetHelpBoxMessage(new HelpBoxMessage(e.Message,
+                            messageType:HelpBoxMessageType.Error));
                     }
 
                     throw;

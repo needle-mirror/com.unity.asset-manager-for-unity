@@ -17,6 +17,9 @@ namespace Unity.Cloud.AssetsEmbedded
         public IEnumerable<string> Tags { get; set; }
 
         /// <inheritdoc />
+        public bool? IsVisible { get; set; }
+
+        /// <inheritdoc />
         public Dictionary<string, object> Metadata { get; set; }
 
         /// <inheritdoc />

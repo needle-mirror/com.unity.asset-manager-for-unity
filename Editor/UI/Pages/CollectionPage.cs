@@ -19,10 +19,15 @@ namespace Unity.AssetManager.UI.Editor
         public string CollectionPath => m_CollectionInfo?.GetFullPath();
 
         public CollectionPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
-            IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider, pageManager)
+            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager, IPageManager pageManager)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager)
         {
             m_CollectionInfo = m_ProjectOrganizationProvider.SelectedCollection;
+        }
+
+        protected override List<CustomMetadataFilter> InitCustomMetadataFilters()
+        {
+            return GetOrganizationCustomMetadataFilter();
         }
 
         protected internal override async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(
@@ -45,37 +50,35 @@ namespace Unity.AssetManager.UI.Editor
             {
                 if (PageFilters.SelectedFilters.Any())
                 {
-                    SetMessageData(
-                        L10n.Tr(Constants.NoResultsText),
-                        RecommendedAction.None);
+                    SetPageMessage(new Message(L10n.Tr(Constants.NoResultsText)));
                 }
                 else if (PageFilters.SearchFilters.Any())
                 {
-                    SetMessageData(
-                        $"{L10n.Tr(Constants.NoResultsForText)} \"{string.Join(", ", PageFilters.SearchFilters)}\"",
-                        RecommendedAction.None);
+                    SetPageMessage(new Message($"{L10n.Tr(Constants.NoResultsForText)} \"{string.Join(", ", PageFilters.SearchFilters)}\""));
                 }
                 else if (string.IsNullOrEmpty(CollectionPath))
                 {
-                    SetMessageData(L10n.Tr(Constants.EmptyProjectText),
-                        RecommendedAction.OpenAssetManagerDashboardLink);
+                    SetPageMessage(new Message(L10n.Tr(Constants.EmptyProjectText),
+                        RecommendedAction.OpenAssetManagerDashboardLink));
                 }
                 else
                 {
-                    SetMessageData(L10n.Tr(Constants.EmptyCollectionsText),
-                        RecommendedAction.OpenAssetManagerDashboardLink);
+                    SetPageMessage(new Message(L10n.Tr(Constants.EmptyCollectionsText),
+                        RecommendedAction.OpenAssetManagerDashboardLink));
                 }
             }
             else
             {
                 PageFilters.EnableFilters();
-                SetMessageData(string.Empty, RecommendedAction.None); // This will trigger the GridView Refresh
+
+                m_MessageManager.ClearAllMessages();
             }
         }
 
         protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
         {
             m_PageManager.SetActivePage<CollectionPage>(true);
+            ResetAssetDataAttributes();
         }
 
         protected override string GetPageName()

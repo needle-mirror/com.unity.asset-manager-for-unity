@@ -8,7 +8,7 @@ namespace Unity.Cloud.AssetsEmbedded
     /// <summary>
     /// Represents a finalized upload asset file request.
     /// </summary>
-    class FileRequest : AssetRequest
+    class FileRequest : DatasetRequest
     {
         readonly IFileBaseData m_Data;
 
@@ -22,9 +22,9 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="filePath">The path to the file in the dataset.</param>
         /// <param name="data">The object containing the data of the file.</param>
         public FileRequest(ProjectId projectId, AssetId assetId, AssetVersion assetVersion, DatasetId datasetId, string filePath, IFileBaseData data = null)
-            : base(projectId, assetId, assetVersion)
+            : base(projectId, assetId, assetVersion, datasetId)
         {
-            m_RequestUrl += $"/datasets/{datasetId}/files/{Uri.EscapeDataString(filePath)}";
+            m_RequestUrl += $"/files/{Uri.EscapeDataString(filePath)}";
 
             m_Data = data;
         }
@@ -44,26 +44,10 @@ namespace Unity.Cloud.AssetsEmbedded
             includedFileFields.Parse(AddFieldFilterToQueryParams);
         }
 
-        /// <summary>
-        /// Gets a single file by path.
-        /// </summary>
-        /// <param name="projectId">ID of the project.</param>
-        /// <param name="assetId">The id of the asset the file will linked to.</param>
-        /// <param name="assetVersion">The version of the asset the file will linked to.</param>
-        /// <param name="filePath">The path to the file in the dataset.</param>
-        /// <param name="data">The object containing the data of the file.</param>
-        public FileRequest(ProjectId projectId, AssetId assetId, AssetVersion assetVersion, string filePath, IFileBaseData data = null)
-            : base(projectId, assetId, assetVersion)
-        {
-            m_RequestUrl += $"/files/{Uri.EscapeDataString(filePath)}";
-
-            m_Data = data;
-        }
-
         public FileRequest(ProjectId projectId, AssetId assetId, AssetVersion assetVersion, DatasetId datasetId, FileFields includedFieldsFilter, string token = null, int? limit = null)
-            : base(projectId, assetId, assetVersion)
+            : base(projectId, assetId, assetVersion, datasetId)
         {
-            m_RequestUrl += $"/datasets/{datasetId}/files";
+            m_RequestUrl += $"/files";
 
             includedFieldsFilter.Parse(AddFieldFilterToQueryParams);
 

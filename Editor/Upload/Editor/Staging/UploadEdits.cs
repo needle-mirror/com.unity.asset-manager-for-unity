@@ -1,5 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using Unity.AssetManager.Core.Editor;
 using UnityEngine;
 
 namespace Unity.AssetManager.Upload.Editor
@@ -21,6 +23,9 @@ namespace Unity.AssetManager.Upload.Editor
         [SerializeField]
         // Assets that should include All Scripts
         List<string> m_IncludesAllScripts = new();
+
+        [SerializeReference]
+        MetadataModification m_ModifiedMetadata = new();
 
         public IReadOnlyCollection<string> MainAssetGuids => m_MainAssetGuids;
         public IReadOnlyCollection<string> IgnoredAssetGuids => m_IgnoredAssetGuids;
@@ -63,6 +68,7 @@ namespace Unity.AssetManager.Upload.Editor
             m_MainAssetGuids.Clear();
             m_IgnoredAssetGuids.Clear();
             m_IncludesAllScripts.Clear();
+            m_ModifiedMetadata.Dictionary.Clear();
         }
 
         public void SetIgnore(string assetGuid, bool ignore)
@@ -96,6 +102,76 @@ namespace Unity.AssetManager.Upload.Editor
             else if (!include && m_IncludesAllScripts.Contains(assetDataGuid))
             {
                 m_IncludesAllScripts.Remove(assetDataGuid);
+            }
+        }
+
+        public void SetModifiedMetadata(string assetDataGuid, string projectId, IMetadataContainer metadataContainer)
+        {
+            var key = GetKey(assetDataGuid, projectId);
+            m_ModifiedMetadata.Dictionary[key] = metadataContainer;
+        }
+
+        public bool TryGetModifiedMetadata(string assetDataGuid, string projectId, out IReadOnlyCollection<IMetadata> metadata)
+        {
+            var key = GetKey(assetDataGuid, projectId);
+            if (m_ModifiedMetadata.Dictionary.TryGetValue(key, out var dictionary))
+            {
+                metadata = dictionary.ToList();
+                return true;
+            }
+
+            metadata = null;
+            return false;
+        }
+
+        // We want to store the metadata per-Project basis
+        // This is because in case of a re-upload, the metadata might not be the same for the same asset
+        // We can try and think for a better solution in the future
+        static string GetKey(string assetDataGuid, string projectId)
+        {
+            return assetDataGuid + "__" + projectId;
+        }
+    }
+
+    [Serializable]
+    class MetadataModification : ISerializationCallbackReceiver
+    {
+        [SerializeField]
+        List<string> m_Keys = new();
+
+        [SerializeReference]
+        List<IMetadataContainer> m_Values = new();
+
+        Dictionary<string, IMetadataContainer> m_Dictionary = new();
+        public Dictionary<string, IMetadataContainer> Dictionary => m_Dictionary;
+
+        public void OnBeforeSerialize()
+        {
+            m_Keys.Clear();
+            m_Values.Clear();
+
+            foreach (var kvp in Dictionary)
+            {
+                m_Keys.Add(kvp.Key);
+                m_Values.Add(kvp.Value);
+            }
+        }
+
+        public void OnAfterDeserialize()
+        {
+            m_Dictionary = new Dictionary<string, IMetadataContainer>();
+            Utilities.DevAssert(m_Keys.Count == m_Values.Count);
+
+            try
+            {
+                for (int i = 0; i < m_Keys.Count; i++)
+                {
+                    m_Dictionary[m_Keys[i]] = m_Values[i];
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e);
             }
         }
     }

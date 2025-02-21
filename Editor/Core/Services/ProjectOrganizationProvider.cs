@@ -7,37 +7,65 @@ using Unity.Cloud.CommonEmbedded;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Serialization;
+using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Core.Editor
 {
     [Serializable]
     class OrganizationInfo
     {
+        [SerializeReference]
+        public List<IMetadataFieldDefinition> MetadataFieldDefinitions = new();
+
         public string Id;
         public string Name;
         public List<ProjectInfo> ProjectInfos = new();
-        public List<MetadataFieldDefinition> MetadataFieldDefinitions = new();
 
-        bool m_IsUserInfosLoading;
         List<UserInfo> m_UserInfos;
-        List<Action<List<UserInfo>>> m_UserInfosWaitingCallbacks = new();
+        Task<List<UserInfo>> m_UserInfosTask;
 
-        public async Task GetUserInfosAsync(Action<List<UserInfo>> callback)
+        public async Task<List<string>> GetUserNamesAsync(List<string> userIds)
+        {
+            var userInfos = await GetUserInfosAsync();
+            return userInfos.Where(u => userIds.Contains(u.UserId)).Select(u => u.Name).Distinct().ToList();
+        }
+
+        public async Task<string> GetUserNameAsync(string userId)
+        {
+            var userInfos = await GetUserInfosAsync();
+            return userInfos.FirstOrDefault(u => u.UserId == userId)?.Name;
+        }
+
+        public async Task<string> GetUserIdAsync(string userName)
+        {
+            var userInfos = await GetUserInfosAsync();
+            return userInfos.FirstOrDefault(u => u.Name == userName)?.UserId;
+        }
+
+        public async Task<List<UserInfo>> GetUserInfosAsync(Action<List<UserInfo>> callback = null)
         {
             if (m_UserInfos != null)
             {
                 callback?.Invoke(m_UserInfos);
+                return m_UserInfos;
             }
 
-            m_UserInfosWaitingCallbacks.Add(callback);
-
-            if (m_IsUserInfosLoading)
+            if (m_UserInfosTask != null)
             {
-                return;
+                await m_UserInfosTask;
             }
 
-            m_IsUserInfosLoading = true;
+            m_UserInfosTask = GetUserInfosInternalAsync();
 
+            m_UserInfos = await m_UserInfosTask;
+            m_UserInfosTask = null;
+
+            callback?.Invoke(m_UserInfos);
+            return m_UserInfos;
+        }
+
+        async Task<List<UserInfo>> GetUserInfosInternalAsync()
+        {
             var userInfos = new List<UserInfo>();
             await foreach (var member in ServicesContainer.instance.Resolve<IAssetsProvider>()
                                .GetOrganizationMembersAsync(Id, Range.All, CancellationToken.None))
@@ -45,13 +73,7 @@ namespace Unity.AssetManager.Core.Editor
                 userInfos.Add(new UserInfo { UserId = member.UserId.ToString(), Name = member.Name });
             }
 
-            foreach (var waitingCallback in m_UserInfosWaitingCallbacks)
-            {
-                waitingCallback?.Invoke(userInfos);
-            }
-
-            m_UserInfosWaitingCallbacks.Clear();
-            m_UserInfos = userInfos;
+            return userInfos;
         }
     }
 
@@ -91,8 +113,6 @@ namespace Unity.AssetManager.Core.Editor
         ProjectInfo SelectedProject { get; }
         CollectionInfo SelectedCollection { get; }
         bool IsLoading { get; }
-        MessageData MessageData { get; }
-        event Action<MessageData> MessageThrown;
         event Action<OrganizationInfo> OrganizationChanged;
         event Action<bool> LoadingStateChanged;
         event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
@@ -122,27 +142,36 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeField]
         string m_CollectionPath;
 
-        [FormerlySerializedAs("m_ErrorOrMessageHandling")]
-        [SerializeField]
-        MessageData m_MessageData = new();
-
         [SerializeReference]
         IAssetsProvider m_AssetsProvider;
 
         [SerializeReference]
+        IMessageManager m_MessageManager;
+
+        [SerializeReference]
         IUnityConnectProxy m_UnityConnectProxy;
 
-        static readonly string k_NoOrganizationMessage =
-            L10n.Tr(
-                "It seems your project is not linked to an organization. Please link your project to a Unity project ID to start using the Asset Manager service.");
-        static readonly string k_CurrentProjectNotEnabledMessage =
-            L10n.Tr("It seems your current project is not enabled for use in the Asset Manager.");
         static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
         static readonly string k_CollectionPathPrefKey = "com.unity.asset-manager-for-unity.selectedCollectionPath";
-        static readonly string k_NoConnectionMessage =
-            L10n.Tr("No network connection. Please check your internet connection.");
-        static readonly string k_ErrorRetrievingOrganization =
-            L10n.Tr("It seems there was an error while trying to retrieve organization info.");
+
+        private static readonly Message k_EmptyMessage = new(string.Empty,
+            RecommendedAction.Retry);
+
+        static readonly Message k_NoOrganizationMessage = new (
+            L10n.Tr("It seems your project is not linked to an organization. Please link your project to a Unity project ID to start using the Asset Manager service."),
+            RecommendedAction.OpenServicesSettingButton);
+
+        static readonly Message k_ErrorRetrievingOrganizationMessage = new(
+            L10n.Tr("It seems there was an error while trying to retrieve organization info."),
+            RecommendedAction.Retry);
+
+        private static readonly Message k_CurrentProjectNotEnabledMessage = new (
+            L10n.Tr("It seems your current project is not enabled for use in the Asset Manager."),
+            RecommendedAction.EnableProject);
+
+        private static readonly HelpBoxMessage k_NoConnectionMessage = new(
+            L10n.Tr("No network connection. Please check your internet connection."),
+            RecommendedAction.None, 0);
 
         string SavedProjectId
         {
@@ -161,8 +190,6 @@ namespace Unity.AssetManager.Core.Editor
         public event Action<ProjectInfo> ProjectInfoChanged;
 
         public bool IsLoading => m_LoadOrganizationOperation.IsLoading;
-        public MessageData MessageData => m_MessageData;
-        public event Action<MessageData> MessageThrown;
 
         public event Action<bool> LoadingStateChanged;
 
@@ -194,10 +221,12 @@ namespace Unity.AssetManager.Core.Editor
         }
 
         [ServiceInjection]
-        public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider)
+        public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider,
+            IMessageManager messageManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_AssetsProvider = assetsProvider;
+            m_MessageManager = messageManager;
         }
 
         public override void OnEnable()
@@ -297,7 +326,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public async Task DeleteCollection(CollectionInfo collectionInfo)
         {
-            if(collectionInfo == null)
+            if (collectionInfo == null)
                 return;
 
             await m_AssetsProvider.DeleteCollectionAsync(collectionInfo, CancellationToken.None);
@@ -314,11 +343,12 @@ namespace Unity.AssetManager.Core.Editor
 
         public async Task RenameCollection(CollectionInfo collectionInfo, string newName)
         {
-            if(collectionInfo == null || string.IsNullOrEmpty(newName))
+            if (collectionInfo == null || string.IsNullOrEmpty(newName))
                 return;
 
             var localProjectInfo = GetProject(collectionInfo.ProjectId);
-            if(localProjectInfo.CollectionInfos.Any(c => c.GetFullPath() == $"{collectionInfo.ParentPath}/{newName}"))
+            if (localProjectInfo.CollectionInfos.Any(c =>
+                    c.GetFullPath() == $"{collectionInfo.ParentPath}/{newName}"))
             {
                 ProjectInfoChanged?.Invoke(localProjectInfo);
                 throw new ServiceException(L10n.Tr("A collection with the same name already exists."));
@@ -333,7 +363,7 @@ namespace Unity.AssetManager.Core.Editor
             if (projectInfo == null)
                 return;
 
-            var childCollectionSelectedSubPath = m_CollectionPath.Remove(0,collectionInfo.GetFullPath().Length);
+            var childCollectionSelectedSubPath = m_CollectionPath.Remove(0, collectionInfo.GetFullPath().Length);
             collectionInfo.Name = newName;
 
             var collections = projectInfo.CollectionInfos.ToList();
@@ -388,9 +418,7 @@ namespace Unity.AssetManager.Core.Editor
                 }
                 else
                 {
-                    m_MessageData.Message = k_NoOrganizationMessage;
-                    m_MessageData.RecommendedAction = RecommendedAction.OpenServicesSettingButton;
-                    m_MessageData.IsPageScope = true;
+                    m_MessageManager.SetGridViewMessage(k_NoOrganizationMessage);
                 }
 
                 InvokeOrganizationChanged();
@@ -401,9 +429,9 @@ namespace Unity.AssetManager.Core.Editor
                 () =>
                 {
                     LoadingStateChanged?.Invoke(true);
-                    m_MessageData.Message = string.Empty;
-                    m_MessageData.RecommendedAction = RecommendedAction.Retry;
-                    m_MessageData.IsPageScope = true;
+
+                    m_MessageManager.SetGridViewMessage(k_EmptyMessage);
+
                     InvokeOrganizationChanged(); // TODO Should use a different event
                 },
                 cancelledCallback: InvokeOrganizationChanged,
@@ -417,9 +445,7 @@ namespace Unity.AssetManager.Core.Editor
                     }
                     else
                     {
-                        m_MessageData.Message = k_ErrorRetrievingOrganization;
-                        m_MessageData.RecommendedAction = RecommendedAction.Retry;
-                        m_MessageData.IsPageScope = true;
+                        m_MessageManager.SetGridViewMessage(k_ErrorRetrievingOrganizationMessage);
                     }
 
                     InvokeOrganizationChanged(); // TODO Send exception event
@@ -429,9 +455,7 @@ namespace Unity.AssetManager.Core.Editor
                     m_OrganizationInfo = result;
                     if (m_OrganizationInfo?.ProjectInfos.Any() == false)
                     {
-                        m_MessageData.Message = k_CurrentProjectNotEnabledMessage;
-                        m_MessageData.RecommendedAction = RecommendedAction.EnableProject;
-                        m_MessageData.IsPageScope = true;
+                        m_MessageManager.SetGridViewMessage(k_CurrentProjectNotEnabledMessage);
                     }
                     else
                     {
@@ -446,12 +470,7 @@ namespace Unity.AssetManager.Core.Editor
 
         void RaiseNoConnectionErrorMessage()
         {
-            MessageData messageData = new()
-            {
-                Message = k_NoConnectionMessage,
-                RecommendedAction = RecommendedAction.None
-            };
-            MessageThrown?.Invoke(messageData);
+            m_MessageManager.SetHelpBoxMessage(k_NoConnectionMessage);
         }
 
         ProjectInfo RestoreSelectedProject()
@@ -499,6 +518,7 @@ namespace Unity.AssetManager.Core.Editor
             {
                 m_OrganizationInfo.ProjectInfos[index] = projectInfo;
             }
+
             ProjectInfoChanged?.Invoke(projectInfo);
 
             return projectInfo;

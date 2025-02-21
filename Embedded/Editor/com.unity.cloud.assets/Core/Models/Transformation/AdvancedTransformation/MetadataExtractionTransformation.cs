@@ -1,7 +1,11 @@
+using System;
 using System.Collections.Generic;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
+    /// <summary>
+    /// Generate a metadata JSON file containing extracted 3D model metadata. The metadata is also added to the asset.
+    /// </summary>
     sealed class MetadataExtractionTransformation : ITransformationCreation
     {
         /// <summary>

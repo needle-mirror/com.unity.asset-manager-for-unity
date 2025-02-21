@@ -1,3 +1,5 @@
+using System;
+
 namespace Unity.Cloud.AssetsEmbedded
 {
     class FieldDefinitionUpdate : IFieldDefinitionUpdate
@@ -7,6 +9,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
         public FieldDefinitionUpdate() { }
 
+        [Obsolete("Use the default constructor instead.")]
         public FieldDefinitionUpdate(IFieldDefinition fieldDefinition)
         {
             DisplayName = fieldDefinition.DisplayName;

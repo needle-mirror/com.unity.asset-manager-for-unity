@@ -18,9 +18,6 @@ namespace Unity.AssetManager.Core.Editor
         public string m_JsonAssetSerialized;
 
         [SerializeField]
-        public AssetComparisonResult m_AssetComparisonResult = AssetComparisonResult.None;
-
-        [SerializeField]
         public string m_ThumbnailUrl;
 
         [SerializeReference]
@@ -28,9 +25,6 @@ namespace Unity.AssetManager.Core.Editor
 
         [SerializeReference]
         public AssetDataFilePersistenceLegacy m_PrimarySourceFile;
-
-        [SerializeReference]
-        public List<AssetDataFilePersistenceLegacy> m_UVCSFiles = new();
     }
 
     /// <summary>
@@ -96,13 +90,31 @@ namespace Unity.AssetManager.Core.Editor
         public List<ImportedFileInfoPersistenceLegacy> FileInfos;
     }
 
-    class PersistenceLegacy
+    class PersistenceLegacy : IPersistenceVersion
     {
         readonly Dictionary<ImportedAssetInfoPersistenceLegacy, ImportedAssetInfo> m_ImportedAssetInfos = new();
         readonly Dictionary<DependencyAssetPersistenceLegacy, DependencyAsset> m_DependencyAssets = new();
         readonly Dictionary<ImportedFileInfoPersistenceLegacy, ImportedFileInfo> m_ImportedFileInfos = new();
         readonly Dictionary<AssetDataPersistenceLegacy, AssetData> m_AssetDatas = new();
         readonly Dictionary<AssetDataFilePersistenceLegacy, AssetDataFile> m_AssetDataFiles = new();
+
+        public int MajorVersion => 0;
+        public int MinorVersion => 0;
+
+
+        public ImportedAssetInfo ConvertToImportedAssetInfo(string content)
+        {
+            var fileContentWithTypeMapped = MapTypes(content);
+            var importedAssetInfoPersistedLegacy = Parse(fileContentWithTypeMapped);
+            return Convert(importedAssetInfoPersistedLegacy);
+        }
+
+        public string SerializeEntry(AssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
+        {
+            // We should never write to this version
+            Utilities.DevLogError("Trying to write to legacy persistence version");
+            return null;
+        }
 
         static string MapTypes(string jsonString)
         {
@@ -160,20 +172,21 @@ namespace Unity.AssetManager.Core.Editor
                 return assetData;
             }
 
+#pragma warning disable 618 // Maintaining for compatibility with legacy data
+
             // Since AssetData can reference itself in the m_Versions member (not sure why), we need to create
             // the object and put it in cache before de-serializing it. Otherwise, we get stack overflow
             var assetsProvider = ServicesContainer.instance.Resolve<AssetsSdkProvider>();
             assetData = assetsProvider.DeserializeAssetData(persistedLegacy.m_JsonAssetSerialized);
+#pragma warning restore 618
 
             m_AssetDatas[persistedLegacy] = assetData;
 
             assetData.FillFromPersistenceLegacy(
                 persistedLegacy.m_DependencyAssets.Select(x => x.m_Identifier),
-                persistedLegacy.m_AssetComparisonResult,
                 persistedLegacy.m_ThumbnailUrl,
                 persistedLegacy.m_SourceFiles.Select(Convert),
-                Convert(persistedLegacy.m_PrimarySourceFile),
-                persistedLegacy.m_UVCSFiles.Select(Convert));
+                Convert(persistedLegacy.m_PrimarySourceFile));
 
             return assetData;
         }
@@ -213,18 +226,11 @@ namespace Unity.AssetManager.Core.Editor
 
             importedAssetInfo = new ImportedAssetInfo(
                 Convert(persistedLegacy.AssetData),
-                persistedLegacy.FileInfos.Select(x => Convert(x)));
+                persistedLegacy.FileInfos.Select(Convert));
 
             m_ImportedAssetInfos[persistedLegacy] = importedAssetInfo;
 
             return importedAssetInfo;
-        }
-
-        public ImportedAssetInfo ReadEntry(string fileContent)
-        {
-            var fileContentWithTypeMapped = MapTypes(fileContent);
-            var importedAssetInfoPersistedLegacy = Parse(fileContentWithTypeMapped);
-            return Convert(importedAssetInfoPersistedLegacy);
         }
     }
 }

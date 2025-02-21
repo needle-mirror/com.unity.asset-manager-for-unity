@@ -17,7 +17,10 @@ namespace Unity.AssetManager.UI.Editor
         List<BaseFilter> m_SelectedFilters = new();
 
         [SerializeReference]
-        List<BaseFilter> m_Filters;
+        List<BaseFilter> m_PrimaryMetadataFilters;
+
+        [SerializeReference]
+        List<CustomMetadataFilter> m_CustomMetadataFilters;
 
         [SerializeReference]
         bool m_IsEnabled;
@@ -29,6 +32,8 @@ namespace Unity.AssetManager.UI.Editor
         public List<BaseFilter> SelectedFilters => m_SelectedFilters;
         public IEnumerable<LocalFilter> SelectedLocalFilters => m_SelectedFilters.OfType<LocalFilter>();
         public AssetSearchFilter AssetSearchFilter => m_AssetSearchFilter ?? InitializeAssetSearchFilter();
+        public List<CustomMetadataFilter> CustomMetadataFilters => m_CustomMetadataFilters;
+        IEnumerable<BaseFilter> Filters => m_PrimaryMetadataFilters.Concat(m_CustomMetadataFilters);
 
         public event Action<IReadOnlyCollection<string>> SearchFiltersChanged;
         public event Action<bool> EnableStatusChanged;
@@ -37,10 +42,15 @@ namespace Unity.AssetManager.UI.Editor
 
         AssetSearchFilter m_AssetSearchFilter;
 
-        public PageFilters(IPage page, List<BaseFilter> filters)
+        public PageFilters(IPage page)
         {
             m_Page = page;
-            m_Filters = filters;
+        }
+
+        public void Initialize(List<BaseFilter> primaryMetadataFilters, List<CustomMetadataFilter> customMetadataFilters)
+        {
+            m_PrimaryMetadataFilters = primaryMetadataFilters;
+            m_CustomMetadataFilters = customMetadataFilters;
         }
 
         public void AddSearchFilter(IEnumerable<string> searchFiltersArg)
@@ -108,32 +118,32 @@ namespace Unity.AssetManager.UI.Editor
             m_SelectedFilters.Remove(filter);
         }
 
-        public async Task ApplyFilter(Type filterType, string selection)
+        public async Task ApplyFilter(Type filterType, List<string> selectedFilters)
         {
-            var filter = m_Filters.FirstOrDefault(f => f.GetType() == filterType);
+            var filter = Filters.FirstOrDefault(f => f.GetType() == filterType);
             if (filter == null)
                 return;
 
-            if(!string.IsNullOrEmpty(selection))
+            if(selectedFilters != null)
             {
                 if(!m_SelectedFilters.Contains(filter))
                 {
                     AddFilter(filter, false);
                     await filter.GetSelections();
                 }
-                else if(filter.SelectedFilter == selection)
+                else if(filter.SelectedFilters.SequenceEqual(selectedFilters))
                 {
                     return;
                 }
             }
 
-            ApplyFilter(filter, selection);
+            ApplyFilter(filter, selectedFilters);
             filter.IsDirty = true;
         }
 
-        public void ApplyFilter(BaseFilter filter, string selection)
+        public void ApplyFilter(BaseFilter filter, List<string> selectedFilters)
         {
-            var reload = filter.ApplyFilter(selection);
+            var reload = filter.ApplyFilter(selectedFilters);
             if (reload)
             {
                 foreach (var selectedFilter in m_SelectedFilters)
@@ -158,12 +168,17 @@ namespace Unity.AssetManager.UI.Editor
 
         public bool IsAvailableFilters()
         {
-            return m_IsEnabled && m_SelectedFilters.Count < m_Filters.Count;
+            return m_IsEnabled && m_SelectedFilters.Count < Filters.Count();
         }
 
-        public List<BaseFilter> GetAvailableFilters()
+        public List<BaseFilter> GetAvailablePrimaryMetadataFilters()
         {
-            return m_Filters.Where(filter => !m_SelectedFilters.Contains(filter)).ToList();
+            return m_PrimaryMetadataFilters.Where(filter => !m_SelectedFilters.Contains(filter)).ToList();
+        }
+
+        public List<CustomMetadataFilter> GetAvailableCustomMetadataFilters()
+        {
+            return m_CustomMetadataFilters.Where(filter => !m_SelectedFilters.Contains(filter)).ToList();
         }
 
         public void ClearFilters()

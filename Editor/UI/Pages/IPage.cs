@@ -3,28 +3,24 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
-using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
     interface IPage
     {
         bool IsLoading { get; }
-        bool CanLoadMoreItems { get; }
+        string DefaultProjectName { get; }
         PageFilters PageFilters { get; }
         AssetIdentifier LastSelectedAssetId { get; }
         IReadOnlyCollection<BaseAssetData> AssetList { get; }
-        MessageData MessageData { get; }
         IReadOnlyCollection<AssetIdentifier> SelectedAssets { get; }
         Dictionary<string, SortField> SortOptions { get; }
+        UIComponents EnabledUIComponents { get; }
 
         event Action<bool> LoadingStatusChanged;
         event Action<IReadOnlyCollection<AssetIdentifier>> SelectedAssetsChanged;
         event Action<IReadOnlyCollection<string>> SearchFiltersChanged;
-        event Action<MessageData> MessageThrown;
-
-        Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
-            AssetSearchGroupBy groupBy, CancellationToken token);
+        event Action<UIComponents> UIComponentEnabledChanged;
 
         void SelectAsset(AssetIdentifier asset, bool additive);
         void SelectAssets(IEnumerable<AssetIdentifier> assets);
@@ -32,9 +28,6 @@ namespace Unity.AssetManager.UI.Editor
         void LoadMore();
         void Clear(bool reloadImmediately, bool clearSelection = true);
         void ClearSelection();
-
-        void SetMessageData(string errorMessage, RecommendedAction actionType = RecommendedAction.Retry,
-            bool isPageScope = true, HelpBoxMessageType messageType = HelpBoxMessageType.Info);
 
         // Called after the page is created, and after a domain reload
         void OnEnable();

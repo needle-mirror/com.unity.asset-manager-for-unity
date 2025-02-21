@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
@@ -35,19 +36,22 @@ namespace Unity.AssetManager.UI.Editor
             return Task.FromResult(m_Selections);
         }
 
-        public override async Task<bool> Contains(BaseAssetData assetData)
+        public override async Task<bool> Contains(BaseAssetData assetData, CancellationToken token = default)
         {
-            if (m_AssetTypeMap == null || SelectedFilter == null)
+            if (m_AssetTypeMap == null || SelectedFilters == null)
             {
                 return true;
             }
 
-            await assetData.ResolvePrimaryExtensionAsync(null);
+            await assetData.ResolveDatasetsAsync(token: token);
             var type = AssetDataTypeHelper.GetUnityAssetType(assetData.PrimaryExtension);
 
-            if (m_AssetTypeMap.TryGetValue(SelectedFilter, out var assetType))
+            foreach (var selectedFilter in SelectedFilters)
             {
-                return type == assetType;
+                if (m_AssetTypeMap.TryGetValue(selectedFilter, out var assetType) && type == assetType)
+                {
+                    return true;
+                }
             }
 
             return false;

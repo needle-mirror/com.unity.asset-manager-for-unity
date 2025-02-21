@@ -12,23 +12,68 @@ namespace Unity.Cloud.AssetsEmbedded
     sealed class AssetProjectEntity : IAssetProject
     {
         readonly IAssetDataSource m_DataSource;
+        readonly AssetRepositoryCacheConfiguration m_DefaultCacheConfiguration;
 
         /// <inheritdoc />
         public ProjectDescriptor Descriptor { get; }
 
         /// <inheritdoc />
-        public string Name { get; set; }
+        public string Name
+        {
+            get => Properties.Name;
+            set { }
+        }
 
         /// <inheritdoc />
-        public IDeserializable Metadata { get; set; }
+        public IDeserializable Metadata
+        {
+            get => new JsonObject(Properties.Metadata);
+            set { }
+        }
 
         /// <inheritdoc/>
-        public bool HasCollection { get; set; }
+        public bool HasCollection => Properties.HasCollection;
 
-        internal AssetProjectEntity(IAssetDataSource dataSource, ProjectDescriptor projectDescriptor)
+        /// <inheritdoc/>
+        public AssetProjectCacheConfiguration CacheConfiguration { get; }
+
+        internal AssetProjectProperties Properties { get; set; }
+
+        internal AssetProjectEntity(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, ProjectDescriptor projectDescriptor, AssetProjectCacheConfiguration? localCacheConfiguration = null)
         {
             m_DataSource = dataSource;
+            m_DefaultCacheConfiguration = defaultCacheConfiguration;
             Descriptor = projectDescriptor;
+
+            CacheConfiguration = localCacheConfiguration ?? new AssetProjectCacheConfiguration(m_DefaultCacheConfiguration);
+        }
+
+        /// <inheritdoc />
+        public Task<IAssetProject> WithCacheConfigurationAsync(AssetProjectCacheConfiguration assetProjectCacheConfiguration, CancellationToken cancellationToken)
+        {
+            return GetConfiguredAsync(m_DataSource, m_DefaultCacheConfiguration, Descriptor, assetProjectCacheConfiguration, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public async Task RefreshAsync(CancellationToken cancellationToken)
+        {
+            if (CacheConfiguration.HasCachingRequirements)
+            {
+                var data = await m_DataSource.GetProjectAsync(Descriptor, cancellationToken);
+                this.MapFrom(data);
+            }
+        }
+
+        /// <inheritdoc />
+        public async Task<AssetProjectProperties> GetPropertiesAsync(CancellationToken cancellationToken)
+        {
+            if (CacheConfiguration.CacheProperties)
+            {
+                return Properties;
+            }
+
+            var data = await m_DataSource.GetProjectAsync(Descriptor, cancellationToken);
+            return data.From();
         }
 
         /// <inheritdoc />
@@ -56,17 +101,24 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public async Task<IAsset> GetAssetAsync(AssetId assetId, AssetVersion assetVersion, CancellationToken cancellationToken)
+        public Task<IAsset> GetAssetAsync(AssetId assetId, AssetVersion assetVersion, CancellationToken cancellationToken)
         {
-            var data = await m_DataSource.GetAssetAsync(new AssetDescriptor(Descriptor, assetId, assetVersion), FieldsFilter.DefaultAssetIncludes, cancellationToken);
-            return data.From(m_DataSource, Descriptor, FieldsFilter.DefaultAssetIncludes);
+            var assetDescriptor = new AssetDescriptor(Descriptor, assetId, assetVersion);
+            return AssetEntity.GetConfiguredAsync(m_DataSource, m_DefaultCacheConfiguration, assetDescriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<IAsset> GetAssetAsync(AssetId assetId, string label, CancellationToken cancellationToken)
         {
-            var data = await m_DataSource.GetAssetAsync(Descriptor, assetId, label, FieldsFilter.DefaultAssetIncludes, cancellationToken);
-            return data.From(m_DataSource, Descriptor, FieldsFilter.DefaultAssetIncludes);
+            var fieldsFilter = m_DefaultCacheConfiguration.GetAssetFieldsFilter();
+            var data = await m_DataSource.GetAssetAsync(Descriptor, assetId, label, fieldsFilter, cancellationToken);
+            return data.From(m_DataSource, m_DefaultCacheConfiguration, Descriptor, fieldsFilter);
+        }
+
+        /// <inheritdoc />
+        public VersionQueryBuilder QueryAssetVersions(AssetId assetId)
+        {
+            return new VersionQueryBuilder(m_DataSource, m_DefaultCacheConfiguration, Descriptor, assetId);
         }
 
         /// <inheritdoc />
@@ -78,14 +130,20 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async Task<IAsset> CreateAssetAsync(IAssetCreation assetCreation, CancellationToken cancellationToken)
         {
-            var data = await m_DataSource.CreateAssetAsync(Descriptor, assetCreation.From(), cancellationToken);
-            return data.From(m_DataSource, Descriptor, FieldsFilter.All);
+            var assetDescriptor = await CreateAssetLiteAsync(assetCreation, cancellationToken);
+            return await GetAssetAsync(assetDescriptor.AssetId, assetDescriptor.AssetVersion, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task<AssetDescriptor> CreateAssetLiteAsync(IAssetCreation assetCreation, CancellationToken cancellationToken)
+        {
+            return m_DataSource.CreateAssetAsync(Descriptor, assetCreation.From(), cancellationToken);
         }
 
         /// <inheritdoc />
         public AssetQueryBuilder QueryAssets()
         {
-            return new AssetQueryBuilder(m_DataSource, Descriptor);
+            return new AssetQueryBuilder(m_DataSource, m_DefaultCacheConfiguration, Descriptor);
         }
 
         /// <inheritdoc />
@@ -115,7 +173,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public CollectionQueryBuilder QueryCollections()
         {
-            return new CollectionQueryBuilder(m_DataSource, Descriptor);
+            return new CollectionQueryBuilder(m_DataSource, m_DefaultCacheConfiguration, Descriptor);
         }
 
         /// <inheritdoc />
@@ -125,30 +183,33 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public async Task<IAssetCollection> GetCollectionAsync(CollectionPath collectionPath, CancellationToken cancellationToken)
+        public Task<IAssetCollection> GetCollectionAsync(CollectionPath collectionPath, CancellationToken cancellationToken)
         {
-            var collectionData = await m_DataSource.GetCollectionAsync(new CollectionDescriptor(Descriptor, collectionPath), cancellationToken);
-            return collectionData.From(m_DataSource, Descriptor);
+            var descriptor = new CollectionDescriptor(Descriptor, collectionPath);
+            return AssetCollection.GetConfiguredAsync(m_DataSource, m_DefaultCacheConfiguration, descriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<IAssetCollection> CreateCollectionAsync(IAssetCollectionCreation assetCollectionCreation, CancellationToken cancellationToken)
         {
+            var collectionDescriptor = await CreateCollectionLiteAsync(assetCollectionCreation, cancellationToken);
+            return await GetCollectionAsync(collectionDescriptor.Path, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public async Task<CollectionDescriptor> CreateCollectionLiteAsync(IAssetCollectionCreation assetCollectionCreation, CancellationToken cancellationToken)
+        {
             assetCollectionCreation.Validate();
 
             var creationPath = CollectionPath.CombinePaths(assetCollectionCreation.ParentPath, assetCollectionCreation.Name);
-            var assetCollection = new AssetCollection(m_DataSource, new CollectionDescriptor(Descriptor, creationPath))
-            {
-                Description = assetCollectionCreation.Description
-            };
 
-            var collectionPath = await m_DataSource.CreateCollectionAsync(Descriptor, assetCollection.From(), cancellationToken);
+            var collectionPath = await m_DataSource.CreateCollectionAsync(Descriptor, assetCollectionCreation.From(), cancellationToken);
             if (creationPath != collectionPath)
             {
                 throw new CreateCollectionFailedException($"Failed to create a collection at path {creationPath}");
             }
 
-            return assetCollection;
+            return new CollectionDescriptor(Descriptor, collectionPath);
         }
 
         /// <inheritdoc />
@@ -160,7 +221,22 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public TransformationQueryBuilder QueryTransformations()
         {
-            return new TransformationQueryBuilder(m_DataSource, Descriptor);
+            return new TransformationQueryBuilder(m_DataSource, m_DefaultCacheConfiguration, Descriptor);
+        }
+
+        /// <summary>
+        /// Returns a project configured with the specified cache configuration.
+        /// </summary>
+        internal static async Task<IAssetProject> GetConfiguredAsync(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, ProjectDescriptor descriptor, AssetProjectCacheConfiguration? configuration, CancellationToken cancellationToken)
+        {
+            var project = new AssetProjectEntity(dataSource, defaultCacheConfiguration, descriptor, configuration);
+
+            if (project.CacheConfiguration.HasCachingRequirements)
+            {
+                await project.RefreshAsync(cancellationToken);
+            }
+
+            return project;
         }
     }
 }

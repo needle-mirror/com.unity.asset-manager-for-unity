@@ -1,12 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AssetManager.Core.Editor
@@ -38,6 +35,28 @@ namespace Unity.AssetManager.Core.Editor
 
     class AssetImportResolver : BaseService<IAssetImportResolver>, IAssetImportResolver
     {
+        [Serializable]
+        readonly struct DependencyNode
+        {
+            // Any node with a null m_AssetData should be trashed on Domain Reload.
+            readonly BaseAssetData m_AssetData;
+
+            // Not started => -1
+            // Started => 0
+            // Completed => 1
+            readonly int m_DependenciesTraversalState;
+
+            public BaseAssetData AssetData => m_AssetData;
+            public bool IsDependencyTraversalStarted => m_DependenciesTraversalState >= 0;
+            public bool IsDependencyTraversalCompleted => m_DependenciesTraversalState == 1;
+
+            public DependencyNode(BaseAssetData assetData, int dependenciesTraversalState = -1)
+            {
+                m_AssetData = assetData;
+                m_DependenciesTraversalState = dependenciesTraversalState;
+            }
+        }
+
         IAssetImportDecisionMaker m_ConflictResolver;
 
         public void SetConflictResolver(IAssetImportDecisionMaker conflictResolver)
@@ -58,10 +77,9 @@ namespace Unity.AssetManager.Core.Editor
                 var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
                 var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
 
-                var assetsAndDependencies = await SyncWithCloudAndGatherDependenciesAsync(assetDataManager, assetsProvider, assets, importType, token);
+                var assetsAndDependencies = await GetUpdatedAssetDataAndDependenciesAsync(assetsProvider, assets, importType, token);
 
-                if (!CheckIfAssetsAlreadyInProject(assetDataManager, assets, importDestination, assetsAndDependencies,
-                        out var updatedAssetData))
+                if (!CheckIfAssetsAlreadyInProject(assetDataManager, assets, importDestination, assetsAndDependencies, out var updatedAssetData))
                 {
                     return assetsAndDependencies;
                 }
@@ -97,18 +115,10 @@ namespace Unity.AssetManager.Core.Editor
             var isFoundAtLeastOne = false;
             foreach (var asset in assetsAndDependencies)
             {
-                var isExisted = assetDataManager.IsInProject(asset.Identifier);
+                var resolutionInfo = new AssetDataResolutionInfo(asset, assetDataManager);
 
-                var resolutionInfo = new AssetDataResolutionInfo {AssetData = asset, Existed = isExisted};
-
-                if (!isExisted)
-                {
-                    foreach (var file in asset.SourceFiles.Where(f => FindByPath(importDestination, settings,asset, f)))
-                    {
-                        resolutionInfo.FileConflicts.Add(file);
-                        isFoundAtLeastOne = true;
-                    }
-                }
+                resolutionInfo.GatherFileConflicts(settings, importDestination);
+                isFoundAtLeastOne |= resolutionInfo.HasConflicts;
 
                 if (assets.Any(a => TrackedAssetIdentifier.IsFromSameAsset(a.Identifier, asset.Identifier)))
                 {
@@ -119,192 +129,333 @@ namespace Unity.AssetManager.Core.Editor
                     updatedAssetData.Dependants.Add(resolutionInfo);
                 }
 
-                isFoundAtLeastOne |= isExisted;
+                isFoundAtLeastOne |= resolutionInfo.Existed;
             }
 
             return isFoundAtLeastOne;
         }
 
-        static bool FindByPath(string importDestination, ISettingsManager settings, BaseAssetData asset, BaseAssetDataFile file)
-        {
-            var destinationPath = importDestination;
-            if (settings.IsSubfolderCreationEnabled)
-            {
-                var regex = new Regex(@"[\\\/:*?""<>|]", RegexOptions.None, TimeSpan.FromMilliseconds(100));
-                destinationPath = Path.Combine(importDestination, $"{regex.Replace(asset.Name, "").Trim()}");
-            }
-
-            var filePath = Path.Combine(destinationPath, file.Path);
-            return File.Exists(filePath);
-        }
-
-        static async Task<HashSet<BaseAssetData>> SyncWithCloudAndGatherDependenciesAsync(IAssetDataManager assetDataManager,
-            IAssetsProvider assetsProvider, IEnumerable<BaseAssetData> assetData, ImportOperation.ImportType importType,
-            CancellationToken token)
-        {
-            var tasks = new List<Task<List<BaseAssetData>>>();
-
-            foreach (var asset in assetData)
-            {
-                tasks.Add(SyncWithCloudAndGatherDependenciesAsync(assetDataManager, assetsProvider, asset, importType,
-                    token));
-            }
-
-            await Task.WhenAll(tasks);
-
-            var dependencies = new HashSet<BaseAssetData>();
-            foreach (var task in tasks)
-            {
-                foreach (var asset in task.Result)
-                {
-                    var same = dependencies.FirstOrDefault(a => TrackedAssetIdentifier.IsFromSameAsset(a.Identifier, asset.Identifier));
-                    if (same != null)
-                    {
-                        if (same.SequenceNumber >= asset.SequenceNumber)
-                            continue;
-
-                        dependencies.Remove(same);
-                    }
-
-                    dependencies.Add(asset);
-                }
-            }
-
-            return dependencies;
-        }
-
-        static async Task<List<BaseAssetData>> SyncWithCloudAndGatherDependenciesAsync(IAssetDataManager assetDataManager,
-            IAssetsProvider assetsProvider, BaseAssetData asset, ImportOperation.ImportType importType,
-            CancellationToken token)
-        {
-            asset = await SyncWithCloudAsync(assetsProvider, asset, importType, token);
-
-            return await GetDependenciesAsync(assetDataManager, assetsProvider, asset, token);
-        }
-
-        static async Task<BaseAssetData> SyncWithCloudAsync(IAssetsProvider assetsProvider, BaseAssetData asset,
+        static async Task<HashSet<BaseAssetData>> GetUpdatedAssetDataAndDependenciesAsync(
+            IAssetsProvider assetsProvider, IEnumerable<BaseAssetData> assetDatas,
             ImportOperation.ImportType importType, CancellationToken token)
         {
-            // Populate the latest asset data
-            asset = importType switch
-            {
-                ImportOperation.ImportType.Import => await assetsProvider.GetAssetAsync(asset.Identifier, token),
-                _ => await assetsProvider.GetLatestAssetVersionAsync(asset.Identifier, token)
-            };
+            assetDatas = await GetUpdatedAssetDataAsync(assetsProvider, assetDatas.Select(x => x.Identifier),
+                importType, token);
 
-            var tasks = new List<Task>
+#if AM4U_DEV
+            var t = new Stopwatch();
+            t.Start();
+#endif
+
+            // Key = "project-Id/asset-Id"
+            // Value = the AssetData with the highest SequenceNumber
+            // DOMAIN_RELOAD : serializing this dictionary would allow recovery
+            var dependencies = new Dictionary<string, DependencyNode>();
+            foreach (var assetData in assetDatas)
             {
-                asset.ResolvePrimaryExtensionAsync(null, token),
-                asset.RefreshDependenciesAsync(token)
-            };
+                dependencies[BuildDependencyKey(assetData)] = new DependencyNode(assetData);
+            }
+
+            var depTasks = new List<Task>();
+            foreach (var asset in assetDatas)
+            {
+                depTasks.Add(GetDependenciesRecursivelyAsync(assetsProvider, importType, asset, dependencies, token));
+            }
+
+            await Task.WhenAll(depTasks);
+
+#if AM4U_DEV
+            t.Stop();
+            Utilities.DevLog($"Took {t.ElapsedMilliseconds / 1000f:F2} s to gather dependencies");
+#endif
+
+            return dependencies.Select(x => x.Value.AssetData).ToHashSet();
+        }
+
+        static async Task GetDependenciesRecursivelyAsync(IAssetsProvider assetsProvider,
+            ImportOperation.ImportType importType, BaseAssetData root, Dictionary<string, DependencyNode> assetDatas,
+            CancellationToken token)
+        {
+            var key = BuildDependencyKey(root);
+
+            // Check if the root asset data is already being traversed
+            lock (assetDatas)
+            {
+                if (assetDatas.TryGetValue(key, out var rootNode))
+                {
+                    if (rootNode.IsDependencyTraversalStarted)
+                        return;
+
+                    root = ChooseLatest(rootNode.AssetData, root);
+                }
+
+                assetDatas[key] = new DependencyNode(root, 0);
+            }
+
+            // List dependencies, but only retain those that are not already in the dictionary
+            var dependencyIdentifiers = new List<AssetIdentifier>();
+            foreach (var assetIdentifier in root.Dependencies)
+            {
+                var dependencyKey = BuildDependencyKey(assetIdentifier);
+                lock (assetDatas)
+                {
+                    // If the dependency is already in the dictionary, the node has been visited.
+                    if (assetDatas.ContainsKey(dependencyKey))
+                    {
+                        Utilities.DevLog("Skipping dependency.");
+                        continue;
+                    }
+
+                    assetDatas[dependencyKey] = new DependencyNode(null);
+                }
+
+                dependencyIdentifiers.Add(assetIdentifier);
+            }
+
+            if (dependencyIdentifiers.Count == 0)
+                return;
+
+            // Make sure those dependencies are the most up to date.
+            var dependencies =
+                (await GetUpdatedAssetDataAsync(assetsProvider, dependencyIdentifiers, importType, token)).ToArray();
+
+            // Create new entries for each dependency
+            for (var i = 0; i < dependencies.Length; ++i)
+            {
+                var temp = dependencies[i];
+
+                var dependencyKey = BuildDependencyKey(temp);
+                lock (assetDatas)
+                {
+                    if (assetDatas.TryGetValue(dependencyKey, out var dependencyNode))
+                    {
+                        if (dependencyNode.IsDependencyTraversalStarted)
+                            continue;
+
+                        dependencies[i] = ChooseLatest(dependencyNode.AssetData, temp);
+                    }
+
+                    assetDatas[key] = new DependencyNode(temp, 0);
+                }
+            }
+
+            // DOMAIN_RELOAD : this is useful to track which nodes will need to be re-traversed
+            // Once all dependency nodes are setup, update the root node
+            lock (assetDatas)
+            {
+                assetDatas[key] = new DependencyNode(root, 1);
+            }
+
+            // Start tasks to traverse each dependency
+            var tasks = new List<Task>();
+
+            foreach (var dependency in dependencies)
+            {
+                tasks.Add(GetDependenciesRecursivelyAsync(assetsProvider, importType, dependency, assetDatas, token));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        static async Task<IEnumerable<BaseAssetData>> GetUpdatedAssetDataAsync(IAssetsProvider assetsProvider,
+            IEnumerable<AssetIdentifier> assetIdentifiers, ImportOperation.ImportType importType, CancellationToken token)
+        {
+#if AM4U_DEV
+            var t = new Stopwatch();
+            t.Start();
+#endif
+
+            var assetDatas = await SearchUpdatedAssetDataAsync(assetsProvider, assetIdentifiers, importType, token);
+
+#if AM4U_DEV
+            Utilities.DevLog($"Took {t.ElapsedMilliseconds / 1000f:F2} s to update {assetDatas.Count()} assets.");
+            t.Restart();
+#endif
+
+            var updateTasks = new List<Task>();
+            foreach (var asset in assetDatas)
+            {
+                // Updates asset file list
+                updateTasks.Add(asset.ResolveDatasetsAsync(token));
+
+                // Updates dependency list
+                updateTasks.Add(asset.RefreshDependenciesAsync(token));
+            }
+
+            await Task.WhenAll(updateTasks);
+
+#if AM4U_DEV
+            t.Stop();
+            Utilities.DevLog($"Took {t.ElapsedMilliseconds / 1000f:F2} s for non-batchable update asset calls.");
+#endif
+
+            return assetDatas;
+        }
+
+        static async Task<IEnumerable<BaseAssetData>> SearchUpdatedAssetDataAsync(IAssetsProvider assetsProvider,
+            IEnumerable<AssetIdentifier> assetIdentifiers, ImportOperation.ImportType importType, CancellationToken token)
+        {
+            // Split the searches by organization
+
+            var assetsByOrg = new Dictionary<string, List<AssetIdentifier>>();
+            foreach (var assetIdentifier in assetIdentifiers)
+            {
+                if (string.IsNullOrEmpty(assetIdentifier.OrganizationId))
+                    continue;
+
+                if (!assetsByOrg.ContainsKey(assetIdentifier.OrganizationId))
+                {
+                    assetsByOrg.Add(assetIdentifier.OrganizationId, new List<AssetIdentifier>());
+                }
+
+                assetsByOrg[assetIdentifier.OrganizationId].Add(assetIdentifier);
+            }
+
+            if (assetsByOrg.Count > 1)
+            {
+                Utilities.DevLog("Initiating search in multiple organizations.");
+            }
+
+            var tasks = assetsByOrg
+                .Select(kvp => SearchUpdatedAssetDataAsync(assetsProvider, kvp.Key, kvp.Value, importType, token))
+                .ToArray();
+
             await Task.WhenAll(tasks);
 
-            return asset;
-        }
+            var targetAssetDatas = new List<BaseAssetData>();
 
-        static async Task<List<BaseAssetData>> GetDependenciesAsync(IAssetDataManager assetDataManager,
-            IAssetsProvider assetsProvider, BaseAssetData asset, CancellationToken token)
-        {
-            var totalDependencies = asset.Dependencies.Count();
-            var loadedDependencies = 0;
-
-            var loadDependenciesOperation = new LoadDependenciesOperation();
-            loadDependenciesOperation.Start();
-
-            token.Register(() =>
+            foreach (var task in tasks)
             {
-                loadDependenciesOperation.Finish(OperationStatus.Cancelled);
-            });
-
-            // Add the asset iteself to the list.
-            var dependencies = new List<BaseAssetData> {asset};
-            var addedDependencies = new HashSet<AssetIdentifier> {asset.Identifier};
-
-            await foreach (var dependencyAssetResult in LoadDependenciesRecursivelyAsync(assetDataManager,
-                               assetsProvider, asset, addedDependencies, token))
-            {
-                if (dependencyAssetResult.AssetData != null)
-                {
-                    dependencies.Add(dependencyAssetResult.AssetData);
-                }
-                else
-                {
-                    Debug.LogError($"Failed to import asset dependency '{dependencyAssetResult.Identifier}'");
-                }
-
-                if (asset.Dependencies.Any(x => x.Equals(dependencyAssetResult.Identifier)))
-                {
-                    loadedDependencies++;
-                }
-
-                if (totalDependencies > 0)
-                {
-                    loadDependenciesOperation.Report(new LoadDependenciesProgress(string.Empty,
-                        (float) loadedDependencies / totalDependencies));
-                }
+                targetAssetDatas.AddRange(task.Result);
             }
 
-            loadDependenciesOperation.Finish(OperationStatus.Success);
-
-            return dependencies;
+            return targetAssetDatas;
         }
 
-        static async IAsyncEnumerable<DependencyAssetResult> LoadDependenciesRecursivelyAsync(
-            IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, BaseAssetData assetData,
-            HashSet<AssetIdentifier> addedDependencies, [EnumeratorCancellation] CancellationToken token)
+        static async Task<IEnumerable<BaseAssetData>> SearchUpdatedAssetDataAsync(IAssetsProvider assetsProvider,
+            string organizationId, List<AssetIdentifier> assetIdentifiers, ImportOperation.ImportType importType,
+            CancellationToken token)
         {
-            foreach (var dependency in assetData.Dependencies)
+            // If there is only 1 asset, fetch that asset info directly (search has more overhead than a direct fetch).
+            if (assetIdentifiers.Count == 1)
             {
-                // Avoid circular dependencies
-                if (!addedDependencies.Add(dependency))
+                var identifier = assetIdentifiers[0];
+                var asset = importType switch
                 {
+                    ImportOperation.ImportType.Import =>
+                        await assetsProvider.GetAssetAsync(identifier, token),
+                    _ => await assetsProvider.GetLatestAssetVersionAsync(identifier, token)
+                };
+
+                return new[] {asset};
+            }
+
+            // Split the asset list into chunks for multiple searches.
+
+            var tasks = new List<Task<IEnumerable<BaseAssetData>>>();
+            var startIndex = 0;
+            while (startIndex < assetIdentifiers.Count)
+            {
+                var maxCount = Math.Min(assetsProvider.DefaultSearchPageSize, assetIdentifiers.Count - startIndex);
+
+                var assetIdentifierRange = assetIdentifiers.GetRange(startIndex, maxCount);
+                var searchFilter = BuildSearchFilter(assetIdentifierRange, importType);
+                tasks.Add(SearchUpdatedAssetDataAsync(assetsProvider, organizationId, searchFilter, assetIdentifierRange, token));
+
+                startIndex += assetsProvider.DefaultSearchPageSize;
+            }
+
+            await Task.WhenAll(tasks);
+
+            var targetAssetDatas = new List<BaseAssetData>();
+
+            foreach (var task in tasks)
+            {
+                targetAssetDatas.AddRange(task.Result);
+            }
+
+            return targetAssetDatas;
+        }
+
+        static async Task<IEnumerable<BaseAssetData>> SearchUpdatedAssetDataAsync(IAssetsProvider assetsProvider,
+            string organizationId, AssetSearchFilter assetSearchFilter, IEnumerable<AssetIdentifier> assetIdentifiers,
+            CancellationToken token)
+        {
+            var validAssetIds = assetIdentifiers.Select(x => x.AssetId).ToHashSet();
+
+            var query = assetsProvider.SearchAsync(organizationId, null, assetSearchFilter,
+                SortField.Name, SortingOrder.Ascending, 0, 0, token);
+
+            var assets = new List<BaseAssetData>();
+
+            await foreach (var asset in query)
+            {
+                // Ignore any false positive result.
+                if (!validAssetIds.Contains(asset.Identifier.AssetId))
+                {
+                    Utilities.DevLogWarning($"Skipping false positive search result {asset.Name}.");
                     continue;
                 }
 
-                addedDependencies.Add(dependency);
+                assets.Add(asset);
 
-                var dependencyAsset = await FindAssetAsync(dependency, assetDataManager, assetsProvider, token);
-
-                if (dependencyAsset == null)
+                if (assets.Count > assetsProvider.DefaultSearchPageSize)
                 {
-                    continue;
-                }
-
-                await dependencyAsset.RefreshDependenciesAsync(token);
-
-                var result = new DependencyAssetResult(dependencyAsset);
-                yield return result;
-
-                await foreach (var childDependency in LoadDependenciesRecursivelyAsync(assetDataManager, assetsProvider,
-                                   dependencyAsset,
-                                   addedDependencies, token))
-                {
-                    yield return childDependency;
+                    Utilities.DevLogWarning("Exceeding the expected number of searched assets.");
+                    break;
                 }
             }
+
+            return assets;
         }
 
-        static async Task<AssetData> FindAssetAsync(AssetIdentifier assetIdentifier, IAssetDataManager assetDataManager,
-            IAssetsProvider assetsProvider, CancellationToken token)
+        static AssetSearchFilter BuildSearchFilter(IEnumerable<AssetIdentifier> assetIdentifiers, ImportOperation.ImportType importType)
         {
-            // Search for the asset in the local cache, the versions must match; otherwise fetch the asset from the cloud
-            if (assetDataManager.GetAssetData(assetIdentifier) is AssetData assetData
-                && assetData.Identifier.Version == assetIdentifier.Version)
+            if (!assetIdentifiers.Any())
             {
-                return assetData;
+                throw new ArgumentException("Search list cannot be empty.", nameof(assetIdentifiers));
             }
 
-            try
+            var assetSearchFilter = new AssetSearchFilter();
+
+            switch (importType)
             {
-                // Try to fetch the asset from the current project
-                return await assetsProvider.GetAssetAsync(assetIdentifier, token);
+                // Search by version specifically
+                case ImportOperation.ImportType.Import:
+                    assetSearchFilter.AssetVersions = new List<string>(assetIdentifiers.Select(x => x.Version));
+                    break;
+
+                // Search by assetId
+                case ImportOperation.ImportType.UpdateToLatest:
+                    assetSearchFilter.AssetIds = new List<string>(assetIdentifiers.Select(x => x.AssetId));
+                    break;
             }
-            catch (Exception)
-            {
-                // If it fails, search for the asset in any project
-                return await assetsProvider.FindAssetAsync(assetIdentifier.OrganizationId, assetIdentifier.AssetId,
-                    assetIdentifier.Version, token);
-            }
+
+            return assetSearchFilter;
+        }
+
+        static string BuildDependencyKey(BaseAssetData assetData)
+        {
+            return BuildDependencyKey(assetData.Identifier);
+        }
+
+        static string BuildDependencyKey(AssetIdentifier assetIdentifier)
+        {
+            return $"{assetIdentifier.ProjectId}/{assetIdentifier.AssetId}";
+        }
+
+        static BaseAssetData ChooseLatest(BaseAssetData a, BaseAssetData b)
+        {
+            if (a == null) return b;
+            if (b == null) return a;
+
+            if (a.SequenceNumber > b.SequenceNumber)
+                return a;
+
+            if (a.SequenceNumber < b.SequenceNumber)
+                return b;
+
+            return a.Updated > b.Updated ? a : b;
         }
     }
 }

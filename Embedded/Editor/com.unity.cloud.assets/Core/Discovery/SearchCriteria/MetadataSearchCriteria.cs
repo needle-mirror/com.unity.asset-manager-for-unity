@@ -5,8 +5,6 @@ using System.Text.RegularExpressions;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
-    using SearchOptions = StringSearchCriteria.SearchOptions;
-
     sealed class MetadataSearchCriteria : BaseSearchCriteria
     {
         readonly Dictionary<string, object> m_Included = new();
@@ -25,7 +23,15 @@ namespace Unity.Cloud.AssetsEmbedded
             var searchKey = SearchKey.BuildSearchKey(prefix);
             foreach (var kvp in from)
             {
-                to.Add($"{searchKey}.{kvp.Key}", kvp.Value);
+                switch (kvp.Value)
+                {
+                    case null:
+                    case ISearchValue searchValue when searchValue.IsEmpty():
+                        continue;
+                    default:
+                        to.Add($"{searchKey}.{kvp.Key}", kvp.Value);
+                        break;
+                }
             }
         }
 
@@ -36,62 +42,103 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <summary>
-        /// Sets the value of the metadata field.
+        /// Sets the search criteria for the metadata field.
         /// </summary>
         /// <param name="metadataFieldKey">The key of the metadata field. </param>
         /// <param name="value">The expected value of the field. </param>
         public void WithValue(string metadataFieldKey, MetadataValue value)
         {
-            if (value is StringMetadata stringMetadata)
-            {
-                WithValue(metadataFieldKey, stringMetadata.GetValue() as string, SearchOptions.None);
-            }
-            else
-            {
-                m_Included[metadataFieldKey] = value.GetValue();
-            }
+            m_Included[metadataFieldKey] = value.GetValue();
         }
 
         /// <summary>
-        /// Sets the value of the metadata string field.
+        /// Sets the search criteria for the metadata text field.
         /// </summary>
         /// <param name="metadataFieldKey">The key of the metadata field. </param>
-        /// <param name="value">The expected value of the string field. </param>
+        /// <param name="value">The expected value of the text field. </param>
         /// <param name="options">The search options. </param>
-        public void WithValue(string metadataFieldKey, string value, SearchOptions options)
+        [Obsolete("Use WithTextValue(string, StringPredicate) instead.")]
+        public void WithValue(string metadataFieldKey, string value, StringSearchCriteria.SearchOptions options)
         {
-            if (options.HasFlag(SearchOptions.Prefix))
+            m_Included[metadataFieldKey] = StringSearchCriteria.BuildSearchValue(value, options.HasFlag(StringSearchCriteria.SearchOptions.Prefix) ? StringSearchOption.Prefix : StringSearchOption.Wildcard);
+        }
+
+        /// <summary>
+        /// Sets the search criteria for the metadata text field.
+        /// </summary>
+        /// <param name="metadataFieldKey">The key of the metadata field. </param>
+        /// <param name="pattern">The expected pattern of the text field. </param>
+        [Obsolete("Regex search on text metadata is not supported.")]
+        public void WithValue(string metadataFieldKey, Regex pattern)
+        {
+            m_Included[metadataFieldKey] = SearchStringValue.BuildRegexQuery(pattern);
+        }
+
+        /// <summary>
+        /// Sets the search criteria for the metadata text field.
+        /// </summary>
+        /// <param name="metadataFieldKey">The key of the metadata field. </param>
+        /// <param name="value">The approximate value of the text field. </param>
+        [Obsolete("Fuzzy search on text metadata is not supported.")]
+        public void WithFuzzyValue(string metadataFieldKey, string value)
+        {
+            WithTextValue(metadataFieldKey, new StringPredicate(value, StringSearchOption.Fuzzy));
+        }
+
+        /// <summary>
+        /// Sets the search criteria for the metadata text field.
+        /// </summary>
+        /// <param name="metadataFieldKey">The key of the metadata text field. </param>
+        /// <param name="stringPredicate">The predicate to match to the metadata text field.</param>
+        /// <remarks>
+        /// Does not currently support wildcard, regex, or fuzzy search. Only use prefix and exact match.
+        /// </remarks>
+        public void WithTextValue(string metadataFieldKey, StringPredicate stringPredicate)
+        {
+            m_Included[metadataFieldKey] = stringPredicate.GetSearchValue();
+        }
+
+        /// <summary>
+        /// Sets the search criteria for the metadata number field.
+        /// </summary>
+        /// <param name="metadataFieldKey">The key of the metadata number field. </param>
+        /// <param name="numericRangePredicate">The predicate to match to the metadata number field. </param>
+        /// <remarks>
+        /// Only supported for system metadata.
+        /// </remarks>
+        public void WithNumberValue(string metadataFieldKey, NumericRangePredicate numericRangePredicate)
+        {
+            m_Included[metadataFieldKey] = numericRangePredicate.GetSearchValue();
+        }
+
+        /// <summary>
+        /// Sets the search criteria for the metadata date time field.
+        /// </summary>
+        /// <param name="metadataFieldKey">The key of the metadata text field. </param>
+        /// <param name="min">The minimum value of the date range.</param>
+        /// <param name="inclusiveOfMin">Whether the minimum value is inclusive.</param>
+        /// <param name="max">The maximum value of the date range.</param>
+        /// <param name="inclusiveOfMax">Whether the maximum value is inclusive.</param>
+        public void WithTimestampValue(string metadataFieldKey, DateTime min = default, bool inclusiveOfMin = true, DateTime max = default, bool inclusiveOfMax = true)
+        {
+            var value = new SearchConditionData(SearchConditionData.DateRangeType);
+
+            if (min != default)
             {
-                m_Included[metadataFieldKey] = StringSearchCriteria.BuildPrefixQuery(value);
+                value.AddCondition(SearchUtilities.GetConditionalValueForMin(min, inclusiveOfMin));
             }
-            else if (StringSearchCriteria.k_WildcardChars.Any(value.Contains))
+
+            if (max != default)
             {
-                m_Included[metadataFieldKey] = StringSearchCriteria.BuildWildcardQuery(value);
+                value.AddCondition(SearchUtilities.GetConditionalValueForMax(max, inclusiveOfMax));
             }
-            else
+
+            value.Validate();
+
+            if (!value.IsEmpty())
             {
                 m_Included[metadataFieldKey] = value;
             }
-        }
-
-        /// <summary>
-        /// Sets the value of the metadata string field.
-        /// </summary>
-        /// <param name="metadataFieldKey">The key of the metadata field. </param>
-        /// <param name="pattern">The expected pattern of the string field. </param>
-        public void WithValue(string metadataFieldKey, Regex pattern)
-        {
-            m_Included[metadataFieldKey] = StringSearchCriteria.BuildRegexQuery(pattern);
-        }
-
-        /// <summary>
-        /// Sets the value of the metadata string field.
-        /// </summary>
-        /// <param name="metadataFieldKey">The key of the metadata field. </param>
-        /// <param name="value">The approximate value of the string field. </param>
-        public void WithFuzzyValue(string metadataFieldKey, string value)
-        {
-            m_Included[metadataFieldKey] = StringSearchCriteria.BuildFuzzyQuery(value);
         }
     }
 }

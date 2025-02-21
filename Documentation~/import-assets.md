@@ -33,7 +33,7 @@ You can reimport assets to get the latest version of the files uploaded to the a
 You can also update all imported assets by following these steps:
 
 1. Go to the **In Project** tab.
-2. Click the **Update All To Latest** button.
+2. Click the **Update All** button.
 3. Select **Reimport** for the files you want to reimport, or select **Skip** to ignore reimporting files.
 4. Click the **Import** button.
 

@@ -12,5 +12,6 @@ namespace Unity.AssetManager.Core.Editor
         public string PreviewFile { get; set; }
 
         public List<string> Tags { get; set; } = new();
+        public List<IMetadata> Metadata { get; set; } = new();
     }
 }

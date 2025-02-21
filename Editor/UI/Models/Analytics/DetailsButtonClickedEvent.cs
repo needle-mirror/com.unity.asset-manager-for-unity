@@ -14,7 +14,13 @@ namespace Unity.AssetManager.UI.Editor
             Remove,
             ImportAll,
             ReImportAll,
-            RemoveAll
+            RemoveAll,
+            RemoveSelected,
+            RemoveSelectedAll,
+            StopTracking,
+            StopTrackingAll,
+            StopTrackingSelected,
+            StopTrackingSelectedAll
         }
 
         [Serializable]

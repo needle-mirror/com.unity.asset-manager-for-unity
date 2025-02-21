@@ -11,26 +11,33 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc cref="FileDescriptor.Path"/>
         public StringSearchCriteria Path { get; } = new(nameof(FileDescriptor.Path), "filePath");
 
-        /// <inheritdoc cref="IFile.Description"/>
-        public StringSearchCriteria Description { get; } = new(nameof(IFile.Description), "description");
+        /// <inheritdoc cref="FileProperties.Description"/>
+        public StringSearchCriteria Description { get; } = new(nameof(FileProperties.Description), "description");
 
-        /// <inheritdoc cref="IFile.Status"/>
-        public SearchCriteria<string> Status { get; } = new(nameof(IFile.Status), "status");
+        /// <inheritdoc cref="FileProperties.StatusName"/>
+        public SearchCriteria<string> Status { get; } = new("Status", "status");
 
-        /// <inheritdoc cref="IFile.Tags"/>
-        public ListSearchCriteria<string> Tags { get; } = new(nameof(IFile.Tags), "tags");
+        /// <inheritdoc cref="FileProperties.Tags"/>
+        public ListSearchCriteria<string> Tags { get; } = new(nameof(FileProperties.Tags), "tags");
 
-        /// <inheritdoc cref="IFile.SystemTags"/>
-        public ListSearchCriteria<string> SystemTags { get; } = new(nameof(IFile.SystemTags), "systemTags");
+        /// <inheritdoc cref="FileProperties.SystemTags"/>
+        public ListSearchCriteria<string> SystemTags { get; } = new(nameof(FileProperties.SystemTags), "systemTags");
 
-        /// <inheritdoc cref="IFile.AuthoringInfo"/>
-        public AuthoringInfoSearchFilter AuthoringInfo { get; } = new(nameof(IFile.AuthoringInfo), string.Empty);
+        /// <inheritdoc cref="FileProperties.AuthoringInfo"/>
+        public AuthoringInfoSearchFilter AuthoringInfo { get; } = new(nameof(FileProperties.AuthoringInfo), string.Empty);
 
-        /// <inheritdoc cref="IFile.SizeBytes"/>
-        public SearchCriteria<long> SizeBytes { get; } = new(nameof(IFile.SizeBytes), "sizeBytes");
+        /// <inheritdoc cref="FileProperties.SizeBytes"/>
+        [Obsolete("Use Size instead.")]
+        public SearchCriteria<long> SizeBytes { get; } = new(nameof(FileProperties.SizeBytes), "fileSize");
 
-        /// <inheritdoc cref="FileEntity.Metadata"/>
-        public MetadataSearchCriteria Metadata { get; } = new(nameof(FileEntity.Metadata), "metadata");
+        /// <inheritdoc cref="FileProperties.SizeBytes"/>
+        public NumericSearchCriteria<long> Size { get; } = new(nameof(FileProperties.SizeBytes), "fileSize");
+
+        /// <inheritdoc cref="IFile.Metadata"/>
+        public MetadataSearchCriteria Metadata { get; } = new(nameof(IFile.Metadata), "metadata");
+
+        /// <inheritdoc cref="IFile.SystemMetadata"/>
+        public MetadataSearchCriteria SystemMetadata { get; } = new(nameof(IFile.SystemMetadata), "systemMetadata");
 
         internal FileSearchCriteria(string propertyName, string searchKey)
             : base(propertyName, searchKey) { }

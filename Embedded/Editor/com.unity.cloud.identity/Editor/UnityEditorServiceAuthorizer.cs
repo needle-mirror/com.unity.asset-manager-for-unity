@@ -69,6 +69,7 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
         IUnityUserInfoJsonProvider m_UnityUserInfoJsonProvider;
         IGuestProjectJsonProvider m_GuestProjectJsonProvider;
         IOrganizationJsonProvider m_OrganizationJsonProvider;
+        IJwtDecoder m_JwtDecoder;
 
         bool m_UseOverride = false;
         Task<string> m_GetAccessTokenTask;
@@ -81,13 +82,15 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
             IUnityEditorAccessTokenProvider unityEditorAccessTokenProvider,
             IUnityUserInfoJsonProvider unityUserInfoJsonProvider = null,
             IGuestProjectJsonProvider guestProjectJsonProvider = null,
-            IOrganizationJsonProvider organizationJsonProvider = null)
+            IOrganizationJsonProvider organizationJsonProvider = null,
+            IJwtDecoder jwtDecoder = null)
         {
             m_TargetClientIdTokenToUnityServicesTokenExchanger = accessTokenExchanger;
             m_UnityEditorAccessTokenProvider = unityEditorAccessTokenProvider;
             m_UnityUserInfoJsonProvider = unityUserInfoJsonProvider;
             m_GuestProjectJsonProvider = guestProjectJsonProvider;
             m_OrganizationJsonProvider = organizationJsonProvider;
+            m_JwtDecoder = jwtDecoder;
 
             m_UseOverride = true;
             InitAuthenticatedUserSession();
@@ -121,9 +124,16 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
             var httpClient = new UnityHttpClient();
             var serviceHostResolver = UnityRuntimeServiceHostResolverFactory.Create();
 
+            m_JwtDecoder ??= new JwtDecoder();
+            if (string.IsNullOrEmpty(UnityServicesToken)) return;
+            var jwt = m_JwtDecoder.Decode(UnityServicesToken);
+            var tokenExpiry = jwt.exp;
+            var userId = jwt.sub;
+            m_TokenExpiry = ConvertTimestamp(tokenExpiry);
+
             if (m_UseOverride)
             {
-                m_AuthenticatedUserSession = new AuthenticatedUserSession(
+                m_AuthenticatedUserSession = new AuthenticatedUserSession(userId,
                     new ServiceHttpClient(httpClient, this, playerSettings),
                     serviceHostResolver,
                     m_UnityUserInfoJsonProvider,
@@ -133,12 +143,7 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
             }
             else
             {
-                m_TargetClientIdTokenToUnityServicesTokenExchanger = new TargetClientIdTokenToUnityServicesTokenExchanger(httpClient, serviceHostResolver);
-                if (string.IsNullOrEmpty(UnityServicesToken)) return;
-                var jwt = new JwtDecoder().Decode(UnityServicesToken);
-                var tokenExpiry = jwt.exp;
-                m_TokenExpiry = ConvertTimestamp(tokenExpiry);
-                m_AuthenticatedUserSession = new AuthenticatedUserSession(new ServiceHttpClient(httpClient, this, playerSettings), serviceHostResolver);
+                m_AuthenticatedUserSession = new AuthenticatedUserSession(userId, new ServiceHttpClient(httpClient, this, playerSettings), serviceHostResolver);
             }
         }
 
@@ -171,6 +176,7 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
             }
         }
 
+
         async Task RefreshUnityTokenFromAccessTokenAsync()
         {
             // Throttle request to retry token exchange until connectivity is restored
@@ -190,19 +196,21 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
                         if (!m_UseOverride)
                         {
                             var jwt = new JwtDecoder().Decode(UnityServicesToken);
+                            var userId = jwt.sub;
                             var tokenExpiry = jwt.exp;
                             m_TokenExpiry = ConvertTimestamp(tokenExpiry);
+
+                            var playerSettings = UnityCloudPlayerSettings.Instance;
+                            var httpClient = new UnityHttpClient();
+                            var serviceHostResolver = UnityRuntimeServiceHostResolverFactory.Create();
+
+                            Debug.Log($"Unity services token refreshed.");
+
+                            m_AuthenticatedUserSession =
+                                new AuthenticatedUserSession(userId,
+                                    new ServiceHttpClient(httpClient, this, playerSettings),
+                                    serviceHostResolver);
                         }
-
-                        var playerSettings = UnityCloudPlayerSettings.Instance;
-                        var httpClient = new UnityHttpClient();
-                        var serviceHostResolver = UnityRuntimeServiceHostResolverFactory.Create();
-
-                        Debug.Log($"Unity services token refreshed.");
-
-                        m_AuthenticatedUserSession =
-                            new AuthenticatedUserSession(new ServiceHttpClient(httpClient, this, playerSettings),
-                                serviceHostResolver);
                         AuthenticationState = AuthenticationState.LoggedIn;
                     }
 
@@ -247,6 +255,12 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
         {
             if (m_TargetClientIdTokenToUnityServicesTokenExchanger == null)
             {
+                if (!m_UseOverride)
+                {
+                    var httpClient = new UnityHttpClient();
+                    var serviceHostResolver = UnityRuntimeServiceHostResolverFactory.Create();
+                    m_TargetClientIdTokenToUnityServicesTokenExchanger = new TargetClientIdTokenToUnityServicesTokenExchanger(httpClient, serviceHostResolver);
+                }
                 InitAuthenticatedUserSession();
             }
 

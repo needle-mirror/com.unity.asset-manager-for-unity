@@ -33,8 +33,17 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <returns>A task whose result is an asset count. </returns>
         public static async Task<int> CountAssetsAsync(this IAssetRepository assetRepository, IEnumerable<ProjectDescriptor> projectDescriptors, [AllowNull] IAssetSearchFilter assetSearchFilter, CancellationToken cancellationToken)
         {
-            var result = await assetRepository.GroupAndCountAssets(projectDescriptors).SelectWhereMatchesFilter(assetSearchFilter).ExecuteAsync(GroupableField.Type, cancellationToken);
-            return result.Values.Sum();
+            var count = 0;
+            var asyncEnumerable = assetRepository.GroupAndCountAssets(projectDescriptors)
+                .SelectWhereMatchesFilter(assetSearchFilter)
+                .LimitTo(int.MaxValue)
+                .ExecuteAsync((Groupable) GroupableField.Type, cancellationToken);
+            await foreach (var kvp in asyncEnumerable)
+            {
+                count += kvp.Value;
+            }
+
+            return count;
         }
 
         /// <summary>
@@ -47,8 +56,17 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <returns>A task whose result is an asset count. </returns>
         public static async Task<int> CountAssetsAsync(this IAssetRepository assetRepository, OrganizationId organizationId, [AllowNull] IAssetSearchFilter assetSearchFilter, CancellationToken cancellationToken)
         {
-            var result = await assetRepository.GroupAndCountAssets(organizationId).SelectWhereMatchesFilter(assetSearchFilter).ExecuteAsync(GroupableField.Type, cancellationToken);
-            return result.Values.Sum();
+            var count = 0;
+            var asyncEnumerable = assetRepository.GroupAndCountAssets(organizationId)
+                .SelectWhereMatchesFilter(assetSearchFilter)
+                .LimitTo(int.MaxValue)
+                .ExecuteAsync((Groupable) GroupableField.Type, cancellationToken);
+            await foreach (var kvp in asyncEnumerable)
+            {
+                count += kvp.Value;
+            }
+
+            return count;
         }
 
         /// <summary>

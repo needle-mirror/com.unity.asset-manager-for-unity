@@ -168,9 +168,13 @@ namespace Unity.AssetManager.UI.Editor
             };
             container.Add(entry);
 
-            var toggle = entry.AddToggle();
-            toggle.value = toggleValue;
+            var toggle = new Toggle
+            {
+                value = toggleValue
+            };
             toggle.SetEnabled(false);
+
+            entry.Add(toggle);
         }
 
         public abstract void OnSelection(BaseAssetData assetData);

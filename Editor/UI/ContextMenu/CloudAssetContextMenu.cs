@@ -33,6 +33,7 @@ namespace Unity.AssetManager.UI.Editor
             ShowInDashboardEntry(evt);
             await ImportEntry(evt);
             CancelImportEntry(evt);
+            UntrackAssetEntry(evt);
         }
 
         static void ClearMenuEntries(ContextualMenuPopulateEvent evt)
@@ -69,7 +70,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void ImportEntrySingle(ContextualMenuPopulateEvent evt, UIEnabledStates enabled)
         {
-            var status = AssetDataStatus.GetIStatusFromAssetDataStatusType(TargetAssetData?.PreviewStatus?.FirstOrDefault());
+            var status = AssetDataStatus.GetIStatusFromImportAttributes(TargetAssetData?.AssetDataAttributeCollection);
             enabled |= UIEnabledStates.ValidStatus.GetFlag(status == null || !string.IsNullOrEmpty(status.ActionText));
 
             var text = AssetDetailsPageExtensions.GetImportButtonLabel(null, status);
@@ -89,7 +90,7 @@ namespace Unity.AssetManager.UI.Editor
             var isContainedInvalidStatus = false;
             foreach (var assetData in selectedAssetData)
             {
-                var status = AssetDataStatus.GetIStatusFromAssetDataStatusType(assetData?.PreviewStatus?.FirstOrDefault());
+                var status = AssetDataStatus.GetIStatusFromImportAttributes(TargetAssetData?.AssetDataAttributeCollection);
                 if(!(status == null || !string.IsNullOrEmpty(status.ActionText)))
                 {
                     isContainedInvalidStatus = true;
@@ -121,19 +122,48 @@ namespace Unity.AssetManager.UI.Editor
                 });
         }
 
+        void UntrackAssetEntry(ContextualMenuPopulateEvent evt)
+        {
+            if (!IsInProject || IsImporting)
+                return;
+
+            var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
+            if (selectedAssetData.Count > 1
+                && selectedAssetData.Exists(asset => asset.Identifier.AssetId == TargetAssetData.Identifier.AssetId)
+                && selectedAssetData.TrueForAll(x => x.AssetDataAttributeCollection.GetAttribute<ImportAttribute>()?.Status == ImportAttribute.ImportStatus.ErrorSync))
+            {
+                AddMenuEntry(evt, L10n.Tr(Constants.UntrackAssetsActionText), true,
+                    _ =>
+                    {
+                        m_AssetImporter.StopTrackingAssets(selectedAssetData.Select(x => x.Identifier).ToList());
+                    });
+            }
+            else if ((!selectedAssetData.Any() || selectedAssetData[0].Identifier.AssetId == TargetAssetData.Identifier.AssetId)
+                     && TargetAssetData.AssetDataAttributeCollection.GetAttribute<ImportAttribute>()?.Status == ImportAttribute.ImportStatus.ErrorSync)
+            {
+                AddMenuEntry(evt, L10n.Tr(Constants.UntrackAssetActionText), true,
+                    _ =>
+                    {
+                        m_AssetImporter.StopTrackingAssets(new List<AssetIdentifier>{ TargetAssetData.Identifier });
+                    });
+            }
+        }
+
         void RemoveFromProjectEntry(ContextualMenuPopulateEvent evt)
         {
             if (!IsInProject || IsImporting)
                 return;
 
             var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
-            if (selectedAssetData.Count > 1 &&
-                selectedAssetData.TrueForAll(x => m_AssetDataManager.IsInProject(x.Identifier)))
+            var removeAssets = m_AssetDataManager.FindExclusiveDependencies(selectedAssetData.Select(x => x.Identifier).ToList());
+            if (selectedAssetData.Count > 1
+                && selectedAssetData.Exists(asset => asset.Identifier.AssetId == TargetAssetData.Identifier.AssetId)
+                && selectedAssetData.TrueForAll(x => m_AssetDataManager.IsInProject(x.Identifier)))
             {
                 AddMenuEntry(evt, L10n.Tr(Constants.RemoveFromProjectAllSelectedActionText), true,
                     _ =>
                     {
-                        m_AssetImporter.RemoveImports(selectedAssetData.Select(x => x.Identifier).ToList(), true);
+                        m_AssetImporter.RemoveImports(removeAssets.ToList(), true);
                         AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
                             .ContextMenuItemType.RemoveAll));
                     });
@@ -143,10 +173,17 @@ namespace Unity.AssetManager.UI.Editor
                 AddMenuEntry(evt, L10n.Tr(Constants.RemoveFromProjectActionText), true,
                     _ =>
                     {
-                        m_AssetImporter.RemoveImport(TargetAssetData.Identifier, true);
-                        AnalyticsSender.SendEvent(
-                            new GridContextMenuItemSelectedEvent(
-                                GridContextMenuItemSelectedEvent.ContextMenuItemType.Remove));
+                        if (removeAssets.Count > 1)
+                        {
+                            m_AssetImporter.RemoveImports(removeAssets.ToList(), true);
+                        }
+                        else
+                        {
+                            m_AssetImporter.RemoveImport(TargetAssetData.Identifier, true);
+                        }
+
+                        AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
+                            .ContextMenuItemType.Remove));
                     });
             }
         }
@@ -189,8 +226,21 @@ namespace Unity.AssetManager.UI.Editor
             if (selectedAssetData.Count == 1)
                 return;
 
+            var projectOrganizationProvider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
+            string optionName = Constants.UpdateAllToLatestActionText;
+            if (selectedAssetData.Count > 1)
+            {
+                optionName = Constants.UpdateSelectedToLatestActionText;
+            }
+            else if(m_PageManager.ActivePage is CollectionPage)
+            {
+                optionName = projectOrganizationProvider.SelectedCollection.Name == null
+                    ? Constants.UpdateProjectToLatestActionText
+                    : Constants.UpdateCollectionToLatestActionText;
+            }
+
             var enabled = m_AssetDataManager.ImportedAssetInfos.Any() && !IsImporting;
-            AddMenuEntry(evt, selectedAssetData.Count > 1 ? Constants.UpdateSelectedToLatestActionText : Constants.UpdateAllToLatestActionText, enabled,
+            AddMenuEntry(evt, optionName, enabled,
                 (_) =>
                 {
                     if (selectedAssetData.Count == 0)
@@ -200,8 +250,6 @@ namespace Unity.AssetManager.UI.Editor
 
                         if (m_PageManager.ActivePage is CollectionPage)
                         {
-                            var projectOrganizationProvider =
-                                ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
                             selectedProject = projectOrganizationProvider.SelectedProject;
                             selectedCollection = projectOrganizationProvider.SelectedCollection;
                         }

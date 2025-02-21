@@ -10,25 +10,11 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         protected readonly IMetadataDataSource m_DataSource;
 
-        protected Dictionary<string, MetadataObject> m_Properties;
-
-        internal IDictionary<string, MetadataObject> Properties
-        {
-            get => m_Properties;
-            set => m_Properties = value?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value) ?? new Dictionary<string, MetadataObject>();
-        }
+        internal Dictionary<string, MetadataObject> Properties { get; set; }
 
         public ReadOnlyMetadataContainerEntity(IMetadataDataSource dataSource)
         {
             m_DataSource = dataSource;
-        }
-
-        /// <summary>
-        /// Clears the cache.
-        /// </summary>
-        public void Refresh()
-        {
-            m_Properties = null;
         }
 
         /// <summary>
@@ -41,15 +27,14 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             var keyList = keys?.ToHashSet() ?? new HashSet<string>();
 
-            if (m_Properties == null)
-            {
-                m_Properties = await m_DataSource.GetAsync(keyList, cancellationToken);
+            var properties = Properties ?? await m_DataSource.GetAsync(keyList, cancellationToken);
 
-                m_Properties ??= new Dictionary<string, MetadataObject>();
+            if (keyList.Count == 0)
+            {
+                return properties.ToDictionary(kvp => kvp.Key, kvp => (MetadataValue) kvp.Value);
             }
 
-            var metadata = keyList.Count == 0 ? m_Properties : m_Properties.Where(kvp => keyList.Contains(kvp.Key));
-            return metadata.ToDictionary(kvp => kvp.Key, kvp => (MetadataValue) kvp.Value);
+            return properties.Where(kvp => keyList.Contains(kvp.Key)).ToDictionary(kvp => kvp.Key, kvp => (MetadataValue) kvp.Value);
         }
 
         /// <inheritdoc />

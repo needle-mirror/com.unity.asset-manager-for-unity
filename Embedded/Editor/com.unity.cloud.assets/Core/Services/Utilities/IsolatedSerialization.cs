@@ -28,7 +28,6 @@ namespace Unity.Cloud.AssetsEmbedded
         public static JsonConverter DatasetIdConverter => new DatasetIdConverter();
         public static JsonConverter TransformationIdConverter => new TransformationIdConverter();
         public static JsonConverter StringEnumConverter => new StringEnumConverter();
-        static JsonConverter JsonObjectConverter => new JsonObjectConverter();
 
         static readonly JsonConverter[] Converters =
         {
@@ -128,7 +127,6 @@ namespace Unity.Cloud.AssetsEmbedded
             var mergedConverters = settingsSource.Converters.ToList();
             if (converters != null)
                 mergedConverters.AddRange(converters);
-            mergedConverters.Add(JsonObjectConverter);
             mergedConverters.Add(StringEnumConverter);
 
 #if UC_NUGET
@@ -173,7 +171,7 @@ namespace Unity.Cloud.AssetsEmbedded
             return cloneSettings;
         }
 
-        static Dictionary<string, object> ToObjectDictionary(object jsonObject)
+        internal static Dictionary<string, object> ToObjectDictionary(object jsonObject)
         {
             if (jsonObject is not JObject jObject)
                 return new Dictionary<string, object>();

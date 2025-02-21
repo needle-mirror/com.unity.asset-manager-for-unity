@@ -8,13 +8,13 @@ namespace Unity.Cloud.AssetsEmbedded
     class AuthoringInfoSearchFilter : CompoundSearchCriteria
     {
         /// <inheritdoc cref="AuthoringInfo.Created"/>
-        public ConditionalSearchCriteria<DateTime> Created { get; } = new(nameof(AuthoringInfo.Created), "created", "date-range");
+        public ConditionalSearchCriteria<DateTime> Created { get; } = new(nameof(AuthoringInfo.Created), "created", SearchConditionData.DateRangeType);
 
         /// <inheritdoc cref="AuthoringInfo.CreatedBy"/>
         public SearchCriteria<string> CreatedBy { get; } = new(nameof(AuthoringInfo.CreatedBy), "createdBy");
 
         /// <inheritdoc cref="AuthoringInfo.Updated"/>
-        public ConditionalSearchCriteria<DateTime> Updated { get; } = new(nameof(AuthoringInfo.Updated), "updated", "date-range");
+        public ConditionalSearchCriteria<DateTime> Updated { get; } = new(nameof(AuthoringInfo.Updated), "updated", SearchConditionData.DateRangeType);
 
         /// <inheritdoc cref="AuthoringInfo.UpdatedBy"/>
         public SearchCriteria<string> UpdatedBy { get; } = new(nameof(AuthoringInfo.UpdatedBy), "updatedBy");

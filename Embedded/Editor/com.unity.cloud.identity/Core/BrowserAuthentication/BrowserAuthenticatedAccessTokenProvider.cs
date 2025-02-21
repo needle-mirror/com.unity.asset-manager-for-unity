@@ -58,10 +58,12 @@ namespace Unity.Cloud.IdentityEmbedded
 
         readonly IPkceRequestHandler m_PkceRequestHandler;
 
-        readonly AuthenticatedUserSession m_AuthenticatedUserSession;
+        AuthenticatedUserSession m_AuthenticatedUserSession;
 
+        readonly PkceAuthenticatorSettings m_PkceAuthenticatorSettings;
         readonly IOrganizationRepository m_OrganizationRepository;
         readonly IUserInfoProvider m_UserInfoProvider;
+        readonly IJwtDecoder m_JwtDecoder;
 
         /// <summary>
         /// Returns an <see cref="IAuthenticator"/> implementation that expects an access token from a browser environment.
@@ -73,16 +75,14 @@ namespace Unity.Cloud.IdentityEmbedded
         /// <param name="userInfoProvider">An optional <see cref="IUserInfoProvider"/>.</param>
         public BrowserAuthenticatedAccessTokenProvider(PkceAuthenticatorSettings pkceAuthenticatorSettings, Dictionary<string, string> localStorageKeyNames = null, IOrganizationRepository organizationRepository = null, IUserInfoProvider userInfoProvider = null)
         {
+            m_PkceAuthenticatorSettings = pkceAuthenticatorSettings;
+            m_JwtDecoder = pkceAuthenticatorSettings.JwtDecoder;
             localStorageKeyNames ??= DefaultLocalStorageKeyNames;
             m_AuthenticationPlatformSupport = pkceAuthenticatorSettings.AuthenticationPlatformSupport;
             m_PkceRequestHandler = pkceAuthenticatorSettings.PkceRequestHandler;
             m_UnityServicesTokenExchanger = pkceAuthenticatorSettings.AccessTokenExchanger;
 
             m_LocalStorageKeyName = GetHostAccessTokenFilename(localStorageKeyNames);
-
-            m_AuthenticatedUserSession = new AuthenticatedUserSession(
-                new ServiceHttpClient(pkceAuthenticatorSettings.HttpClient, this,
-                    pkceAuthenticatorSettings.AppIdProvider), pkceAuthenticatorSettings.ServiceHostResolver);
 
             m_OrganizationRepository = organizationRepository;
             m_UserInfoProvider = userInfoProvider;
@@ -118,6 +118,13 @@ namespace Unity.Cloud.IdentityEmbedded
         async Task RefreshUnityServicesToken()
         {
             m_UnityServicesToken = await m_UnityServicesTokenExchanger.ExchangeAsync(m_SessionBrowserAccessTokenValue);
+
+            var userId = m_JwtDecoder.Decode(m_UnityServicesToken.AccessToken).sub;
+
+            m_AuthenticatedUserSession = new AuthenticatedUserSession(userId,
+                new ServiceHttpClient(m_PkceAuthenticatorSettings.HttpClient, this,
+                    m_PkceAuthenticatorSettings.AppIdProvider), m_PkceAuthenticatorSettings.ServiceHostResolver);
+
         }
 
         /// <inheritdoc cref="IServiceAuthorizer.AddAuthorization"/>

@@ -16,7 +16,7 @@ namespace Unity.AssetManager.UI.Editor
         event Action<IPage, bool> LoadingStatusChanged;
         event Action<IPage, IEnumerable<string>> SearchFiltersChanged;
         event Action<IPage, IEnumerable<AssetIdentifier>> SelectedAssetChanged;
-        event Action<IPage, MessageData> MessageThrown;
+        event Action<IPage, UIComponents> UIComponentEnabledChanged;
 
         void SetActivePage<T>(bool forceChange = false) where T : IPage;
         void SetSortValues(SortField sortField, SortingOrder sortingOrder);
@@ -36,6 +36,9 @@ namespace Unity.AssetManager.UI.Editor
 
         [SerializeReference]
         IProjectOrganizationProvider m_ProjectOrganizationProvider;
+
+        [SerializeReference]
+        IMessageManager m_MessageManager;
 
         [SerializeReference]
         IAssetOperationManager m_AssetOperationManager;
@@ -64,20 +67,21 @@ namespace Unity.AssetManager.UI.Editor
         public event Action<IPage, bool> LoadingStatusChanged;
         public event Action<IPage, IEnumerable<string>> SearchFiltersChanged;
         public event Action<IPage, IEnumerable<AssetIdentifier>> SelectedAssetChanged;
-        public event Action<IPage, MessageData> MessageThrown;
+        public event Action<IPage, UIComponents> UIComponentEnabledChanged;
 
         public IPage ActivePage => m_ActivePage;
 
         [ServiceInjection]
         public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider,
             IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider,
-            IAssetOperationManager assetOperationManager)
+            IAssetOperationManager assetOperationManager, IMessageManager messageManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_AssetsProvider = assetsProvider;
             m_AssetDataManager = assetDataManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_AssetOperationManager = assetOperationManager;
+            m_MessageManager = messageManager;
         }
 
         public override void OnEnable()
@@ -144,12 +148,13 @@ namespace Unity.AssetManager.UI.Editor
             page.LoadingStatusChanged += loading => LoadingStatusChanged?.Invoke(page, loading);
             page.SelectedAssetsChanged += data => SelectedAssetChanged?.Invoke(page, data);
             page.SearchFiltersChanged += data => SearchFiltersChanged?.Invoke(page, data);
-            page.MessageThrown += errorHandling => MessageThrown?.Invoke(page, errorHandling);
+            page.UIComponentEnabledChanged += data => UIComponentEnabledChanged?.Invoke(page, data);
         }
 
         IPage CreatePage<T>()
         {
-            var page = (IPage)Activator.CreateInstance(typeof(T), m_AssetDataManager, m_AssetsProvider, m_ProjectOrganizationProvider, this);
+            var page = (IPage)Activator.CreateInstance(typeof(T), m_AssetDataManager,
+                m_AssetsProvider, m_ProjectOrganizationProvider, m_MessageManager, this);
             RegisterPageEvents(page);
             return page;
         }

@@ -116,8 +116,8 @@ namespace Unity.AssetManager.UI.Editor
 
                     var tasks = new[]
                     {
-                        m_AssetData.GetPreviewStatusAsync(null, token),
-                        m_AssetData.ResolvePrimaryExtensionAsync(null, token),
+                        m_AssetData.GetAssetDataAttributesAsync(null, token),
+                        m_AssetData.ResolveDatasetsAsync(token)
                     };
 
                     await Task.WhenAll(tasks);
@@ -149,7 +149,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_FileName.text = m_AssetData?.Name ?? $"{m_AssetIdentifier?.AssetId} (unavailable)";
 
-            SetStatuses(AssetDataStatus.GetIStatusFromAssetDataStatusType(m_AssetData?.PreviewStatus));
+            SetStatuses(AssetDataStatus.GetIStatusFromAssetDataAttributes(m_AssetData?.AssetDataAttributeCollection));
 
             m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(m_AssetData?.PrimaryExtension);
 
@@ -173,7 +173,27 @@ namespace Unity.AssetManager.UI.Editor
             token.ThrowIfCancellationRequested();
 
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
-            var assetData = await assetDataManager.GetOrSearchAssetData(identifier, token);
+
+            // First, if the asset is imported, we want to display the imported version
+            var info = assetDataManager.GetImportedAssetInfo(identifier);
+
+            if (info != null)
+            {
+                return info.AssetData;
+            }
+
+            // If not, try to get it from the AssetDataManager cache
+            // The AssetDataManager cache can only contain one version per asset (limitation or design choice?)
+            // So we need to make sure the version returned is the one we need.
+            var assetData = assetDataManager.GetAssetData(identifier);
+            if (assetData != null && assetData.Identifier == identifier)
+            {
+                return assetData;
+            }
+
+            // Otherwise fetch the asset from the server
+            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            assetData = await assetsProvider.GetAssetAsync(identifier, token);
 
             token.ThrowIfCancellationRequested();
 

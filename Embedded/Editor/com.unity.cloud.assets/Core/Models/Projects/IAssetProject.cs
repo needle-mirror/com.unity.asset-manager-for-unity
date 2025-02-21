@@ -19,17 +19,57 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <summary>
         /// The project name.
         /// </summary>
-        string Name { get; set; }
+        [Obsolete("Use IAssetProperties.Name instead.")]
+        string Name
+        {
+            get;
+            [Obsolete("Name is read-only.")]
+            set;
+        }
 
         /// <summary>
         /// The project metadata.
         /// </summary>
-        IDeserializable Metadata { get; set; }
+        [Obsolete("Use IAssetProperties.Metadata instead.")]
+        IDeserializable Metadata
+        {
+            get;
+            [Obsolete("Metadata is read-only.")]
+            set;
+        }
 
         /// <summary>
         /// Whether the project has any collections
         /// </summary>
+        [Obsolete("Use IAssetProperties.HasCollection instead.")]
         bool HasCollection => false;
+
+        /// <summary>
+        /// The caching configuration for the project.
+        /// </summary>
+        AssetProjectCacheConfiguration CacheConfiguration => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns an asset project configured with the specified caching configuration.
+        /// </summary>
+        /// <param name="assetProjectCacheConfiguration">The caching configuration for the project. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is an <see cref="IAssetProject"/> with cached values specified by the caching configurations. </returns>
+        Task<IAssetProject> WithCacheConfigurationAsync(AssetProjectCacheConfiguration assetProjectCacheConfiguration, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
+        /// Fetches the latest changes.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task with no result. </returns>
+        Task RefreshAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns the properties of the project.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the <see cref="AssetProjectProperties"/> of the project. </returns>
+        Task<AssetProjectProperties> GetPropertiesAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Retrieves an asset by its ID.
@@ -37,6 +77,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="assetId">The id of the asset. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task whose result is the asset with its default version. </returns>
+        [Obsolete("Use QueryAssetVersions instead.")]
         Task<IAsset> GetAssetAsync(AssetId assetId, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
@@ -58,6 +99,13 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<IAsset> GetAssetAsync(AssetId assetId, string label, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
+        /// Returns an object that can be used to query the asset's versions.
+        /// </summary>
+        /// <param name="assetId">The id of the asset to query. </param>
+        /// <returns>A <see cref="VersionQueryBuilder"/>. </returns>
+        VersionQueryBuilder QueryAssetVersions(AssetId assetId) => throw new NotImplementedException();
+
+        /// <summary>
         /// Returns an object that can be used to query asset references.
         /// </summary>
         /// <param name="assetId">The id of the asset to query. </param>
@@ -71,6 +119,14 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task whose result is the new asset. </returns>
         Task<IAsset> CreateAssetAsync(IAssetCreation assetCreation, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Creates an asset.
+        /// </summary>
+        /// <param name="assetCreation">The object containing all the necessary information to create the asset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the created asset descriptor. </returns>
+        Task<AssetDescriptor> CreateAssetLiteAsync(IAssetCreation assetCreation, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Returns a builder to create a query to search a project's <see cref="IAsset"/>.
@@ -136,6 +192,14 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task whose result is the newly created collection. </returns>
         Task<IAssetCollection> CreateCollectionAsync(IAssetCollectionCreation assetCollectionCreation, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Creates a collection.
+        /// </summary>
+        /// <param name="assetCollectionCreation">The object containing the necessary information to create a collection. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the new <see cref="CollectionDescriptor"/>. </returns>
+        Task<CollectionDescriptor> CreateCollectionLiteAsync(IAssetCollectionCreation assetCollectionCreation, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Deletes a collection.

@@ -1,7 +1,11 @@
+using System;
 using System.Collections.Generic;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
+    /// <summary>
+    /// Produce a simplified GLB representation of a 3D model.
+    /// </summary>
     sealed class GlbPreviewTransformation : ITransformationCreation
     {
         /// <summary>

@@ -63,7 +63,12 @@ namespace Unity.AssetManager.UI.Editor
                     m_ProgressBar.RemoveFromClassList(UssStyle.ProgressBarColor);
                     m_ProgressBar.RemoveFromClassList(UssStyle.ProgressBarSuccess);
                     break;
-
+                case OperationStatus.Cancelled:
+                    m_IsFinished = true;
+                    m_ProgressBar.AddToClassList(UssStyle.ProgressBarWarning);
+                    m_ProgressBar.RemoveFromClassList(UssStyle.ProgressBarColor);
+                    m_ProgressBar.RemoveFromClassList(UssStyle.ProgressBarSuccess);
+                    break;
                 default:
                     m_ProgressBar.AddToClassList(UssStyle.ProgressBarColor);
                     m_ProgressBar.RemoveFromClassList(UssStyle.ProgressBarError);
@@ -79,13 +84,7 @@ namespace Unity.AssetManager.UI.Editor
             }
             else
             {
-                if(operation.Status == OperationStatus.Cancelled)
-                {
-                    m_IsFinished = true;
-                    UpdateTooltip();
-                    Hide();
-                }
-                else if (operation.IsSticky || operation.Status == OperationStatus.Error)
+                if (operation.IsSticky || operation.Status == OperationStatus.Error || operation.Status == OperationStatus.Cancelled)
                 {
                     m_IsFinished = true;
                     UpdateTooltip();

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.AssetManager.Core.Editor;
+using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
@@ -36,6 +37,7 @@ namespace Unity.AssetManager.UI.Editor
         }
 
         List<FileItem> m_FilesList = new();
+        readonly Chip m_UVCSChip;
 
         public FilesFoldout(VisualElement parent, string foldoutName, string listViewName,
             IAssetDatabaseProxy assetDatabaseProxy, string foldoutTitle = null)
@@ -43,17 +45,37 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_AssetDatabaseProxy = assetDatabaseProxy;
             SelectionChanged += TryPingItem;
+
+            m_UVCSChip = new Chip("VCS");
+            m_UVCSChip.AddToClassList("details-files-foldout-uvcs-chip");
+            m_UVCSChip.tooltip = L10n.Tr(Constants.VCSChipTooltip);
+            var icon = new VisualElement();
+            icon.AddToClassList("details-files-foldout-uvcs-chip-icon");
+            m_UVCSChip.Add(icon);
+
+            UIElementsUtils.Hide(m_UVCSChip);
+
+            var foldout = parent.Q<Foldout>();
+            var toggle = foldout.Q<Toggle>();
+            toggle.Add(m_UVCSChip);
         }
 
         public override void Clear()
         {
             base.Clear();
             m_FilesList.Clear();
+            UIElementsUtils.Hide(m_UVCSChip);
         }
 
         protected override IList PrepareListItem(BaseAssetData assetData, IEnumerable<BaseAssetDataFile> items)
         {
             m_FilesList = new List<FileItem>();
+
+            var dataset = assetData.Datasets.FirstOrDefault(d => d.Files.Exists(items.Contains));
+            if (dataset != null)
+            {
+                UIElementsUtils.SetDisplay(m_UVCSChip, dataset.IsSourceControlled);
+            }
 
             foreach (var assetDataFile in items.OrderBy(f => f.Path))
             {

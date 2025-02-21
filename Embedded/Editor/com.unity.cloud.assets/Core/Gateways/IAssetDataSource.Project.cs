@@ -30,8 +30,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <param name="projectDescriptor">The object containing the necessary information to identify the project. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
-        /// <returns>A task whose result is a project. </returns>
-        Task<IProjectData> EnableProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken);
+        /// <returns>A task with no result. </returns>
+        Task EnableProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken);
 
         /// <summary>
         /// Creates a new project in an organization.
@@ -40,7 +40,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="projectCreation">The object containing the necessary information to create a project. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task whose result is a newly created project. </returns>
-        Task<IProjectData> CreateProjectAsync(OrganizationId organizationId, IProjectBaseData projectCreation, CancellationToken cancellationToken);
+        Task<ProjectDescriptor> CreateProjectAsync(OrganizationId organizationId, IProjectBaseData projectCreation, CancellationToken cancellationToken);
 
         /// <summary>
         /// Returns the number of collections in a project.

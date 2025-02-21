@@ -27,7 +27,9 @@ namespace Unity.AssetManager.UI.Editor
         const string k_ImportLocationDropdown = "importLocationDropdown";
         const string k_ImportDefaultLocationLabel = "importSettingsDefaultLocationLabel";
         const string k_ImportCreateSubFolderLabel = "importSettingsCreateSubfolderLabel";
+        const string k_ImportKeepHigherVersionLabel = "importSettingsKeepHigherVersionLabel";
         const string k_SubfolderCreationToggle = "subfolderCreationToggle";
+        const string k_KeeHigherVersionToggle = "keepHigherVersionToggle";
 
         const string k_CacheSettingsFoldout = "cacheSettingsFoldout";
         const string k_CacheLocationDropdown = "cacheLocationDropdown";
@@ -157,6 +159,19 @@ namespace Unity.AssetManager.UI.Editor
             createSubFolderToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
             {
                 m_SettingsManager.SetIsSubfolderCreationEnabled(evt.newValue);
+            });
+
+            // setup the keep higher version label
+            var importKeepHigherVersionLabel = rootElement.Q<Label>(k_ImportKeepHigherVersionLabel);
+            importKeepHigherVersionLabel.text = L10n.Tr(Constants.ImportKeepHigherVersion);
+            importKeepHigherVersionLabel.tooltip = L10n.Tr(Constants.ImportKeepHigherVersionTooltip);
+
+            // setup keep higher version toggle
+            var keepHigherVersionToggle = rootElement.Q<Toggle>(k_KeeHigherVersionToggle);
+            keepHigherVersionToggle.value = m_SettingsManager.IsKeepHigherVersionEnabled;
+            keepHigherVersionToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
+            {
+                m_SettingsManager.SetIsKeepHigherVersionEnabled(evt.newValue);
             });
 
             var uploadSettingsFoldout = rootElement.Q<Foldout>(k_UploadSettingsFoldout);

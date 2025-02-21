@@ -39,7 +39,7 @@ namespace Unity.Cloud.AssetsEmbedded
         public bool Equals(StatusFlowDescriptor other)
         {
             return OrganizationId.Equals(other.OrganizationId) &&
-                StatusFlowId.Equals(other.StatusFlowId);
+                string.Equals(StatusFlowId, other.StatusFlowId);
         }
 
         /// <summary>

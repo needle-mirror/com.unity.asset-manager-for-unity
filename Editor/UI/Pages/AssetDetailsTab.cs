@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Unity.AssetManager.Core.Editor;
+using Unity.AssetManager.Upload.Editor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -19,8 +21,9 @@ namespace Unity.AssetManager.UI.Editor
         const string k_FileCountName = "file-count";
 
         readonly AssetPreview m_AssetPreview;
-
         readonly VisualElement m_EntriesContainer;
+
+        BaseAssetData m_AssetData;
 
         public override AssetDetailsPageTabs.TabType Type => AssetDetailsPageTabs.TabType.Details;
         public override bool IsFooterVisible => true;
@@ -49,6 +52,8 @@ namespace Unity.AssetManager.UI.Editor
 
         public override void RefreshUI(BaseAssetData assetData, bool isLoading = false)
         {
+            SetEventHandlers(assetData);
+
             // Remove asset preview from hierarchy to avoid it being destroyed when clearing the container
             m_AssetPreview.RemoveFromHierarchy();
 
@@ -57,7 +62,7 @@ namespace Unity.AssetManager.UI.Editor
             AddText(m_EntriesContainer, null, assetData.Description);
 
             m_AssetPreview.SetAssetType(assetData.PrimaryExtension);
-            UpdatePreviewStatus(AssetDataStatus.GetIStatusFromAssetDataStatusType(assetData.PreviewStatus));
+            UpdatePreviewStatus(AssetDataStatus.GetIStatusFromAssetDataAttributes(assetData.AssetDataAttributeCollection));
 
             m_EntriesContainer.Add(m_AssetPreview);
             SetPreviewImage(assetData.Thumbnail);
@@ -72,7 +77,15 @@ namespace Unity.AssetManager.UI.Editor
             AddUser(m_EntriesContainer, Constants.CreatedByText, assetData.CreatedBy, typeof(CreatedByFilter));
             AddText(m_EntriesContainer, Constants.LastModifiedText, Utilities.DatetimeToString(assetData.Updated));
             AddUser(m_EntriesContainer, Constants.LastEditByText, assetData.UpdatedBy, typeof(UpdatedByFilter));
-            AddAssetIdentifier(m_EntriesContainer, Constants.AssetIdText, assetData.Identifier);
+
+            // Temporary solution to display targeted assets during re-upload. Very handy to understand which assets the system is re-uploading to.
+            var identifier = assetData.Identifier;
+            if (assetData is UploadAssetData uploadAssetData)
+            {
+                identifier = uploadAssetData.TargetAssetIdentifier ?? identifier;
+            }
+
+            AddAssetIdentifier(m_EntriesContainer, Constants.AssetIdText, identifier);
 
             DisplayMetadata(assetData);
 
@@ -82,32 +95,92 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
+        void SetEventHandlers(BaseAssetData assetData)
+        {
+            if(m_AssetData != null && m_AssetData.Identifier.Equals(assetData.Identifier))
+                return;
+
+            // Unsubscribe from previous asset data events
+            if (m_AssetData != null)
+                m_AssetData.AssetDataChanged -= OnAssetDataChanged;
+
+            m_AssetData = assetData;
+            assetData.AssetDataChanged += OnAssetDataChanged;
+        }
+
+        void OnAssetDataChanged(BaseAssetData obj, AssetDataEventType eventType)
+        {
+            switch (eventType)
+            {
+                case AssetDataEventType.AssetDataAttributesChanged:
+                    UpdatePreviewStatus(AssetDataStatus.GetIStatusFromAssetDataAttributes(obj.AssetDataAttributeCollection));
+                    break;
+            }
+        }
+
         void DisplayMetadata(BaseAssetData assetData)
         {
+            // Dot not display metadata for local assets (a.k.a UploadAssetData)
+            if (assetData.Identifier.IsLocal())
+                return;
+
             foreach (var metadata in assetData.Metadata)
             {
-                if (metadata is BooleanMetadata booleanMetadata)
+                switch (metadata.Type)
                 {
-                    AddToggle(m_EntriesContainer, metadata.Name, booleanMetadata.GetValue() as bool? ?? bool.Parse(booleanMetadata.GetValue()?.ToString() ?? false.ToString()));
-                }
-                else if (metadata is UserMetadata userMetadata)
-                {
-                    AddUser(m_EntriesContainer, metadata.Name,
-                        userMetadata.Value, null);
-                }
-                else if (metadata is SingleSelectionMetadata singleSelectionMetadata)
-                {
-                    AddSelectionChips(m_EntriesContainer, metadata.Name,
-                        new List<string> {singleSelectionMetadata.Value});
-                }
-                else if (metadata is MultiSelectionMetadata multiSelectionMetadata)
-                {
-                    AddSelectionChips(m_EntriesContainer, metadata.Name,
-                        multiSelectionMetadata.Value);
-                }
-                else
-                {
-                    AddText(m_EntriesContainer, metadata.Name, metadata.ToString());
+                    case MetadataFieldType.Text:
+                    {
+                        var textMetadata = (TextMetadata)metadata;
+                        AddText(m_EntriesContainer, textMetadata.Name, textMetadata.Value);
+                        break;
+                    }
+                    case MetadataFieldType.Boolean:
+                    {
+                        var booleanMetadata = (BooleanMetadata)metadata;
+                        AddToggle(m_EntriesContainer, booleanMetadata.Name, booleanMetadata.Value);
+                        break;
+                    }
+                    case MetadataFieldType.Number:
+                    {
+                        var numberMetadata = (NumberMetadata)metadata;
+                        AddText(m_EntriesContainer, numberMetadata.Name,
+                            numberMetadata.Value.ToString(CultureInfo.CurrentCulture));
+                        break;
+                    }
+                    case MetadataFieldType.Timestamp:
+                    {
+                        var timestampMetadata = (TimestampMetadata)metadata;
+                        AddText(m_EntriesContainer, timestampMetadata.Name,
+                            Utilities.DatetimeToString(timestampMetadata.Value.DateTime));
+                        break;
+                    }
+                    case MetadataFieldType.Url:
+                    {
+                        var urlMetadata = (UrlMetadata)metadata;
+                        AddText(m_EntriesContainer, urlMetadata.Name,
+                            urlMetadata.Value.Uri == null ? string.Empty : urlMetadata.Value.Uri.ToString());
+                        break;
+                    }
+                    case MetadataFieldType.User:
+                    {
+                        var userMetadata = (UserMetadata)metadata;
+                        AddUser(m_EntriesContainer, metadata.Name, userMetadata.Value, null);
+                        break;
+                    }
+                    case MetadataFieldType.SingleSelection:
+                    {
+                        var singleSelectionMetadata = (SingleSelectionMetadata)metadata;
+                        AddSelectionChips(m_EntriesContainer, metadata.Name, new List<string> {singleSelectionMetadata.Value});
+                        break;
+                    }
+                    case MetadataFieldType.MultiSelection:
+                    {
+                        var multiSelectionMetadata = (MultiSelectionMetadata)metadata;
+                        AddSelectionChips(m_EntriesContainer, metadata.Name, multiSelectionMetadata.Value);
+                        break;
+                    }
+                    default:
+                        throw new InvalidOperationException("Unexpected metadata field type was encountered.");
                 }
             }
         }

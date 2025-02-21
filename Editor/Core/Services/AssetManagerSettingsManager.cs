@@ -9,6 +9,7 @@ namespace Unity.AssetManager.Core.Editor
     {
         string DefaultImportLocation { get; set; }
         bool IsSubfolderCreationEnabled { get; }
+        bool IsKeepHigherVersionEnabled { get; }
         string BaseCacheLocation { get; }
         string ThumbnailsCacheLocation { get; }
         int MaxCacheSizeGb { get; }
@@ -18,6 +19,7 @@ namespace Unity.AssetManager.Core.Editor
         float TagsConfidenceThreshold { get; }
 
         void SetIsSubfolderCreationEnabled(bool value);
+        void SetIsKeepHigherVersionEnabled(bool value);
         void SetCacheLocation(string cacheLocation);
         void SetMaxCacheSize(int cacheSize);
         void SetIsTagsCreationUploadEnabled(bool value);
@@ -34,6 +36,7 @@ namespace Unity.AssetManager.Core.Editor
 
         const string k_DefaultImportLocationKey = "AM4U.defaultImportLocation";
         const string k_IsSubfolderCreationEnabledKey = "AM4U.isSubfolderCreationEnabled";
+        const string k_IsKeepHigherVersionEnabledKey = "AM4U.isKeepHigherVersionEnabled";
         const string k_IsTagsCreationUploadEnabledKey = "AM4U.isTagsCreationUploadEnabled";
         const string k_CacheLocationKey = "AM4U.cacheLocation";
         const string k_MaxCacheSizeKey = "AM4U.cacheSize";
@@ -62,18 +65,20 @@ namespace Unity.AssetManager.Core.Editor
         {
             set
             {
-                Utilities.DevAssert(value.StartsWith(AssetManagerCoreConstants.AssetsFolderName));
-
                 if (string.IsNullOrEmpty(value))
                     return;
 
-                Instance.Set(k_DefaultImportLocationKey, value, SettingsScope.User);
+                var relativePath = Utilities.GetPathRelativeToAssetsFolderIncludeAssets(value);
+                Utilities.DevAssert(relativePath.StartsWith(AssetManagerCoreConstants.AssetsFolderName));
+
+                Instance.Set(k_DefaultImportLocationKey, relativePath, SettingsScope.User);
             }
 
             get => Instance.Get(k_DefaultImportLocationKey, SettingsScope.User, GetDefaultImportLocation());
         }
 
         public bool IsSubfolderCreationEnabled => Instance.Get(k_IsSubfolderCreationEnabledKey, SettingsScope.User, false);
+        public bool IsKeepHigherVersionEnabled => Instance.Get(k_IsKeepHigherVersionEnabledKey, SettingsScope.User, true);
 
         public bool IsTagsCreationUploadEnabled => Instance.Get(k_IsTagsCreationUploadEnabledKey, SettingsScope.User, false);
 
@@ -125,6 +130,11 @@ namespace Unity.AssetManager.Core.Editor
         public void SetIsSubfolderCreationEnabled(bool value)
         {
             Instance.Set(k_IsSubfolderCreationEnabledKey, value, SettingsScope.User);
+        }
+
+        public void SetIsKeepHigherVersionEnabled(bool value)
+        {
+            Instance.Set(k_IsKeepHigherVersionEnabledKey, value, SettingsScope.User);
         }
 
         public void SetIsTagsCreationUploadEnabled(bool value)

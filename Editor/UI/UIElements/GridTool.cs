@@ -7,7 +7,7 @@ namespace Unity.AssetManager.UI.Editor
     class GridTool : VisualElement
     {
         protected readonly IPageManager m_PageManager;
-        protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
         protected virtual VisualElement Container => this;
 
@@ -25,6 +25,8 @@ namespace Unity.AssetManager.UI.Editor
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.LoadingStatusChanged += OnPageManagerLoadingStatusChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
+
+            InitDisplay(m_PageManager.ActivePage);
         }
 
         protected virtual void OnDetachFromPanel(DetachFromPanelEvent evt)

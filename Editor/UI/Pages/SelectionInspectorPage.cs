@@ -27,6 +27,7 @@ namespace Unity.AssetManager.UI.Editor
         protected ScrollView m_ScrollView;
         protected Button m_CloseButton;
         protected Label m_TitleLabel;
+        protected VisualElement m_UploadMetadataContainer;
 
         protected SelectionInspectorPage(IAssetImporter assetImporter,
             IAssetOperationManager assetOperationManager,
@@ -63,6 +64,11 @@ namespace Unity.AssetManager.UI.Editor
             m_CloseButton = this.Q<Button>(k_InspectorPageCloseButtonClassName);
             m_TitleLabel = this.Q<Label>(k_InspectorPageTitleClassName);
 
+            // Upload metadata container
+            m_UploadMetadataContainer = m_ScrollView.contentContainer.Q<VisualElement>("upload-metadata-container");
+            m_UploadMetadataContainer.Add(new UploadMetadataContainer(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider));
+            RefreshUploadMetadataContainer(); // Hide the container by default
+
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
@@ -72,6 +78,15 @@ namespace Unity.AssetManager.UI.Editor
             // Bug in UI Toolkit where the scrollview does not update its size when the foldout is expanded/collapsed.
             schedule.Execute(_ => { m_ScrollView.verticalScrollerVisibility = ScrollerVisibility.Auto; })
                 .StartingIn(25);
+        }
+
+        protected void RefreshUploadMetadataContainer()
+        {
+            if(m_UploadMetadataContainer == null || m_PageManager?.ActivePage == null)
+                return;
+
+            UIElementsUtils.SetDisplay(m_UploadMetadataContainer,
+                ((BasePage)m_PageManager.ActivePage).DisplayUploadMetadata);
         }
 
         public async Task SelectedAsset(List<AssetIdentifier> assets)

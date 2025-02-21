@@ -88,7 +88,11 @@ namespace Unity.AssetManager.Upload.Editor
                 }
             }
 
-            var assetUploadEntry = new UploadAssetData(identifier, guid, filteredFiles, deps, settings.FilePathMode);
+
+            var projectIdentifier = new ProjectIdentifier(settings.OrganizationId, settings.ProjectId);
+            var existingAssetData = AssetDataDependencyHelper.GetAssetAssociatedWithGuid(guid, projectIdentifier.OrganizationId, projectIdentifier.ProjectId);
+
+            var assetUploadEntry = new UploadAssetData(identifier, guid, filteredFiles, deps, existingAssetData, projectIdentifier, settings.FilePathMode);
 
             // NO SONAR
             cache[guid] = assetUploadEntry;

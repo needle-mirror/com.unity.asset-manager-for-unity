@@ -9,12 +9,12 @@ namespace Unity.Cloud.AssetsEmbedded
         public Dictionary<string, MetadataValue> Metadata { get; set; }
 
         public DatasetCreation(string name)
-            : base(name)
         {
             if (string.IsNullOrEmpty(name))
             {
                 throw new ArgumentNullException(nameof(name), "The name of the dataset cannot be null or empty.");
             }
+            Name = name;
         }
     }
 }

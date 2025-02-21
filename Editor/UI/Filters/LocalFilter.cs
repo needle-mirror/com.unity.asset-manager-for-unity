@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 
@@ -9,6 +10,6 @@ namespace Unity.AssetManager.UI.Editor
     {
         internal LocalFilter(IPage page) : base(page) { }
 
-        public abstract Task<bool> Contains(BaseAssetData assetData);
+        public abstract Task<bool> Contains(BaseAssetData assetData, CancellationToken token = default);
     }
 }

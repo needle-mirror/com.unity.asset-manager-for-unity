@@ -13,6 +13,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IStateManager m_StateManager;
+        readonly IMessageManager m_MessageManager;
         readonly IUnityConnectProxy m_UnityConnectProxy;
 
         readonly Dictionary<string, SideBarCollectionFoldout> m_SideBarProjectFoldouts = new ();
@@ -22,12 +23,13 @@ namespace Unity.AssetManager.UI.Editor
         ScrollView m_ScrollContainer;
 
         public SidebarContent(IUnityConnectProxy unityConnectProxy, IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager,
-            IStateManager stateManager)
+            IStateManager stateManager, IMessageManager messageManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_PageManager = pageManager;
             m_StateManager = stateManager;
+            m_MessageManager = messageManager;
 
             InitializeLayout();
 
@@ -44,7 +46,7 @@ namespace Unity.AssetManager.UI.Editor
             };
 
             m_AllAssetsFolder = new SideBarAllAssetsFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
-                m_ProjectOrganizationProvider, Constants.AllAssetsFolderName);
+                m_MessageManager, m_ProjectOrganizationProvider, Constants.AllAssetsFolderName);
             m_AllAssetsFolder.AddToClassList("allAssetsFolder");
             m_ScrollContainer.Add(m_AllAssetsFolder);
 
@@ -141,8 +143,9 @@ namespace Unity.AssetManager.UI.Editor
 
             foreach (var projectInfo in projectInfos)
             {
-                var projectFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
-                    m_ProjectOrganizationProvider, projectInfo.Name, projectInfo, null);
+                var projectFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager,
+                    m_StateManager, m_MessageManager, m_ProjectOrganizationProvider, projectInfo.Name,
+                    projectInfo, null);
                 m_ScrollContainer.Add(projectFoldout);
                 m_SideBarProjectFoldouts[projectInfo.Id] = projectFoldout;
 
@@ -170,7 +173,8 @@ namespace Unity.AssetManager.UI.Editor
                 return;
 
             projectFoldout.value = false;
-            foreach (var collection in projectInfo.CollectionInfos)
+            var orderedCollectionInfos = projectInfo.CollectionInfos.OrderBy(c => c.GetFullPath());
+            foreach (var collection in orderedCollectionInfos)
             {
                 CreateFoldoutForParentsThenItself(collection, projectInfo, projectFoldout);
             }
@@ -202,7 +206,8 @@ namespace Unity.AssetManager.UI.Editor
         SideBarCollectionFoldout CreateSideBarCollectionFoldout(string foldoutName, ProjectInfo projectInfo,
             string collectionPath)
         {
-            return new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager, m_ProjectOrganizationProvider,
+            return new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
+                m_MessageManager, m_ProjectOrganizationProvider,
                 foldoutName, projectInfo, collectionPath);
         }
 

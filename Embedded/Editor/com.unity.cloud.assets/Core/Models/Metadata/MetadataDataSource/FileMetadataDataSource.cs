@@ -38,7 +38,6 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             return new FieldsFilter
             {
-                AssetFields = AssetFields.files,
                 FileFields = m_MetadataSpecification == MetadataDataSourceSpecification.systemMetadata ? FileFields.systemMetadata : FileFields.metadata
             };
         }

@@ -52,6 +52,7 @@ namespace Unity.AssetManager.UI.Editor
                 new DragAndDropProjectBrowserProxy(),
                 new UtilitiesProxy(),
                 new ProgressManager(),
+                new MessageManager(),
 
                 // UI
                 new StateManager(),

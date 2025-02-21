@@ -13,7 +13,6 @@ namespace Unity.AssetManager.UI.Editor
         ISet<string> UncollapsedCollections { get; }
         float SideBarWidth { get; set; }
         bool DetailsSourceFilesFoldoutValue { get; set; }
-        bool DetailsUVCSFilesFoldoutValue { get; set; }
         bool DependenciesFoldoutValue { get; set; }
         bool[] MultiSelectionFoldoutsValues { get; }
     }
@@ -29,9 +28,6 @@ namespace Unity.AssetManager.UI.Editor
 
         [SerializeField]
         bool m_DetailsSourceFilesFoldoutValue;
-
-        [SerializeField]
-        bool m_DetailsUVCSFilesFoldoutValue;
 
         [SerializeField]
         bool m_DependenciesFoldoutValue;
@@ -73,12 +69,6 @@ namespace Unity.AssetManager.UI.Editor
         {
             get => m_DetailsSourceFilesFoldoutValue;
             set => m_DetailsSourceFilesFoldoutValue = value;
-        }
-
-        public bool DetailsUVCSFilesFoldoutValue
-        {
-            get => m_DetailsUVCSFilesFoldoutValue;
-            set => m_DetailsUVCSFilesFoldoutValue = value;
         }
 
         public bool DependenciesFoldoutValue

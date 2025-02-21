@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 
@@ -29,9 +30,9 @@ namespace Unity.AssetManager.UI.Editor
             return Task.FromResult(m_CachedSelections);
         }
 
-        public override Task<bool> Contains(BaseAssetData assetData)
+        public override Task<bool> Contains(BaseAssetData assetData, CancellationToken token = default)
         {
-            return SelectedFilter == null ? Task.FromResult(true) : Task.FromResult(SelectedFilter == assetData.Status);
+            return Task.FromResult(SelectedFilters == null || SelectedFilters.Any(selectedFilter => assetData.Status == selectedFilter));
         }
     }
 }

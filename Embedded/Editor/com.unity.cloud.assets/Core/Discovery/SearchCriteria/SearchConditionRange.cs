@@ -4,10 +4,10 @@ namespace Unity.Cloud.AssetsEmbedded
 {
     readonly struct SearchConditionRange : IEquatable<SearchConditionRange>, IEquatable<string>
     {
-        public static readonly SearchConditionRange GreaterThan = new("greaterThan");
-        public static readonly SearchConditionRange GreaterThanOrEqual = new("greaterThanOrEqual");
-        public static readonly SearchConditionRange LessThan = new("lessThan");
-        public static readonly SearchConditionRange LessThanOrEqual = new("lessThanOrEqual");
+        public static readonly SearchConditionRange GreaterThan = new(SearchConditionValue.GreaterThan);
+        public static readonly SearchConditionRange GreaterThanOrEqual = new(SearchConditionValue.GreaterThanOrEqual);
+        public static readonly SearchConditionRange LessThan = new(SearchConditionValue.LessThan);
+        public static readonly SearchConditionRange LessThanOrEqual = new(SearchConditionValue.LessThanOrEqual);
 
         readonly string m_Value;
 

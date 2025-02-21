@@ -27,7 +27,6 @@ namespace Unity.AssetManager.UI.Editor
         VisualElement m_SameFileNamesWarningBox;
         VisualElement m_NoDependenciesBox;
         FilesFoldout m_SourceFilesFoldout;
-        FilesFoldout m_UVCSFilesFoldout;
         DependenciesFoldout m_DependenciesFoldout;
 
         BaseAssetData m_SelectedAssetData;
@@ -75,7 +74,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly Action<string> SetFileCount;
         readonly Action<string> SetFileSize;
         readonly Action<string> SetPrimaryExtension;
-        Action<Type, string> ApplyFilter;
+        Action<Type, List<string>> ApplyFilter;
 
         public AssetDetailsPage(IAssetImporter assetImporter, IAssetOperationManager assetOperationManager,
             IStateManager stateManager, IPageManager pageManager, IAssetDataManager assetDataManager,
@@ -96,6 +95,9 @@ namespace Unity.AssetManager.UI.Editor
             footer.ImportAsset += ImportAssetAsync;
             footer.HighlightAsset += ShowInProjectBrowser;
             footer.RemoveAsset += RemoveFromProject;
+            footer.RemoveOnlySelectedAsset += RemoveOnlyAssetFromProject;
+            footer.StopTracking += StopTracking;
+            footer.StopTrackingOnlySelected += StopTrackingOnlyAsset;
             PreviewStatusUpdated += footer.UpdatePreviewStatus;
 
             var detailsTab = new AssetDetailsTab(m_ScrollView.contentContainer);
@@ -110,7 +112,6 @@ namespace Unity.AssetManager.UI.Editor
 
             var versionsTab = new AssetVersionsTab(m_ScrollView.contentContainer);
             versionsTab.CreateUserChip += CreateUserChip;
-            versionsTab.ApplyFilter += OnFilterModified;
             versionsTab.ApplyFilter += OnFilterModified;
             versionsTab.ImportAsset += ImportAssetAsync;
 
@@ -145,13 +146,14 @@ namespace Unity.AssetManager.UI.Editor
 
             m_ScrollView = this.Q<ScrollView>("details-page-scrollview");
 
+            // Upload metadata container
+            m_UploadMetadataContainer = m_ScrollView.contentContainer.Q<VisualElement>("upload-metadata-container");
+            m_UploadMetadataContainer.Add(new UploadMetadataContainer(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider));
+            RefreshUploadMetadataContainer(); // Hide the container by default
+
             m_SourceFilesFoldout = new FilesFoldout(this, "details-source-files-foldout",
                 "details-source-files-listview", m_AssetDatabaseProxy,
                 Constants.SourceFilesText);
-
-            m_UVCSFilesFoldout = new FilesFoldout(this, "details-uvcs-files-foldout",
-                "details-uvcs-files-listview", m_AssetDatabaseProxy,
-                Constants.UVCSFilesText);
 
             m_DependenciesFoldout = new DependenciesFoldout(this, "details-dependencies-foldout",
                 "details-dependencies-listview", m_PageManager, Constants.DependenciesText);
@@ -176,14 +178,6 @@ namespace Unity.AssetManager.UI.Editor
             });
 
             m_SourceFilesFoldout.Expanded = m_StateManager.DetailsSourceFilesFoldoutValue;
-
-            m_UVCSFilesFoldout.RegisterValueChangedCallback(_ =>
-            {
-                m_StateManager.DetailsUVCSFilesFoldoutValue = m_UVCSFilesFoldout.Expanded;
-                RefreshScrollView();
-            });
-
-            m_UVCSFilesFoldout.Expanded = m_StateManager.DetailsUVCSFilesFoldoutValue;
 
             m_DependenciesFoldout.RegisterValueChangedCallback(_ =>
             {
@@ -252,16 +246,17 @@ namespace Unity.AssetManager.UI.Editor
         protected override void OnImportedAssetInfoChanged(AssetChangeArgs args)
         {
             if (!UIElementsUtils.IsDisplayed(this)
-                || !args.Added.Concat(args.Updated).Concat(args.Removed).Any(a => a.Equals(SelectedAssetData?.Identifier)))
+                || !args.Added.Concat(args.Updated).Any(a => a.Equals(SelectedAssetData?.Identifier))
+                || args.Removed.Any(a => a.Equals(SelectedAssetData?.Identifier)))
                 return;
 
             // In case of an import, force a full refresh of the displayed information
             TaskUtils.TrackException(SelectAssetDataAsync(new List<BaseAssetData> { SelectedAssetData }));
         }
 
-        void OnFilterModified(Type filterType, string filterValue)
+        void OnFilterModified(Type filterType, List<string> filterValues)
         {
-            TaskUtils.TrackException(m_PageManager.ActivePage.PageFilters.ApplyFilter(filterType, filterValue));
+            TaskUtils.TrackException(m_PageManager.ActivePage.PageFilters.ApplyFilter(filterType, filterValues));
         }
 
         void OnFilterModified(IEnumerable<string> filterValue)
@@ -337,7 +332,59 @@ namespace Unity.AssetManager.UI.Editor
 
             try
             {
+                var removeAssets = m_AssetDataManager.FindExclusiveDependencies(new List<AssetIdentifier> {SelectedAssetData?.Identifier});
+                return m_AssetImporter.RemoveImports(removeAssets.ToList(), true);
+            }
+            catch (Exception)
+            {
+                RefreshButtons(SelectedAssetData,
+                    m_AssetImporter.GetImportOperation(SelectedAssetData?.Identifier));
+                throw;
+            }
+        }
+
+        bool RemoveOnlyAssetFromProject()
+        {
+            AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.RemoveSelected));
+
+            try
+            {
                 return m_AssetImporter.RemoveImport(SelectedAssetData?.Identifier, true);
+            }
+            catch (Exception)
+            {
+                RefreshButtons(SelectedAssetData,
+                    m_AssetImporter.GetImportOperation(SelectedAssetData?.Identifier));
+                throw;
+            }
+        }
+
+        bool StopTracking()
+        {
+            AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.StopTracking));
+
+            try
+            {
+                var removeAssets = m_AssetDataManager.FindExclusiveDependencies(new List<AssetIdentifier> {SelectedAssetData?.Identifier});
+                m_AssetImporter.StopTrackingAssets(removeAssets.ToList());
+                return true;
+            }
+            catch (Exception)
+            {
+                RefreshButtons(SelectedAssetData,
+                    m_AssetImporter.GetImportOperation(SelectedAssetData?.Identifier));
+                throw;
+            }
+        }
+
+        bool StopTrackingOnlyAsset()
+        {
+            AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.StopTrackingSelected));
+
+            try
+            {
+                m_AssetImporter.StopTrackingAssets(new List<AssetIdentifier> { SelectedAssetData?.Identifier });
+                return true;
             }
             catch (Exception)
             {
@@ -368,14 +415,21 @@ namespace Unity.AssetManager.UI.Editor
 
             var operation = m_AssetOperationManager.GetAssetOperation(SelectedAssetData.Identifier);
 
-            RefreshButtons(SelectedAssetData, operation);
+            if (m_PageManager.ActivePage is not UploadPage)
+            {
+                RefreshButtons(SelectedAssetData, operation);
+            }
 
             m_SourceFilesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
-            m_UVCSFilesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
             m_DependenciesFoldout.RefreshFoldoutStyleBasedOnExpansionStatus();
 
-            RefreshSourceFilesInformationUI(SelectedAssetData);
-            RefreshDependenciesInformationUI(SelectedAssetData);
+            if (!isLoading)
+            {
+                RefreshSourceFilesInformationUI(SelectedAssetData);
+                RefreshDependenciesInformationUI(SelectedAssetData);
+            }
+
+            RefreshUploadMetadataContainer();
         }
 
         protected override async Task SelectAssetDataAsync(IReadOnlyCollection<BaseAssetData> assetData)
@@ -406,7 +460,6 @@ namespace Unity.AssetManager.UI.Editor
                 UIElementsUtils.Hide(m_NoDependenciesBox);
 
                 m_SourceFilesFoldout.StartPopulating();
-                m_UVCSFilesFoldout.StartPopulating();
                 m_DependenciesFoldout.StartPopulating();
 
                 SetFileSize?.Invoke("-");
@@ -420,12 +473,12 @@ namespace Unity.AssetManager.UI.Editor
 
             PreviewStatusUpdated?.Invoke(null);
 
-            tasks.Add(SelectedAssetData.GetPreviewStatusAsync((identifier, status) =>
+            tasks.Add(SelectedAssetData.GetAssetDataAttributesAsync((identifier, attributes) =>
             {
                 if (!identifier.Equals(SelectedAssetData?.Identifier))
                     return;
 
-                PreviewStatusUpdated?.Invoke(AssetDataStatus.GetIStatusFromAssetDataStatusType(status));
+                PreviewStatusUpdated?.Invoke(AssetDataStatus.GetIStatusFromAssetDataAttributes(attributes));
             }));
 
             await TaskUtils.WaitForTasksWithHandleExceptions(tasks);
@@ -436,7 +489,7 @@ namespace Unity.AssetManager.UI.Editor
             var tasks = new List<Task>
             {
                 assetData.RefreshPropertiesAsync(),
-                assetData.ResolvePrimaryExtensionAsync(),
+                assetData.ResolveDatasetsAsync(),
                 assetData.RefreshDependenciesAsync(),
             };
 
@@ -460,11 +513,9 @@ namespace Unity.AssetManager.UI.Editor
             }
             else
             {
-                await m_ProjectOrganizationProvider.SelectedOrganization.GetUserInfosAsync(userInfos =>
-                {
-                    var userInfo = userInfos.Find(ui => ui.UserId == userId);
-                    userChip = RefreshUserChip(userInfo, searchFilterType);
-                });
+                var userInfos = await m_ProjectOrganizationProvider.SelectedOrganization.GetUserInfosAsync();
+                var userInfo = userInfos.Find(ui => ui.UserId == userId);
+                userChip = RefreshUserChip(userInfo, searchFilterType);
             }
 
             return userChip;
@@ -481,7 +532,7 @@ namespace Unity.AssetManager.UI.Editor
 
             if (searchFilterType != null)
             {
-                userChip.RegisterCallback<ClickEvent>(_ => ApplyFilter?.Invoke(searchFilterType, userInfo.Name));
+                userChip.RegisterCallback<ClickEvent>(_ => ApplyFilter?.Invoke(searchFilterType, new List<string>{userInfo.Name}));
             }
 
             return userChip;
@@ -523,7 +574,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             SetPrimaryExtension?.Invoke(assetData.PrimaryExtension);
 
-            var files = assetData.SourceFiles.Where(f =>
+            var files = assetData.SourceFiles?.Where(f =>
             {
                 if (string.IsNullOrEmpty(f?.Path))
                     return false;
@@ -531,12 +582,11 @@ namespace Unity.AssetManager.UI.Editor
                 return !AssetDataDependencyHelper.IsASystemFile(Path.GetExtension(f.Path));
             }).ToList();
 
-
             long totalFileSize = 0;
             var totalFilesCount = 0;
             var incompleteFilesCount = 0;
 
-            var hasFiles = files.Any();
+            var hasFiles = files != null && files.Any();
 
             if (hasFiles)
             {
@@ -554,11 +604,6 @@ namespace Unity.AssetManager.UI.Editor
 
             m_SourceFilesFoldout.StopPopulating();
 
-            RefreshUVCSFilesInformationUI(assetData, out var uvcsTotalFileSize, out var uvcsTotalFilesCount);
-
-            totalFileSize += uvcsTotalFileSize;
-            totalFilesCount += uvcsTotalFilesCount;
-
             if (hasFiles)
             {
                 SetFileSize?.Invoke(Utilities.BytesToReadableString(totalFileSize));
@@ -571,32 +616,7 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             UIElementsUtils.SetDisplay(m_NoFilesWarningBox, !hasFiles);
-            UIElementsUtils.SetDisplay(m_SameFileNamesWarningBox, HasCaseInsensitiveMatch(assetData.SourceFiles.Select(f => f.Path)));
-        }
-
-        void RefreshUVCSFilesInformationUI(BaseAssetData assetData, out long totalFileSize, out int totalFilesCount)
-        {
-            var files = assetData.UVCSFiles?.ToList();
-
-            var hasFiles = files != null && files.Any();
-
-            totalFileSize = 0;
-            totalFilesCount = 0;
-
-            if (hasFiles)
-            {
-                var assetFileSize = files.Sum(i => i.FileSize);
-                totalFileSize += assetFileSize;
-                totalFilesCount += files.Count;
-
-                m_UVCSFilesFoldout.Populate(assetData, files);
-            }
-            else
-            {
-                m_UVCSFilesFoldout.Clear();
-            }
-
-            m_UVCSFilesFoldout.StopPopulating();
+            UIElementsUtils.SetDisplay(m_SameFileNamesWarningBox, HasCaseInsensitiveMatch(assetData.SourceFiles?.Select(f => f.Path)));
         }
 
         void RefreshDependenciesInformationUI(BaseAssetData assetData)
@@ -609,7 +629,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void RefreshButtons(BaseAssetData assetData, BaseOperation importOperation)
         {
-            var status = AssetDataStatus.GetIStatusFromAssetDataStatusType(assetData?.PreviewStatus?.FirstOrDefault());
+            var status = AssetDataStatus.GetIStatusFromImportAttributes(assetData?.AssetDataAttributeCollection);
             var enabled = UIEnabledStates.CanImport.GetFlag(assetData is AssetData);
             enabled |= UIEnabledStates.InProject.GetFlag(m_AssetDataManager.IsInProject(assetData?.Identifier));
             enabled |= UIEnabledStates.ServicesReachable.GetFlag(m_UnityConnectProxy.AreCloudServicesReachable);
@@ -651,6 +671,9 @@ namespace Unity.AssetManager.UI.Editor
 
         static bool HasCaseInsensitiveMatch(IEnumerable<string> files)
         {
+            if (files == null)
+                return false;
+
             var seenFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             return files.Any(file => !seenFiles.Add(file));
         }

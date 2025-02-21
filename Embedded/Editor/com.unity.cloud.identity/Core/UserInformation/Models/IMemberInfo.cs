@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
 using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.IdentityEmbedded
@@ -25,42 +23,19 @@ namespace Unity.Cloud.IdentityEmbedded
 
     internal class MemberInfoJson
     {
-        public string Role { get; set; }
-
-        public string GroupGenesisId { get; set; }
-
-        public string GroupName { get; set; }
-
-        public string UserId { get; set; }
-
-        public string UserGenesisId { get; set; }
-
-        public string UserName { get; set; }
-
-        public string UserEmail { get; set; }
-
-    }
-
-    internal class ProjectMemberInfoJson
-    {
-        public string Id { get; set; }
-
         public string GenesisId { get; set; }
 
         public string Name { get; set; }
 
-        public IEnumerable<ProjectMemberInfoRolesJson> Roles { get; set; }
-
         public string Email { get; set; }
-    }
 
-    internal class ProjectMemberInfoRolesJson
-    {
-        public string Name { get; set; }
+        public bool IsGuest { get; set; }
 
-        public bool IsLegacy { get; set; }
+        public bool IsProjectGuest { get; set; }
 
-        public string EntityType { get; set; }
+        public bool IsManager { get; set; }
+
+        public bool IsOwner { get; set; }
     }
 
     interface IMemberInfo : IUserInfo
@@ -76,39 +51,26 @@ namespace Unity.Cloud.IdentityEmbedded
     {
         internal MemberInfo(MemberInfoJson memberInfoJson)
         {
-            Role = memberInfoJson.Role;
-            GroupId = new GroupId(memberInfoJson.GroupGenesisId);
-            GroupName = memberInfoJson.GroupName;
-            UserId = new UserId(memberInfoJson.UserGenesisId);
-            // UserName can sometime be empty, use email instead
-            Name = memberInfoJson.UserName ?? memberInfoJson.UserEmail;
-            Email = memberInfoJson.UserEmail;
-        }
-
-        internal MemberInfo(ProjectMemberInfoJson projectMemberInfoJson)
-        {
-            var roles = projectMemberInfoJson.Roles.Where(r => r.IsLegacy).ToList();
-            // If only one role listed, it's the organization role that also apply to the project
-            Role = roles.Count == 1 ? roles[0].Name : GetProjectMemberLegacyRole(roles);
-            Role = roles[0].Name;
+            Role = GetMemberLegacyRole(memberInfoJson);
             GroupId = GroupId.None;
             GroupName = null;
-            UserId = new UserId(projectMemberInfoJson.GenesisId);
+            UserId = new UserId(memberInfoJson.GenesisId);
             // UserName can sometime be empty, use email instead
-            Name = projectMemberInfoJson.Name ?? projectMemberInfoJson.Email;
-            Email = projectMemberInfoJson.Email;
+            Name = memberInfoJson.Name ?? memberInfoJson.Email;
+            Email = memberInfoJson.Email;
         }
 
-        string GetProjectMemberLegacyRole(List<ProjectMemberInfoRolesJson> legacyRoles)
+        string GetMemberLegacyRole(MemberInfoJson memberInfoJson)
         {
-            var legacyProjectRole = legacyRoles.Where(r => r.EntityType.Equals("project")).ToList();
-            if (legacyProjectRole.Any())
-                return legacyProjectRole.First().Name;
-
-            var legacyOrganizationRole = legacyRoles.Where(r => r.EntityType.Equals("organization")).ToList();
-            if (legacyOrganizationRole.Any())
-                return legacyOrganizationRole.First().Name;
-            // Fallback to lowest role possible on Project
+            if (memberInfoJson.IsOwner)
+                return "owner";
+            if (memberInfoJson.IsManager)
+                return "manager";
+            if (memberInfoJson.IsGuest)
+                return "guest";
+            if (memberInfoJson.IsProjectGuest)
+                return "project guest";
+            // default to user
             return "user";
         }
 

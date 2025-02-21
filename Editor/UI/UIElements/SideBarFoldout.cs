@@ -18,15 +18,18 @@ namespace Unity.AssetManager.UI.Editor
         protected readonly IUnityConnectProxy m_UnityConnectProxy;
         protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         protected readonly IStateManager m_StateManager;
+        protected readonly IMessageManager m_MessageManager;
         protected bool m_HasChild;
         protected Toggle m_Toggle;
 
-        protected SideBarFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IStateManager stateManager,
-            IProjectOrganizationProvider projectOrganizationProvider, string foldoutName)
+        protected SideBarFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager,
+            IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            string foldoutName)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_PageManager = pageManager;
             m_StateManager = stateManager;
+            m_MessageManager = messageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
 
             text = foldoutName;

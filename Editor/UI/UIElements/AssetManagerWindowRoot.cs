@@ -9,6 +9,18 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
+    [Flags]
+    enum UIComponents
+    {
+        None = 0,
+        Inspector = 1 << 0,
+        ProjectSideBar = 1 << 1,
+        // Add the other UI components here
+
+        All = Inspector | ProjectSideBar
+    }
+
+
     class AssetManagerWindowRoot : VisualElement
     {
         const int k_CloudStorageUsageRefreshMs = 30000;
@@ -60,6 +72,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IAssetsProvider m_AssetsProvider;
         readonly IAssetImportResolver m_AssetImportResolver;
         readonly IProgressManager m_ProgressManager;
+        readonly IMessageManager m_MessageManager;
 
         static int InspectorPanelLastWidth
         {
@@ -82,7 +95,8 @@ namespace Unity.AssetManager.UI.Editor
             IPopupManager popupManager,
             IAssetsProvider assetsProvider,
             IAssetImportResolver assetImportResolver,
-            IProgressManager progressManager)
+            IProgressManager progressManager,
+            IMessageManager messageManager)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -100,6 +114,7 @@ namespace Unity.AssetManager.UI.Editor
             m_AssetsProvider = assetsProvider;
             m_AssetImportResolver = assetImportResolver;
             m_ProgressManager = progressManager;
+            m_MessageManager = messageManager;
         }
 
         public void OnEnable()
@@ -149,8 +164,8 @@ namespace Unity.AssetManager.UI.Editor
                 new TwoPaneSplitView(1, k_InspectorPanelMaxWidth, TwoPaneSplitViewOrientation.Horizontal);
             m_CategoriesSplit = new TwoPaneSplitView(0, k_SidebarMinWidth, TwoPaneSplitViewOrientation.Horizontal);
 
-            m_SideBar = new SideBar(m_UnityConnect, m_StateManager, m_PageManager, m_ProjectOrganizationProvider,
-                m_CategoriesSplit);
+            m_SideBar = new SideBar(m_UnityConnect, m_StateManager, m_PageManager,
+                m_MessageManager, m_ProjectOrganizationProvider, m_CategoriesSplit);
             m_SideBar.AddToClassList("SideBarContainer");
             m_CategoriesSplit.Add(m_SideBar);
 
@@ -168,7 +183,8 @@ namespace Unity.AssetManager.UI.Editor
 
             var actionHelpBoxContainer = new VisualElement();
             actionHelpBoxContainer.AddToClassList("HelpBoxContainer");
-            m_ActionHelpBox = new ActionHelpBox(m_UnityConnect, m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy);
+            m_ActionHelpBox = new ActionHelpBox(m_UnityConnect, m_PageManager, m_ProjectOrganizationProvider,
+                m_MessageManager, m_LinksProxy);
             actionHelpBoxContainer.Add(m_ActionHelpBox);
             m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
 
@@ -186,6 +202,9 @@ namespace Unity.AssetManager.UI.Editor
             var topLeftContainer = new VisualElement();
             topLeftContainer.AddToClassList("unity-top-left-container");
 
+            var pageTitle = new PageTitle(m_PageManager);
+            topLeftContainer.Add(pageTitle);
+
             m_Breadcrumbs = new Breadcrumbs(m_PageManager, m_ProjectOrganizationProvider);
             topLeftContainer.Add(m_Breadcrumbs);
 
@@ -197,18 +216,23 @@ namespace Unity.AssetManager.UI.Editor
             var topRightContainer = new VisualElement();
             topRightContainer.AddToClassList("unity-top-right-container");
 
+            var updateAllButton = new UpdateAllButton(m_AssetImporter, m_PageManager, m_ProjectOrganizationProvider);
+            topRightContainer.Add(updateAllButton);
+
             topContainer.Add(topRightContainer);
 
             m_SearchContentSplitViewContainer.Add(topContainer);
 
-            m_SearchBar = new SearchBar(m_PageManager, m_ProjectOrganizationProvider);
+            m_SearchBar = new SearchBar(m_PageManager, m_ProjectOrganizationProvider,
+                m_MessageManager);
             m_SearchContentSplitViewContainer.Add(m_SearchBar);
 
             var filtersSortContainer = new VisualElement();
             filtersSortContainer.AddToClassList("unity-filters-sort-container");
             m_SearchContentSplitViewContainer.Add(filtersSortContainer);
 
-            m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider, m_PopupManager);
+            m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider, m_PopupManager,
+                m_MessageManager);
             filtersSortContainer.Add(m_Filters);
 
             m_Sort = new Sort(m_PageManager, m_ProjectOrganizationProvider);
@@ -232,7 +256,8 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager,
-                m_AssetDataManager, m_AssetOperationManager, m_LinksProxy, m_UploadManager, m_AssetImporter, m_AssetsProvider);
+                m_AssetDataManager, m_AssetOperationManager, m_LinksProxy, m_UploadManager, m_AssetImporter,
+                m_AssetsProvider, m_MessageManager);
 
             m_SelectionInspectorPages.Add(new AssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
                 m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy,
@@ -258,13 +283,17 @@ namespace Unity.AssetManager.UI.Editor
 
             m_AssetManagerContainer.Add(m_InspectorSplit);
 
-            if (m_PageManager.ActivePage?.LastSelectedAssetId == null)
+            var activePage = m_PageManager.ActivePage;
+
+            if (activePage == null || activePage.LastSelectedAssetId == null)
             {
                 SetInspectorVisibility(null);
+                SetUIComponentEnabled(null);
             }
             else
             {
-                SetInspectorVisibility(m_PageManager.ActivePage?.SelectedAssets);
+                SetInspectorVisibility(activePage.SelectedAssets);
+                SetUIComponentEnabled(activePage);
             }
 
             content.Add(m_AssetsGridView);
@@ -288,6 +317,7 @@ namespace Unity.AssetManager.UI.Editor
             m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
             m_PageManager.ActivePageChanged += OnActivePageChanged;
+            m_PageManager.UIComponentEnabledChanged += OnUIComponentEnabledChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged += OnLoadingStateChanged;
             m_UnityConnect.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
@@ -304,6 +334,7 @@ namespace Unity.AssetManager.UI.Editor
             m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
+            m_PageManager.UIComponentEnabledChanged -= OnUIComponentEnabledChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged -= OnLoadingStateChanged;
             m_UnityConnect.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
@@ -317,11 +348,11 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        void OnInspectorResized(GeometryChangedEvent evt)
+        static void OnInspectorResized(GeometryChangedEvent evt)
         {
-            InspectorPanelLastWidth = (int) (evt.newRect.width < k_InspectorPanelMinWidth ?
-                InspectorPanelLastWidth :
-                evt.newRect.width);
+            InspectorPanelLastWidth = (int)(evt.newRect.width < k_InspectorPanelMinWidth
+                ? InspectorPanelLastWidth
+                : evt.newRect.width);
         }
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
@@ -409,6 +440,20 @@ namespace Unity.AssetManager.UI.Editor
         {
             SetInspectorVisibility(page.SelectedAssets);
             SetCustomFieldsVisibility(page);
+            SetUIComponentEnabled(page);
+        }
+
+        void OnUIComponentEnabledChanged(IPage page, UIComponents uiComponents)
+        {
+            SetUIComponentEnabled(page);
+        }
+
+        void SetUIComponentEnabled(IPage page)
+        {
+            var uiComponent = page?.EnabledUIComponents ?? UIComponents.All;
+
+            m_SelectionInspectorContainer.SetEnabled(uiComponent.HasFlag(UIComponents.Inspector));
+            m_SideBar.SetContentEnabled(uiComponent.HasFlag(UIComponents.ProjectSideBar));
         }
 
         void OnProgressPanelChanged(float progress)

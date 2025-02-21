@@ -5,20 +5,35 @@ namespace Unity.Cloud.AssetsEmbedded
 {
     static partial class EntityMapper
     {
-        internal static AssetCollection From(this IAssetCollectionData data, IAssetDataSource dataSource, ProjectDescriptor projectDescriptor)
+        internal static void MapFrom(this AssetCollection collection, IAssetCollectionData collectionData)
         {
-            return data.From(dataSource, new CollectionDescriptor(projectDescriptor, data.GetFullCollectionPath()));
+            if (collection.CacheConfiguration.CacheProperties)
+                collection.Properties = collectionData.From();
         }
 
-        internal static AssetCollection From(this IAssetCollectionData data, IAssetDataSource dataSource, CollectionDescriptor collectionDescriptor)
+        internal static AssetCollectionProperties From(this IAssetCollectionData data)
         {
-            return new AssetCollection(dataSource, collectionDescriptor)
+            return new AssetCollectionProperties
             {
                 Description = data.Description,
             };
         }
 
-        internal static IAssetCollectionData From(this IAssetCollection assetCollection)
+        internal static AssetCollection From(this IAssetCollectionData data, IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            ProjectDescriptor projectDescriptor, AssetCollectionCacheConfiguration? cacheConfigurationOverride = null)
+        {
+            return data.From(dataSource, defaultCacheConfiguration, new CollectionDescriptor(projectDescriptor, data.GetFullCollectionPath()), cacheConfigurationOverride);
+        }
+
+        internal static AssetCollection From(this IAssetCollectionData data, IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            CollectionDescriptor collectionDescriptor, AssetCollectionCacheConfiguration? cacheConfigurationOverride = null)
+        {
+            var collection = new AssetCollection(dataSource, defaultCacheConfiguration, collectionDescriptor, cacheConfigurationOverride);
+            collection.MapFrom(data);
+            return collection;
+        }
+
+        internal static IAssetCollectionData From(this IAssetCollectionCreation assetCollection)
         {
             return new AssetCollectionData(assetCollection.Name, assetCollection.ParentPath)
             {

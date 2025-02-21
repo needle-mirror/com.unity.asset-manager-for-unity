@@ -12,16 +12,30 @@ namespace Unity.Cloud.AssetsEmbedded
     class FieldDefinitionQueryBuilder
     {
         readonly IAssetDataSource m_AssetDataSource;
+        readonly AssetRepositoryCacheConfiguration m_DefaultCacheConfiguration;
         readonly OrganizationId m_OrganizationId;
 
+        FieldDefinitionCacheConfiguration? m_FieldDefinitionCacheConfiguration;
         FieldDefinitionSearchFilter m_SearchFilter;
         Range m_Range = Range.All;
         SortingOrder m_SortingOrder = SortingOrder.Ascending;
 
-        internal FieldDefinitionQueryBuilder(IAssetDataSource assetDataSource, OrganizationId organizationId)
+        internal FieldDefinitionQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, OrganizationId organizationId)
         {
             m_AssetDataSource = assetDataSource;
+            m_DefaultCacheConfiguration = defaultCacheConfiguration;
             m_OrganizationId = organizationId;
+        }
+
+        /// <summary>
+        /// Sets an override to the default cache configuration for the query.
+        /// </summary>
+        /// <param name="fieldDefinitionCacheConfiguration">The configuration to apply when populating the field definitions. </param>
+        /// <returns>The calling <see cref="FieldDefinitionQueryBuilder"/>. </returns>
+        public FieldDefinitionQueryBuilder WithCacheConfiguration(FieldDefinitionCacheConfiguration fieldDefinitionCacheConfiguration)
+        {
+            m_FieldDefinitionCacheConfiguration = fieldDefinitionCacheConfiguration;
+            return this;
         }
 
         /// <summary>
@@ -85,7 +99,7 @@ namespace Unity.Cloud.AssetsEmbedded
             var enumerator = m_AssetDataSource.ListFieldDefinitionsAsync(m_OrganizationId, pagination, queryParameters, cancellationToken);
             await foreach(var fieldDefinitionData in enumerator)
             {
-                yield return fieldDefinitionData.From(m_AssetDataSource, m_OrganizationId);
+                yield return fieldDefinitionData.From(m_AssetDataSource, m_DefaultCacheConfiguration, m_OrganizationId, m_FieldDefinitionCacheConfiguration);
             }
         }
     }

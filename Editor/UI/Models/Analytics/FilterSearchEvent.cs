@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
 using UnityEngine.Analytics;
@@ -26,12 +27,12 @@ namespace Unity.AssetManager.UI.Editor
 
         FilterSearchEventData m_Data;
 
-        internal FilterSearchEvent(string filterName, string filterValue)
+        internal FilterSearchEvent(string filterName, List<string> filterValues)
         {
             m_Data = new FilterSearchEventData
             {
                 FilterName = filterName,
-                FilterValue = filterValue
+                FilterValue = filterValues != null ? string.Join(",", filterValues) : null
             };
         }
 

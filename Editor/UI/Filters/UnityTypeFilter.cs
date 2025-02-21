@@ -22,8 +22,8 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        public UnityTypeFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
-            : base(page, projectOrganizationProvider)
+        public UnityTypeFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
+            : base(page, projectOrganizationProvider, assetsProvider)
         {
             var types = (UnityAssetType[])Enum.GetValues(typeof(UnityAssetType));
             foreach (var type in types)
@@ -36,23 +36,43 @@ namespace Unity.AssetManager.UI.Editor
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
-            if (m_AssetTypeMap.TryGetValue(SelectedFilter, out var assetType))
+            var unityTypes = new List<UnityAssetType>();
+
+            foreach (var selectedFilter in m_SelectedFilters)
             {
-                assetSearchFilter.UnityType = assetType;
+                if (m_AssetTypeMap.TryGetValue(selectedFilter, out var assetType))
+                {
+                    unityTypes.Add(assetType);
+                }
             }
+
+            assetSearchFilter.UnityTypes = unityTypes;
         }
 
-        protected override void IncludeFilter(string selection)
+        protected override void IncludeFilter(List<string> selectedFilters)
         {
-            if (m_AssetTypeMap.TryGetValue(selection, out var assetType))
+            if(selectedFilters == null)
             {
-                m_Page.PageFilters.AssetSearchFilter.UnityType = assetType;
+                m_Page.PageFilters.AssetSearchFilter.UnityTypes = null;
+                return;
             }
+
+            var unityTypes = new List<UnityAssetType>();
+
+            foreach (var selectedFilter in selectedFilters)
+            {
+                if (m_AssetTypeMap.TryGetValue(selectedFilter, out var assetType))
+                {
+                    unityTypes.Add(assetType);
+                }
+            }
+
+            m_Page.PageFilters.AssetSearchFilter.UnityTypes = unityTypes;
         }
 
         protected override void ClearFilter()
         {
-            m_Page.PageFilters.AssetSearchFilter.UnityType = null;
+            m_Page.PageFilters.AssetSearchFilter.UnityTypes = null;
         }
 
         protected override Task<List<string>> GetSelectionsAsync()

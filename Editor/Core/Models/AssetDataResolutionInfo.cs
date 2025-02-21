@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -11,65 +13,83 @@ namespace Unity.AssetManager.Core.Editor
 {
     class AssetDataResolutionInfo
     {
-        public BaseAssetData AssetData { get; set; }
-        public bool Existed { get; set; } // Whether the asset is already in the project
+        readonly List<BaseAssetDataFile> m_FileConflicts = new();
+        readonly List<Object> m_DirtyObjects = new();
 
-        public bool IsModified { get; set; }
+        public BaseAssetData AssetData { get; }
 
-        public bool HasChanges =>
-            Existed && (IsModified || CurrentVersion != AssetData.SequenceNumber); // Whether the asset version will be changed
+        public bool Existed { get; } // Whether the asset is already in the project
 
-        public bool IsLatestVersion { get; private set; } // Whether the asset is the latest version
+        public bool HasChanges { get; } // Whether the asset data has changed
 
-        public bool HasConflicts => FileConflicts.Any(); // Whether the asset has conflicting files
-        public int CurrentVersion { get; private set; } // The index of the version in the asset's version list
+        public int CurrentVersion { get; } // The index of the version in the asset's version list
 
-        public readonly List<BaseAssetDataFile> FileConflicts = new();
-        public readonly List<Object> DirtyObjects = new();
+        public bool HasConflicts => m_FileConflicts.Any(); // Whether the asset has conflicting files
 
-        public async Task<bool> CheckUpdatedAssetDataUpToDateAsync(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, CancellationToken token)
+        public int ConflictCount => m_FileConflicts.Count;
+
+        public IEnumerable<Object> DirtyObjects => m_DirtyObjects;
+
+        public AssetDataResolutionInfo(BaseAssetData assetData, IAssetDataManager assetDataManager)
         {
+            AssetData = assetData;
+            Existed = assetDataManager.IsInProject(assetData.Identifier);
+
             var currentAssetData = assetDataManager.GetAssetData(AssetData.Identifier);
-            if(currentAssetData == null)
+            if (currentAssetData == null)
             {
-                IsLatestVersion = false;
-                IsModified = false;
                 CurrentVersion = 0;
-                return false;
+                HasChanges = Existed;
             }
+            else
+            {
+                CurrentVersion = currentAssetData.SequenceNumber;
 
-            var latestAssetData = await assetsProvider.GetLatestAssetVersionAsync(AssetData.Identifier, token);
-            IsLatestVersion = currentAssetData.Identifier.Version == latestAssetData?.Identifier.Version;
-
-            IsModified = currentAssetData.Updated != latestAssetData?.Updated;
-
-            CurrentVersion = currentAssetData.SequenceNumber;
-
-            return HasChanges;
+                var isDifferentVersion = currentAssetData.Identifier.Version != AssetData.Identifier.Version;
+                var isUpdated = currentAssetData.Updated != AssetData.Updated;
+                HasChanges = Existed && (isDifferentVersion || isUpdated);
+            }
         }
 
-        public async Task<bool> CheckUpdatedAssetDataConflictsAsync(IAssetDataManager assetDataManager, CancellationToken token)
+        public void GatherFileConflicts(ISettingsManager settingsManager, string destinationPath)
+        {
+            // For an asset that is newly imported, check if a matching file already exists in the project.
+            // We don't check for an asset that was previously imported because it would naturally generate a conflict with it's own files.
+            if (!Existed)
+            {
+                foreach (var file in AssetData.SourceFiles.Where(f => Exists(settingsManager, destinationPath, f)))
+                {
+                    m_FileConflicts.Add(file);
+                }
+            }
+        }
+
+        public async Task GatherFileConflictsAsync(IAssetDataManager assetDataManager, CancellationToken token)
         {
             var utilitiesProxy = ServicesContainer.instance.Resolve<IUtilitiesProxy>();
-            FileConflicts.AddRange(await utilitiesProxy.GetModifiedFilesAsync(AssetData.Identifier, AssetData.SourceFiles, assetDataManager, token));
 
-            if (FileConflicts.Any())
+            var modifiedFiles = await utilitiesProxy.GetModifiedFilesAsync(AssetData.Identifier, AssetData.SourceFiles,
+                assetDataManager, token);
+
+            m_FileConflicts.AddRange(modifiedFiles);
+            if (m_FileConflicts.Any())
             {
                 var assetDatabase = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
                 var importedAssetInfo = assetDataManager.GetImportedAssetInfo(AssetData.Identifier);
 
-                foreach (var file in FileConflicts)
+                foreach (var file in m_FileConflicts)
                 {
                     try
                     {
-                        var importedFileInfo = importedAssetInfo?.FileInfos.Find(f => Utilities.ComparePaths(f.OriginalPath, file.Path));
+                        var importedFileInfo =
+                            importedAssetInfo?.FileInfos.Find(f => Utilities.ComparePaths(f.OriginalPath, file.Path));
 
                         // Check dirty flag
                         var path = assetDatabase.GuidToAssetPath(importedFileInfo?.Guid);
-                        Object asset = assetDatabase.LoadAssetAtPath(path);
+                        var asset = assetDatabase.LoadAssetAtPath(path);
                         if (asset != null && EditorUtility.IsDirty(asset))
                         {
-                            DirtyObjects.Add(asset);
+                            m_DirtyObjects.Add(asset);
                         }
                     }
                     catch (Exception e)
@@ -77,11 +97,25 @@ namespace Unity.AssetManager.Core.Editor
                         Debug.LogError(e);
                     }
                 }
+            }
+        }
 
-                return true;
+        public bool ExistsConflict(BaseAssetDataFile file)
+        {
+            return m_FileConflicts.Contains(file);
+        }
+
+        bool Exists(ISettingsManager settingsManager, string destinationPath, BaseAssetDataFile file)
+        {
+            if (settingsManager.IsSubfolderCreationEnabled)
+            {
+                var regex = new Regex(@"[\\\/:*?""<>|]", RegexOptions.None, TimeSpan.FromMilliseconds(100));
+                var sanitizedAssetName = regex.Replace(AssetData.Name, "");
+                destinationPath = Path.Combine(destinationPath, $"{sanitizedAssetName.Trim()}");
             }
 
-            return false;
+            var filePath = Path.Combine(destinationPath, file.Path);
+            return File.Exists(filePath);
         }
     }
 }

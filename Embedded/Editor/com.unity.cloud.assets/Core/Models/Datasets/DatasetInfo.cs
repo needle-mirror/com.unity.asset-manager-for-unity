@@ -20,11 +20,13 @@ namespace Unity.Cloud.AssetsEmbedded
 
         protected DatasetInfo() { }
 
+        [Obsolete("Use the default constructor.")]
         protected DatasetInfo(string name)
         {
             Name = name;
         }
 
+        [Obsolete("Use the default constructor.")]
         protected DatasetInfo(IDataset dataset)
             : this(dataset.Name)
         {

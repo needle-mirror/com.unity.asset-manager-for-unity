@@ -34,7 +34,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="labelCreation">The object containing the necessary information to create a label. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task whose result is an <see cref="ILabelData"/>. </returns>
-        Task<ILabelData> CreateLabelAsync(OrganizationId organizationId, ILabelBaseData labelCreation, CancellationToken cancellationToken);
+        Task<LabelDescriptor> CreateLabelAsync(OrganizationId organizationId, ILabelBaseData labelCreation, CancellationToken cancellationToken);
 
         /// <summary>
         /// Updates a label.

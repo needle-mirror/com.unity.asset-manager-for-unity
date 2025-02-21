@@ -4,6 +4,50 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-02-21
+[Added]
+- New ability to add and edit custom metadata fields on 1 or more assets at upload
+- New ability to filter by custom metadata fields from the Assets' tab
+- Added a search bar in filter selection
+- Added an update all button on the In Project tab to allow users to get the latest version of all their imported assets
+- New default behaviour when removing an asset with dependencies from your local project is to remove the exclusive (not shared with another imported asset) dependencies alongside it.
+  - Users can also remove only the parent using the drop down options or stop tracking the assets with the cloud.
+- New default behaviour at reimport recommends keeping the highest version of an asset, even if the asset you are importing points to an older version.
+  - This can be changed in the plugin preference
+- Added support for custom version label in asset versions panel
+- Added an upload status tooltip to display information about what's causing an asset to be re-uploaded (detected change on the asset or its dependencies)
+- New import state icon on dependencies to quickly identify outdated dependencies
+
+[Changed]
+- Import asset status is now refreshed when switching page, switching project and selecting an asset
+- Re-uploading on a specific cloud asset keeps its name and tags
+- Modifying the upload file path mode will re-trigger a status check
+- In reimport window, instead of having Ver. 1 -> Ver. 1, now we show _ -> Ver. 1 to let users know they don't have this asset imported.
+- If no project is selected when entering Upload page, the breadcrumb show "No project selected" instead of "All Assets"
+- Change "Update All To Latest" context menu option name when we are in Assets tab for "Update All Imported Assets From This Project" or "Update All Imported Assets From This Collection"
+- Avoid re-uploading assets with datasets that are using UVCS.
+
+[Fixed]
+- Fix "too many requests" exception happening when staging multiple asset in the upload tab
+- Fixed the upload status icon on the preview in the detail page not refreshing
+- Improved import operation speed
+- Too many requests exception on ImportStatus filtering and/or sorting for In Project assets.
+- Reimporting an asset for which the files have been moved into other folders will keep those files in these new folders instead of moving them back to their initial location.
+- Fix the errors that appeared in the console when upgrading a package
+- Successfully uploaded assets are now tracked if other ones failed or have been cancelled
+- Improved asset grid scrolling
+- In Upload page, when an item is selected, the ignore toggle stays visible.
+- Don't show no files or no dependencies messages before loading is done
+- Fixed wrong dependency version displayed in the detail view
+- Fix the empty page when opening the app after selecting an organization and project in project settings menu.
+- Detail view not updating after changing upload settings
+- Detail view not updating after including/excluding all scripts
+- Order collections in project list by alphabetical order
+- Messages, search bar and filter now survive domain reload
+- Reduce considerably the time taken to ignore/include when a lot of asset are selected and avoid Editor to block on the process.
+- Fix status not updated after remove from project
+- Scrollbar offset is now saved after domain reload
+
 ## [1.2.4] - 2024-12-09
 [Fixed]
 - Fixed uploaded dependencies not ignoring assets outside of Assets folder

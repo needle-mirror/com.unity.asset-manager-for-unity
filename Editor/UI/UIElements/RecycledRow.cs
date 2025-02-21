@@ -15,7 +15,7 @@ namespace Unity.AssetManager.UI.Editor
 
         internal RecycledRow(float height)
         {
-            AddToClassList(Constants.GridViewRowStyleClassName);
+            AddToClassList(UssStyle.GridViewRowStyleClassName);
             style.height = height;
 
             Indices = new List<int>();

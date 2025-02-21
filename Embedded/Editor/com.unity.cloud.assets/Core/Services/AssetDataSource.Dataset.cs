@@ -11,7 +11,7 @@ namespace Unity.Cloud.AssetsEmbedded
     partial class AssetDataSource
     {
         /// <inheritdoc />
-        public async Task<IDatasetData> CreateDatasetAsync(AssetDescriptor assetDescriptor, IDatasetBaseData datasetCreation, CancellationToken cancellationToken)
+        public async Task<DatasetDescriptor> CreateDatasetAsync(AssetDescriptor assetDescriptor, IDatasetBaseData datasetCreation, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -24,28 +24,15 @@ namespace Unity.Cloud.AssetsEmbedded
 
             var createdDatasetResponse = IsolatedSerialization.DeserializeWithConverters<CreatedDatasetDto>(jsonContent, IsolatedSerialization.DatasetIdConverter);
 
-            var createdDatasetData = new DatasetData
-            {
-                DatasetId = createdDatasetResponse.DatasetId,
-                Name = datasetCreation.Name,
-                Description = datasetCreation.Description,
-                Tags = datasetCreation.Tags ?? new List<string>(),
-                Metadata = datasetCreation.Metadata,
-                SystemTags = new List<string>(),
-                FileOrder = new List<string>(),
-            };
-
-            return createdDatasetData;
+            return new DatasetDescriptor(assetDescriptor, createdDatasetResponse.DatasetId);
         }
 
         /// <inheritdoc />
         public async IAsyncEnumerable<IDatasetData> ListDatasetsAsync(AssetDescriptor assetDescriptor, Range range, FieldsFilter includedFieldsFilter, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var countRequest = new DatasetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, DatasetFields.none, limit: 1);
+            var countRequest = new DatasetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, FieldsFilter.None, limit: 1);
 
-            var datasetFields = includedFieldsFilter?.DatasetFields ?? DatasetFields.none;
-
-            Func<string, int, ApiRequest> getListRequest = (next, pageSize) => new DatasetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, datasetFields, next, pageSize);
+            Func<string, int, ApiRequest> getListRequest = (next, pageSize) => new DatasetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, includedFieldsFilter, next, pageSize);
 
             await foreach (var data in ListEntitiesAsync<DatasetData>(countRequest, getListRequest, range, cancellationToken))
             {
@@ -109,8 +96,7 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var request = new DatasetRequest(datasetDescriptor.ProjectId, datasetDescriptor.AssetId, datasetDescriptor.AssetVersion, datasetDescriptor.DatasetId,
-                includedFieldsFilter?.DatasetFields ?? DatasetFields.none);
+            var request = new DatasetRequest(datasetDescriptor.ProjectId, datasetDescriptor.AssetId, datasetDescriptor.AssetVersion, datasetDescriptor.DatasetId, includedFieldsFilter);
             var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(),
                 cancellationToken);
 

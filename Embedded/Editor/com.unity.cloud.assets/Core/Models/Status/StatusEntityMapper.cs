@@ -8,9 +8,7 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         static void MapFrom(this StatusFlow statusFlow, IStatusFlowData data)
         {
-            statusFlow.Name = data.Name;
-            statusFlow.IsDefault = data.IsDefault;
-            statusFlow.StartStatusId = data.StartStatusId;
+            statusFlow.Properties = data.From();
             statusFlow.Statuses = data.Statuses?.Select(s => s.From(statusFlow.Descriptor)).ToArray() ?? Array.Empty<IStatus>();
             statusFlow.Transitions = data.Transitions?.Select(t => t.From(statusFlow.Descriptor)).ToArray() ?? Array.Empty<IStatusTransition>();
         }
@@ -30,6 +28,16 @@ namespace Unity.Cloud.AssetsEmbedded
             transition.FromStatusId = data.FromStatusId;
             transition.ToStatusId = data.ToStatusId;
             transition.ThroughPredicate = new StatusPredicate(data.ThroughPredicate.Id, data.ThroughPredicate.Name);
+        }
+
+        internal static StatusFlowProperties From(this IStatusFlowData data)
+        {
+            return new StatusFlowProperties
+            {
+                Name = data.Name,
+                IsDefault = data.IsDefault,
+                StartStatusId = data.StartStatusId
+            };
         }
 
         internal static IStatusFlow From(this IStatusFlowData data, OrganizationId organizationId)

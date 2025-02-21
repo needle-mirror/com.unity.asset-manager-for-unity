@@ -5,8 +5,22 @@ using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.IdentityEmbedded
 {
-    class JwtDecoder
+    /// <summary>
+    /// An interface to decode a <see cref="JwtToken"/> from a string.
+    /// </summary>
+    interface IJwtDecoder
     {
+        /// <summary>
+        /// A function to decode a <see cref="JwtToken"/> from a string.
+        /// </summary>
+        /// <param name="jwtToken">The JWT token string to decode.</param>
+        /// <exception cref="InvalidCredentialException">Thrown if the string does not match expected JWT format.</exception>
+        JwtToken Decode(string jwtToken);
+    }
+
+    class JwtDecoder : IJwtDecoder
+    {
+        /// <inheritdoc/>
         public JwtToken Decode(string jwtToken)
         {
             var parts = jwtToken.Split(".");

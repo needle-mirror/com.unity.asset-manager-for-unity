@@ -8,8 +8,5 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         [DataMember(Name = "filesOrder")]
         IEnumerable<string> FileOrder { get; }
-
-        [DataMember(Name = "isVisible")]
-        bool? IsVisible { get; }
     }
 }

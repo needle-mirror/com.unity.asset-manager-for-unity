@@ -11,9 +11,11 @@ namespace Unity.Cloud.AssetsEmbedded
 
         public DatasetUpdate() { }
 
+        [Obsolete("Use the default constructor.")]
         public DatasetUpdate(string name)
             : base(name) { }
 
+        [Obsolete("Use the default constructor.")]
         public DatasetUpdate(IDataset dataset)
             : base(dataset)
         {

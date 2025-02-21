@@ -1,7 +1,6 @@
 using System;
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
-using UnityEngine;
 using UnityEngine.UIElements;
 using Image = UnityEngine.UIElements.Image;
 
@@ -13,7 +12,6 @@ namespace Unity.AssetManager.UI.Editor
         static readonly string k_IconFolderClose = "icon-folder-close";
 
         readonly ProjectInfo m_ProjectInfo;
-        readonly IUploadManager m_UploadManager;
         readonly Image m_Icon;
         readonly Label m_Label;
         readonly TextField m_TextField;
@@ -22,16 +20,14 @@ namespace Unity.AssetManager.UI.Editor
 
         string m_CollectionPath;
 
-        internal SideBarCollectionFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager, IStateManager stateManager,
-            IProjectOrganizationProvider projectOrganizationProvider,
+        internal SideBarCollectionFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager,
+            IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
             string foldoutName, ProjectInfo projectInfo, string collectionPath)
-            : base(unityConnectProxy, pageManager, stateManager, projectOrganizationProvider, foldoutName)
+            : base(unityConnectProxy, pageManager, stateManager, messageManager, projectOrganizationProvider, foldoutName)
         {
             m_ProjectInfo = projectInfo;
             m_CollectionPath = collectionPath;
             name = GetCollectionId(m_ProjectInfo, m_CollectionPath);
-
-            m_UploadManager = ServicesContainer.instance.Resolve<IUploadManager>();
 
             var iconParent = this.Q(className: inputUssClassName);
             m_Icon = iconParent.Q<Image>();
@@ -84,20 +80,19 @@ namespace Unity.AssetManager.UI.Editor
                 var collectionInfo = CollectionInfo.CreateFromFullPath(m_CollectionPath);
                 collectionInfo.ProjectId = m_ProjectInfo.Id;
                 collectionInfo.OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id;
-                var contextMenu = new CollectionContextMenu(collectionInfo, m_UnityConnectProxy, m_ProjectOrganizationProvider, m_PageManager, m_StateManager);
+                var contextMenu = new CollectionContextMenu(collectionInfo, m_UnityConnectProxy,
+                    m_ProjectOrganizationProvider, m_PageManager, m_StateManager, m_MessageManager);
                 m_ContextualMenuManipulator = new ContextualMenuManipulator(contextMenu.SetupContextMenuEntries);
             }
             else
             {
                 var contextMenu = new ProjectContextMenu(m_ProjectInfo, m_UnityConnectProxy, m_ProjectOrganizationProvider,
-                    m_PageManager, m_StateManager);
+                    m_PageManager, m_StateManager, m_MessageManager);
                 m_ContextualMenuManipulator = new ContextualMenuManipulator(contextMenu.SetupContextMenuEntries);
             }
+
             this.AddManipulator(m_ContextualMenuManipulator);
             SetIcon();
-
-            m_UploadManager.UploadBegan += OnUploadBegan;
-            m_UploadManager.UploadEnded += OnUploadEnded;
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
@@ -107,9 +102,6 @@ namespace Unity.AssetManager.UI.Editor
 
             this.RemoveManipulator(m_ContextualMenuManipulator);
             m_ContextualMenuManipulator = null;
-
-            m_UploadManager.UploadBegan -= OnUploadBegan;
-            m_UploadManager.UploadEnded -= OnUploadEnded;
         }
 
         void OnPointerDown(PointerDownEvent evt)
@@ -125,23 +117,8 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.SelectProject(m_ProjectInfo, m_CollectionPath, updateProject:m_CollectionPath == null);
         }
 
-        void OnUploadBegan()
-        {
-            SetEnabled(false);
-        }
-
-        void OnUploadEnded(UploadEndedStatus _)
-        {
-            SetEnabled(true);
-        }
-
         protected override void OnActivePageChanged(IPage page)
         {
-            if(m_UploadManager.IsUploading)
-            {
-                SetEnabled(page is not UploadPage);
-            }
-
             RefreshSelectionStatus();
         }
 
@@ -273,8 +250,8 @@ namespace Unity.AssetManager.UI.Editor
                 var serviceExceptionInfo = ServiceExceptionHelper.GetServiceExceptionInfo(e);
                 if (serviceExceptionInfo != null)
                 {
-                    m_PageManager.ActivePage.SetMessageData(e.Message, RecommendedAction.None, false,
-                        HelpBoxMessageType.Error);
+                    m_MessageManager.SetHelpBoxMessage(new HelpBoxMessage(e.Message,
+                        messageType:HelpBoxMessageType.Error));
                 }
 
                 throw;
@@ -311,8 +288,8 @@ namespace Unity.AssetManager.UI.Editor
 
                 if(serviceExceptionInfo != null)
                 {
-                    m_PageManager.ActivePage.SetMessageData(e.Message, RecommendedAction.None, false,
-                        HelpBoxMessageType.Error);
+                    m_MessageManager.SetHelpBoxMessage(new HelpBoxMessage(e.Message,
+                        messageType:HelpBoxMessageType.Error));
                 }
                 throw;
             }

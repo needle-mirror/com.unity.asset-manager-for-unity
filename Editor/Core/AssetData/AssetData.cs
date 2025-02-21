@@ -9,39 +9,6 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Core.Editor
 {
-    static class AssetDataExtension
-    {
-        public static bool IsTheSame(this BaseAssetData assetData, BaseAssetData other)
-        {
-            if (ReferenceEquals(null, other))
-            {
-                return false;
-            }
-
-            if (ReferenceEquals(assetData, other))
-            {
-                return true;
-            }
-
-            if (other.GetType() != assetData.GetType())
-            {
-                return false;
-            }
-
-            return assetData.Name == other.Name
-                && assetData.Identifier.Equals(other.Identifier)
-                && assetData.AssetType == other.AssetType
-                && assetData.Status == other.Status
-                && assetData.Updated == other.Updated
-                && assetData.Created == other.Created
-                && assetData.Tags.SequenceEqual(other.Tags)
-                && assetData.Description == other.Description
-                && assetData.CreatedBy == other.CreatedBy
-                && assetData.UpdatedBy == other.UpdatedBy
-                && assetData.SourceFiles.SequenceEqual(other.SourceFiles);
-        }
-    }
-
     [Serializable]
     class AssetData : BaseAssetData
     {
@@ -102,20 +69,17 @@ namespace Unity.AssetManager.Core.Editor
         bool m_ThumbnailProcessed; // Flag to avoid multiple requests for assets with no thumbnail
 
         [SerializeField]
-        bool m_PrimaryExtensionProcessed; // Flag to avoid multiple requests for assets with no primary extension
-
-        [SerializeReference]
-        List<BaseAssetDataFile> m_UVCSFiles = new();
+        bool m_DatasetProcessed; // Flag to avoid multiple requests for assets with no primary extension
 
         [SerializeReference]
         List<BaseAssetData> m_Versions = new();
 
         [SerializeReference]
-        List<IMetadata> m_Metadata = new();
+        List<AssetLabel> m_Labels = new();
 
         Task<Uri> m_GetPreviewStatusTask;
-        Task<AssetComparisonResult> m_PreviewStatusTask;
-        Task m_PrimaryExtensionTask;
+        Task m_AssetDataAttributesTask;
+        Task m_DatasetTask;
         Task m_RefreshPropertiesTask;
         Task m_RefreshDependenciesTask;
         Task m_RefreshVersionsTask;
@@ -139,22 +103,15 @@ namespace Unity.AssetManager.Core.Editor
         public bool IsFrozen => m_IsFrozen;
         public override IEnumerable<string> Tags => m_Tags;
         public override IEnumerable<AssetIdentifier> Dependencies => m_Dependencies;
-        public override IEnumerable<BaseAssetDataFile> UVCSFiles => m_UVCSFiles;
-
-        public override List<IMetadata> Metadata
-        {
-            get => m_Metadata;
-            set => m_Metadata = value;
-        }
 
         public override IEnumerable<BaseAssetData> Versions => m_Versions;
 
         IThumbnailDownloader ThumbnailDownloader =>
             m_ThumbnailDownloader ??= ServicesContainer.instance.Resolve<IThumbnailDownloader>();
 
-        public AssetData()
-        {
-        }
+        public override IEnumerable<AssetLabel> Labels => m_Labels;
+
+        public AssetData() { }
 
 #pragma warning disable S107 // Disabling the warning regarding too many parameters.
         public AssetData(AssetIdentifier assetIdentifier,
@@ -171,7 +128,8 @@ namespace Unity.AssetManager.Core.Editor
             string updatedBy,
             string previewFilePath,
             bool isFrozen,
-            IEnumerable<string> tags)
+            IEnumerable<string> tags,
+            IEnumerable<AssetLabel> labels = null)
         {
             m_Identifier = assetIdentifier;
             m_SequenceNumber = sequenceNumber;
@@ -188,24 +146,60 @@ namespace Unity.AssetManager.Core.Editor
             m_PreviewFilePath = previewFilePath;
             m_IsFrozen = isFrozen;
             m_Tags = tags?.ToList() ?? new List<string>();
+            m_Labels = labels?.ToList() ?? new List<AssetLabel>();
         }
 #pragma warning restore S107
 
 #pragma warning disable S107  // Disabling the warning regarding too many parameters.
-        // Used when de-serialized from version 1.0 to fill data not in the IAsset
+        // Used when de-serialized from version 0.0 to fill data not in the IAsset
         public void FillFromPersistenceLegacy(IEnumerable<AssetIdentifier> dependencyAssets,
-            AssetComparisonResult assetComparisonResult,
             string thumbnailUrl,
             IEnumerable<BaseAssetDataFile> sourceFiles,
-            BaseAssetDataFile primarySourceFile,
-            IEnumerable<BaseAssetDataFile> uvcsFiles)
+            BaseAssetDataFile primarySourceFile)
         {
             m_Dependencies = dependencyAssets?.ToList();
             m_ThumbnailUrl = thumbnailUrl;
-            m_UVCSFiles = uvcsFiles?.ToList();
 
-            SourceFiles = sourceFiles?.ToList();
-            PreviewStatus = new List<AssetDataStatusType> { StatusTypeFromComparisonResult(assetComparisonResult) };
+            var sourceAssetDataFiles = sourceFiles?.ToList();
+            // Add a default dataset for the source files. Add a system tag to identify it is manually added. (NotSynced)
+            m_Datasets = new List<AssetDataset>
+            {
+                new(k_Source, new List<string> { k_Source, k_NotSynced }, sourceAssetDataFiles)
+            };
+
+            m_PrimarySourceFile = primarySourceFile;
+        }
+#pragma warning restore S107
+
+#pragma warning disable S107 // Disabling the warning regarding too many parameters.
+        // Used when de-serialized from version 1.0
+        public void FillFromPersistence(AssetIdentifier assetIdentifier,
+            int sequenceNumber,
+            int parentSequenceNumber,
+            string changelog,
+            string name,
+            AssetType assetType,
+            string status,
+            string description,
+            DateTime created,
+            DateTime updated,
+            string createdBy,
+            string updatedBy,
+            string previewFilePath,
+            bool isFrozen,
+            IEnumerable<string> tags,
+            IEnumerable<AssetDataFile> sourceFiles,
+            IEnumerable<AssetIdentifier> dependencies,
+            IEnumerable<IMetadata> metadata)
+        {
+            var sourceAssetDataFiles = sourceFiles?.Cast<BaseAssetDataFile>().ToList();
+
+            // Add a default dataset for the source files. Add a system tag to identify it is manually added. (NotSynced)
+            var datasets = new List<AssetDataset>{
+                new (k_Source, new List<string> { k_Source, k_NotSynced }, sourceAssetDataFiles)
+            };
+
+            FillFromPersistence(assetIdentifier, sequenceNumber, parentSequenceNumber, changelog, name, assetType, status, description, created, updated, createdBy, updatedBy, previewFilePath, isFrozen, tags, datasets, dependencies, metadata);
         }
 #pragma warning restore S107
 
@@ -226,7 +220,7 @@ namespace Unity.AssetManager.Core.Editor
             string previewFilePath,
             bool isFrozen,
             IEnumerable<string> tags,
-            IEnumerable<AssetDataFile> sourceFiles,
+            IEnumerable<AssetDataset> datasets,
             IEnumerable<AssetIdentifier> dependencies,
             IEnumerable<IMetadata> metadata)
         {
@@ -247,9 +241,11 @@ namespace Unity.AssetManager.Core.Editor
             m_Tags = tags.ToList();
 
             m_Dependencies = dependencies?.ToList();
-            m_Metadata = metadata?.ToList();
+            m_Metadata = new MetadataContainer(metadata);
 
-            SourceFiles = sourceFiles?.Cast<BaseAssetDataFile>().ToList();
+            m_Datasets = datasets.ToList();
+
+            ResolvePrimaryExtension();
         }
 #pragma warning restore S107
 
@@ -270,7 +266,17 @@ namespace Unity.AssetManager.Core.Editor
             m_PreviewFilePath = other.PreviewFilePath;
             m_IsFrozen = other.IsFrozen;
             m_Tags = other.Tags?.ToList() ?? new List<string>();
-            m_Metadata = other.Metadata?.ToList() ?? new List<IMetadata>();
+            m_Metadata = new MetadataContainer(other.m_Metadata?.ToList() ?? new List<IMetadata>());
+            m_Labels = other.Labels.ToList();
+
+            // Focus on copying the primary datasets.
+            foreach (var dataset in other.Datasets)
+            {
+                if (TryCopyDataset(dataset, k_Source))
+                    continue;
+
+                TryCopyDataset(dataset, "Preview");
+            }
         }
 
         public override async Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null,
@@ -317,69 +323,68 @@ namespace Unity.AssetManager.Core.Editor
             callback?.Invoke(Identifier, Thumbnail);
         }
 
-        public override async Task GetPreviewStatusAsync(
-            Action<AssetIdentifier, IEnumerable<AssetDataStatusType>> callback = null,
+        public override async Task GetAssetDataAttributesAsync(
+            Action<AssetIdentifier, AssetDataAttributeCollection> callback = null,
             CancellationToken token = default)
         {
-            if (PreviewStatus != null && PreviewStatus.Any())
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+
+            if (AssetDataAttributeCollection != null && AssetDataAttributeCollection.HasAttribute<ImportAttribute>())
             {
-                callback?.Invoke(Identifier, PreviewStatus);
+                if (assetDataManager.IsInProject(Identifier))
+                {
+                    callback?.Invoke(Identifier, AssetDataAttributeCollection);
+                }
+                else
+                {
+                    // Case where the asset is not in the project anymore
+                    AssetDataAttributeCollection = null;
+                }
+
                 return;
             }
 
-            if (m_PreviewStatusTask == null)
+            if (m_AssetDataAttributesTask == null)
             {
-                var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
                 var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
                 var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
                 if (assetsSdkProvider.AuthenticationState == AuthenticationState.LoggedIn &&
                     unityConnectProxy.AreCloudServicesReachable &&
                     assetDataManager.IsInProject(Identifier))
                 {
-                    m_PreviewStatusTask = ServicesContainer.instance.Resolve<IAssetsProvider>()
-                        .CompareAssetWithCloudAsync(this, token);
+                    m_AssetDataAttributesTask = ServicesContainer.instance.Resolve<IAssetsProvider>()
+                        .UpdateImportStatusAsync(new[] {this}, token);
                 }
             }
 
-            if (m_PreviewStatusTask != null)
+            if (m_AssetDataAttributesTask != null)
             {
-                var assetComparisonResult = await m_PreviewStatusTask;
-                PreviewStatus = new[] { StatusTypeFromComparisonResult(assetComparisonResult) };
-                m_PreviewStatusTask = null;
+                await m_AssetDataAttributesTask;
+                m_AssetDataAttributesTask = null;
             }
 
-            callback?.Invoke(Identifier, PreviewStatus);
+            callback?.Invoke(Identifier, AssetDataAttributeCollection);
         }
 
-        static AssetDataStatusType StatusTypeFromComparisonResult(AssetComparisonResult result)
-        {
-            return result switch
-            {
-                AssetComparisonResult.UpToDate => AssetDataStatusType.UpToDate,
-                AssetComparisonResult.OutDated => AssetDataStatusType.OutOfDate,
-                AssetComparisonResult.NotFoundOrInaccessible => AssetDataStatusType.Error,
-                AssetComparisonResult.Unknown => AssetDataStatusType.Imported,
-                _ => AssetDataStatusType.None
-            };
-        }
-
-        public override async Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback = null,
-            CancellationToken token = default)
+        public override async Task ResolveDatasetsAsync(CancellationToken token = default)
         {
             // Because an AssetData is tight to a version, and files modification creates a new version,
             // we can assume that the primary extension is always the same.
-            if (m_PrimaryExtensionProcessed || !string.IsNullOrEmpty(PrimaryExtension))
-            {
-                callback?.Invoke(Identifier, PrimaryExtension);
+            if (m_DatasetProcessed || !string.IsNullOrEmpty(PrimaryExtension))
                 return;
+
+            // Wait for the refresh of properties as dataset info will be bundled
+            if (m_RefreshPropertiesTask != null)
+            {
+                await m_RefreshPropertiesTask;
             }
 
-            m_PrimaryExtensionTask ??= ResolvePrimaryExtensionInternalAsync(token);
+            m_DatasetTask ??= ResolveDatasetInternalAsync(token);
 
             try
             {
-                await m_PrimaryExtensionTask;
-                m_PrimaryExtensionProcessed = true;
+                await m_DatasetTask;
+                m_DatasetProcessed = true;
             }
             catch (ForbiddenException)
             {
@@ -387,10 +392,8 @@ namespace Unity.AssetManager.Core.Editor
             }
             finally
             {
-                m_PrimaryExtensionTask = null;
+                m_DatasetTask = null;
             }
-
-            callback?.Invoke(Identifier, PrimaryExtension);
         }
 
         async Task GetThumbnailUrlAsync(CancellationToken token)
@@ -450,22 +453,39 @@ namespace Unity.AssetManager.Core.Editor
             FillFromOther(updatedAsset);
         }
 
-        async Task ResolvePrimaryExtensionInternalAsync(CancellationToken token = default)
+        async Task ResolveDatasetInternalAsync(CancellationToken token = default)
         {
             try
             {
+                var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+
+                var sourceDataset = Datasets.FirstOrDefault(d => d.SystemTags.Contains(k_Source));
+
+                if (sourceDataset == null)
+                {
+                    Utilities.DevLogWarning($"Source dataset not set for asset {Name}");
+
+                    sourceDataset = new AssetDataset(k_Source, new List<string> {k_Source, k_NotSynced}, null);
+                    Datasets = new List<AssetDataset> {sourceDataset};
+                }
+
                 var files = new List<BaseAssetDataFile>();
-
-                var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-
-                await foreach (var file in assetsSdkProvider.ListFilesAsync(this, Range.All, token))
+                await foreach (var file in assetsProvider.ListFilesAsync(Identifier, sourceDataset, Range.All, token))
                 {
                     files.Add(file);
                 }
 
                 token.ThrowIfCancellationRequested();
 
-                SourceFiles = files;
+                sourceDataset.Files = files;
+
+                var sourceFiles = sourceDataset.Files?.ToList();
+                m_PrimarySourceFile = sourceFiles
+                    ?.FilterUsableFilesAsPrimaryExtensions()
+                    .OrderBy(x => x, new AssetDataFileComparerByExtension())
+                    .LastOrDefault();
+
+                InvokeEvent(AssetDataEventType.PrimaryFileChanged);
             }
             catch (HttpRequestException)
             {
@@ -483,6 +503,11 @@ namespace Unity.AssetManager.Core.Editor
             catch (HttpRequestException)
             {
                 // Ignore unreachable host
+                Utilities.DevLogError("Failed to refresh dependencies");
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
             }
             finally
             {
@@ -536,6 +561,26 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             m_Versions = versions;
+        }
+
+        bool TryCopyDataset(AssetDataset dataset, string targetSystemLabel)
+        {
+            if (dataset.SystemTags.Contains(targetSystemLabel))
+            {
+                var existingDataset = m_Datasets.Find(x => x.SystemTags.Contains(targetSystemLabel));
+                if (existingDataset == null)
+                {
+                    m_Datasets.Add(dataset);
+                }
+                else
+                {
+                    existingDataset.Copy(dataset);
+                }
+
+                return true;
+            }
+
+            return false;
         }
     }
 }

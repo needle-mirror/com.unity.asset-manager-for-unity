@@ -26,7 +26,8 @@ namespace Unity.AssetManager.UI.Editor
             {
                 var titleElement = new Label(L10n.Tr(title))
                 {
-                    name = "entry-label"
+                    name = "entry-label",
+                    tooltip = title
                 };
                 titleElement.AddToClassList(UssStyle.DetailsPageEntryLabel);
                 hierarchy.Add(titleElement);
@@ -55,14 +56,6 @@ namespace Unity.AssetManager.UI.Editor
             hierarchy.Add(chipContainer);
 
             return chipContainer;
-        }
-
-        public Toggle AddToggle()
-        {
-            var toggle = new Toggle();
-            hierarchy.Add(toggle);
-
-            return toggle;
         }
 
         public void SetText(string text)

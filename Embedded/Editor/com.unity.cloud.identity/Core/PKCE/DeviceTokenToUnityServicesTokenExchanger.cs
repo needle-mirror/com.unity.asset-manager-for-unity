@@ -38,15 +38,7 @@ class DeviceTokenToUnityServicesTokenExchanger : IAccessTokenExchanger<DeviceTok
     class AccessTokenToUnityServicesTokenExchanger : IAccessTokenExchanger<string, UnityServicesToken>
     {
         readonly IHttpClient m_HttpClient;
-#if EXPERIMENTAL_WEBGL_PROXY
         readonly IServiceHostResolver m_ServiceHostResolver;
-#else
-        static readonly string s_BaseUnityApiUrl = ".unity.com";
-
-        readonly string m_UnityApiUrl = ".unity.com";
-
-        readonly TargetClientIdTokenToUnityServicesTokenExchanger m_TargetClientIdTokenToUnityServicesTokenExchanger;
-#endif
         /// <summary>
         /// Provides Unity Services token from DeviceToken
         /// </summary>
@@ -55,29 +47,14 @@ class DeviceTokenToUnityServicesTokenExchanger : IAccessTokenExchanger<DeviceTok
         public AccessTokenToUnityServicesTokenExchanger(IHttpClient httpClient, IServiceHostResolver serviceHostResolver)
         {
             m_HttpClient = httpClient;
-#if EXPERIMENTAL_WEBGL_PROXY
             m_ServiceHostResolver = serviceHostResolver;
-#else
-            m_TargetClientIdTokenToUnityServicesTokenExchanger =
-                new TargetClientIdTokenToUnityServicesTokenExchanger(m_HttpClient, serviceHostResolver);
-
-            var environment = serviceHostResolver?.GetResolvedEnvironment();
-
-            m_UnityApiUrl = environment switch
-            {
-                ServiceEnvironment.Staging => string.Concat("api-staging", s_BaseUnityApiUrl),
-                ServiceEnvironment.Test => string.Concat("api-staging", s_BaseUnityApiUrl),
-                _ => string.Concat("api", s_BaseUnityApiUrl)
-            };
-#endif
         }
 
         // PKCE access token returned from Genesis requires a first exchange targeting a specific targetClientId
         // before reaching Unity Services exchange endpoint
         async Task<UnityServicesToken> ExchangeGenesisAccessTokenRequestAsync(string genesisAccessToken, string targetClientId = "ads-publisher")
         {
-#if EXPERIMENTAL_WEBGL_PROXY
-            var url = m_ServiceHostResolver.GetResolvedRequestUri("/app-linking/v1alpha1/token/exchange");
+            var url = m_ServiceHostResolver.GetResolvedRequestUri("/app-linking/v1/token/exchange");
 
             var exchangeGenesisTokenRequest = new ExchangeGenesisTokenRequest
             {
@@ -90,20 +67,6 @@ class DeviceTokenToUnityServicesTokenExchanger : IAccessTokenExchanger<DeviceTok
             var unityServicesToken = await clientTargetIdTokenResponse.JsonDeserializeAsync<ExchangeTargetClientIdTokenResponse>();
 
             return new UnityServicesToken{ AccessToken = unityServicesToken.token};
-#else
-            var exchangeGenesisTokenRequest = new ExchangeGenesisTokenRequest
-            {
-                accessToken = genesisAccessToken, grantType = "EXCHANGE_ACCESS_TOKEN", targetClientId = targetClientId
-            };
-            var stringContent = new StringContent(JsonSerialization.Serialize(exchangeGenesisTokenRequest), Encoding.UTF8,
-                "application/json");
-
-            var clientTargetIdTokenResponse = await m_HttpClient.PostAsync($"https://{m_UnityApiUrl}/v1/oauth2/token/exchange", stringContent);
-            var exchangeGenesisAccessTokenResponse = await clientTargetIdTokenResponse.JsonDeserializeAsync<ExchangeGenesisAccessTokenResponse>();
-
-            return await m_TargetClientIdTokenToUnityServicesTokenExchanger.ExchangeAsync(new TargetClientIdToken
-                { token = exchangeGenesisAccessTokenResponse.access_token });
-#endif
         }
 
         /// <inheritdoc/>

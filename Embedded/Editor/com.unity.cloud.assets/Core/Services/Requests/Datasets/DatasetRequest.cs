@@ -32,19 +32,23 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="assetId">ID of the asset</param>
         /// <param name="assetVersion">Version of the asset</param>
         /// <param name="datasetId">ID of the dataset</param>
-        /// <param name="includedDatasetFields">Sets the fields to be included in the response.</param>
-        public DatasetRequest(ProjectId projectId, AssetId assetId, AssetVersion assetVersion, DatasetId datasetId, DatasetFields includedDatasetFields)
+        /// <param name="includedFieldsFilter">Sets the fields to be included in the response.</param>
+        public DatasetRequest(ProjectId projectId, AssetId assetId, AssetVersion assetVersion, DatasetId datasetId, FieldsFilter includedFieldsFilter)
             : this(projectId, assetId, assetVersion, datasetId)
         {
-            includedDatasetFields.Parse(AddFieldFilterToQueryParams);
+            includedFieldsFilter ??= FieldsFilter.None;
+            includedFieldsFilter.DatasetFields.Parse(AddFieldFilterToQueryParams);
+            includedFieldsFilter.FileFields.Parse(AddFieldFilterToQueryParams, "files.");
         }
 
-        public DatasetRequest(ProjectId projectId, AssetId assetId, AssetVersion assetVersion, DatasetFields includedFieldsFilter, string token = null, int? limit = null)
+        public DatasetRequest(ProjectId projectId, AssetId assetId, AssetVersion assetVersion, FieldsFilter includedFieldsFilter, string token = null, int? limit = null)
             : base(projectId, assetId, assetVersion)
         {
             m_RequestUrl += "/datasets";
 
-            includedFieldsFilter.Parse(AddFieldFilterToQueryParams);
+            includedFieldsFilter ??= FieldsFilter.None;
+            includedFieldsFilter.DatasetFields.Parse(AddFieldFilterToQueryParams);
+            includedFieldsFilter.FileFields.Parse(AddFieldFilterToQueryParams, "files.");
 
             AddParamToQuery("Limit", limit?.ToString());
             AddParamToQuery("Token", token);

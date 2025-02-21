@@ -15,7 +15,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="inputFiles">The files to include in the transformation. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>The ID of the transformation </returns>
-        Task<TransformationId> StartTransformationAsync(DatasetDescriptor datasetDescriptor, string workflowType, string[] inputFiles, Dictionary<string, string> parameters, CancellationToken cancellationToken);
+        Task<TransformationId> StartTransformationAsync(DatasetDescriptor datasetDescriptor, string workflowType, string[] inputFiles, Dictionary<string, object> parameters, CancellationToken cancellationToken);
 
         /// <summary>
         /// Get a transformation on the specified dataset.

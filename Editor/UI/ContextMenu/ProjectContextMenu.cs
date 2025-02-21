@@ -11,19 +11,21 @@ namespace Unity.AssetManager.UI.Editor
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IPageManager m_PageManager;
         readonly IStateManager m_StateManager;
+        readonly IMessageManager m_MessageManager;
         readonly ProjectInfo m_ProjectInfo;
 
         VisualElement m_Target;
 
         public ProjectContextMenu(ProjectInfo projectInfo, IUnityConnectProxy unityConnectProxy,
             IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager,
-            IStateManager stateManager)
+            IStateManager stateManager, IMessageManager messageManager)
         {
             m_ProjectInfo = projectInfo;
             m_UnityConnectProxy = unityConnectProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_PageManager = pageManager;
             m_StateManager = stateManager;
+            m_MessageManager = messageManager;
         }
 
         public override void SetupContextMenuEntries(ContextualMenuPopulateEvent evt)
@@ -51,8 +53,8 @@ namespace Unity.AssetManager.UI.Editor
                 name = $"{Constants.CollectionDefaultName} ({index++})";
             }
 
-            var newFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager, m_ProjectOrganizationProvider,
-                name, m_ProjectInfo, string.Empty);
+            var newFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
+                m_MessageManager, m_ProjectOrganizationProvider, name, m_ProjectInfo, string.Empty);
             m_Target.Add(newFoldout);
             newFoldout.StartNaming();
         }

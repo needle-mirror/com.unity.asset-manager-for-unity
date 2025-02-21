@@ -82,65 +82,37 @@ namespace Unity.AssetManager.Upload.Editor
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
 
+            // Create a thumbnail
+
+            GetDatabaseAssetInfo(m_UploadAsset, out var assetPath, out var assetInstance);
+            var thumbnailFile = await UploadThumbnailAsync(assetsProvider, assetInstance, assetPath, targetAssetData, token);
+
             // Upload files tasks
 
-            // Files inside the asset entry
             var fileNumber = 0;
             await TaskUtils.RunWithMaxConcurrentTasksAsync(m_UploadAsset.Files.Where(file => !string.IsNullOrEmpty(file.SourcePath)), token,
                 file =>
                 {
                     Interlocked.Increment(ref fileNumber);
                     ReportStep($"Preparing file {Path.GetFileName(file.SourcePath)} ({fileNumber} of {m_UploadAsset.Files.Count})");
-                    return assetsProvider.UploadFile(targetAssetData, file.DestinationPath, file.SourcePath, this, token);
+                    return UploadFile(file.DestinationPath, file.SourcePath);
                 }, k_MaxFileUploadSemaphore);
 
-            // Thumbnail
-            var thumbnailFile = await UploadThumbnailAsync(assetsProvider, m_UploadAsset, targetAssetData, token);
+            // Finalize asset
 
-            if (thumbnailFile != null && !string.IsNullOrEmpty(thumbnailFile.Path))
-            {
-                ReportStep("Applying thumbnail");
-
-                var existingTags = targetAssetData.Tags ?? new List<string>();
-                var assetUpdate = new AssetUpdate
-                {
-                    Type = m_UploadAsset.AssetType,
-                    Tags = existingTags.Union(thumbnailFile.Tags ?? Array.Empty<string>()).ToList(),
-                    PreviewFile = thumbnailFile.Path
-                };
-
-                await assetsProvider.UpdateAsync(targetAssetData, assetUpdate, token);
-            }
-
-            try
-            {
-                await assetsProvider.UpdateStatusAsync(targetAssetData, AssetManagerCoreConstants.StatusInReview, token);
-                await assetsProvider.UpdateStatusAsync(targetAssetData, AssetManagerCoreConstants.StatusApproved, token);
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"Unable to publish asset '{targetAssetData?.Name}'. Asset will stay in Draft status.");
-                Utilities.DevLog(e.ToString());
-            }
-
-            try
-            {
-                await assetsProvider.FreezeAsync(targetAssetData, null, token);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception e)
-            {
-                if (targetAssetData != null)
-                    Debug.LogWarning(
-                        $"Unable to commit asset version for asset {targetAssetData.Identifier.AssetId}. Asset will stay in Pending status.");
-
-                Utilities.DevLog(e.ToString());
-            }
+            await ApplyThumbnailAsync(assetsProvider, targetAssetData, thumbnailFile, token);
+            await UpdateStatusAsync(assetsProvider, targetAssetData, token);
+            await FreezeAssetAsync(assetsProvider, targetAssetData, token);
 
             ReportStep("Done");
+
+            async Task UploadFile(string destinationPath, string sourcePath)
+            {
+                await using var stream = File.OpenRead(sourcePath);
+                var file = await assetsProvider.UploadFile(targetAssetData, destinationPath, stream, this, token);
+                // If the thumbnail has not been set, select a file that is supported for preview
+                thumbnailFile ??= AssetDataTypeHelper.IsSupportingPreviewGeneration(Path.GetExtension(destinationPath)) ? file : null;
+            }
         }
 
         void ReportStep(string description)
@@ -155,13 +127,16 @@ namespace Unity.AssetManager.Upload.Editor
             Report();
         }
 
-        async Task<AssetDataFile> UploadThumbnailAsync(IAssetsProvider assetsProvider, IUploadAsset uploadAsset, AssetData targetAssetData,
-            CancellationToken token)
+        static void GetDatabaseAssetInfo(IUploadAsset uploadAsset, out string assetPath, out Object assetInstance)
         {
             var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
-            var assetPath = assetDatabaseProxy.GuidToAssetPath(uploadAsset.PreviewGuid);
-            var assetInstance = assetDatabaseProxy.LoadAssetAtPath(assetPath);
+            assetPath = assetDatabaseProxy.GuidToAssetPath(uploadAsset.PreviewGuid);
+            assetInstance = assetDatabaseProxy.LoadAssetAtPath(assetPath);
+        }
 
+        async Task<AssetDataFile> UploadThumbnailAsync(IAssetsProvider assetsProvider, Object assetInstance, string assetPath, AssetData targetAssetData,
+            CancellationToken token)
+        {
             if (!RequiresThumbnail(assetInstance, assetPath))
                 return null;
 
@@ -181,6 +156,59 @@ namespace Unity.AssetManager.Upload.Editor
         {
             return assetInstance is not Texture2D ||
                    !AssetDataTypeHelper.IsSupportingPreviewGeneration(Path.GetExtension(assetPath));
+        }
+
+        async Task ApplyThumbnailAsync(IAssetsProvider assetsProvider, AssetData targetAssetData, AssetDataFile thumbnailFile, CancellationToken token)
+        {
+            if (thumbnailFile != null && !string.IsNullOrEmpty(thumbnailFile.Path))
+            {
+                ReportStep("Applying thumbnail");
+
+                var existingTags = targetAssetData.Tags ?? new List<string>();
+                var assetUpdate = new AssetUpdate
+                {
+                    // Bubble up the generated tags from the thumbnail to the asset
+                    Tags = existingTags.Union(thumbnailFile.Tags ?? Array.Empty<string>()).ToList(),
+                    PreviewFile = thumbnailFile.Path
+                };
+
+                await assetsProvider.UpdateAsync(targetAssetData, assetUpdate, token);
+            }
+        }
+
+        static async Task UpdateStatusAsync(IAssetsProvider assetsProvider, AssetData targetAssetData, CancellationToken token)
+        {
+            try
+            {
+                await assetsProvider.UpdateStatusAsync(targetAssetData, AssetManagerCoreConstants.StatusInReview, token);
+                await assetsProvider.UpdateStatusAsync(targetAssetData, AssetManagerCoreConstants.StatusApproved, token);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Unable to publish asset '{targetAssetData?.Name}'. Asset will stay in Draft status.");
+                Utilities.DevLogException(e);
+            }
+        }
+
+        static async Task FreezeAssetAsync(IAssetsProvider assetsProvider, AssetData targetAssetData, CancellationToken token)
+        {
+            try
+            {
+                await assetsProvider.FreezeAsync(targetAssetData, null, token);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Unable to commit asset version for asset {targetAssetData?.Name}. Asset version will remain unfrozen.");
+                Utilities.DevLogException(e);
+            }
         }
     }
 }

@@ -22,7 +22,7 @@ namespace Unity.AssetManager.Upload.Editor
 
             Extension = System.IO.Path.GetExtension(sourcePath).ToLower();
             Description = description;
-            Tags = tags.ToList();
+            Tags = tags?.ToList();
             FileSize = GetFileSize(sourcePath);
             Available = true;
         }

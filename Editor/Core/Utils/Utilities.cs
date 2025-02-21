@@ -279,6 +279,11 @@ namespace Unity.AssetManager.Core.Editor
             var dataFolderDirectory = new DirectoryInfo(path2);
             var inputPathDirectory = new DirectoryInfo(path1);
 
+            if(dataFolderDirectory.FullName == inputPathDirectory.FullName)
+            {
+                return true;
+            }
+
             while (inputPathDirectory.Parent != null)
             {
                 if (inputPathDirectory.Parent.FullName == dataFolderDirectory.FullName)
@@ -399,61 +404,95 @@ namespace Unity.AssetManager.Core.Editor
             return false;
         }
 
-        public static async Task<bool> IsLocallyModifiedIgnoreDependenciesAsync(List<string> sourceFiles, ImportedAssetInfo importedAssetInfo, CancellationToken token = default)
+        public class ComparisonResult
+        {
+            public string Details { get; }
+
+            public ComparisonResult(string details)
+            {
+                Details = details;
+            }
+        }
+
+        public static async Task<ComparisonResult> IsLocallyModifiedIgnoreDependenciesAsync(BaseAssetData assetData, ImportedAssetInfo importedAssetInfo, CancellationToken token = default)
         {
             if (importedAssetInfo == null)
             {
                 // Un-imported asset cannot have modified files by definition
-                return false;
+                return null;
             }
 
-            // If the number of files is different, then the asset was modified
-            if (sourceFiles.Count != importedAssetInfo.FileInfos.Count)
-            {
-                return true;
-            }
+            var result = SoftCompareAssetData(assetData, importedAssetInfo.AssetData);
 
-            // If the files are different, or their path has changed, then the asset was modified
-            foreach (var importedFileInfo in importedAssetInfo.FileInfos)
+            if (result != null)
             {
-                if (!sourceFiles.Exists(f => ComparePaths(f, importedFileInfo.OriginalPath)))
-                {
-                    return true;
-                }
+                return result;
             }
 
             // Otherwise, check if the files are identical
-            if (await HasLocallyModifiedFilesAsync(importedAssetInfo, token))
-            {
-                return true;
-            }
-
-            return false;
+            return await HasLocallyModifiedFilesAsync(importedAssetInfo, token);
         }
 
-        public static bool CompareDependencies(List<AssetIdentifier> dependencies, List<AssetIdentifier> otherDependencies)
+        static ComparisonResult SoftCompareAssetData(BaseAssetData local, BaseAssetData remote)
         {
-            // Check if the number of dependencies is different
-            if (dependencies.Count != otherDependencies.Count)
+            // Technically, we should compare ALL editable fields, including the Name and Tags.
+            // But until the user can edit those fields, we will only compare the files.
+
+            if (local.SourceFiles.Count() != remote.SourceFiles.Count())
             {
-                return true;
+                return new ComparisonResult($"The number of files has changed (from {remote.SourceFiles.Count()} to {local.SourceFiles.Count()})");
             }
 
+            // Check if the number of dependencies is different (Without checking the dependencies themselves)
+            if (local.Dependencies.Count() != remote.Dependencies.Count())
+            {
+                return new ComparisonResult($"The number of dependencies has changed (from {remote.Dependencies.Count()} to {local.Dependencies.Count()} dependencies)");
+            }
+
+            // Check if the metadata has changed
+            if (local.Metadata.Count() != remote.Metadata.Count())
+            {
+                return new ComparisonResult($"The number of metadata entries has changed (from {remote.Metadata.Count()} to {local.Metadata.Count()})");
+            }
+
+            // Check if the list of files has changed
+            foreach (var file in local.SourceFiles)
+            {
+                if (remote.SourceFiles.FirstOrDefault(f => ComparePaths(f.Path, file.Path)) == null)
+                {
+                    return new ComparisonResult("The list of files and/or files path has changed");
+                }
+            }
+
+            // Check if the list of metadata has changed
+            foreach (var metadata in local.Metadata)
+            {
+                if (!remote.Metadata.ContainMetadata(metadata))
+                {
+                    return new ComparisonResult("The metadata has changed");
+                }
+            }
+
+            return null;
+        }
+
+        public static ComparisonResult CompareDependencies(List<AssetIdentifier> dependencies, List<AssetIdentifier> otherDependencies)
+        {
             // Check if the dependencies are different
             if (dependencies.Exists(dependency => !otherDependencies.Contains(dependency)))
             {
-                return true;
+                return new ComparisonResult("The list of dependencies has changed");
             }
 
-            return false;
+            return null;
         }
 
-        static async Task<bool> HasLocallyModifiedFilesAsync(ImportedAssetInfo importedAssetInfo, CancellationToken token = default)
+        static async Task<ComparisonResult> HasLocallyModifiedFilesAsync(ImportedAssetInfo importedAssetInfo, CancellationToken token = default)
         {
             if (importedAssetInfo == null)
             {
                 // Un-imported asset cannot have modified files by definition
-                return false;
+                return null;
             }
 
             // Otherwise, check if the files are identical
@@ -461,44 +500,53 @@ namespace Unity.AssetManager.Core.Editor
             {
                 var path = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().GuidToAssetPath(importedFileInfo.Guid);
 
-                if (await FileWasModified(path, importedFileInfo.Timestamp, importedFileInfo.Checksum, token))
+                var result = await FileWasModified(path, importedFileInfo.Timestamp, importedFileInfo.Checksum, token);
+                if (result != null)
                 {
-                    return true;
+                    return result;
                 }
 
                 // Check if the meta file was modified
                 var metaPath = MetafilesHelper.AssetMetaFile(path);
-                if (File.Exists(metaPath) && await FileWasModified(metaPath, importedFileInfo.MetalFileTimestamp, importedFileInfo.MetaFileChecksum, token))
+                if (File.Exists(metaPath))
                 {
-                    return true;
+                    result = await FileWasModified(metaPath, importedFileInfo.MetalFileTimestamp, importedFileInfo.MetaFileChecksum, token);
+                    if (result != null)
+                    {
+                        return result;
+                    }
                 }
             }
 
-            return false;
+            return null;
         }
 
-        static async Task<bool> FileWasModified(string path, long expectedTimestamp, string expectedChecksum, CancellationToken token)
+        static async Task<ComparisonResult> FileWasModified(string path, long expectedTimestamp, string expectedChecksum, CancellationToken token)
         {
             // Locally modified files are always considered dirty
             if (IsFileDirty(path))
             {
-                return true;
+                return new ComparisonResult($"At least one file is dirty ({Path.GetFileName(path)})");
             }
 
             // Check if the file has the same modified date, in which case we know it wasn't modified
             if (IsSameTimestamp(expectedTimestamp, path))
             {
-                return false;
+                return null;
             }
 
             // Check if we have checksum information, in which case, a similar checksum means the file wasn't modified
-            if (await IsSameFileChecksumAsync(expectedChecksum, path, token))
-            {
-                return false;
-            }
+            var checksumResult = await IsSameFileChecksumAsync(expectedChecksum, path, token);
 
-            // In case we can't determine if the file was modified, we assume it was to avoid blocking the re-upload
-            return true;
+            return checksumResult switch
+            {
+                ChecksumResult.Same => null,
+
+                ChecksumResult.Different => new ComparisonResult($"At least one file was modified ({Path.GetFileName(path)})"),
+
+                // In case we can't determine if the file was modified, we assume it was to avoid blocking the re-upload
+                _ => new ComparisonResult($"The system was not able to determine if the files were modified ({Path.GetFileName(path)})")
+            };
         }
 
         public static async Task<IEnumerable<BaseAssetDataFile>> GetModifiedFilesAsync(AssetIdentifier identifier, IEnumerable<BaseAssetDataFile> files, IAssetDataManager assetDataManager = null, CancellationToken token = default)
@@ -520,7 +568,7 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     var importedFileInfo = importedAssetInfo.FileInfos.Find(f => ComparePaths(f.OriginalPath, file.Path));
 
-                    if (importedFileInfo != null && await FileWasModified(AssetDatabase.GUIDToAssetPath(importedFileInfo.Guid), importedFileInfo.Timestamp, importedFileInfo.Checksum, token))
+                    if (importedFileInfo != null && await FileWasModified(AssetDatabase.GUIDToAssetPath(importedFileInfo.Guid), importedFileInfo.Timestamp, importedFileInfo.Checksum, token) != null)
                     {
                         modifiedFiles.Add(file);
                     }
@@ -549,7 +597,7 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public static async Task<string> CalculateMD5ChecksumAsync(Stream stream, CancellationToken cancellationToken)
+        static async Task<string> CalculateMD5ChecksumAsync(Stream stream, CancellationToken cancellationToken)
         {
             var position = stream.Position;
             try
@@ -615,15 +663,22 @@ namespace Unity.AssetManager.Core.Editor
             return timestamp == GetLastModifiedDate(path);
         }
 
-        static async Task<bool> IsSameFileChecksumAsync(string checksum, string path, CancellationToken token)
+        enum ChecksumResult
+        {
+            Same,
+            Different,
+            Unknown
+        }
+
+        static async Task<ChecksumResult> IsSameFileChecksumAsync(string checksum, string path, CancellationToken token)
         {
             if (string.IsNullOrEmpty(checksum))
             {
-                return false;
+                return ChecksumResult.Unknown;
             }
 
             var localChecksum = await CalculateMD5ChecksumAsync(path, token);
-            return checksum == localChecksum;
+            return checksum == localChecksum ? ChecksumResult.Same : ChecksumResult.Different;
         }
     }
 }

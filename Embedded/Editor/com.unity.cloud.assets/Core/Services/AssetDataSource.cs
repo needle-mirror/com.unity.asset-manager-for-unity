@@ -30,7 +30,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
         internal AssetDataSource(IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver)
         {
-            if (serviceHostResolver.GetResolvedEnvironment() == ServiceEnvironment.Test)
+            if (serviceHostResolver is ServiceHostResolver unityServiceHostResolver &&
+                unityServiceHostResolver.GetResolvedEnvironment() == ServiceEnvironment.Test)
             {
                 var headers = new Dictionary<string, string>
                 {
@@ -141,7 +142,7 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public async Task<IAssetData> CreateAssetAsync(ProjectDescriptor projectDescriptor, IAssetCreateData assetCreation, CancellationToken cancellationToken)
+        public async Task<AssetDescriptor> CreateAssetAsync(ProjectDescriptor projectDescriptor, IAssetCreateData assetCreation, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -154,9 +155,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
             var createdAsset = IsolatedSerialization.DeserializeWithDefaultConverters<CreatedAssetDto>(jsonContent);
 
-            var assetDescriptor = new AssetDescriptor(projectDescriptor, createdAsset.AssetId, createdAsset.AssetVersion);
-
-            return await GetAssetAsync(assetDescriptor, FieldsFilter.DefaultAssetIncludes, cancellationToken);
+            return new AssetDescriptor(projectDescriptor, createdAsset.AssetId, createdAsset.AssetVersion);
         }
 
         /// <inheritdoc />
@@ -332,9 +331,9 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public Uri GetServiceUrl()
+        public Uri GetServiceRequestUrl(string relativePath)
         {
-            return new Uri(m_PublicServiceHostResolver.GetResolvedAddress());
+            return new Uri(m_PublicServiceHostResolver.GetResolvedRequestUri(relativePath));
         }
 
         async IAsyncEnumerable<IAssetData> ListAssetsAsync(ApiRequest request, SearchRequestParameters parameters, int offset, int length, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -472,8 +471,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
             if (m_HttpClients.TryGetValue(requestKey, out var client)) return client;
 
-            client = new RateLimitedServiceHttpClient(m_ServiceHttpClient, k_QueueLimit, k_SlowTokensPerPeriod,
-                k_SlowTokenLimit, TimeSpan.FromSeconds(k_SlowReplenishmentPeriod));
+            client = new RateLimitedServiceHttpClient(m_ServiceHttpClient, k_QueueLimit, k_DefaultTokensPerPeriod,
+                k_SlowTokenLimit, TimeSpan.FromSeconds(k_ReplenishmentPeriod));
 
             m_HttpClients[requestKey] = client;
             return client;
@@ -481,8 +480,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
         static bool IsSlowRequest(ApiRequest request)
         {
-            return request is SearchRequest or AcrossProjectsSearchRequest or SearchAndAggregateRequest or AcrossProjectsSearchAndAggregateRequest
-                or CreateFileRequest or FileRequest or GetFileUploadUrlRequest;
+            return request is SearchRequest or AcrossProjectsSearchRequest or SearchAndAggregateRequest or AcrossProjectsSearchAndAggregateRequest;
         }
 
         static Uri GetEscapedUri(string url)

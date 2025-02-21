@@ -90,7 +90,10 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            beginImport(Path.Combine(AssetManagerCoreConstants.AssetsFolderName, importLocation[(Application.dataPath.Length + 1)..]));
+            var location = Application.dataPath == importLocation
+                ? string.Empty
+                : importLocation[(Application.dataPath.Length + 1)..];
+            beginImport(Path.Combine(AssetManagerCoreConstants.AssetsFolderName, location));
         }
     }
 }

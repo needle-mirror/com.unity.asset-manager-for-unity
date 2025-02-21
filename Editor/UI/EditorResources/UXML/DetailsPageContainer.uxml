@@ -22,14 +22,12 @@
                 <ui:Foldout text="Source Files" name="details-source-files-foldout" class="details-files-foldout">
                     <ui:ListView name="details-source-files-listview" />
                 </ui:Foldout>
-                <ui:Foldout text="UVCS Files" name="details-uvcs-files-foldout" class="details-files-foldout">
-                    <ui:ListView name="details-uvcs-files-listview" />
-                </ui:Foldout>
                 <ui:Foldout text="Dependencies" name="details-dependencies-foldout" class="details-files-foldout">
                     <ui:ListView name="details-dependencies-listview" />
                 </ui:Foldout>
                 <ui:Label name="no-dependencies-label" class="no-dependencies-label" />
             </ui:VisualElement>
+            <ui:VisualElement name="upload-metadata-container" class="px-2"/>
         </ui:ScrollView>
         <ui:VisualElement name="footer" class="details-page-footer px-2" />
     </ui:VisualElement>

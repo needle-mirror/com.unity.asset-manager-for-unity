@@ -106,18 +106,6 @@ namespace Unity.AssetManager.Upload.Editor
             m_UploadEdits.SetIgnore(assetData.Guid, ignore);
 
             assetData.IsIgnored = ignore;
-
-            SetStagingStatus(GenerateStagingStatus());
-        }
-
-        public bool IsDependency(BaseAssetData assetData)
-        {
-            if (assetData is UploadAssetData uploadAssetData)
-            {
-                return uploadAssetData.IsDependency;
-            }
-
-            return false;
         }
 
         public void GenerateUploadAssetData(Action<string, float> progressCallback)
@@ -135,6 +123,17 @@ namespace Unity.AssetManager.Upload.Editor
                 {
                     AddAllScriptsInternal(assetData);
                 }
+
+                if (m_UploadEdits.TryGetModifiedMetadata(assetData.Guid, m_Settings.ProjectId, out var metadata))
+                {
+                    assetData.SetMetadata(metadata);
+                }
+            }
+
+            // Because we are not able to detect if a user modify a metadata, we need to store the metadata for ALL UploadAssetData
+            foreach (var assetData in uploadAssetData)
+            {
+                m_UploadEdits.SetModifiedMetadata(assetData.Guid, m_Settings.ProjectId, assetData.Metadata);
             }
 
             m_UploadAssets.SetValues(uploadAssetData);
@@ -160,9 +159,29 @@ namespace Unity.AssetManager.Upload.Editor
             }
         }
 
-        void AddAllScriptsInternal(UploadAssetData assetData)
+        static void AddAllScriptsInternal(UploadAssetData assetData)
         {
             assetData.AddFiles(DependencyUtils.GetAllScriptGuids(), false);
+        }
+
+        public void AddMetadata(AssetIdentifier identifier, IMetadata metadata)
+        {
+            var assetData = m_UploadAssets.Find(uploadAssetData => uploadAssetData.Identifier == identifier);
+
+            if (assetData == null)
+                return;
+
+            assetData.AddMetadata(metadata);
+        }
+
+        public void RemoveMetadata(AssetIdentifier identifier, string fieldKey)
+        {
+            var assetData = m_UploadAssets.Find(uploadAssetData => uploadAssetData.Identifier == identifier);
+
+            if (assetData == null)
+                return;
+
+            assetData.RemoveMetadata(fieldKey);
         }
 
         public void SetOrganizationInfo(OrganizationInfo organizationInfo)
@@ -186,12 +205,12 @@ namespace Unity.AssetManager.Upload.Editor
             {
                 TotalAssetCount = m_UploadAssets.Count,
                 IgnoredAssetCount = m_UploadAssets.Count(asset => m_UploadEdits.IsIgnored(asset.Guid)),
-                SkippedAssetCount = m_UploadAssets.Count(asset => asset.PreviewStatus.Contains(AssetDataStatusType.UploadSkip)),
-                UpdatedAssetCount = m_UploadAssets.Count(asset => !asset.IsIgnored && asset.PreviewStatus.Contains(AssetDataStatusType.UploadOverride)),
-                AddedAssetCount = m_UploadAssets.Count(asset => !asset.IsIgnored && asset.PreviewStatus.Contains(AssetDataStatusType.UploadAdd)),
+                SkippedAssetCount = m_UploadAssets.Count(asset => asset.UploadStatus is UploadAttribute.UploadStatus.Skip or UploadAttribute.UploadStatus.SourceControlled),
+                UpdatedAssetCount = m_UploadAssets.Count(asset => !asset.IsIgnored && asset.UploadStatus == UploadAttribute.UploadStatus.Override),
+                AddedAssetCount = m_UploadAssets.Count(asset => !asset.IsIgnored && asset.UploadStatus == UploadAttribute.UploadStatus.Add),
                 ManuallyIgnoredDependencyCount = m_UploadAssets.Count(asset => asset.IsDependency && m_UploadEdits.IsIgnored(asset.Guid)),
                 ReadyAssetCount = readyAssets.Count(asset => asset.CanBeUploaded),
-                HasFilesOutsideProject = m_UploadAssets.Exists(asset => asset.PreviewStatus.Contains(AssetDataStatusType.UploadOutside)),
+                HasFilesOutsideProject = m_UploadAssets.Exists(asset => asset.UploadStatus == UploadAttribute.UploadStatus.ErrorOutsideProject),
                 TotalFileCount = readyAssets.Sum(asset => asset.SourceFiles.Count()),
                 TotalSize = readyAssets.Sum(asset => asset.SourceFiles.Sum(f => f.FileSize))
             };
@@ -233,7 +252,7 @@ namespace Unity.AssetManager.Upload.Editor
         {
             return m_UploadAssets
                 .Where(assetData => assetData.CanBeUploaded)
-                .Select(assetData => assetData.GenerateUploadAsset(m_Settings.OrganizationId, m_Settings.ProjectId, m_Settings.CollectionPath))
+                .Select(assetData => assetData.GenerateUploadAsset(m_Settings.CollectionPath))
                 .ToList();
         }
 
@@ -251,7 +270,7 @@ namespace Unity.AssetManager.Upload.Editor
             }
         }
 
-        public async Task RefreshStatus(CancellationToken token)
+        public async Task RefreshStatusAsync(bool checkWithCloud, CancellationToken token)
         {
             if (m_UploadAssets.Count == 0)
                 return;
@@ -262,7 +281,7 @@ namespace Unity.AssetManager.Upload.Editor
 
             foreach (var uploadAssetData in m_UploadAssets)
             {
-                uploadAssetData.ResetPreviewStatus();
+                uploadAssetData.ResetAssetDataAttributes();
             }
 
             var total = m_UploadAssets.Count;
@@ -271,7 +290,7 @@ namespace Unity.AssetManager.Upload.Editor
             RefreshStatusProgress?.Invoke(string.Empty, 0);
 
             await TaskUtils.RunWithMaxConcurrentTasksAsync(m_UploadAssets, token,
-                uploadAssetData => ResolveSelfStatusTask(uploadAssetData, m_Settings, item =>
+                uploadAssetData => ResolveSelfStatusTask(uploadAssetData, m_Settings.UploadMode, checkWithCloud, item =>
                 {
                     RefreshStatusProgress?.Invoke(item.Name, ++count / total);
                 }, token),
@@ -311,10 +330,10 @@ namespace Unity.AssetManager.Upload.Editor
             assetData.ResolveFinalStatus(uploadMode);
         }
 
-        async Task ResolveSelfStatusTask(UploadAssetData uploadAssetData, UploadSettings settings,
-            Action<UploadAssetData> onItemFinished, CancellationToken token)
+        static async Task ResolveSelfStatusTask(UploadAssetData uploadAssetData, UploadAssetMode uploadMode,
+            bool checkWithCloud, Action<UploadAssetData> onItemFinished, CancellationToken token)
         {
-            await uploadAssetData.ResolveSelfStatus(settings.OrganizationId, settings.ProjectId, settings.UploadMode, token);
+            await uploadAssetData.ResolveSelfStatus(uploadMode, checkWithCloud, token);
             onItemFinished?.Invoke(uploadAssetData);
         }
 

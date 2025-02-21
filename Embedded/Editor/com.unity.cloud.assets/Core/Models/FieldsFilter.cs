@@ -71,6 +71,32 @@ namespace Unity.Cloud.AssetsEmbedded
         public List<string> MetadataFields { get; } = new();
         public List<string> SystemMetadataFields { get; } = new();
 
+        public void UnionMetadataFields(IEnumerable<string> fields)
+        {
+            if (fields == null) return;
+
+            foreach (var field in fields)
+            {
+                if (!MetadataFields.Contains(field))
+                {
+                    MetadataFields.Add(field);
+                }
+            }
+        }
+
+        public void UnionSystemMetadataFields(IEnumerable<string> fields)
+        {
+            if (fields == null) return;
+
+            foreach (var field in fields)
+            {
+                if (!SystemMetadataFields.Contains(field))
+                {
+                    SystemMetadataFields.Add(field);
+                }
+            }
+        }
+
         public static FieldsFilter None => new()
         {
             AssetFields = AssetFields.none,

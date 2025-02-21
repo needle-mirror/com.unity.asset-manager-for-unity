@@ -10,16 +10,22 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
+    static partial class UssStyle
+    {
+        public static readonly string GridViewStyleClassName = "grid-view";
+        public static readonly string GridViewRowStyleClassName = GridViewStyleClassName + "--row";
+        public static readonly string GridViewDummyItemUssClassName = GridViewStyleClassName + "--item-dummy";
+        public static readonly string GridItemStyleClassName = "grid-view--item";
+        public static readonly string ItemLabel = GridItemStyleClassName + "-label";
+        public static readonly string ItemHighlight = GridItemStyleClassName + "-selected";
+        public static readonly string ItemOverlay = GridItemStyleClassName + "-overlay";
+        public static readonly string ItemIgnore = GridItemStyleClassName + "-ignore";
+        public static readonly string ItemToggle = GridItemStyleClassName + "-toggle";
+        public static readonly string ItemHovered = GridItemStyleClassName + "-hovered";
+    }
+
     class GridItem : VisualElement, IGridItem
     {
-        static class UssStyles
-        {
-            public static readonly string ItemLabel = Constants.GridItemStyleClassName + "-label";
-            public static readonly string ItemHighlight = Constants.GridItemStyleClassName + "-selected";
-            public static readonly string ItemOverlay = Constants.GridItemStyleClassName + "-overlay";
-            public static readonly string ItemIgnore = Constants.GridItemStyleClassName + "-ignore";
-        }
-
         readonly Label m_AssetNameLabel;
         readonly AssetPreview m_AssetPreview;
         readonly LoadingIcon m_LoadingIcon;
@@ -44,17 +50,19 @@ namespace Unity.AssetManager.UI.Editor
             m_AssetDataManager = assetDataManager;
             m_UploadManager = uploadManager;
 
-            AddToClassList(Constants.GridItemStyleClassName);
+            AddToClassList(UssStyle.GridItemStyleClassName);
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+            RegisterCallback<MouseEnterEvent>(OnMouseEnter);
+            RegisterCallback<MouseLeaveEvent>(OnMouseLeave);
 
             _ = new ClickOrDragStartManipulator(this, OnPointerUp, OnPointerDown, OnDragStart);
 
             m_AssetPreview = new AssetPreview();
 
             m_AssetNameLabel = new Label();
-            m_AssetNameLabel.AddToClassList(UssStyles.ItemLabel);
+            m_AssetNameLabel.AddToClassList(UssStyle.ItemLabel);
 
             m_LoadingIcon = new LoadingIcon();
             UIElementsUtils.Hide(m_LoadingIcon);
@@ -68,7 +76,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 pickingMode = PickingMode.Ignore
             };
-            overlay.AddToClassList(UssStyles.ItemOverlay);
+            overlay.AddToClassList(UssStyle.ItemOverlay);
 
             Add(m_AssetPreview);
             Add(overlay);
@@ -118,8 +126,8 @@ namespace Unity.AssetManager.UI.Editor
                 case AssetDataEventType.ThumbnailChanged:
                     m_AssetPreview.SetThumbnail(obj.Thumbnail);
                     break;
-                case AssetDataEventType.PreviewStatusChanged:
-                    m_AssetPreview.SetStatuses(AssetDataStatus.GetIStatusFromAssetDataStatusType(obj.PreviewStatus));
+                case AssetDataEventType.AssetDataAttributesChanged:
+                    m_AssetPreview.SetStatuses(AssetDataStatus.GetIStatusFromAssetDataAttributes(obj.AssetDataAttributeCollection));
                     break;
                 case AssetDataEventType.PrimaryFileChanged:
                     m_AssetPreview.SetAssetType(obj.PrimaryExtension);
@@ -155,7 +163,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_OperationProgressBar.Refresh(m_OperationManager.GetAssetOperation(m_AssetData.Identifier));
 
-            m_AssetPreview.SetStatuses(AssetDataStatus.GetIStatusFromAssetDataStatusType(m_AssetData.PreviewStatus));
+            m_AssetPreview.SetStatuses(AssetDataStatus.GetIStatusFromAssetDataAttributes(m_AssetData.AssetDataAttributeCollection));
             m_AssetPreview.SetThumbnail(m_AssetData.Thumbnail);
             m_AssetPreview.SetAssetType(m_AssetData.PrimaryExtension);
 
@@ -163,9 +171,9 @@ namespace Unity.AssetManager.UI.Editor
 
             var tasks = new List<Task>
             {
-                m_AssetData.ResolvePrimaryExtensionAsync(),
+                m_AssetData.ResolveDatasetsAsync(),
                 m_AssetData.GetThumbnailAsync(),
-                m_AssetData.GetPreviewStatusAsync()
+                m_AssetData.GetAssetDataAttributesAsync()
             };
 
             _ = WaitForResultsAsync(tasks);
@@ -199,8 +207,21 @@ namespace Unity.AssetManager.UI.Editor
             m_UploadManager.UploadBegan -= OnUploadBegan;
         }
 
+        void OnMouseEnter(MouseEnterEvent evt)
+        {
+            AddToClassList(UssStyle.ItemHovered);
+        }
+
+        void OnMouseLeave(MouseLeaveEvent evt)
+        {
+            RemoveFromClassList(UssStyle.ItemHovered);
+        }
+
         void InitContextMenu(BaseAssetData assetData)
         {
+            if(assetData == null)
+                return;
+
             m_ContextMenu = (AssetContextMenu) ServicesContainer.instance.Resolve<IContextMenuBuilder>()
                 .BuildContextMenu(assetData.GetType());
             m_ContextualMenuManipulator = new ContextualMenuManipulator(m_ContextMenu.SetupContextMenuEntries);
@@ -288,11 +309,11 @@ namespace Unity.AssetManager.UI.Editor
                 TrackedAssetIdentifier.IsFromSameAsset(i, m_AssetData.Identifier));
             if (isSelected)
             {
-                AddToClassList(UssStyles.ItemHighlight);
+                AddToClassList(UssStyle.ItemHighlight);
             }
             else
             {
-                RemoveFromClassList(UssStyles.ItemHighlight);
+                RemoveFromClassList(UssStyle.ItemHighlight);
             }
         }
 
@@ -309,7 +330,7 @@ namespace Unity.AssetManager.UI.Editor
                 : L10n.Tr(Constants.IgnoreToggleTooltip);
             m_AssetPreview.Toggle.SetEnabled(!m_UploadManager.IsUploading);
 
-            EnableInClassList(UssStyles.ItemIgnore, uploadAssetData.IsIgnored);
+            EnableInClassList(UssStyle.ItemIgnore, uploadAssetData.IsIgnored);
             tooltip = uploadAssetData.IsIgnored ? L10n.Tr(Constants.IgnoreAssetToolTip) : "";
         }
 

@@ -13,60 +13,73 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         readonly IAssetDataSource m_DataSource;
 
-        internal AssetRepository(IAssetDataSource dataSource)
+        public AssetRepositoryCacheConfiguration CacheConfiguration { get; }
+
+        internal AssetRepository(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration configuration)
         {
             m_DataSource = dataSource;
+            CacheConfiguration = configuration;
         }
 
         /// <inheritdoc />
         public AssetProjectQueryBuilder QueryAssetProjects(OrganizationId organizationId)
         {
-            return new AssetProjectQueryBuilder(m_DataSource, organizationId);
+            return new AssetProjectQueryBuilder(m_DataSource, CacheConfiguration, organizationId);
         }
 
         /// <inheritdoc />
-        public async Task<IAssetProject> GetAssetProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        public Task<IAssetProject> GetAssetProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
         {
-            var projectData = await m_DataSource.GetProjectAsync(projectDescriptor, cancellationToken);
-            return projectData.From(m_DataSource, projectDescriptor);
+            return AssetProjectEntity.GetConfiguredAsync(m_DataSource, CacheConfiguration, projectDescriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<IAssetProject> EnableProjectForAssetManagerAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
         {
-            var projectData = await m_DataSource.EnableProjectAsync(projectDescriptor, cancellationToken);
-            return projectData.From(m_DataSource, projectDescriptor);
+            await EnableProjectForAssetManagerLiteAsync(projectDescriptor, cancellationToken);
+            return await GetAssetProjectAsync(projectDescriptor, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task EnableProjectForAssetManagerLiteAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        {
+            return m_DataSource.EnableProjectAsync(projectDescriptor, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<IAssetProject> CreateAssetProjectAsync(OrganizationId organizationId, IAssetProjectCreation projectCreation, CancellationToken cancellationToken)
         {
-            var data = new ProjectBaseData
-            {
-                Name = projectCreation.Name,
-                Metadata = projectCreation.Metadata
-            };
-            var projectData = await m_DataSource.CreateProjectAsync(organizationId, data, cancellationToken);
-            return projectData.From(m_DataSource, organizationId);
+            var projectDescriptor = await CreateAssetProjectLiteAsync(organizationId, projectCreation, cancellationToken);
+            return await GetAssetProjectAsync(projectDescriptor, cancellationToken);
         }
 
         /// <inheritdoc />
-        public async Task<IAssetCollection> GetAssetCollectionAsync(CollectionDescriptor collectionDescriptor, CancellationToken cancellationToken)
+        public Task<ProjectDescriptor> CreateAssetProjectLiteAsync(OrganizationId organizationId, IAssetProjectCreation projectCreation, CancellationToken cancellationToken)
         {
-            var collectionData = await m_DataSource.GetCollectionAsync(collectionDescriptor, cancellationToken);
-            return collectionData.From(m_DataSource, collectionDescriptor);
+            var data = new ProjectBaseData
+            {
+                Name = projectCreation.Name,
+                Metadata = projectCreation.Metadata?.GetAs<Dictionary<string, string>>() ?? new Dictionary<string, string>()
+            };
+            return m_DataSource.CreateProjectAsync(organizationId, data, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task<IAssetCollection> GetAssetCollectionAsync(CollectionDescriptor collectionDescriptor, CancellationToken cancellationToken)
+        {
+            return AssetCollection.GetConfiguredAsync(m_DataSource, CacheConfiguration, collectionDescriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
         public AssetQueryBuilder QueryAssets(IEnumerable<ProjectDescriptor> projectDescriptors)
         {
-            return new AssetQueryBuilder(m_DataSource, projectDescriptors);
+            return new AssetQueryBuilder(m_DataSource, CacheConfiguration, projectDescriptors);
         }
 
         /// <inheritdoc />
         public AssetQueryBuilder QueryAssets(OrganizationId organizationId)
         {
-            return new AssetQueryBuilder(m_DataSource, organizationId);
+            return new AssetQueryBuilder(m_DataSource, CacheConfiguration, organizationId);
         }
 
         /// <inheritdoc />
@@ -82,61 +95,63 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public async Task<IAsset> GetAssetAsync(AssetDescriptor assetDescriptor, CancellationToken cancellationToken)
+        public Task<IAsset> GetAssetAsync(AssetDescriptor assetDescriptor, CancellationToken cancellationToken)
         {
-            var assetData = await m_DataSource.GetAssetAsync(assetDescriptor, FieldsFilter.DefaultAssetIncludes, cancellationToken);
-            return assetData.From(m_DataSource, assetDescriptor, FieldsFilter.DefaultAssetIncludes);
+            return AssetEntity.GetConfiguredAsync(m_DataSource, CacheConfiguration, assetDescriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<IAsset> GetAssetAsync(ProjectDescriptor projectDescriptor, AssetId assetId, string label, CancellationToken cancellationToken)
         {
-            var assetData = await m_DataSource.GetAssetAsync(projectDescriptor, assetId, label, FieldsFilter.DefaultAssetIncludes, cancellationToken);
-            return assetData.From(m_DataSource, projectDescriptor, FieldsFilter.DefaultAssetIncludes);
+            var fieldsFilter = CacheConfiguration.GetAssetFieldsFilter();
+
+            var assetData = await m_DataSource.GetAssetAsync(projectDescriptor, assetId, label, fieldsFilter, cancellationToken);
+            return assetData.From(m_DataSource, CacheConfiguration, projectDescriptor, fieldsFilter);
         }
 
         /// <inheritdoc />
-        public async Task<IDataset> GetDatasetAsync(DatasetDescriptor datasetDescriptor, CancellationToken cancellationToken)
+        public Task<IDataset> GetDatasetAsync(DatasetDescriptor datasetDescriptor, CancellationToken cancellationToken)
         {
-            var datasetData = await m_DataSource.GetDatasetAsync(datasetDescriptor, FieldsFilter.DefaultDatasetIncludes, cancellationToken);
-            return datasetData.From(m_DataSource, datasetDescriptor.AssetDescriptor, FieldsFilter.DefaultDatasetIncludes.DatasetFields);
+            return DatasetEntity.GetConfiguredAsync(m_DataSource, CacheConfiguration, datasetDescriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
-        public async Task<ITransformation> GetTransformationAsync(TransformationDescriptor transformationDescriptor, CancellationToken cancellationToken)
+        public Task<ITransformation> GetTransformationAsync(TransformationDescriptor transformationDescriptor, CancellationToken cancellationToken)
         {
-            var data = await m_DataSource.GetTransformationAsync(transformationDescriptor, cancellationToken);
-
-            var transformation = new TransformationEntity(m_DataSource, transformationDescriptor);
-            transformation.MapFrom(data);
-            return transformation;
+            return TransformationEntity.GetConfiguredAsync(m_DataSource, CacheConfiguration, transformationDescriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
-        public async Task<IFile> GetFileAsync(FileDescriptor fileDescriptor, CancellationToken cancellationToken)
+        public Task<IFile> GetFileAsync(FileDescriptor fileDescriptor, CancellationToken cancellationToken)
         {
-            var fileData = await m_DataSource.GetFileAsync(fileDescriptor, FieldsFilter.DefaultFileIncludes, cancellationToken);
-            return fileData.From(m_DataSource, fileDescriptor, FieldsFilter.DefaultFileIncludes.FileFields);
+            return FileEntity.GetConfiguredAsync(m_DataSource, CacheConfiguration, fileDescriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
         public FieldDefinitionQueryBuilder QueryFieldDefinitions(OrganizationId organizationId)
         {
-            return new FieldDefinitionQueryBuilder(m_DataSource, organizationId);
+            return new FieldDefinitionQueryBuilder(m_DataSource, CacheConfiguration, organizationId);
         }
 
         /// <inheritdoc />
-        public async Task<IFieldDefinition> GetFieldDefinitionAsync(FieldDefinitionDescriptor fieldDefinitionDescriptor, CancellationToken cancellationToken)
+        public Task<IFieldDefinition> GetFieldDefinitionAsync(FieldDefinitionDescriptor fieldDefinitionDescriptor, CancellationToken cancellationToken)
         {
-            var data = await m_DataSource.GetFieldDefinitionAsync(fieldDefinitionDescriptor, cancellationToken);
-            return data.From(m_DataSource, fieldDefinitionDescriptor);
+            return FieldDefinitionEntity.GetConfiguredAsync(m_DataSource, CacheConfiguration, fieldDefinitionDescriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<IFieldDefinition> CreateFieldDefinitionAsync(OrganizationId organizationId, IFieldDefinitionCreation fieldDefinitionCreation, CancellationToken cancellationToken)
         {
-            var data = await m_DataSource.CreateFieldDefinitionAsync(organizationId, fieldDefinitionCreation.From(), cancellationToken);
-            return data.From(m_DataSource, organizationId);
+            var fieldDefinitionDescriptor = await CreateFieldDefinitionLiteAsync(organizationId, fieldDefinitionCreation, cancellationToken);
+
+            var fieldDefinition = await GetFieldDefinitionAsync(fieldDefinitionDescriptor, cancellationToken);
+            return fieldDefinitionCreation.Type == FieldDefinitionType.Selection ? fieldDefinition.AsSelectionFieldDefinition() : fieldDefinition;
+        }
+
+        /// <inheritdoc />
+        public Task<FieldDefinitionDescriptor> CreateFieldDefinitionLiteAsync(OrganizationId organizationId, IFieldDefinitionCreation fieldDefinitionCreation, CancellationToken cancellationToken)
+        {
+            return m_DataSource.CreateFieldDefinitionAsync(organizationId, fieldDefinitionCreation.From(), cancellationToken);
         }
 
         /// <inheritdoc />
@@ -148,21 +163,26 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async Task<ILabel> CreateLabelAsync(OrganizationId organizationId, ILabelCreation labelCreation, CancellationToken cancellationToken)
         {
-            var data = await m_DataSource.CreateLabelAsync(organizationId, labelCreation.From(), cancellationToken);
-            return data.From(m_DataSource, organizationId);
+            var labelDescriptor = await CreateLabelLiteAsync(organizationId, labelCreation, cancellationToken);
+            return await GetLabelAsync(labelDescriptor, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task<LabelDescriptor> CreateLabelLiteAsync(OrganizationId organizationId, ILabelCreation labelCreation, CancellationToken cancellationToken)
+        {
+            return m_DataSource.CreateLabelAsync(organizationId, labelCreation.From(), cancellationToken);
         }
 
         /// <inheritdoc />
         public LabelQueryBuilder QueryLabels(OrganizationId organizationId)
         {
-            return new LabelQueryBuilder(m_DataSource, organizationId);
+            return new LabelQueryBuilder(m_DataSource, CacheConfiguration, organizationId);
         }
 
         /// <inheritdoc />
-        public async Task<ILabel> GetLabelAsync(LabelDescriptor labelDescriptor, CancellationToken cancellationToken)
+        public Task<ILabel> GetLabelAsync(LabelDescriptor labelDescriptor, CancellationToken cancellationToken)
         {
-            var data = await m_DataSource.GetLabelAsync(labelDescriptor, cancellationToken);
-            return data.From(m_DataSource, labelDescriptor);
+            return LabelEntity.GetConfiguredAsync(m_DataSource, CacheConfiguration, labelDescriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -191,7 +211,28 @@ namespace Unity.Cloud.AssetsEmbedded
             if (jsonSerialization.Contains(AssetDataWithIdentifiers.SerializedType))
             {
                 var data = IsolatedSerialization.DeserializeWithDefaultConverters<AssetDataWithIdentifiers>(jsonSerialization);
-                return data.From(m_DataSource, FieldsFilter.All);
+                // Consider a deserialized asset as having everything cached (with the exception of urls which are short-lived)
+                var assetCacheConfiguration = new AssetCacheConfiguration
+                {
+                    CacheProperties = true,
+                    CacheMetadata = true,
+                    CacheSystemMetadata = true,
+                    CacheDatasetList = true,
+                    DatasetCacheConfiguration = new DatasetCacheConfiguration
+                    {
+                        CacheProperties = true,
+                        CacheMetadata = true,
+                        CacheSystemMetadata = true,
+                        CacheFileList = true,
+                        FileCacheConfiguration = new FileCacheConfiguration
+                        {
+                            CacheProperties = true,
+                            CacheMetadata = true,
+                            CacheSystemMetadata = true
+                        }
+                    }
+                };
+                return data.From(m_DataSource, CacheConfiguration, assetCacheConfiguration);
             }
 
             return null;

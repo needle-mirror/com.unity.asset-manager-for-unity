@@ -16,8 +16,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string AssetVersionDetailsFoldout = "asset-version-details-foldout";
         public const string AssetVersionLabelContainer = "asset-version-label-container";
         public const string AssetVersionLabel = "asset-version-label";
-        public const string AssetVersionLabel_Latest = "asset-version-label-latest";
-        public const string AssetVersionLabel_Imported = "asset-version-label-imported";
+        public const string AssetVersionLabel_Filled = "asset-version-label--filled";
+        public const string AssetVersionLabel_Imported = "asset-version-label--imported";
         public const string UnityFoldoutInput = "unity-foldout__input";
     }
 
@@ -107,18 +107,16 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            // Given the ordering of versions, the first version is the latest
-            var isLatest = true;
-
             foreach (var data in assetData.Versions)
             {
                 var foldout = CreateFoldout(data);
 
-                if (isLatest)
+                if(data.Labels != null)
                 {
-                    AddText(foldout.parent.Q(k_FoldoutLabelsContainer), null, Constants.LatestTagText,
-                        new[] { UssStyle.AssetVersionLabel, UssStyle.AssetVersionLabel_Latest });
-                    isLatest = false;
+                    foreach (var label in data.Labels)
+                    {
+                        AddText(foldout.parent.Q(k_FoldoutLabelsContainer), null, label.Name, new[] { UssStyle.AssetVersionLabel, UssStyle.AssetVersionLabel_Filled });
+                    }
                 }
 
                 if (data.SequenceNumber > 0)

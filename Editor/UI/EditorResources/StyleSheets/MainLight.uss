@@ -179,16 +179,31 @@ SearchBar {
     border-color: #7E7E7E;
 }
 
+.unity-filters-popup-separator-line {
+    background-color: #7E7E7E;
+}
+
 .unity-filters-chip--set
 {
     background-color: #3A79BB;
+}
+
+.unity-filters-popup-section-label
+{
+    color: #2D2D2D;
+}
+
+.unity-filters-popup-filter-selection-checkbox
+{
+    background-color: #7E7E7E;
+    border-color: #515151;
 }
 
 /************************************************
 * Sort
 ************************************************/
 .unity-sort-order{
-    background-color: #F0F0F0;
+    background-color: #A5A5A5;
 }
 
 .unity-sort-order:hover{
@@ -273,6 +288,10 @@ TagChip:hover, ProjectChip:hover, UserChip:hover {
     background-color: rgba(198, 198, 198, 1);
 }
 
+.upload-metadata-title {
+    background-color: rgba(198, 198, 198, 1);
+}
+
 /************************************************
 * Details Page Container
 ************************************************/
@@ -312,6 +331,11 @@ TagChip:hover, ProjectChip:hover, UserChip:hover {
     background-color: rgba(198, 198, 198, 1);
 }
 
+.details-files-foldout-uvcs-chip-icon
+{
+    -unity-background-image-tint-color: green;
+}
+
 .no-files-warning-box {
     background-color: rgba(198, 198, 198, 1);
  }
@@ -332,13 +356,15 @@ TagChip:hover, ProjectChip:hover, UserChip:hover {
     background-color: #EFEFEF;
 }
 
-.import-to-button {
+.import-to-button,
+.remove-dropdown-button {
     border-color: #B2B2B2;
     border-bottom-color: #939393;
     background-color: #E4E4E4;
 }
 
-.import-to-button:hover {
+.import-to-button:hover,
+.remove-dropdown-button:hover {
     background-color: #EFEFEF;
 }
 
@@ -351,13 +377,13 @@ TagChip:hover, ProjectChip:hover, UserChip:hover {
     background-color: #C6C6C6;
 }
 
-.asset-version-label-latest
+.asset-version-label--filled
 {
     background-color: #EFEFEF;
     border-color: #EFEFEF;
 }
 
-.asset-version-label-imported
+.asset-version-label--imported
 {
     border-color: #EFEFEF;
 }

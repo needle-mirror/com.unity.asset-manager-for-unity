@@ -31,7 +31,7 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        void OnEnable()
+        void CreateGUI()
         {
             if (s_Instance == null)
             {
@@ -61,7 +61,8 @@ namespace Unity.AssetManager.UI.Editor
                 container.Resolve<IPopupManager>(),
                 container.Resolve<IAssetsProvider>(),
                 container.Resolve<IAssetImportResolver>(),
-                container.Resolve<IProgressManager>());
+                container.Resolve<IProgressManager>(),
+                container.Resolve<IMessageManager>());
 
             m_Root.RegisterCallback<GeometryChangedEvent>(OnResized);
             m_Root.OnEnable();
@@ -155,7 +156,7 @@ namespace Unity.AssetManager.UI.Editor
 
             ServicesInitializer.ResetServices();
 
-            OnEnable();
+            CreateGUI();
         }
 
         void Refresh()

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -12,27 +11,16 @@ namespace Unity.Cloud.AssetsEmbedded
     class StringSearchCriteria : SearchCriteria<string>
     {
         [Flags]
+        [Obsolete("Use StringSearchOption instead.")]
         public enum SearchOptions
         {
             None = 0,
             Prefix = 2
         }
 
-        [DataContract]
-        internal struct PartialQuery
-        {
-            [DataMember(Name = "type")]
-            public string Type { get; set; }
-
-            [DataMember(Name = "value")]
-            public string Value { get; set; }
-
-            public bool IsEmpty => string.IsNullOrWhiteSpace(Value);
-        }
-
         internal static readonly char[] k_WildcardChars = new[] {'*', '?'};
 
-        PartialQuery m_IncludedPartial;
+        ISearchValue m_IncludedPartial;
 
         internal StringSearchCriteria(string propertyName, string searchKey)
             : base(propertyName, searchKey) { }
@@ -40,7 +28,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc/>
         internal override void Include(Dictionary<string, object> includedValues, string prefix = "")
         {
-            if (!m_IncludedPartial.IsEmpty)
+            if (m_IncludedPartial != null)
             {
                 includedValues.Add(SearchKey.BuildSearchKey(prefix), m_IncludedPartial);
                 return;
@@ -49,6 +37,7 @@ namespace Unity.Cloud.AssetsEmbedded
             base.Include(includedValues, prefix);
         }
 
+        /// <inheritdoc/>
         public override void Clear()
         {
             base.Clear();
@@ -57,11 +46,13 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        /// <param name="value">The expected value of the field.</param>
         public override void WithValue(string value)
         {
             if (k_WildcardChars.Any(value.Contains))
             {
-                WithValue(value, SearchOptions.None);
+                m_IncludedPartial = SearchStringValue.BuildWildcardQuery(value);
+                m_Included = default;
                 return;
             }
 
@@ -69,58 +60,69 @@ namespace Unity.Cloud.AssetsEmbedded
             m_IncludedPartial = default;
         }
 
+        /// <summary>
+        /// Sets the value of the string search term.
+        /// </summary>
+        /// <param name="value">The string to match. </param>
+        /// <param name="options">The additional options. </param>
+        [Obsolete("Use WithValue(StringPredicate) instead.")]
         public void WithValue(string value, SearchOptions options)
         {
-            m_IncludedPartial = options.HasFlag(SearchOptions.Prefix) ? BuildPrefixQuery(value) : BuildWildcardQuery(value);
+            m_IncludedPartial = BuildSearchValue(value, options.HasFlag(SearchOptions.Prefix) ? StringSearchOption.Prefix : StringSearchOption.Wildcard);
             m_Included = null;
         }
 
+        /// <summary>
+        /// Sets the pattern of the string search term.
+        /// </summary>
+        /// <param name="pattern">The string pattern to match. </param>
         public void WithValue(Regex pattern)
         {
-            m_IncludedPartial = BuildRegexQuery(pattern);
+            m_IncludedPartial = SearchStringValue.BuildRegexQuery(pattern);
             m_Included = null;
         }
 
+        /// <summary>
+        /// Sets the predicate criteria for the string search term.
+        /// </summary>
+        /// <param name="stringPredicate">The string predicate to match.</param>
+        public void WithValue(StringPredicate stringPredicate)
+        {
+            m_IncludedPartial = stringPredicate.GetSearchValue();
+            m_Included = null;
+        }
+
+        /// <summary>
+        /// Sets the fuzzy value of the string search term.
+        /// </summary>
+        /// <param name="value">The approximate string to match. </param>
+        [Obsolete("Use WithValue(StringPredicate) instead.")]
         public void WithFuzzyValue(string value)
         {
-            m_IncludedPartial = BuildFuzzyQuery(value);
+            m_IncludedPartial = SearchStringValue.BuildFuzzyQuery(value);
             m_Included = null;
         }
 
-        internal static PartialQuery BuildPrefixQuery(string value)
+        internal static ISearchValue BuildSearchValue(string value, StringSearchOption option)
         {
-            return new PartialQuery
+            switch (option)
             {
-                Type = "prefix",
-                Value = value,
-            };
-        }
+                case StringSearchOption.Prefix:
+                    return SearchStringValue.BuildPrefixQuery(value);
+                case StringSearchOption.ExactMatch:
+                    return SearchStringValue.BuildExactQuery(value);
+                case StringSearchOption.Fuzzy:
+                    return SearchStringValue.BuildFuzzyQuery(value);
+                case StringSearchOption.Wildcard:
+                    if (!k_WildcardChars.Any(value.Contains))
+                    {
+                        value = $"*{value}*";
+                    }
 
-        internal static PartialQuery BuildWildcardQuery(string value)
-        {
-            return new PartialQuery
-            {
-                Type = "wildcard",
-                Value = value,
-            };
-        }
-
-        internal static PartialQuery BuildRegexQuery(Regex regex)
-        {
-            return new PartialQuery
-            {
-                Type = "regex",
-                Value = regex.ToString(),
-            };
-        }
-
-        internal static PartialQuery BuildFuzzyQuery(string value)
-        {
-            return new PartialQuery
-            {
-                Type = "fuzzy",
-                Value = value
-            };
+                    return SearchStringValue.BuildWildcardQuery(value);
+                default:
+                    return SearchStringValue.BuildExactQuery(value);
+            }
         }
     }
 }

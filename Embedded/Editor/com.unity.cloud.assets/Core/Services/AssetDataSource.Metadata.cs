@@ -70,7 +70,7 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc/>
-        public async Task<IFieldDefinitionData> CreateFieldDefinitionAsync(OrganizationId organizationId, IFieldDefinitionCreateData fieldCreation, CancellationToken cancellationToken)
+        public async Task<FieldDefinitionDescriptor> CreateFieldDefinitionAsync(OrganizationId organizationId, IFieldDefinitionCreateData fieldCreation, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -78,14 +78,7 @@ namespace Unity.Cloud.AssetsEmbedded
             await RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
 
-            return new FieldDefinitionData
-            {
-                Name = fieldCreation.Name,
-                DisplayName = fieldCreation.DisplayName,
-                Type = fieldCreation.Type,
-                AcceptedValues = fieldCreation.AcceptedValues,
-                Multiselection = fieldCreation.Multiselection,
-            };
+            return new FieldDefinitionDescriptor(organizationId, fieldCreation.Name);
         }
 
         /// <inheritdoc/>

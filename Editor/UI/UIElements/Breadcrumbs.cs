@@ -10,7 +10,6 @@ namespace Unity.AssetManager.UI.Editor
         const string k_UssClassName = "unity-breadcrumbs";
         const string k_ItemArrowClassName = k_UssClassName + "-arrow";
         const string k_ItemButtonClassName = k_UssClassName + "-button";
-        const string k_DefaultProjectName = "All Assets";
         internal const string k_ItemHighlightButtonClassName = "highlight";
 
         readonly IPageManager m_PageManager;
@@ -65,7 +64,7 @@ namespace Unity.AssetManager.UI.Editor
             Clear();
 
             // Project breadcrumb
-            AddBreadcrumbItem(m_ProjectOrganizationProvider.SelectedProject?.Name ?? k_DefaultProjectName,
+            AddBreadcrumbItem(m_ProjectOrganizationProvider.SelectedProject?.Name ?? page.DefaultProjectName,
                 () => { m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject); });
 
             // Collection/subcollection breadcrumb

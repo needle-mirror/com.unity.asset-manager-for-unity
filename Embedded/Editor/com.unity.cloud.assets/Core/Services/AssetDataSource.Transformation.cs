@@ -11,7 +11,7 @@ namespace Unity.Cloud.AssetsEmbedded
     partial class AssetDataSource
     {
         /// <inheritdoc/>
-        public async Task<TransformationId> StartTransformationAsync(DatasetDescriptor datasetDescriptor, string workflowType, string[] inputFiles, Dictionary<string, string> parameters, CancellationToken cancellationToken)
+        public async Task<TransformationId> StartTransformationAsync(DatasetDescriptor datasetDescriptor, string workflowType, string[] inputFiles, Dictionary<string, object> parameters, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 

@@ -55,6 +55,7 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void OnActivePageChanged(IPage page)
         {
+            base.OnActivePageChanged(page);
             SetupSortField(page);
         }
 

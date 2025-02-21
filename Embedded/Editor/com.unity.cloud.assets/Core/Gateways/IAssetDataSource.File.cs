@@ -8,7 +8,7 @@ namespace Unity.Cloud.AssetsEmbedded
 {
     partial interface IAssetDataSource
     {
-        Task<IPendingFileData> CreateFileAsync(DatasetDescriptor datasetDescriptor, IFileCreateData fileCreation, CancellationToken cancellationToken);
+        Task<Uri> CreateFileAsync(DatasetDescriptor datasetDescriptor, IFileCreateData fileCreation, CancellationToken cancellationToken);
 
         IAsyncEnumerable<IFileData> ListFilesAsync(DatasetDescriptor datasetDescriptor, Range range, FieldsFilter includedFieldsFilter, CancellationToken cancellationToken);
 

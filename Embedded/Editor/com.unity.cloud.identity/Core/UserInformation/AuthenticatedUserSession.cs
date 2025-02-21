@@ -15,9 +15,6 @@ namespace Unity.Cloud.IdentityEmbedded
     /// </summary>
     internal class AuthenticatedUserSession : IUserInfoProvider, IOrganizationRepository
     {
-
-        static readonly UCLogger s_Logger = LoggerProvider.GetLogger<AuthenticatedUserSession>();
-
         readonly IServiceHostResolver m_ServiceHostResolver;
         readonly IServiceHttpClient m_ServiceHttpClient;
 
@@ -32,19 +29,18 @@ namespace Unity.Cloud.IdentityEmbedded
         /// <summary>
         /// Builds an <see cref="AuthenticatedUserSession"/> class.
         /// </summary>
+        /// <param name="userId">The authenticated user id.</param>
         /// <param name="serviceHttpClient">A <see cref="IServiceHttpClient"/> implementation.</param>
         /// <param name="serviceHostResolver">A <see cref="IServiceHostResolver"/> instance.</param>
         /// <param name="unityUserInfoJsonProvider">An optional <see cref="IUnityUserInfoJsonProvider"/> instance.</param>
         /// <param name="guestProjectJsonProvider">An optional <see cref="IGuestProjectJsonProvider"/> instance.</param>
         /// <param name="organizationJsonProvider">An optional <see cref="IOrganizationJsonProvider"/> instance.</param>
-        public AuthenticatedUserSession(IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver, IUnityUserInfoJsonProvider unityUserInfoJsonProvider = null, IGuestProjectJsonProvider guestProjectJsonProvider = null, IOrganizationJsonProvider organizationJsonProvider = null)
+        public AuthenticatedUserSession(string userId, IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver, IUnityUserInfoJsonProvider unityUserInfoJsonProvider = null, IGuestProjectJsonProvider guestProjectJsonProvider = null, IOrganizationJsonProvider organizationJsonProvider = null)
         {
             m_ServiceHostResolver = serviceHostResolver;
             m_ServiceHttpClient = serviceHttpClient;
-            m_UnityUserInfoJsonProvider = unityUserInfoJsonProvider ?? new UnityUserInfoJsonProvider(m_ServiceHttpClient, m_ServiceHostResolver);
-            m_GuestProjectJsonProvider = guestProjectJsonProvider ??
-                                         new GuestProjectJsonProvider(m_ServiceHttpClient, m_ServiceHostResolver,
-                                             m_UnityUserInfoJsonProvider);
+            m_UnityUserInfoJsonProvider = unityUserInfoJsonProvider ?? new UnityUserInfoJsonProvider(userId, m_ServiceHttpClient, m_ServiceHostResolver);
+            m_GuestProjectJsonProvider = guestProjectJsonProvider ?? new GuestProjectJsonProvider(userId, m_ServiceHttpClient, m_ServiceHostResolver);
             m_OrganizationJsonProvider = organizationJsonProvider;
             m_OrganizationProjectsJsonProvider = new OrganizationProjectsJsonProvider(m_ServiceHttpClient, m_ServiceHostResolver);
             m_GetOrganizationRequestResponseCache = new GetRequestResponseCache<OrganizationJson>(60);
@@ -93,26 +89,7 @@ namespace Unity.Cloud.IdentityEmbedded
             {
                 return new Organization(await m_OrganizationJsonProvider.GetOrganizationJsonAsync(organizationId), m_ServiceHttpClient, m_ServiceHostResolver, m_OrganizationProjectsJsonProvider, m_EntityRoleProvider, m_GuestProjectJsonProvider);
             }
-#if EXPERIMENTAL_WEBGL_PROXY
-            var coreApiRequestPath = $"api/unity/legacy/v1/organizations/{organizationId}";
-            var url = m_ServiceHostResolver.GetResolvedRequestUri("/app-linking/v1alpha1/core");
-            if (m_GetOrganizationRequestResponseCache.TryGetRequestResponseFromCache(coreApiRequestPath, out OrganizationJson value))
-            {
-                return new Organization(value, m_ServiceHttpClient, m_ServiceHostResolver, m_OrganizationProjectsJsonProvider, m_EntityRoleProvider, m_GuestProjectJsonProvider);
-            }
 
-            var coreApiRequest = new CoreApiRequestParams
-            {
-                Path = coreApiRequestPath,
-                Method = "Get",
-            };
-            var content = new StringContent(JsonSerialization.Serialize(coreApiRequest), Encoding.UTF8, "application/json");
-
-            var response = await m_ServiceHttpClient.PostAsync(url, content);
-            var deserializedResponse = await response.JsonDeserializeAsync<OrganizationJson>();
-            var organizationJson = m_GetOrganizationRequestResponseCache.AddGetRequestResponseToCache(coreApiRequestPath, deserializedResponse);
-            return new Organization(organizationJson, m_ServiceHttpClient, m_ServiceHostResolver, m_OrganizationProjectsJsonProvider, m_EntityRoleProvider, m_GuestProjectJsonProvider);
-#else
             var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
             var url = internalServiceHostResolver.GetResolvedRequestUri($"/api/unity/legacy/v1/organizations/{organizationId}");
             if (m_GetOrganizationRequestResponseCache.TryGetRequestResponseFromCache(url, out OrganizationJson value))
@@ -123,7 +100,6 @@ namespace Unity.Cloud.IdentityEmbedded
             var deserializedResponse = await response.JsonDeserializeAsync<OrganizationJson>();
             var organizationJson = m_GetOrganizationRequestResponseCache.AddGetRequestResponseToCache(url, deserializedResponse);
             return new Organization(organizationJson, m_ServiceHttpClient, m_ServiceHostResolver, m_OrganizationProjectsJsonProvider, m_EntityRoleProvider, m_GuestProjectJsonProvider);
-#endif
         }
 
         async IAsyncEnumerable<IProject> GetGuestProjectsAsync(Range range,

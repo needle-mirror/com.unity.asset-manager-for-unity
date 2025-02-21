@@ -12,34 +12,34 @@ namespace Unity.Cloud.AssetsEmbedded
     class FileEntity : IFile
     {
         readonly IAssetDataSource m_DataSource;
-        internal DatasetDescriptor[] m_LinkedDatasets = Array.Empty<DatasetDescriptor>();
-
-        internal FileEntity(IAssetDataSource dataSource, FileDescriptor descriptor)
-        {
-            m_DataSource = dataSource;
-            Descriptor = descriptor;
-
-            MetadataEntity = new MetadataContainerEntity(new FileMetadataDataSource(Descriptor, m_DataSource, MetadataDataSourceSpecification.metadata));
-            SystemMetadataEntity = new ReadOnlyMetadataContainerEntity(new FileMetadataDataSource(Descriptor, m_DataSource, MetadataDataSourceSpecification.systemMetadata));
-        }
+        readonly CacheConfigurationWrapper m_CacheConfiguration;
 
         /// <inheritdoc />
         public FileDescriptor Descriptor { get; }
 
         /// <inheritdoc />
-        public string Description { get; set; }
+        public string Description => Properties.Description;
 
         /// <inheritdoc />
-        public string Status { get; set; }
+        public string Status => Properties.StatusName;
 
         /// <inheritdoc />
-        public AuthoringInfo AuthoringInfo { get; set; }
+        public AuthoringInfo AuthoringInfo => Properties.AuthoringInfo;
 
         /// <inheritdoc />
-        public IEnumerable<string> Tags { get; set; }
+        public IEnumerable<string> Tags => Properties.Tags;
 
         /// <inheritdoc />
-        public IEnumerable<string> SystemTags { get; set; }
+        public IEnumerable<string> SystemTags => Properties.SystemTags;
+
+        /// <inheritdoc />
+        public IEnumerable<DatasetDescriptor> LinkedDatasets => Properties.LinkedDatasets;
+
+        /// <inheritdoc />
+        public long SizeBytes => Properties.SizeBytes;
+
+        /// <inheritdoc />
+        public string UserChecksum => Properties.UserChecksum;
 
         /// <inheritdoc />
         public IMetadataContainer Metadata => MetadataEntity;
@@ -48,162 +48,145 @@ namespace Unity.Cloud.AssetsEmbedded
         public IReadOnlyMetadataContainer SystemMetadata => SystemMetadataEntity;
 
         /// <inheritdoc />
-        public IEnumerable<DatasetDescriptor> LinkedDatasets => m_LinkedDatasets;
+        public FileCacheConfiguration CacheConfiguration => m_CacheConfiguration.FileConfiguration;
 
-        /// <inheritdoc />
-        public long SizeBytes { get; set; }
+        AssetRepositoryCacheConfiguration DefaultCacheConfiguration => m_CacheConfiguration.DefaultConfiguration;
 
-        public string UserChecksum { get; set; }
-
+        internal FileProperties Properties { get; set; }
         internal Uri PreviewUrl { get; set; }
-
-        internal Uri UploadUrl { get; set; }
-
         internal Uri DownloadUrl { get; set; }
-
-        internal bool IsDownloadable { get; set; } = true;
-
         internal MetadataContainerEntity MetadataEntity { get; }
         internal ReadOnlyMetadataContainerEntity SystemMetadataEntity { get; }
 
-        AssetDescriptor AssetDescriptor => Descriptor.DatasetDescriptor.AssetDescriptor;
+        internal FileEntity(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, FileDescriptor descriptor, FileCacheConfiguration? cacheConfigurationOverride = null)
+        {
+            m_DataSource = dataSource;
+            Descriptor = descriptor;
+
+            m_CacheConfiguration = new CacheConfigurationWrapper(defaultCacheConfiguration);
+            m_CacheConfiguration.SetFileConfiguration(cacheConfigurationOverride);
+
+            MetadataEntity = new MetadataContainerEntity(new FileMetadataDataSource(Descriptor, m_DataSource, MetadataDataSourceSpecification.metadata));
+            SystemMetadataEntity = new ReadOnlyMetadataContainerEntity(new FileMetadataDataSource(Descriptor, m_DataSource, MetadataDataSourceSpecification.systemMetadata));
+        }
+
+        /// <inheritdoc />
+        public Task<IFile> WithCacheConfigurationAsync(FileCacheConfiguration fileConfiguration, CancellationToken cancellationToken)
+        {
+            return GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, Descriptor, fileConfiguration, cancellationToken);
+        }
 
         /// <inheritdoc />
         public IFile WithDataset(DatasetDescriptor datasetDescriptor)
         {
             if (datasetDescriptor == Descriptor.DatasetDescriptor) return this;
 
-            if (!m_LinkedDatasets.Contains(datasetDescriptor))
+            if (CacheConfiguration.CacheProperties && Properties.LinkedDatasets.All(d => d.DatasetId != datasetDescriptor.DatasetId))
+            {
                 throw new InvalidArgumentException("The file does not belong to the specified dataset.");
+            }
 
             var descriptor = new FileDescriptor(datasetDescriptor, Descriptor.Path);
-            return new FileEntity(m_DataSource, descriptor)
+            return new FileEntity(m_DataSource, DefaultCacheConfiguration, descriptor, CacheConfiguration)
             {
-                m_LinkedDatasets = m_LinkedDatasets,
-                Description = Description,
-                Status = Status,
-                AuthoringInfo = AuthoringInfo,
-                Tags = Tags?.ToArray(),
-                SystemTags = SystemTags?.ToArray(),
+                Properties = Properties,
+                PreviewUrl = PreviewUrl,
+                DownloadUrl = DownloadUrl,
                 MetadataEntity = {Properties = MetadataEntity.Properties},
                 SystemMetadataEntity = {Properties = SystemMetadataEntity.Properties},
-                SizeBytes = SizeBytes,
-                UserChecksum = UserChecksum,
-                PreviewUrl = PreviewUrl,
-                UploadUrl = UploadUrl,
-                DownloadUrl = DownloadUrl,
-                IsDownloadable = IsDownloadable
             };
         }
 
         /// <inheritdoc />
-        public Task RefreshAsync(CancellationToken cancellationToken)
+        public Task<IFile> WithDatasetAsync(DatasetDescriptor datasetDescriptor, CancellationToken cancellationToken)
         {
-            PreviewUrl = null;
-            DownloadUrl = null;
-            UploadUrl = null;
-            MetadataEntity.Refresh();
-            SystemMetadataEntity.Refresh();
-
-            return RefreshAsync(FieldsFilter.DefaultFileIncludes, cancellationToken);
+            var fileDescriptor = new FileDescriptor(datasetDescriptor, Descriptor.Path);
+            return GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, fileDescriptor, CacheConfiguration, cancellationToken);
         }
 
-        async Task RefreshAsync(FieldsFilter fieldsFilter, CancellationToken cancellationToken)
+        /// <inheritdoc />
+        public async Task<FileProperties> GetPropertiesAsync(CancellationToken cancellationToken)
         {
-            var fileData = await m_DataSource.GetFileAsync(Descriptor, fieldsFilter, cancellationToken);
-            this.MapFrom(m_DataSource, Descriptor.DatasetDescriptor.AssetDescriptor, fileData, fieldsFilter.FileFields);
+            if (CacheConfiguration.CacheProperties)
+            {
+                return Properties;
+            }
+
+            var fieldsFilter = FieldsFilter.DefaultFileIncludes;
+            var data = await m_DataSource.GetFileAsync(Descriptor, fieldsFilter, cancellationToken);
+            return data.From(Descriptor, fieldsFilter.FileFields);
+        }
+
+        /// <inheritdoc />
+        public async Task RefreshAsync(CancellationToken cancellationToken)
+        {
+            if (CacheConfiguration.HasCachingRequirements)
+            {
+                var fieldsFilter = m_CacheConfiguration.GetFileFieldsFilter();
+                var data = await m_DataSource.GetFileAsync(Descriptor, fieldsFilter, cancellationToken);
+                this.MapFrom(m_DataSource, data, fieldsFilter.FileFields);
+            }
         }
 
         /// <inheritdoc />
         public async IAsyncEnumerable<IDataset> GetLinkedDatasetsAsync(Range range, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var (start, length) = range.GetValidatedOffsetAndLength(m_LinkedDatasets.Length);
+            var properties = await GetPropertiesAsync(cancellationToken);
+
+            var linkedDataset = properties.LinkedDatasets.ToArray();
+
+            var (start, length) = range.GetValidatedOffsetAndLength(linkedDataset.Length);
+
             for (var i = start; i < start + length; i++)
             {
-                var dataset = await m_DataSource.GetDatasetAsync(m_LinkedDatasets[i], FieldsFilter.DefaultDatasetIncludes, cancellationToken);
-                yield return dataset.From(m_DataSource, AssetDescriptor, FieldsFilter.DefaultDatasetIncludes.DatasetFields);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                yield return await DatasetEntity.GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, linkedDataset[i], null, cancellationToken);
             }
         }
 
         /// <inherticdoc />
         public async Task<Uri> GetPreviewUrlAsync(CancellationToken cancellationToken)
         {
-            if (PreviewUrl == null)
+            if (CacheConfiguration.CachePreviewUrl)
             {
-                var filter = new FieldsFilter {FileFields = FileFields.previewURL};
-                var fileData = await m_DataSource.GetFileAsync(Descriptor, filter, cancellationToken);
-                this.MapFrom(m_DataSource, Descriptor.DatasetDescriptor.AssetDescriptor, fileData, filter.FileFields);
+                return PreviewUrl;
             }
 
+            var filter = new FieldsFilter {FileFields = FileFields.previewURL};
+            var data = await m_DataSource.GetFileAsync(Descriptor, filter, cancellationToken);
+            this.MapFrom(m_DataSource, data, filter.FileFields);
             return PreviewUrl;
         }
 
         /// <inheritdoc />
         public async Task<Uri> GetDownloadUrlAsync(CancellationToken cancellationToken)
         {
-            if (!IsDownloadable) return null;
-
-            if (DownloadUrl == null)
+            if (CacheConfiguration.CacheDownloadUrl)
             {
-                try
-                {
-                    DownloadUrl = await m_DataSource.GetFileDownloadUrlAsync(Descriptor, null, cancellationToken);
-                }
-                catch (NotFoundException)
-                {
-                    IsDownloadable = false;
-                    return null;
-                }
+                return DownloadUrl;
             }
 
-            return DownloadUrl;
+            return await m_DataSource.GetFileDownloadUrlAsync(Descriptor, null, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task DownloadAsync(Stream targetStream, IProgress<HttpProgress> progress, CancellationToken cancellationToken)
         {
-            if (!IsDownloadable) return;
+            var downloadUrl = await GetDownloadUrlAsync(cancellationToken);
 
-            await GetDownloadUrlAsync(cancellationToken);
+            if (downloadUrl == null)
+            {
+                return;
+            }
 
-            try
-            {
-                await m_DataSource.DownloadContentAsync(DownloadUrl, targetStream, progress, cancellationToken);
-            }
-            catch (NotFoundException)
-            {
-                // If the download fails, try to get a new download url and try again.
-                DownloadUrl = null;
-                await GetDownloadUrlAsync(cancellationToken);
-                await m_DataSource.DownloadContentAsync(DownloadUrl, targetStream, progress, cancellationToken);
-            }
-            finally
-            {
-                DownloadUrl = null; // Discard the url as it can only be used once.
-            }
+            await m_DataSource.DownloadContentAsync(downloadUrl, targetStream, progress, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<Uri> GetResizedImageDownloadUrlAsync(int maxDimension, CancellationToken cancellationToken)
         {
             return m_DataSource.GetFileDownloadUrlAsync(Descriptor, maxDimension, cancellationToken);
-        }
-
-        /// Not exposed in the interface
-        public async Task<Uri> GetUploadUrlAsync(CancellationToken cancellationToken)
-        {
-            if (UploadUrl == null)
-            {
-                var data = new FileData
-                {
-                    Path = Descriptor.Path,
-                    UserChecksum = UserChecksum,
-                    SizeBytes = SizeBytes
-                };
-                UploadUrl = await m_DataSource.GetFileUploadUrlAsync(Descriptor, data, cancellationToken);
-            }
-
-            return UploadUrl;
         }
 
         /// <inheritdoc />
@@ -225,7 +208,7 @@ namespace Unity.Cloud.AssetsEmbedded
             cancellationToken.ThrowIfCancellationRequested();
 
             var datasets = new List<IDataset>();
-            var datasetList = GetLinkedDatasetsAsync(Range.All, cancellationToken);
+            var datasetList = GetLinkedDatasetsAsync(cancellationToken);
 
             // Remove file from all datasets
             await foreach (var dataset in datasetList)
@@ -244,7 +227,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 Metadata = metadata
             };
 
-            var newFile = await datasets[0].UploadFileAsync(fileCreation, sourceStream, progress, cancellationToken);
+            var newFileDescriptor = await datasets[0].UploadFileLiteAsync(fileCreation, sourceStream, progress, cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -252,11 +235,26 @@ namespace Unity.Cloud.AssetsEmbedded
             var tasks = new List<Task>();
             for (var i = 1; i < datasets.Count; ++i)
             {
-                var task = datasets[i].AddExistingFileAsync(newFile.Descriptor.Path, newFile.Descriptor.DatasetId, cancellationToken);
+                var task = datasets[i].AddExistingFileAsync(newFileDescriptor.Path, newFileDescriptor.DatasetId, cancellationToken);
                 tasks.Add(task);
             }
 
             await Task.WhenAll(tasks);
+        }
+
+        /// <summary>
+        /// Returns the entire list of linked datasets configured with no caching.
+        /// </summary>
+        async IAsyncEnumerable<IDataset> GetLinkedDatasetsAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var properties = await GetPropertiesAsync(cancellationToken);
+
+            foreach (var linkedDataset in properties.LinkedDatasets)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                yield return await DatasetEntity.GetConfiguredAsync(m_DataSource, AssetRepositoryCacheConfiguration.NoCaching, linkedDataset, null, cancellationToken);
+            }
         }
 
         /// <inheritdoc />
@@ -264,6 +262,21 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             var tags = await m_DataSource.GenerateFileTagsAsync(Descriptor, cancellationToken);
             return tags.Select(x => new GeneratedTag(x.Tag, x.Confidence));
+        }
+
+        /// <summary>
+        /// Returns a file configured with the specified cache configuration.
+        /// </summary>
+        internal static async Task<IFile> GetConfiguredAsync(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, FileDescriptor descriptor, FileCacheConfiguration? configuration, CancellationToken cancellationToken)
+        {
+            var file = new FileEntity(dataSource, defaultCacheConfiguration, descriptor, configuration);
+
+            if (file.CacheConfiguration.HasCachingRequirements)
+            {
+                await file.RefreshAsync(cancellationToken);
+            }
+
+            return file;
         }
     }
 }

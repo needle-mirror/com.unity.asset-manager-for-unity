@@ -9,7 +9,7 @@ namespace Unity.Cloud.AssetsEmbedded
     [DataContract]
     class SearchAndAggregateRequestParameters
     {
-        public SearchAndAggregateRequestParameters(string aggregateBy)
+        public SearchAndAggregateRequestParameters(object aggregateBy)
         {
             AggregateBy = aggregateBy;
         }
@@ -24,7 +24,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// The field that can be used in the aggregation.
         /// </summary>
         [DataMember(Name = "aggregateBy", EmitDefaultValue = false)]
-        public string AggregateBy { get; }
+        public object AggregateBy { get; }
 
         /// <summary>
         /// The maximum number of items to be returned.

@@ -139,18 +139,17 @@ namespace Unity.AssetManager.Upload.Editor
                         var operation = uploadEntryToOperationLookup[entry.Key];
                         return UploadAssetAsync(entry.Value, operation, token);
                     }, k_MaxConcurrentTasks);
-
-                // Track upload asset as imported
-                await TaskUtils.RunWithMaxConcurrentTasksAsync(uploadEntryToAssetUploadInfoLookup, token,
-                    (entry) => TrackAsset(entry.Key, entry.Value.TargetAssetData, token)
-                    , k_MaxConcurrentTasks);
             }
             catch (OperationCanceledException)
             {
                 uploadEndedStatus = UploadEndedStatus.Cancelled;
+
                 foreach (var (_, operation) in uploadEntryToOperationLookup)
                 {
-                    operation.Finish(OperationStatus.Cancelled);
+                    if (operation.Status is not (OperationStatus.Success or OperationStatus.Error))
+                    {
+                        operation.Finish(OperationStatus.Cancelled);
+                    }
                 }
             }
             catch (Exception)
@@ -192,7 +191,7 @@ namespace Unity.AssetManager.Upload.Editor
                     // Make sure additional data is populated.
                     var tasks = new List<Task>
                     {
-                        assetData.ResolvePrimaryExtensionAsync(null, token),
+                        assetData.ResolveDatasetsAsync(token),
                         assetData.RefreshDependenciesAsync(token),
                     };
                     await Task.WhenAll(tasks);
@@ -296,24 +295,35 @@ namespace Unity.AssetManager.Upload.Editor
                 await operation.UploadAsync(assetUploadInfo.TargetAssetData, token);
                 operation.Finish(OperationStatus.Success);
                 AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.Ok));
+
+                await TrackAsset(assetUploadInfo.UploadAsset, assetUploadInfo.TargetAssetData, CancellationToken.None);
             }
             catch (OperationCanceledException)
             {
+                await RemoveAttemptedUploadAssetAsync(assetUploadInfo);
                 throw;
             }
             catch (Exception e)
             {
                 Debug.LogException(e);
 
-                // On upload failure, unlink any non recycled asset
-                if (!assetUploadInfo.TargetAssetDataWasRecycled)
-                {
-                    await m_AssetsProvider.RemoveAsset(assetUploadInfo.TargetAssetData.Identifier, token);
-                }
+                await RemoveAttemptedUploadAssetAsync(assetUploadInfo);
 
                 operation.Finish(OperationStatus.Error);
                 AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.UploadError, e.Message));
                 throw;
+            }
+        }
+
+        async Task RemoveAttemptedUploadAssetAsync(AssetUploadInfo uploadInfo)
+        {
+            if (uploadInfo.TargetAssetDataWasRecycled)
+            {
+                // TODO: SDK should provide a way to delete an asset version soon
+            }
+            else
+            {
+                await m_AssetsProvider.RemoveAsset(uploadInfo.TargetAssetData.Identifier, CancellationToken.None);
             }
         }
 
@@ -341,7 +351,8 @@ namespace Unity.AssetManager.Upload.Editor
                 Name = uploadAsset.Name,
                 Collections = string.IsNullOrEmpty(targetCollection) ? null : new List<string> { new(targetCollection) },
                 Type = uploadAsset.AssetType,
-                Tags = uploadAsset.Tags.ToList()
+                Tags = uploadAsset.Tags.ToList(),
+                Metadata = uploadAsset.Metadata.ToList()
             };
 
             return await m_AssetsProvider.CreateAssetAsync(uploadAsset.TargetProject, assetCreation, token);
@@ -358,7 +369,8 @@ namespace Unity.AssetManager.Upload.Editor
             {
                 Name = uploadAsset.Name,
                 Type = uploadAsset.AssetType,
-                Tags = uploadAsset.Tags.ToList()
+                Tags = uploadAsset.Tags.ToList(),
+                Metadata = uploadAsset.Metadata.ToList(),
             };
 
             var tasks = new List<Task>

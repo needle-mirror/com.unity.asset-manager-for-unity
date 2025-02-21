@@ -80,6 +80,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
         readonly IOrganizationRepository m_OrganizationRepository;
         readonly IUserInfoProvider m_UserInfoProvider;
+        readonly IJwtDecoder m_JwtDecoder;
 
         /// <summary>
         /// Provides a <see cref="PkceAuthenticator"/> that accepts a <see cref="PkceAuthenticatorSettings"/> to handle Proof Key Code Exchange (PKCE) authentication contexts.
@@ -90,16 +91,12 @@ namespace Unity.Cloud.IdentityEmbedded
         public PkceAuthenticator(PkceAuthenticatorSettings pkceAuthenticatorSettings, IOrganizationRepository organizationRepository = null, IUserInfoProvider userInfoProvider = null)
         {
             m_PkceAuthenticatorSettings = pkceAuthenticatorSettings;
+            m_JwtDecoder = pkceAuthenticatorSettings.JwtDecoder;
             m_AuthenticationPlatformSupport = pkceAuthenticatorSettings.AuthenticationPlatformSupport;
             m_PkceConfigurationProvider = pkceAuthenticatorSettings.PkceConfigurationProvider;
             m_PkceRequestHandler = pkceAuthenticatorSettings.PkceRequestHandler;
             m_UnityServicesTokenExchanger = pkceAuthenticatorSettings.AccessTokenExchanger;
             m_AppNamespaceProvider = pkceAuthenticatorSettings.AppNamespaceProvider;
-
-            m_AuthenticatedUserSession = new AuthenticatedUserSession(
-                new ServiceHttpClient(pkceAuthenticatorSettings.HttpClient, this,
-                    pkceAuthenticatorSettings.AppIdProvider), pkceAuthenticatorSettings.ServiceHostResolver);
-
             m_OrganizationRepository = organizationRepository;
             m_UserInfoProvider = userInfoProvider;
 
@@ -517,11 +514,13 @@ namespace Unity.Cloud.IdentityEmbedded
             if (pkceConfiguration.CacheRefreshToken && m_AuthenticationPlatformSupport.SecretCacheStore != null)
                 await m_AuthenticationPlatformSupport.SecretCacheStore?.WriteToCacheAsync(m_DeviceTokenFileName, deviceToken.RefreshToken);
 
-            m_AuthenticatedUserSession = new AuthenticatedUserSession(
+            m_UnityServicesToken = await m_UnityServicesTokenExchanger.ExchangeAsync(deviceToken.AccessToken);
+
+            var userId = m_JwtDecoder.Decode(m_UnityServicesToken.AccessToken).sub;
+
+            m_AuthenticatedUserSession = new AuthenticatedUserSession(userId,
                 new ServiceHttpClient(m_PkceAuthenticatorSettings.HttpClient, this,
                     m_PkceAuthenticatorSettings.AppIdProvider), m_PkceAuthenticatorSettings.ServiceHostResolver);
-
-            m_UnityServicesToken = await m_UnityServicesTokenExchanger.ExchangeAsync(deviceToken.AccessToken);
 
             m_AccessTokenRefresher = new LazyPkceAccessTokenRefresher(deviceToken, m_PkceRequestHandler, pkceConfiguration);
 

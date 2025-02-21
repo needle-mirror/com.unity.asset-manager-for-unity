@@ -8,34 +8,55 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         internal static void MapFrom(this FieldDefinitionEntity entity, IFieldDefinitionData data)
         {
-            entity.Type = data.Type;
-            entity.IsDeleted = data.Status == "Deleted";
-            entity.DisplayName = data.DisplayName;
-            entity.AuthoringInfo = new AuthoringInfo(data.CreatedBy, data.Created, data.UpdatedBy, data.Updated);
-            entity.Origin = new FieldDefinitionOrigin(data.Origin);
-
-            if (entity is SelectionFieldDefinitionEntity selectionFieldDefinition)
-            {
-                selectionFieldDefinition.AcceptedValues = data.AcceptedValues?.ToArray() ?? Array.Empty<string>();
-                selectionFieldDefinition.Multiselection = data.Multiselection ?? false;
-            }
+            if (entity.CacheConfiguration.CacheProperties)
+                entity.Properties = data.From();
         }
 
-        internal static FieldDefinitionEntity From(this IFieldDefinitionData data, IAssetDataSource assetDataSource, FieldDefinitionDescriptor fieldDefinitionDescriptor)
+        internal static FieldDefinitionProperties From(this IFieldDefinitionData data)
+        {
+            return new FieldDefinitionProperties
+            {
+                Type = data.Type,
+                IsDeleted = data.Status == "Deleted",
+                DisplayName = data.DisplayName,
+                AuthoringInfo = new AuthoringInfo(data.CreatedBy, data.Created, data.UpdatedBy, data.Updated),
+                Origin = new FieldDefinitionOrigin(data.Origin),
+                AcceptedValues = data.AcceptedValues?.ToArray() ?? Array.Empty<string>(),
+                Multiselection = data.Multiselection ?? false
+            };
+        }
+
+        internal static SelectionFieldDefinitionProperties From(this FieldDefinitionProperties properties)
+        {
+            return new SelectionFieldDefinitionProperties
+            {
+                IsDeleted = properties.IsDeleted,
+                DisplayName = properties.DisplayName,
+                AuthoringInfo = properties.AuthoringInfo,
+                Origin = properties.Origin,
+                AcceptedValues = properties.AcceptedValues,
+                Multiselection = properties.Multiselection
+            };
+        }
+
+        internal static IFieldDefinition From(this IFieldDefinitionData data, IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            FieldDefinitionDescriptor fieldDefinitionDescriptor, FieldDefinitionCacheConfiguration? localConfiguration = null)
         {
             var entity = data.Type switch
             {
-                FieldDefinitionType.Selection => new SelectionFieldDefinitionEntity(assetDataSource, fieldDefinitionDescriptor),
-                _ => new FieldDefinitionEntity(assetDataSource, fieldDefinitionDescriptor)
+                FieldDefinitionType.Selection => new SelectionFieldDefinitionEntity(assetDataSource, defaultCacheConfiguration, fieldDefinitionDescriptor, localConfiguration),
+                _ => new FieldDefinitionEntity(assetDataSource, defaultCacheConfiguration, fieldDefinitionDescriptor, localConfiguration)
             };
 
             entity.MapFrom(data);
+
             return entity;
         }
 
-        internal static FieldDefinitionEntity From(this IFieldDefinitionData data, IAssetDataSource assetDataSource, OrganizationId organizationId)
+        internal static IFieldDefinition From(this IFieldDefinitionData data, IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            OrganizationId organizationId, FieldDefinitionCacheConfiguration? localConfiguration = null)
         {
-            return data.From(assetDataSource, new FieldDefinitionDescriptor(organizationId, data.Name));
+            return data.From(assetDataSource, defaultCacheConfiguration, new FieldDefinitionDescriptor(organizationId, data.Name), localConfiguration);
         }
 
         internal static IFieldDefinitionBaseData From(this IFieldDefinitionUpdate update)

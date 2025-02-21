@@ -10,27 +10,33 @@ namespace Unity.Cloud.AssetsEmbedded
 
         internal static async Task<(int Offset, int Length)> GetOffsetAndLengthAsync(this Range range, GetTotalCount getTotalCount, CancellationToken cancellationToken)
         {
-            (int Offset, int Length) values = (0, int.MaxValue);
+            int offset;
+            int length;
 
             if (range.Start.IsFromEnd || (range.End.IsFromEnd && range.End.Value != 0))
             {
                 var count = await getTotalCount(cancellationToken);
 
-                values.Offset = CheckIndex(range.Start, count);
-                var endIndex =  CheckIndex(range.End, count);
+                offset = CheckIndex(range.Start, count);
+                var endIndex = CheckIndex(range.End, count);
 
-                values.Length = Math.Max(0, endIndex - values.Offset);
+                length = Math.Max(0, endIndex - offset);
             }
             else
             {
-                values.Offset = range.Start.Value;
-                if (!range.End.Equals(Index.End))
+                offset = range.Start.Value;
+
+                if (range.End.Equals(Index.End))
                 {
-                    values.Length = Math.Max(0, range.End.Value - range.Start.Value);
+                    length = int.MaxValue - range.Start.Value;
+                }
+                else
+                {
+                    length = Math.Max(0, range.End.Value - range.Start.Value);
                 }
             }
 
-            return values;
+            return (offset, length);
         }
 
         static int CheckIndex(Index index, int totalLength)

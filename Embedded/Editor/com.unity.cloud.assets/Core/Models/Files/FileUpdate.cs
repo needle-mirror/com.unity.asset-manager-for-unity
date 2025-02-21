@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -12,6 +13,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
         public FileUpdate() { }
 
+        [Obsolete("Use the default constructor instead.")]
         public FileUpdate(IFile file)
         {
             Description = file.Description;

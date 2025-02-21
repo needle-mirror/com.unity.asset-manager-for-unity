@@ -1,8 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
+    /// <summary>
+    /// Produce four 2d images from the X, Y, Z, and Isometric-front-left directions for previewing purposes.
+    /// </summary>
     sealed class ThumbnailGeneratorTransformation : ITransformationCreation
     {
         /// <summary>

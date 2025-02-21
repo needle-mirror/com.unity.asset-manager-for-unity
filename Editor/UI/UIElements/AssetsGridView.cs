@@ -43,7 +43,8 @@ namespace Unity.AssetManager.UI.Editor
             ILinksProxy linksProxy,
             IUploadManager uploadManager,
             IAssetImporter assetImporter,
-            IAssetsProvider assetsProvider)
+            IAssetsProvider assetsProvider,
+            IMessageManager messageManager)
         {
             m_UnityConnect = unityConnect;
             m_PageManager = pageManager;
@@ -57,7 +58,8 @@ namespace Unity.AssetManager.UI.Editor
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
             Add(m_Gridview);
 
-            m_GridMessageView = new GridMessageView(pageManager, projectOrganizationProvider, linksProxy);
+            m_GridMessageView = new GridMessageView(pageManager, projectOrganizationProvider, linksProxy,
+                messageManager);
             Add(m_GridMessageView);
 
             style.height = Length.Percent(100);
@@ -81,7 +83,6 @@ namespace Unity.AssetManager.UI.Editor
             m_Gridview.BackgroundClicked += OnGridViewBackgroundClicked;
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.LoadingStatusChanged += OnLoadingStatusChanged;
-            m_PageManager.MessageThrown += OnMessageThrown;
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
 
             Refresh();
@@ -106,7 +107,6 @@ namespace Unity.AssetManager.UI.Editor
 
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_PageManager.LoadingStatusChanged -= OnLoadingStatusChanged;
-            m_PageManager.MessageThrown -= OnMessageThrown;
             m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
         }
 
@@ -117,8 +117,12 @@ namespace Unity.AssetManager.UI.Editor
             if (assets.Any())
             {
                 var asset = m_AssetDataManager.GetAssetData(assets.First());
-                m_SelectedAssetIdentifier = asset.Identifier;
-                EditorApplication.delayCall += DelayedScrollToSelectedAsset;
+
+                if (asset != null)
+                {
+                    m_SelectedAssetIdentifier = asset.Identifier;
+                    EditorApplication.delayCall += DelayedScrollToSelectedAsset;
+                }
             }
         }
 
@@ -337,14 +341,6 @@ namespace Unity.AssetManager.UI.Editor
         {
             var page = m_PageManager.ActivePage;
             page.LoadMore();
-        }
-
-        void OnMessageThrown(IPage page, MessageData _)
-        {
-            if (!m_PageManager.IsActivePage(page))
-                return;
-
-            Refresh();
         }
 
         void OnOrganizationChanged(OrganizationInfo organization)

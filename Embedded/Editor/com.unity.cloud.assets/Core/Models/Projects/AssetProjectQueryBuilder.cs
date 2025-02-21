@@ -12,14 +12,28 @@ namespace Unity.Cloud.AssetsEmbedded
     class AssetProjectQueryBuilder
     {
         readonly IAssetDataSource m_AssetDataSource;
+        readonly AssetRepositoryCacheConfiguration m_DefaultCacheConfiguration;
         readonly OrganizationId m_OrganizationId;
 
+        AssetProjectCacheConfiguration? m_AssetProjectCacheConfiguration;
         Range m_Range = Range.All;
 
-        internal AssetProjectQueryBuilder(IAssetDataSource assetDataSource, OrganizationId organizationId)
+        internal AssetProjectQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, OrganizationId organizationId)
         {
             m_AssetDataSource = assetDataSource;
+            m_DefaultCacheConfiguration = defaultCacheConfiguration;
             m_OrganizationId = organizationId;
+        }
+
+        /// <summary>
+        /// Sets an override to the default cache configuration for the query.
+        /// </summary>
+        /// <param name="assetProjectCacheConfiguration">The configuration to apply when populating the projects. </param>
+        /// <returns>The calling <see cref="AssetProjectQueryBuilder"/>. </returns>
+        public AssetProjectQueryBuilder WithCacheConfiguration(AssetProjectCacheConfiguration assetProjectCacheConfiguration)
+        {
+            m_AssetProjectCacheConfiguration = assetProjectCacheConfiguration;
+            return this;
         }
 
         /// <summary>
@@ -49,7 +63,7 @@ namespace Unity.Cloud.AssetsEmbedded
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                yield return project.From(m_AssetDataSource, m_OrganizationId);
+                yield return project.From(m_AssetDataSource, m_DefaultCacheConfiguration, m_OrganizationId, m_AssetProjectCacheConfiguration);
             }
         }
     }

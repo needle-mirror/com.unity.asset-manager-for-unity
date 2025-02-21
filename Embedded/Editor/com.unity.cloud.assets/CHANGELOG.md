@@ -5,6 +5,87 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2025-02-03
+
+### Changed
+- Updated samples.
+
+### Fixed
+- Addressed issue where service error is thrown for some search ranges.
+
+## [1.6.0-exp.2] - 2025-01-21
+
+### Added
+- Added property structs and `GetPropertiesAsync(CancellationToken)` method to `IFieldDefinition`, `ILabel`, `IAssetProject`, `IAssetCollection`, `IAsset`, `IDataset`, `ITransformation`, and `IFile`.
+- Added cache configuration structs, `CacheConfiguration` property, and `WithCacheConfigurationAsync` method to `IFieldDefinition`, `ILabel`, `IAssetProject`, `IAssetCollection`, `IAsset`, `IDataset`, `ITransformation`, and `IFile`.
+- Added struct `AssetRepositoryCacheConfiguration` and property `IAssetRepository.CacheConfiguration`.
+- Added `GroupAndCountAssetsQueryBuilder.ExecuteAsync(Groupable, CancellationToken)` and `GroupAndCountAssetsQueryBuilder.ExecuteAsync(IEnumerable<Groupable>, CancellationToken)`.
+- Added `SystemMetadata` search criteria to `AssetSearchCriteria`, `DatasetSearchCriteria`, and `FileSearchCriteria`.
+- Added `FileSearchCriteria.Size` which supports `NumericRangePredicate`.
+- Added `NumericRange` to build numeric range predicates.
+- Added `WithTextValue(string, StringPredicate)`, `WithNumberValue(string, NumericRangePredicate)`, and `WithTimestampValue(string, DateTime, bool, DateTime, bool)` to `MetadataSearchCriteria`.
+- Added `WithValue(string, StringPredicate)` to `StringSearchCriteria`.
+
+### Changed
+- Updated internal api.
+- Revert rate limitation to normal for endpoints related to file uploading to prevent error when bulk uploading file to the same asset.
+- Added additional fields in `GroupableField`.
+
+### Deprecated
+- Deprecated properties in `IFieldDefinition`; use properties in `FieldDefinitionProperties` instead.
+- Deprecated properties in `ILabel`; use properties in `LabelProperties` instead.
+- Deprecated properties in `IAssetProject`; use properties in `AssetProjectProperties` instead.
+- Deprecated properties in `IAssetCollection`; use properties in `AssetCollectionProperties` instead.
+- Deprecated properties in `IAsset`; use properties in `AssetProperties` instead.
+- Deprecated properties in `IDataset`; use properties in `DatasetProperties` instead.
+- Deprecated properties in `ITransformation`; use properties in `TransformationProperties` instead.
+- Deprecated properties in `IFile`; use properties in `FileProperties` instead.
+- Deprecated `IAsset.GetLinkedProjectsAsync`; use `AssetProperties.LinkedProjects` in conjunction with `IAssetRepository.GetAssetProjectAsync` instead.
+- Deprecated `IFile.GetLinkedDatasetsAsync`; use `FileProperties.LinkedDatasets` in conjunction with `IAssetRepository.GetDatasetAsync` instead.
+- Deprecated `GroupAndCountAssetsQueryBuilder.ExecuteAsync(GroupableField)`; use `GroupAndCountAssetsQueryBuilder.ExecuteAsync(Groupable)` instead.
+- Deprecated `GroupAndCountAssetsQueryBuilder.GroupByCollectionAndExecuteAsync`; use `GroupAndCountAssetsQueryBuilder.ExecuteAsync(Groupable)` instead.
+- Deprecated `IAsset.SerializeAsset` and `IAssetRepository.DeserializeAsset`; serialization will no longer be supported.
+- Deprecated `StringSearchCriteria.SearchOptions`; use `StringSearchOptions` instead.
+- Deprecated `WithValue(string, string, StringSearchCriteria.SearchOptions)`, `WithValue(string, Regex)`, and `WithFuzzyValue(string)` in `MetadataSearchCriteria`; use `WithTextValue(string, StringPredicate)` instead.
+- Deprecated `WithValue(string, StringSearchCriteria.SearchOptions)`, `WithValue(Regex)`, and `WithFuzzyValue(string)` in `StringSearchCriteria`; use `WithValue(StringPredicate)` instead.
+- Deprecated `FileSearchCriteria.SizeBytes`; use `FileSearchCriteria.Size` instead.
+
+## [1.6.0-exp.1] - 2024-12-12
+
+### Added
+- Added `IAssetProject.QueryAssetVersions(AssetId)` and `IAsset.ListVersionsAsync(Range, CancellationToken)`.
+- Added `IAssetRepository.CreateAssetProjectLiteAsync`.
+- Added `IAssetRepository.CreateFieldDefinitionLiteAsync`.
+- Added `IAssetRepository.CreateLabelLiteAsync`.
+- Added `IAssetProject.CreateAssetLiteAsync`.
+- Added `IAssetProject.CreateCollectionLiteAsync`.
+- Added `IAsset.CreateDatasetLiteAsync`.
+- Added `IDataset.UploadFileLiteAsync`.
+- Added `IDataset.StartTransformationLiteAsync`.
+- Added `IAsset.CreateUnfrozenVersionLiteAsync`.
+- Added `IAsset.CreateUnfrozenVersionLiteAsync`.
+- Added `IFile.WithDatasetAsync`.
+- Added `ITransformation.WorkflowName`.
+- Added `WorkflowType.Optimize_Convert_Free` and custom workflow implementations `OptimizeAndConvertFreeTransformation` for free users.
+- Added `WorkflowType.Optimize_Convert_Pro` and custom workflow implementations  `OptimizeAndConvertProTransformation` for pro/enterprise users.
+- Added `IAssetRepository.EnableProjectForAssetManagerLiteAsync`.
+
+### Fixed
+- Fixed extra parameters of `ITransformationCreation` being passed incorrectly to the service.
+
+### Deprecated
+- Deprecated `IAsset.QueryVersions`, use `IAsset.ListVersionsAsync` or `IAssetProject.QueryAssetVersions` instead.
+- Deprecated `IAssetProject.GetAssetAsync(AssetId, CancellationToken)`, use `IAssetProject.QueryAssetVersions(AssetId)` instead.
+- Deprecated `AssetUpdate(IAsset)` constructor; use `AssetUpdate()` instead.
+- Deprecated `DatasetInfo(string)` and `DatasetInfo(IDataset)` constructors; use `DatasetInfo()` instead.
+- Deprecated `DatasetUpdate(IDataset)` constructor; use `DatasetUpdate()` instead.
+- Deprecated `FileUpdate(IFile)` constructor; use `FileUpdate()` instead.
+- Deprecated `FieldDefinitionUpdate(IFieldDefinition)` constructor; use `FieldDefinitionUpdate()` instead.
+- Deprecated `IFile.WithDataset`; use `IFile.WithDatasetAsync` instead.
+- Deprecated `WorkflowType.Generic_Polygon_Target`; use `WorkflowType.Optimize_Convert_Free` or `WorkflowType.Optimize_Convert_Pro` instead.
+- Deprecated `GenericPolygonTargetTransformation`; use custom workflow `OptimizeAndConvertProTransformation` instead.
+- Deprecated `ITransformation.InputDatasetId`; use `ITransformation.Descriptor.DatasetId` instead.
+
 ## [1.5.1] - 2024-11-15
 
 ### Changed

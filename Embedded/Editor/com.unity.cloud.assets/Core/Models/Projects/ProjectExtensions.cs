@@ -56,8 +56,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <returns>A task whose result is an asset count. </returns>
         public static async Task<int> CountAssetsAsync(this IAssetProject assetProject, [AllowNull] IAssetSearchFilter assetSearchFilter, CancellationToken cancellationToken)
         {
-            var result = await assetProject.GroupAndCountAssets().SelectWhereMatchesFilter(assetSearchFilter).ExecuteAsync(GroupableField.Type, cancellationToken);
-            return result.Values.Sum();
+            var count = 0;
+            var asyncEnumerable = assetProject.GroupAndCountAssets()
+                .SelectWhereMatchesFilter(assetSearchFilter)
+                .LimitTo(int.MaxValue).ExecuteAsync((Groupable) GroupableField.Type, cancellationToken);
+            await foreach (var kvp in asyncEnumerable)
+            {
+                count += kvp.Value;
+            }
+
+            return count;
         }
 
         /// <summary>

@@ -51,25 +51,36 @@ namespace Unity.AssetManager.Upload.Editor
         List<string> m_Tags;
 
         Task<Texture2D> m_GetThumbnailTask;
-        Task<AssetDataStatusType> m_PreviewStatusTask;
+        Task<UploadAttribute.UploadStatus> m_UploadStatusTask;
 
         [SerializeField]
         AssetIdentifier m_ExistingAssetIdentifier;
 
         [SerializeField]
-        AssetDataStatusType m_SelfStatus; // This is the status of the asset itself, not the status of the asset in relation to dependencies
+        ProjectIdentifier m_TargetProject;
 
         [SerializeField]
-        AssetDataStatusType m_ResolvedStatus; // This is the status of the asset in relation to dependencies
+        UploadAttribute.UploadStatus m_SelfStatus; // This is the status of the asset itself, not the status of the asset in relation to dependencies
+
+        [SerializeField]
+        UploadAttribute.UploadStatus m_ResolvedStatus; // This is the status of the asset in relation to dependencies
+
+        public UploadAttribute.UploadStatus? UploadStatus => AssetDataAttributeCollection.GetAttribute<UploadAttribute>()?.Status;
 
         [SerializeField]
         int m_ExistingSequenceNumber;
 
-        [SerializeReference]
-        List<IMetadata> m_Metadata = new();
+        [SerializeField]
+        bool m_IsSourceControlled;
+
+        [SerializeField]
+        bool m_ExistingAssetIsAccessible;
 
         [SerializeField]
         UploadFilePathMode m_FilePathMode;
+
+        [SerializeField]
+        string m_StatusDetails;
 
         static bool s_UseAdvancedPreviewer = false;
 
@@ -77,8 +88,8 @@ namespace Unity.AssetManager.Upload.Editor
         public string Guid => m_AssetGuid;
         public override AssetIdentifier Identifier => m_Identifier;
 
-        //Upload Asset Data Should have it's own settings so it can rebuild itself. If settings are changed, it rebuilds itself. again mainly files
-        //So you can then change the data from anywhere without going through the staging that lives in the upload page'
+        // Upload Asset Data Should have its own settings so it can rebuild itself. If settings are changed, it rebuilds itself. again mainly files
+        // So you can then change the data from anywhere without going through the staging that lives in the upload page
 
         public UploadFilePathMode FilePathMode
         {
@@ -114,14 +125,7 @@ namespace Unity.AssetManager.Upload.Editor
         public override string Description => "";
         public override string CreatedBy => "";
         public override string UpdatedBy => "";
-
-        public override List<IMetadata> Metadata
-        {
-            get => m_Metadata;
-            set => m_Metadata = value;
-        }
-
-        public override IEnumerable<BaseAssetDataFile> UVCSFiles => Array.Empty<BaseAssetDataFile>();
+        public override IEnumerable<AssetLabel> Labels => null;
 
         public bool IsIgnored
         {
@@ -148,10 +152,7 @@ namespace Unity.AssetManager.Upload.Editor
         {
             get
             {
-                if (m_ResolvedStatus == AssetDataStatusType.UploadSkip)
-                    return false;
-
-                if (m_ResolvedStatus == AssetDataStatusType.None)
+                if (m_ResolvedStatus is UploadAttribute.UploadStatus.Skip or UploadAttribute.UploadStatus.SourceControlled or UploadAttribute.UploadStatus.DontUpload)
                     return false;
 
                 return m_IsDependency;
@@ -169,22 +170,45 @@ namespace Unity.AssetManager.Upload.Editor
                     return false;
                 }
 
-                return m_ResolvedStatus is AssetDataStatusType.UploadOverride
-                    or AssetDataStatusType.UploadDuplicate
-                    or AssetDataStatusType.UploadAdd;
+                return m_ResolvedStatus is UploadAttribute.UploadStatus.Override or UploadAttribute.UploadStatus.Duplicate or UploadAttribute.UploadStatus.Add;
             }
         }
 
-        public UploadAssetData(AssetIdentifier identifier, string assetGuid, IEnumerable<string> fileAssetGuids,
-            IEnumerable<UploadAssetData> dependencies, UploadFilePathMode filePathMode)
+        public AssetIdentifier TargetAssetIdentifier
         {
+            get
+            {
+                if (m_ResolvedStatus is UploadAttribute.UploadStatus.Override or UploadAttribute.UploadStatus.Skip)
+                {
+                    return m_ExistingAssetIdentifier;
+                }
+
+                return null;
+            }
+        }
+
+        public UploadAssetData(AssetIdentifier localIdentifier, string assetGuid,
+            IEnumerable<string> fileAssetGuids, IEnumerable<UploadAssetData> dependencies,
+            AssetData existingAssetData, ProjectIdentifier targetProject,
+            UploadFilePathMode filePathMode)
+        {
+            Utilities.DevAssert(assetGuid != null);
+            Utilities.DevAssert(!string.IsNullOrEmpty(targetProject.OrganizationId));
+            Utilities.DevAssert(!string.IsNullOrEmpty(targetProject.ProjectId));
+
+            Utilities.DevAssert(localIdentifier.IsLocal());
+            Utilities.DevAssert(existingAssetData == null || !existingAssetData.Identifier.IsLocal());
+            Utilities.DevAssert(existingAssetData == null || existingAssetData.Identifier.OrganizationId == targetProject.OrganizationId);
+            Utilities.DevAssert(existingAssetData == null || existingAssetData.Identifier.ProjectId == targetProject.ProjectId);
+
             m_AssetGuid = assetGuid;
+            m_Identifier = localIdentifier;
+            m_TargetProject = targetProject;
 
             var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
             m_AssetPath = assetDatabaseProxy.GuidToAssetPath(m_AssetGuid);
-            m_Name = Path.GetFileNameWithoutExtension(m_AssetPath);
 
-            m_Identifier = identifier;
+            Utilities.DevAssert(!string.IsNullOrEmpty(m_AssetPath));
 
             // Dependencies
             if (dependencies != null)
@@ -192,25 +216,51 @@ namespace Unity.AssetManager.Upload.Editor
                 m_Dependencies = dependencies.Select(d => d.Identifier).ToList();
             }
 
-            // Tags
-            m_Tags = TagExtractor.ExtractFromAsset(m_AssetPath).ToList();
-
             // Files
             m_FilePathMode = filePathMode;
             AddFiles(fileAssetGuids, true);
+
+            // Tags
+            var tags = new HashSet<string>();
+
+            if (existingAssetData != null)
+            {
+                // If the asset is new (i.e. existingAssetIdentifier is null), we need to populate fields from it.
+                m_ExistingAssetIdentifier = existingAssetData.Identifier;
+                m_ExistingSequenceNumber = existingAssetData.SequenceNumber;
+
+                m_Name = existingAssetData.Name;
+
+                CopyMetadata(existingAssetData.Metadata);
+
+                tags = existingAssetData.Tags.ToHashSet();
+            }
+            else
+            {
+                m_ExistingAssetIdentifier = null;
+                m_ExistingSequenceNumber = -1;
+
+                m_Name = Path.GetFileNameWithoutExtension(m_AssetPath);
+                m_Metadata = new MetadataContainer();
+            }
+
+            tags.UnionWith(TagExtractor.ExtractFromAsset(m_AssetPath));
+            m_Tags = tags.ToList();
         }
 
-        public IUploadAsset GenerateUploadAsset(string organizationId, string projectId, string collectionPath)
+        public IUploadAsset GenerateUploadAsset(string collectionPath)
 
         {
-            Utilities.DevAssert(m_ResolvedStatus != AssetDataStatusType.None && m_ResolvedStatus != AssetDataStatusType.UploadSkip && m_ResolvedStatus != AssetDataStatusType.UploadOutside);
+            Utilities.DevAssert(m_ResolvedStatus != UploadAttribute.UploadStatus.DontUpload
+                                && m_ResolvedStatus != UploadAttribute.UploadStatus.Skip
+                                && m_ResolvedStatus != UploadAttribute.UploadStatus.ErrorOutsideProject);
 
             var uploadAsset = new UploadAsset(m_Name, m_AssetGuid, m_Identifier, m_AssetType,
                 SourceFiles.Cast<UploadAssetDataFile>().Select(f => f.GenerateUploadFile()),
                 m_Tags,
-                ResolveDependencyIdentifiers(this),
-                m_ResolvedStatus == AssetDataStatusType.UploadOverride ? m_ExistingAssetIdentifier : null,
-                new ProjectIdentifier(organizationId, projectId), collectionPath);
+                ResolveDependencyIdentifiers(this), m_Metadata,
+                m_ResolvedStatus == UploadAttribute.UploadStatus.Override ? m_ExistingAssetIdentifier : null,
+                m_TargetProject, collectionPath);
 
             return uploadAsset;
         }
@@ -241,34 +291,34 @@ namespace Unity.AssetManager.Upload.Editor
             callback?.Invoke(Identifier, texture);
         }
 
-        public async Task ResolveSelfStatus(string organizationId, string projectId, UploadAssetMode uploadMode, CancellationToken token)
+        public async Task ResolveSelfStatus(UploadAssetMode uploadMode, bool checkWithCloud, CancellationToken token)
         {
-            ResetPreviewStatus();
+            ResetAssetDataAttributes();
 
-            m_PreviewStatusTask ??= ResolveSelfStatusInternalAsync(organizationId, projectId, uploadMode, token);
+            m_UploadStatusTask ??= ResolveSelfStatusInternalAsync(uploadMode, checkWithCloud, token);
 
             try
             {
-                m_SelfStatus = await m_PreviewStatusTask;
+                m_SelfStatus = await m_UploadStatusTask;
             }
             catch (Exception)
             {
-                m_PreviewStatusTask = null;
+                m_UploadStatusTask = null;
                 throw;
             }
 
-            m_PreviewStatusTask = null;
+            m_UploadStatusTask = null;
         }
 
         public void ResolveFinalStatus(UploadAssetMode uploadMode)
         {
-            Utilities.DevAssert(m_SelfStatus != AssetDataStatusType.None, "ResolveSelfStatus must be called before ResolveFinalStatus");
+            Utilities.DevAssert(m_SelfStatus != UploadAttribute.UploadStatus.DontUpload, "ResolveSelfStatus must be called before ResolveFinalStatus");
 
             // If the asset is already modified, no need to check for dependencies since they will not change the fact that the asset is modified
             // Also, if the asset is not re-uploading to a target, we have nothing to compare too
-            AssetDataStatusType resolvedStatus;
+            UploadAttribute.UploadStatus resolvedStatus;
 
-            if (m_SelfStatus != AssetDataStatusType.UploadSkip || m_ExistingAssetIdentifier == null)
+            if (m_SelfStatus != UploadAttribute.UploadStatus.Skip || m_ExistingAssetIdentifier == null)
             {
                 resolvedStatus = m_SelfStatus;
             }
@@ -281,20 +331,29 @@ namespace Unity.AssetManager.Upload.Editor
                 var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
                 var importedAssetInfo = assetDataManager.GetImportedAssetInfo(m_ExistingAssetIdentifier);
 
-                var hasModifiedDependencies = HasModifiedDependencies(importedAssetInfo?.AssetData);
+                var result = HasModifiedDependencies(importedAssetInfo?.AssetData);
 
-                resolvedStatus = hasModifiedDependencies ? AssetDataStatusType.UploadOverride : m_SelfStatus;
+                if (result == null)
+                {
+                    resolvedStatus = m_SelfStatus;
+                    m_StatusDetails = null;
+                }
+                else
+                {
+                    resolvedStatus = UploadAttribute.UploadStatus.Override;
+                    m_StatusDetails = result.Details;
+                }
             }
 
             m_ResolvedStatus = resolvedStatus;
-            PreviewStatus = GetPreviewStatusTypes();
+            AssetDataAttributeCollection = GetResolveStatusAttributes();
         }
 
-        public void ResetPreviewStatus()
+        public override void ResetAssetDataAttributes()
         {
-            m_SelfStatus = AssetDataStatusType.None;
-            m_ResolvedStatus = AssetDataStatusType.None;
-            PreviewStatus = GetPreviewStatusTypes();
+            m_SelfStatus = UploadAttribute.UploadStatus.DontUpload;
+            m_ResolvedStatus = UploadAttribute.UploadStatus.DontUpload;
+            AssetDataAttributeCollection = GetResolveStatusAttributes();
         }
 
         public async Task<bool> IsLocallyModifiedIgnoreDependenciesAsync(ImportedAssetInfo importedAssetInfo, CancellationToken token = default)
@@ -304,17 +363,18 @@ namespace Unity.AssetManager.Upload.Editor
                 return false;
             }
 
-            // Because Metadata files are not added to the imported asset info, we need to ignore them when comparing file count
-            var sourceFiles = SourceFiles.Where(s => !MetafilesHelper.IsMetafile(s.Path)).Select(s => s.Path).ToList();
+            var result = await Utilities.IsLocallyModifiedIgnoreDependenciesAsync(this, importedAssetInfo, token);
 
-            return await Utilities.IsLocallyModifiedIgnoreDependenciesAsync(sourceFiles, importedAssetInfo, token);
+            m_StatusDetails = result?.Details;
+
+            return result != null;
         }
 
-        public bool HasModifiedDependencies(BaseAssetData targetAssetData)
+        public Utilities.ComparisonResult HasModifiedDependencies(BaseAssetData targetAssetData)
         {
             if (targetAssetData == null)
             {
-                return false;
+                return null;
             }
 
             var dependencies = ResolveDependencyIdentifiers(this).ToList();
@@ -322,17 +382,15 @@ namespace Unity.AssetManager.Upload.Editor
             return Utilities.CompareDependencies(dependencies, targetAssetData.Dependencies.ToList());
         }
 
-        public override Task GetPreviewStatusAsync(Action<AssetIdentifier, IEnumerable<AssetDataStatusType>> callback = null,
+        public override Task GetAssetDataAttributesAsync(Action<AssetIdentifier, AssetDataAttributeCollection> callback = null,
             CancellationToken token = default)
         {
-            callback?.Invoke(m_Identifier, PreviewStatus);
+            callback?.Invoke(m_Identifier, AssetDataAttributeCollection);
             return Task.CompletedTask;
         }
 
-        public override Task ResolvePrimaryExtensionAsync(Action<AssetIdentifier, string> callback = null,
-            CancellationToken token = default)
+        public override Task ResolveDatasetsAsync(CancellationToken token = default)
         {
-            callback?.Invoke(Identifier, PrimaryExtension);
             return Task.CompletedTask;
         }
 
@@ -351,25 +409,22 @@ namespace Unity.AssetManager.Upload.Editor
             return Task.CompletedTask;
         }
 
-        async Task<AssetDataStatusType> ResolveSelfStatusInternalAsync(string organizationId, string projectId, UploadAssetMode uploadMode, CancellationToken token)
+        // If checkWithCloud = false, the method will used cached cloud information instead of fetching it
+        async Task<UploadAttribute.UploadStatus> ResolveSelfStatusInternalAsync(UploadAssetMode uploadMode, bool checkWithCloud, CancellationToken token)
         {
             if (!DependencyUtils.IsPathInsideAssetsFolder(m_AssetPath))
             {
-                return AssetDataStatusType.UploadOutside;
+                return UploadAttribute.UploadStatus.ErrorOutsideProject;
             }
-
-            var existingAssetData = AssetDataDependencyHelper.GetAssetAssociatedWithGuid(m_AssetGuid, organizationId, projectId);
-            m_ExistingAssetIdentifier = existingAssetData?.Identifier;
-            m_ExistingSequenceNumber = existingAssetData?.SequenceNumber ?? -1;
 
             if (m_ExistingAssetIdentifier == null)
             {
-                return AssetDataStatusType.UploadAdd;
+                return UploadAttribute.UploadStatus.Add;
             }
 
             if (uploadMode == UploadAssetMode.ForceNewAsset)
             {
-                return AssetDataStatusType.UploadDuplicate;
+                return UploadAttribute.UploadStatus.Duplicate;
             }
 
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
@@ -377,45 +432,81 @@ namespace Unity.AssetManager.Upload.Editor
 
             if (importedAssetInfo == null)
             {
-                return AssetDataStatusType.UploadAdd;
+                return UploadAttribute.UploadStatus.Add;
             }
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-            var task = assetsProvider.AssetExistsOnCloudAsync(importedAssetInfo.AssetData, token);
 
-            try
+            if (checkWithCloud)
             {
-                var exists = await task;
-
-                if (!exists)
+                try
                 {
-                    return AssetDataStatusType.UploadAdd;
+                    var importStatus = await assetsProvider.GetImportStatusAsync(importedAssetInfo.AssetData, token);
+                    m_ExistingAssetIsAccessible = importStatus != ImportAttribute.ImportStatus.ErrorSync;
+                }
+                catch (Exception e)
+                {
+                    // The user might not have access to that project
+                    // We cannot recycle the asset in this case.
+                    m_ExistingAssetIsAccessible = false;
+                    Utilities.DevLogException(e);
                 }
             }
-            catch (Exception e)
+
+            if (!m_ExistingAssetIsAccessible)
             {
-                Utilities.DevLogException(e);
-                // The user might not have access to that project
-                // We cannot recycle the asset in this case.
+                return UploadAttribute.UploadStatus.Add;
             }
 
             switch (uploadMode)
             {
                 case UploadAssetMode.SkipIdentical:
 
-                    if (await IsLocallyModifiedIgnoreDependenciesAsync(importedAssetInfo, token))
+                    if (checkWithCloud)
                     {
-                        return AssetDataStatusType.UploadOverride;
+                        m_IsSourceControlled =
+                            await IsSourceDatasetSourceControlled(importedAssetInfo.AssetData, assetsProvider, token);
                     }
 
-                    return AssetDataStatusType.UploadSkip;
+                    if (m_IsSourceControlled)
+                    {
+                        return UploadAttribute.UploadStatus.SourceControlled;
+                    }
+
+                    if (await IsLocallyModifiedIgnoreDependenciesAsync(importedAssetInfo, token))
+                    {
+                        return UploadAttribute.UploadStatus.Override;
+                    }
+
+                    return UploadAttribute.UploadStatus.Skip;
 
                 case UploadAssetMode.ForceNewVersion:
-                    return AssetDataStatusType.UploadOverride;
+                    return UploadAttribute.UploadStatus.Override;
 
                 default:
-                    return AssetDataStatusType.Imported;
+                    return UploadAttribute.UploadStatus.DontUpload;
             }
+        }
+
+        static async Task<bool> IsSourceDatasetSourceControlled(BaseAssetData assetData, IAssetsProvider assetsProvider, CancellationToken token)
+        {
+            var sourceDataset = assetData.Datasets.FirstOrDefault(d => d.SystemTags.Contains(k_Source));
+            if (sourceDataset != null)
+            {
+                if (sourceDataset.SystemTags.Contains(k_NotSynced))
+                {
+                    // Come from an older version of persistence, we need to update the system tags
+                    var cloudDataset = await assetsProvider.GetDatasetAsync(assetData as AssetData, new List<string> {k_Source}, token);
+                    if (cloudDataset != null)
+                    {
+                        sourceDataset.Copy(cloudDataset);
+                    }
+                }
+
+                return sourceDataset.IsSourceControlled;
+            }
+
+            return false;
         }
 
         void ResolveFilePaths()
@@ -451,31 +542,44 @@ namespace Unity.AssetManager.Upload.Editor
 
             m_AssetType = unityAssetType.ConvertUnityAssetTypeToAssetType();
 
-            // Asset Type
-            SourceFiles = files;
+            // Source Dataset
+            m_Datasets = new List<AssetDataset>
+            {
+                new (k_Source, new List<string> { k_Source }, files)
+            };
+            ResolvePrimaryExtension();
         }
 
-        IEnumerable<AssetDataStatusType> GetPreviewStatusTypes()
+        AssetDataAttributeCollection GetResolveStatusAttributes()
         {
-            if (m_IsDependency)
-            {
-                yield return AssetDataStatusType.Linked;
-            }
-
-            if (m_ResolvedStatus != AssetDataStatusType.None)
-            {
-                yield return m_ResolvedStatus;
-            }
+            return new AssetDataAttributeCollection(new LinkedDependencyAttribute(m_IsDependency),
+                new UploadAttribute(m_ResolvedStatus, m_StatusDetails));
         }
 
         static IEnumerable<AssetIdentifier> ResolveDependencyIdentifiers(UploadAssetData sourceAssetData)
         {
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
 
-            return sourceAssetData.m_Dependencies
-                .Select(id => (UploadAssetData)assetDataManager.GetAssetData(id))
-                .Select(dependency => dependency.CanBeUploaded ? dependency.m_Identifier : dependency.m_ExistingAssetIdentifier)
-                .Where(identifier => identifier != null);
+            var dependencyIdentifiers = new List<AssetIdentifier>();
+            foreach (var id in sourceAssetData.Dependencies)
+            {
+                var dependency = assetDataManager.GetAssetData(id);
+                Utilities.DevAssert(dependency != null, $"Dependency {id.AssetId} for {sourceAssetData.Name} could not be loaded.");
+                Utilities.DevAssert(dependency is UploadAssetData, $"Dependency {id.AssetId} for {sourceAssetData.Name} is not an {nameof(UploadAssetData)}");
+
+                var uploadedDependency = (UploadAssetData)dependency;
+                if (uploadedDependency != null)
+                {
+                    var identifier = uploadedDependency.CanBeUploaded ? uploadedDependency.Identifier : uploadedDependency.m_ExistingAssetIdentifier;
+                    Utilities.DevAssert(!string.IsNullOrEmpty(identifier.AssetId), $"Id is not defined for dependency of {sourceAssetData.Name}.");
+                    if (!string.IsNullOrEmpty(identifier.AssetId))
+                    {
+                        dependencyIdentifiers.Add(identifier);
+                    }
+                }
+            }
+
+            return dependencyIdentifiers;
         }
 
         public void AddFiles(IEnumerable<string> fileAssetGuids, bool mainFiles)
@@ -584,5 +688,15 @@ namespace Unity.AssetManager.Upload.Editor
         }
 
         static readonly List<string> k_DefaultFileTags = new();
+
+        public void RemoveMetadata(string fieldKey)
+        {
+            m_Metadata.Remove(fieldKey);
+        }
+
+        public void AddMetadata(IMetadata metadata)
+        {
+            m_Metadata.Add(metadata);
+        }
     }
 }

@@ -24,6 +24,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <summary>
         /// Describes the collection.
         /// </summary>
+        [Obsolete("Use IAssestCollectionProperties.Description instead.")]
         string Description { get; }
 
         /// <summary>
@@ -39,11 +40,31 @@ namespace Unity.Cloud.AssetsEmbedded
         string GetFullCollectionPath();
 
         /// <summary>
+        /// The caching configuration for the collection.
+        /// </summary>
+        AssetCollectionCacheConfiguration CacheConfiguration => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns an asset collection configured with the specified caching configuration.
+        /// </summary>
+        /// <param name="assetCollectionCacheConfiguration">The caching configuration for the collection. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is an <see cref="IAssetCollection"/> with cached values specified by the caching configurations. </returns>
+        Task<IAssetCollection> WithCacheConfigurationAsync(AssetCollectionCacheConfiguration assetCollectionCacheConfiguration, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
         /// Refreshes the collection properties.
         /// </summary>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>
         Task RefreshAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Returns the properties of the collection.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the <see cref="AssetCollectionProperties"/> of the collection. </returns>
+        Task<AssetCollectionProperties> GetPropertiesAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Updates the collection.

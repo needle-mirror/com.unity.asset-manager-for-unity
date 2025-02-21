@@ -42,8 +42,6 @@ namespace Unity.Cloud.AssetsEmbedded
             if (metadataValues == null || !metadataValues.Any()) return;
 
             await m_DataSource.AddOrUpdateAsync(metadataValues, cancellationToken);
-
-            m_Properties = null;
         }
 
         /// <inheritdoc />
@@ -54,8 +52,6 @@ namespace Unity.Cloud.AssetsEmbedded
             if (!keyHashSet.Any()) return;
 
             await m_DataSource.RemoveAsync(keyHashSet, cancellationToken);
-
-            m_Properties = null;
         }
 
         static void ValidateMetadataValue(object value)

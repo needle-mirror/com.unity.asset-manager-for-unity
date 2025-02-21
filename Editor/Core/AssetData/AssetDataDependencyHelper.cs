@@ -28,24 +28,6 @@ namespace Unity.AssetManager.Core.Editor
         }
     }
 
-    struct DependencyAssetResult
-    {
-        public AssetIdentifier Identifier { get; }
-        public BaseAssetData AssetData { get; }
-
-        public DependencyAssetResult(AssetIdentifier identifier, BaseAssetData assetData)
-        {
-            Identifier = identifier;
-            AssetData = assetData;
-        }
-
-        public DependencyAssetResult(BaseAssetData asset)
-        {
-            Identifier = asset.Identifier;
-            AssetData = asset;
-        }
-    }
-
     static class AssetDataDependencyHelper
     {
         const char k_AssetIdAssetVersionSeparator = '_';
@@ -88,7 +70,6 @@ namespace Unity.AssetManager.Core.Editor
         public static async IAsyncEnumerable<AssetIdentifier> LoadDependenciesAsync(BaseAssetData assetData,
             [EnumeratorCancellation] CancellationToken token)
         {
-            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
 
             // Flag for backwards compatibility - if the asset has no dependencies, check for system file dependencies
@@ -104,7 +85,7 @@ namespace Unity.AssetManager.Core.Editor
             {
 #pragma warning disable 618 // Maintain for backwards compatibility with old assets that have dependencies stored in the asset itself
                 var systemFileDependencies =
-                    LoadSystemFileDependenciesAsync(assetDataManager, assetsProvider, assetData, token);
+                    LoadSystemFileDependenciesAsync(assetsProvider, assetData, token);
                 await foreach (var dependency in systemFileDependencies)
                 {
                     yield return dependency;
@@ -114,9 +95,8 @@ namespace Unity.AssetManager.Core.Editor
         }
 
         [Obsolete("Only used for backwards compatibility with system file references.")]
-        static async IAsyncEnumerable<AssetIdentifier> LoadSystemFileDependenciesAsync(
-            IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, BaseAssetData assetData,
-            [EnumeratorCancellation] CancellationToken token)
+        static async IAsyncEnumerable<AssetIdentifier> LoadSystemFileDependenciesAsync(IAssetsProvider assetsProvider,
+            BaseAssetData assetData, [EnumeratorCancellation] CancellationToken token)
         {
             var files = await GetFilesAsync(assetData, token);
 
@@ -135,10 +115,12 @@ namespace Unity.AssetManager.Core.Editor
                     .WithAssetId(assetId)
                     .WithVersion(assetVersion);
 
-                // This should never happen, but if the version fails to parse, try to fetch the latest version from the provider
+                // This will only occur with legacy dependencies that have no version defined.
+                // When the version fails to parse, try to fetch the latest version from the provider
                 if (string.IsNullOrEmpty(assetVersion))
                 {
-                    assetVersion = await GetLatestVersionAsync(assetsProvider, assetIdentifier, token);
+                    Utilities.DevLogWarning("Using legacy dependencies, consider updating the asset for better performance.");
+                    assetVersion = await assetsProvider.GetLatestAssetVersionLiteAsync(assetIdentifier, token);
                     assetIdentifier = assetIdentifier.WithVersion(assetVersion);
                 }
 
@@ -174,6 +156,10 @@ namespace Unity.AssetManager.Core.Editor
                 if (importedAssetInfo.FileInfos.Exists(
                         x => DependencyUtils.GetValidAssetDependencyGuids(x.Guid, true).Contains(assetGuid)))
                 {
+                    // This check is considered a hack because we assume any additional file that was added to a main asset is necessarily a dependency.
+                    // This is to avoid having a dependency recycling the cloud asset of a parent cloud asset when uploaded using Embedded dependencies mode.
+                    // This hack doesn't solve the case when multiple assets - that are not dependencies of each other - are uploaded into the same cloud asset.
+                    // AMECO-3378 is supposed to find a solution to fix the issue and remove this hack.
                     continue;
                 }
 
@@ -193,28 +179,13 @@ namespace Unity.AssetManager.Core.Editor
             return assetData;
         }
 
-        static async Task<string> GetLatestVersionAsync(IAssetsProvider assetsProvider, AssetIdentifier assetIdentifier, CancellationToken token)
-        {
-            try
-            {
-                var asset = await assetsProvider.GetLatestAssetVersionAsync(assetIdentifier, token);
-                return asset?.Identifier.Version;
-            }
-            catch (Exception e)
-            {
-                Debug.LogException(e);
-            }
-
-            return null;
-        }
-
         static async Task<List<BaseAssetDataFile>> GetFilesAsync(BaseAssetData assetData, CancellationToken token)
         {
-            var files = assetData.SourceFiles.Union(assetData.UVCSFiles).ToList();
-            if (files.Count == 0 && assetData is AssetData ad)
+            var files = assetData.SourceFiles?.ToList();
+            if ((files == null || !files.Any()) && assetData is AssetData ad)
             {
-                await ad.ResolvePrimaryExtensionAsync(null, token);
-                files = assetData.SourceFiles.ToList();
+                await ad.ResolveDatasetsAsync(token);
+                files = assetData.SourceFiles?.ToList();
             }
 
             return files;

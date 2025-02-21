@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
@@ -24,6 +25,15 @@ namespace Unity.Cloud.AssetsEmbedded
         /// Any additional parameters to pass to the workflow.
         /// </summary>
         /// <returns>A set of paramters to pass to the request. </returns>
+        [Obsolete("Use GetExtraParameters() instead.")]
         Dictionary<string, string> GetParameters() => new();
+
+        /// <summary>
+        /// Any additional parameters to pass to the workflow.
+        /// </summary>
+        /// <returns>A set of paramters to pass to the request. </returns>
+#pragma warning disable 618 // Obsolete warning - default maintains backwards compatibility
+        Dictionary<string, object> GetExtraParameters() => GetParameters()?.ToDictionary(x => x.Key, x => (object) x.Value);
+#pragma warning restore 618 // Obsolete warning
     }
 }

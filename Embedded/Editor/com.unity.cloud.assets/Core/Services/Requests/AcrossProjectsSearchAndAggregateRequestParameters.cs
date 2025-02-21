@@ -11,7 +11,7 @@ namespace Unity.Cloud.AssetsEmbedded
     [DataContract]
     class AcrossProjectsSearchAndAggregateRequestParameters : SearchAndAggregateRequestParameters
     {
-        public AcrossProjectsSearchAndAggregateRequestParameters(IEnumerable<ProjectId> projectIds, string aggregateBy)
+        public AcrossProjectsSearchAndAggregateRequestParameters(IEnumerable<ProjectId> projectIds, object aggregateBy)
             : base(aggregateBy)
         {
             ProjectIds = projectIds.ToArray();

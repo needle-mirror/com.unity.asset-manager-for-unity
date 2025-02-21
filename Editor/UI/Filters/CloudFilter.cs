@@ -13,6 +13,9 @@ namespace Unity.AssetManager.UI.Editor
         [SerializeReference]
         protected IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
+        [SerializeReference]
+        protected IAssetsProvider m_AssetsProvider;
+
         List<string> m_CachedSelections = new();
         CancellationTokenSource m_TokenSource;
 
@@ -20,17 +23,18 @@ namespace Unity.AssetManager.UI.Editor
 
         public abstract void ResetSelectedFilter(AssetSearchFilter assetSearchFilter);
         protected abstract void ClearFilter();
-        protected abstract void IncludeFilter(string selection);
+        protected abstract void IncludeFilter(List<string> selectedFilters);
 
         void ResetSelectedFilter()
         {
             ResetSelectedFilter(m_Page.PageFilters.AssetSearchFilter);
         }
 
-        internal CloudFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider)
+        protected CloudFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
             : base(page)
         {
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_AssetsProvider = assetsProvider;
         }
 
         public override void Cancel()
@@ -50,18 +54,18 @@ namespace Unity.AssetManager.UI.Editor
             ClearFilter();
         }
 
-        public override bool ApplyFilter(string selection)
+        public override bool ApplyFilter(List<string> selectedFilters)
         {
-            if (string.IsNullOrEmpty(selection))
+            if (selectedFilters == null)
             {
                 ClearFilter();
             }
             else
             {
-                IncludeFilter(selection);
+                IncludeFilter(selectedFilters);
             }
 
-            return base.ApplyFilter(selection);
+            return base.ApplyFilter(selectedFilters);
         }
 
         public override async Task<List<string>> GetSelections()
@@ -94,8 +98,7 @@ namespace Unity.AssetManager.UI.Editor
                     projects = new List<string> { m_ProjectOrganizationProvider.SelectedProject.Id };
                 }
 
-                var selections = await m_Page.GetFilterSelectionsAsync(
-                    m_ProjectOrganizationProvider.SelectedOrganization.Id, projects, GroupBy, m_TokenSource.Token);
+                var selections = await GetFilterSelectionsAsync(m_ProjectOrganizationProvider.SelectedOrganization.Id, projects, m_TokenSource.Token);
                 return selections;
             }
             catch (OperationCanceledException)
@@ -115,6 +118,12 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             return null;
+        }
+
+        protected virtual async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, CancellationToken token)
+        {
+            return await m_AssetsProvider.GetFilterSelectionsAsync(organizationId, projectIds,
+                m_Page.PageFilters.AssetSearchFilter, GroupBy, token);
         }
     }
 }

@@ -13,31 +13,37 @@ namespace Unity.Cloud.AssetsEmbedded
     class AssetQueryBuilder
     {
         readonly IAssetDataSource m_AssetDataSource;
+        readonly CacheConfigurationWrapper m_CacheConfiguration;
         readonly OrganizationId m_OrganizationId;
         readonly List<ProjectId> m_ProjectIds = new();
 
         IAssetSearchFilter m_AssetSearchFilter;
         Range m_Range = Range.All;
-        string m_SortingField = nameof(IAsset.Name);
+        string m_SortingField = "name";
         SortingOrder m_SortingOrder = SortingOrder.Ascending;
 
-        internal AssetQueryBuilder(IAssetDataSource assetDataSource, ProjectDescriptor projectDescriptor)
+        AssetQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration)
         {
             m_AssetDataSource = assetDataSource;
+            m_CacheConfiguration = new CacheConfigurationWrapper(defaultCacheConfiguration);
+        }
+
+        internal AssetQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, ProjectDescriptor projectDescriptor)
+            : this(assetDataSource, defaultCacheConfiguration)
+        {
             m_OrganizationId = projectDescriptor.OrganizationId;
             m_ProjectIds.Add(projectDescriptor.ProjectId);
         }
 
-        internal AssetQueryBuilder(IAssetDataSource assetDataSource, OrganizationId organizationId)
+        internal AssetQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, OrganizationId organizationId)
+            : this(assetDataSource, defaultCacheConfiguration)
         {
-            m_AssetDataSource = assetDataSource;
             m_OrganizationId = organizationId;
         }
 
-        internal AssetQueryBuilder(IAssetDataSource assetDataSource, IEnumerable<ProjectDescriptor> projectDescriptors)
+        internal AssetQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, IEnumerable<ProjectDescriptor> projectDescriptors)
+            : this(assetDataSource, defaultCacheConfiguration)
         {
-            m_AssetDataSource = assetDataSource;
-
             var projects = projectDescriptors.ToArray();
             if (projects.Length == 0)
             {
@@ -54,6 +60,17 @@ namespace Unity.Cloud.AssetsEmbedded
             }
 
             m_ProjectIds.AddRange(projects.Select(descriptor => descriptor.ProjectId));
+        }
+
+        /// <summary>
+        /// Sets an override to the default cache configuration for assets.
+        /// </summary>
+        /// <param name="assetCacheConfiguration">The configuration to apply when populating the assets. </param>
+        /// <returns>The calling <see cref="AssetQueryBuilder"/>. </returns>
+        public AssetQueryBuilder WithCacheConfiguration(AssetCacheConfiguration assetCacheConfiguration)
+        {
+            m_CacheConfiguration.SetAssetConfiguration(assetCacheConfiguration);
+            return this;
         }
 
         /// <summary>
@@ -99,8 +116,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <returns>An async enumeration of <see cref="IAsset"/>. </returns>
         public async IAsyncEnumerable<IAsset> ExecuteAsync([EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var includeFields = FieldsFilter.DefaultAssetIncludes;
-            includeFields.AssetFields |= AssetFields.metadata | AssetFields.previewFileUrl;
+            var includeFields = m_CacheConfiguration.GetAssetFieldsFilter();
 
             var pagination = new SearchRequestPagination(m_SortingField, m_SortingOrder);
 
@@ -120,7 +136,7 @@ namespace Unity.Cloud.AssetsEmbedded
                     var enumerator = m_AssetDataSource.ListAssetsAsync(descriptor, parameters, cancellationToken);
                     await foreach (var assetData in enumerator)
                     {
-                        yield return assetData.From(m_AssetDataSource, descriptor, includeFields);
+                        yield return assetData.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, descriptor, includeFields, m_CacheConfiguration.AssetConfiguration);
                     }
 
                     break;
@@ -136,7 +152,7 @@ namespace Unity.Cloud.AssetsEmbedded
                     var enumerator = m_AssetDataSource.ListAssetsAsync(m_OrganizationId, projectIds, parameters, cancellationToken);
                     await foreach (var assetData in enumerator)
                     {
-                        yield return assetData.From(m_AssetDataSource, m_OrganizationId, projectIds, includeFields);
+                        yield return assetData.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, m_OrganizationId, projectIds, includeFields, m_CacheConfiguration.AssetConfiguration);
                     }
 
                     break;

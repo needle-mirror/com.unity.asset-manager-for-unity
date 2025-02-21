@@ -19,109 +19,127 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <summary>
         /// The state of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.State instead.")]
         AssetState State => throw new NotImplementedException();
 
         /// <summary>
         /// Whether the asset version is frozen.
         /// </summary>
-        [Obsolete("Use State instead.")]
+        [Obsolete("Use AssetProperties.State instead.")]
         bool IsFrozen => State == AssetState.Frozen;
 
         /// <summary>
         /// The sequence number of the asset. This will only be populated if the version is frozen.
         /// </summary>
+        [Obsolete("Use AssetProperties.FrozenSequenceNumber instead.")]
         int FrozenSequenceNumber => -1;
 
         /// <summary>
         /// The change log of the asset version.
         /// </summary>
+        [Obsolete("Use AssetProperties.Changelog instead.")]
         string Changelog => string.Empty;
 
         /// <summary>
         /// The version id from which this version was branched.
         /// </summary>
+        [Obsolete("Use AssetProperties.ParentVersion instead.")]
         AssetVersion ParentVersion => AssetVersion.None;
 
         /// <summary>
         /// The sequence number from which this version was branched.
         /// </summary>
+        [Obsolete("Use AssetProperties.ParentFrozenSequenceNumber instead.")]
         int ParentFrozenSequenceNumber => -1;
 
         /// <summary>
         /// The source project of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.SourceProject instead.")]
         ProjectDescriptor SourceProject { get; }
 
         /// <summary>
         /// The list of projects the asset is linked to.
         /// </summary>
+        [Obsolete("Use AssetProperties.LinkedProjects instead.")]
         IEnumerable<ProjectDescriptor> LinkedProjects { get; }
 
         /// <summary>
         /// The name of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.Name instead.")]
         string Name { get; }
 
         /// <summary>
         /// The description of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.Description instead.")]
         string Description { get; }
 
         /// <summary>
         /// The tags of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.Tags instead.")]
         IEnumerable<string> Tags { get; }
 
         /// <summary>
         /// The tags of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.SystemTags instead.")]
         IEnumerable<string> SystemTags { get; }
 
         /// <summary>
         /// The labels associated to the asset version.
         /// </summary>
+        [Obsolete("Use AssetProperties.Labels instead.")]
         IEnumerable<LabelDescriptor> Labels => throw new NotImplementedException();
 
         /// <summary>
         /// The labels no longer associated to the asset version.
         /// </summary>
+        [Obsolete("Use AssetProperties.ArchivedLabel instead.")]
         IEnumerable<LabelDescriptor> ArchivedLabels => throw new NotImplementedException();
 
         /// <summary>
         /// The type of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.Type instead.")]
         AssetType Type { get; }
 
         /// <summary>
         /// The preview file ID of the asset.
         /// </summary>
-        [Obsolete("Use PreviewFileDescriptor instead.")]
+        [Obsolete("Use AssetProperties.PreviewFileDescriptor instead.")]
         string PreviewFile { get; }
 
         /// <summary>
         /// The descriptor for the preview file of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.PreviewFileDescriptor instead.")]
         FileDescriptor PreviewFileDescriptor => default;
 
         /// <summary>
         /// The status of the asset.
         /// </summary>
-        [Obsolete("Use StatusName instead.")]
+        [Obsolete("Use AssetProperties.StatusName instead.")]
         string Status { get; }
 
         /// <summary>
         /// The status of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.StatusName instead.")]
         string StatusName => string.Empty;
 
         /// <summary>
         /// The descriptor for the status flow of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.StatusFlowDescriptor instead.")]
         StatusFlowDescriptor StatusFlowDescriptor => default;
 
         /// <summary>
         /// The creation and update information of the asset.
         /// </summary>
+        [Obsolete("Use AssetProperties.AuthoringInfo instead.")]
         AuthoringInfo AuthoringInfo { get; }
 
         /// <summary>
@@ -133,6 +151,20 @@ namespace Unity.Cloud.AssetsEmbedded
         /// The system metadata of the asset.
         /// </summary>
         IReadOnlyMetadataContainer SystemMetadata => throw new NotImplementedException();
+
+        /// <summary>
+        /// The caching configuration for the asset.
+        /// </summary>
+        AssetCacheConfiguration CacheConfiguration => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns an asset configured with the specified caching configurations.
+        /// </summary>
+        /// <param name="assetConfiguration">The caching configuration for the asset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is an <see cref="IAsset"/> with cached values specified by the caching configurations. </returns>
+        Task<IAsset> WithCacheConfigurationAsync(AssetCacheConfiguration assetConfiguration, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
 
         /// <summary>
         /// Returns an asset in the context of the specified project.
@@ -172,6 +204,13 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>
         Task RefreshAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Returns the properties of the asset.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the <see cref="AssetProperties"/> of the asset. </returns>
+        Task<AssetProperties> GetPropertiesAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Updates the asset.
@@ -214,6 +253,15 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<IAsset> CreateUnfrozenVersionAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
+        /// Creates a new unfrozen version of the asset.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is a new version of the asset. </returns>
+        /// <exception cref="InvalidArgumentException">If the asset is unfrozen, because it cannot be used as a parent for a new version. </exception>
+        /// <remarks>Can only be called if the version is frozen; this version will be the parent of the new version. </remarks>
+        Task<AssetDescriptor> CreateUnfrozenVersionLiteAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
         /// Freezes the current version.
         /// </summary>
         /// <param name="changeLog">The change log for the new version. </param>
@@ -246,7 +294,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// Returns an object that can be used to query the asset's versions.
         /// </summary>
         /// <returns>A <see cref="VersionQueryBuilder"/>. </returns>
+        [Obsolete("Use ListVersionsAsync or IAssetProject.QueryAssetVersions instead.")]
         VersionQueryBuilder QueryVersions() => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns the versions of the asset.
+        /// </summary>
+        /// <param name="range">The range of results to return. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>An async enumeration of <see cref="IAsset"/> in descending order of <see cref="FrozenSequenceNumber"/>. Unfrozen assets will be listed last. </returns>
+        IAsyncEnumerable<IAsset> ListVersionsAsync(Range range, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Returns an enumeration of the asset's linked <see cref="IAssetProject"/>.
@@ -315,6 +372,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <exception cref="InvalidArgumentException">If the asset is frozen, because it cannot be modified. </exception>
         /// <remarks>Can only be called on a version that is unfrozen. </remarks>
         Task<IDataset> CreateDatasetAsync(IDatasetCreation datasetCreation, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns a <see cref="IDataset"/> with the specified creation information.
+        /// </summary>
+        /// <param name="datasetCreation">The object containing the necessary information to create a dataset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the newly created dataset. </returns>
+        /// <exception cref="InvalidArgumentException">If the asset is frozen, because it cannot be modified. </exception>
+        /// <remarks>Can only be called on a version that is unfrozen. </remarks>
+        Task<DatasetDescriptor> CreateDatasetLiteAsync(IDatasetCreation datasetCreation, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Retrieves the specified <see cref="IDataset"/>.
@@ -427,6 +494,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// To deserialize the asset use <see cref="IAssetRepository.DeserializeAsset"/>. The <see cref="IAssetRepository"/> is responsible for injecting the necessary dependencies into the asset.
         /// </remarks>
         /// <returns>The asset serialized as a JSON string. </returns>
+        [Obsolete("IAsset serialization is no longer supported.")]
         string Serialize();
     }
 }

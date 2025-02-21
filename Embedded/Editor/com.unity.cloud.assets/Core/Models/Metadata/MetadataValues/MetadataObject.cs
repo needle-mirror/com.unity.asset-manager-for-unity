@@ -12,6 +12,12 @@ namespace Unity.Cloud.AssetsEmbedded
             m_Value = value;
         }
 
+        internal MetadataObject(MetadataValueType valueType, string value)
+            : base(valueType)
+        {
+            m_Value = value;
+        }
+
         private protected MetadataObject(MetadataValueType valueType, object value)
             : base(valueType)
         {

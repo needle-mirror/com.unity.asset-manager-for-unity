@@ -14,53 +14,52 @@ namespace Unity.Cloud.AssetsEmbedded
     sealed class AssetEntity : IAsset
     {
         readonly IAssetDataSource m_DataSource;
-
-        internal ProjectDescriptor[] m_LinkedProjects = Array.Empty<ProjectDescriptor>();
+        readonly CacheConfigurationWrapper m_CacheConfiguration;
 
         /// <inheritdoc />
         public AssetDescriptor Descriptor { get; }
 
         /// <inheritdoc />
-        public AssetState State { get; set; }
+        public AssetState State => Properties.State;
 
         /// <inheritdoc />
-        public int FrozenSequenceNumber { get; set; }
+        public int FrozenSequenceNumber => Properties.FrozenSequenceNumber;
 
         /// <inheritdoc />
-        public string Changelog { get; set; }
+        public string Changelog => Properties.Changelog;
 
         /// <inheritdoc />
-        public AssetVersion ParentVersion { get; set; }
+        public AssetVersion ParentVersion => Properties.ParentVersion;
 
         /// <inheritdoc />
-        public int ParentFrozenSequenceNumber { get; set; }
+        public int ParentFrozenSequenceNumber => Properties.ParentFrozenSequenceNumber;
 
         /// <inheritdoc />
-        public ProjectDescriptor SourceProject { get; set; }
+        public ProjectDescriptor SourceProject => Properties.SourceProject;
 
         /// <inheritdoc />
-        public IEnumerable<ProjectDescriptor> LinkedProjects => m_LinkedProjects;
+        public IEnumerable<ProjectDescriptor> LinkedProjects => Properties.LinkedProjects;
 
         /// <inheritdoc />
-        public string Name { get; set; }
+        public string Name => Properties.Name;
 
         /// <inheritdoc />
-        public string Description { get; set; }
+        public string Description => Properties.Description;
 
         /// <inheritdoc />
-        public IEnumerable<string> Tags { get; set; }
+        public IEnumerable<string> Tags => Properties.Tags;
 
         /// <inheritdoc />
-        public IEnumerable<string> SystemTags { get; set; }
+        public IEnumerable<string> SystemTags => Properties.SystemTags;
 
         /// <inheritdoc />
-        public IEnumerable<LabelDescriptor> Labels { get; set; }
+        public IEnumerable<LabelDescriptor> Labels => Properties.Labels;
 
         /// <inheritdoc />
-        public IEnumerable<LabelDescriptor> ArchivedLabels { get; set; }
+        public IEnumerable<LabelDescriptor> ArchivedLabels => Properties.ArchivedLabels;
 
         /// <inheritdoc />
-        public AssetType Type { get; set; } = AssetType.Other;
+        public AssetType Type => Properties.Type;
 
         /// <inheritdoc />
         public IMetadataContainer Metadata => MetadataEntity;
@@ -69,34 +68,51 @@ namespace Unity.Cloud.AssetsEmbedded
         public IReadOnlyMetadataContainer SystemMetadata => SystemMetadataEntity;
 
         /// <inheritdoc />
-        public string PreviewFile { get; set; }
+        public string PreviewFile => PreviewFileDescriptor.Path;
 
         /// <inheritdoc />
-        public FileDescriptor PreviewFileDescriptor { get; set; }
+        public FileDescriptor PreviewFileDescriptor => Properties.PreviewFileDescriptor ?? new FileDescriptor(new DatasetDescriptor(), string.Empty);
 
         /// <inheritdoc />
-        public string Status { get; set; }
+        public string Status => StatusName;
 
         /// <inheritdoc />
-        public string StatusName { get; set; }
+        public string StatusName => Properties.StatusName;
 
         /// <inheritdoc />
-        public StatusFlowDescriptor StatusFlowDescriptor { get; set; }
+        public StatusFlowDescriptor StatusFlowDescriptor => Properties.StatusFlowDescriptor;
 
         /// <inheritdoc />
-        public AuthoringInfo AuthoringInfo { get; set; }
+        public AuthoringInfo AuthoringInfo => Properties.AuthoringInfo;
 
+        /// <inheritdoc />
+        public AssetCacheConfiguration CacheConfiguration => m_CacheConfiguration.AssetConfiguration;
+
+        AssetRepositoryCacheConfiguration DefaultCacheConfiguration => m_CacheConfiguration.DefaultConfiguration;
+
+        internal AssetProperties Properties { get; set; }
         internal Uri PreviewFileUrl { get; set; }
+        internal List<IDatasetData> Datasets { get; } = new();
+        internal Dictionary<DatasetId, IDatasetData> DatasetMap { get; } = new();
         internal MetadataContainerEntity MetadataEntity { get; }
         internal ReadOnlyMetadataContainerEntity SystemMetadataEntity { get; }
 
-        internal AssetEntity(IAssetDataSource dataSource, AssetDescriptor assetDescriptor)
+        internal AssetEntity(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, AssetDescriptor assetDescriptor, AssetCacheConfiguration? cacheConfigurationOverride = null)
         {
             m_DataSource = dataSource;
             Descriptor = assetDescriptor;
 
+            m_CacheConfiguration = new CacheConfigurationWrapper(defaultCacheConfiguration);
+            m_CacheConfiguration.SetAssetConfiguration(cacheConfigurationOverride);
+
             MetadataEntity = new MetadataContainerEntity(new AssetMetadataDataSource(Descriptor, m_DataSource, MetadataDataSourceSpecification.metadata));
             SystemMetadataEntity = new ReadOnlyMetadataContainerEntity(new AssetMetadataDataSource(Descriptor, m_DataSource, MetadataDataSourceSpecification.systemMetadata));
+        }
+
+        /// <inheritdoc />
+        public Task<IAsset> WithCacheConfigurationAsync(AssetCacheConfiguration assetConfiguration, CancellationToken cancellationToken)
+        {
+            return GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, Descriptor, assetConfiguration, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -104,35 +120,39 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             if (projectDescriptor == Descriptor.ProjectDescriptor) return this;
 
-            if (!m_LinkedProjects.Contains(projectDescriptor))
+            if (projectDescriptor.OrganizationId != Descriptor.OrganizationId || CacheConfiguration.CacheProperties && Properties.LinkedProjects.All(p => p.ProjectId != projectDescriptor.ProjectId))
                 throw new InvalidArgumentException("The asset does not belong to the specified project.");
 
-            return Copy(new AssetDescriptor(projectDescriptor, Descriptor.AssetId, Descriptor.AssetVersion));
+            return new AssetEntity(m_DataSource, DefaultCacheConfiguration, new AssetDescriptor(projectDescriptor, Descriptor.AssetId, Descriptor.AssetVersion))
+            {
+                Properties = Properties,
+                PreviewFileUrl = PreviewFileUrl,
+                MetadataEntity = {Properties = MetadataEntity.Properties},
+                SystemMetadataEntity = {Properties = SystemMetadataEntity.Properties}
+            };
         }
 
         /// <inheritdoc />
-        public async Task<IAsset> WithProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        public Task<IAsset> WithProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
         {
             var assetDescriptor = new AssetDescriptor(projectDescriptor, Descriptor.AssetId, Descriptor.AssetVersion);
-            var data = await m_DataSource.GetAssetAsync(assetDescriptor, FieldsFilter.DefaultAssetIncludes, cancellationToken);
-
-            return data.From(m_DataSource, assetDescriptor, FieldsFilter.DefaultAssetIncludes);
+            return GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, assetDescriptor, CacheConfiguration, cancellationToken);
         }
 
         /// <inheritdoc />
-        public async Task<IAsset> WithVersionAsync(AssetVersion assetVersion, CancellationToken cancellationToken)
+        public Task<IAsset> WithVersionAsync(AssetVersion assetVersion, CancellationToken cancellationToken)
         {
             var assetDescriptor = new AssetDescriptor(Descriptor.ProjectDescriptor, Descriptor.AssetId, assetVersion);
-            var data = await m_DataSource.GetAssetAsync(assetDescriptor, FieldsFilter.DefaultAssetIncludes, cancellationToken);
-
-            return data.From(m_DataSource, assetDescriptor, FieldsFilter.DefaultAssetIncludes);
+            return GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, assetDescriptor, CacheConfiguration, cancellationToken);
         }
 
         /// <inheritdoc />
         /// <exception cref="NotFoundException">If a version with the corresponding <paramref name="label"/> is not found. </exception>
         public async Task<IAsset> WithVersionAsync(string label, CancellationToken cancellationToken)
         {
-            var data = await m_DataSource.GetAssetAsync(Descriptor.ProjectDescriptor, Descriptor.AssetId, label, FieldsFilter.DefaultAssetIncludes, cancellationToken);
+            var fieldsFilter = m_CacheConfiguration.GetAssetFieldsFilter();
+
+            var data = await m_DataSource.GetAssetAsync(Descriptor.ProjectDescriptor, Descriptor.AssetId, label, fieldsFilter, cancellationToken);
 
             if (data == null)
             {
@@ -140,29 +160,36 @@ namespace Unity.Cloud.AssetsEmbedded
             }
 
             var assetDescriptor = new AssetDescriptor(Descriptor.ProjectDescriptor, Descriptor.AssetId, data.Version);
-            return data.From(m_DataSource, assetDescriptor, FieldsFilter.DefaultAssetIncludes);
+            return data.From(m_DataSource, DefaultCacheConfiguration, assetDescriptor, fieldsFilter, CacheConfiguration);
         }
 
         /// <inheritdoc />
-        public Task RefreshAsync(CancellationToken cancellationToken)
+        public async Task RefreshAsync(CancellationToken cancellationToken)
         {
-            PreviewFileUrl = null;
-            MetadataEntity.Refresh();
-            SystemMetadataEntity.Refresh();
-
-            return RefreshAsync(FieldsFilter.DefaultAssetIncludes, cancellationToken);
+            if (CacheConfiguration.HasCachingRequirements)
+            {
+                var fieldsFilter = m_CacheConfiguration.GetAssetFieldsFilter();
+                var data = await m_DataSource.GetAssetAsync(Descriptor, fieldsFilter, cancellationToken);
+                this.MapFrom(m_DataSource, data, fieldsFilter);
+            }
         }
 
-        async Task RefreshAsync(FieldsFilter fieldsFilter, CancellationToken cancellationToken)
+        /// <inheritdoc />
+        public async Task<AssetProperties> GetPropertiesAsync(CancellationToken cancellationToken)
         {
-            var assetData = await m_DataSource.GetAssetAsync(Descriptor, fieldsFilter, cancellationToken);
-            this.MapFrom(m_DataSource, Descriptor, assetData, fieldsFilter);
+            if (CacheConfiguration.CacheProperties)
+            {
+                return Properties;
+            }
+
+            var fieldsFilter = FieldsFilter.DefaultAssetIncludes;
+            var data = await m_DataSource.GetAssetAsync(Descriptor, fieldsFilter, cancellationToken);
+            return data.From(Descriptor, fieldsFilter);
         }
 
         /// <inheritdoc />
         public async Task UpdateAsync(IAssetUpdate assetUpdate, CancellationToken cancellationToken)
         {
-            // Update properties first
             if (assetUpdate.HasValues())
             {
                 await m_DataSource.UpdateAssetAsync(Descriptor, assetUpdate.From(), cancellationToken);
@@ -192,13 +219,15 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async Task<IAsset> CreateUnfrozenVersionAsync(CancellationToken cancellationToken)
         {
+            var assetDescriptor = await CreateUnfrozenVersionLiteAsync(cancellationToken);
+            return await GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, assetDescriptor, CacheConfiguration, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public async Task<AssetDescriptor> CreateUnfrozenVersionLiteAsync(CancellationToken cancellationToken)
+        {
             var version = await m_DataSource.CreateUnfrozenAssetVersionAsync(Descriptor, null, cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var assetDescriptor = new AssetDescriptor(Descriptor.ProjectDescriptor, Descriptor.AssetId, version);
-            var assetData = await m_DataSource.GetAssetAsync(assetDescriptor, FieldsFilter.DefaultAssetIncludes, cancellationToken);
-            return assetData.From(m_DataSource, assetDescriptor, FieldsFilter.DefaultAssetIncludes);
+            return new AssetDescriptor(Descriptor.ProjectDescriptor, Descriptor.AssetId, version);
         }
 
         /// <inheritdoc />
@@ -227,65 +256,55 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public VersionQueryBuilder QueryVersions()
         {
-            return new VersionQueryBuilder(m_DataSource, Descriptor.ProjectDescriptor, Descriptor.AssetId);
+            return new VersionQueryBuilder(m_DataSource, DefaultCacheConfiguration, Descriptor.ProjectDescriptor, Descriptor.AssetId);
+        }
+
+        /// <inheritdoc />
+        public IAsyncEnumerable<IAsset> ListVersionsAsync(Range range, CancellationToken cancellationToken)
+        {
+            return new VersionQueryBuilder(m_DataSource, DefaultCacheConfiguration, Descriptor.ProjectDescriptor, Descriptor.AssetId)
+                .WithCacheConfiguration(CacheConfiguration)
+                .OrderBy("versionNumber", SortingOrder.Descending)
+                .LimitTo(range)
+                .ExecuteAsync(cancellationToken);
         }
 
         /// <inheritdoc />
         public async IAsyncEnumerable<IAssetProject> GetLinkedProjectsAsync([EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            foreach (var projectDescriptor in m_LinkedProjects)
+            var properties = await GetPropertiesAsync(cancellationToken);
+            foreach (var projectDescriptor in properties.LinkedProjects)
             {
-                var data = await m_DataSource.GetProjectAsync(projectDescriptor, cancellationToken);
-                yield return data.From(m_DataSource, Descriptor.OrganizationId);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                yield return await AssetProjectEntity.GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, projectDescriptor, null, cancellationToken);
             }
         }
 
         /// <inheritdoc />
-        public async Task LinkToProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        public Task LinkToProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
         {
-            await m_DataSource.LinkAssetToProjectAsync(Descriptor, projectDescriptor, cancellationToken);
-
-            // We shouldn't be auto-refreshing
-
-            var data = await m_DataSource.GetAssetAsync(Descriptor, new FieldsFilter(), cancellationToken);
-            SourceProject = new ProjectDescriptor(Descriptor.OrganizationId, data.SourceProjectId);
-            m_LinkedProjects = data.LinkedProjectIds?
-                .Select(projectId => new ProjectDescriptor(Descriptor.OrganizationId, projectId))
-                .ToArray() ?? Array.Empty<ProjectDescriptor>();
+            return m_DataSource.LinkAssetToProjectAsync(Descriptor, projectDescriptor, cancellationToken);
         }
 
         /// <inheritdoc />
-        public async Task UnlinkFromProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        public Task UnlinkFromProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
         {
             var assetDescriptor = new AssetDescriptor(projectDescriptor, Descriptor.AssetId, Descriptor.AssetVersion);
-            await m_DataSource.UnlinkAssetFromProjectAsync(assetDescriptor, cancellationToken);
-
-            // We shouldn't be auto-refreshing
-
-            // If we are not unlinking from the current descriptor, we can fetch to refresh the linked projects.
-            if (Descriptor.ProjectId != projectDescriptor.ProjectId)
-            {
-                var data = await m_DataSource.GetAssetAsync(Descriptor, FieldsFilter.None, cancellationToken);
-                SourceProject = new ProjectDescriptor(Descriptor.OrganizationId, data.SourceProjectId);
-                m_LinkedProjects = data.LinkedProjectIds?
-                    .Select(projectId => new ProjectDescriptor(Descriptor.OrganizationId, projectId))
-                    .ToArray() ?? Array.Empty<ProjectDescriptor>();
-            }
-            else // Otherwise, we remove the project from the linked projects. The descriptor path to this asset is no longer valid.
-            {
-                m_LinkedProjects = m_LinkedProjects.Where(descriptor => descriptor.ProjectId != projectDescriptor.ProjectId).ToArray();
-            }
+            return m_DataSource.UnlinkAssetFromProjectAsync(assetDescriptor, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<Uri> GetPreviewUrlAsync(CancellationToken cancellationToken)
         {
-            if (PreviewFileUrl == null)
+            if (CacheConfiguration.CachePreviewUrl)
             {
-                var fieldsFilter = new FieldsFilter {AssetFields = AssetFields.previewFileUrl};
-                var assetData = await m_DataSource.GetAssetAsync(Descriptor, fieldsFilter, cancellationToken);
-                this.MapFrom(m_DataSource, Descriptor, assetData, fieldsFilter);
+                return PreviewFileUrl;
             }
+
+            var fieldsFilter = new FieldsFilter {AssetFields = AssetFields.previewFileUrl};
+            var data = await m_DataSource.GetAssetAsync(Descriptor, fieldsFilter, cancellationToken);
+            this.MapFrom(m_DataSource, data, fieldsFilter);
 
             return PreviewFileUrl;
         }
@@ -323,46 +342,83 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public Task<IDataset> CreateDatasetAsync(DatasetCreation datasetCreation, CancellationToken cancellationToken) => CreateDatasetAsync((IDatasetCreation)datasetCreation, cancellationToken);
+        public Task<IDataset> CreateDatasetAsync(DatasetCreation datasetCreation, CancellationToken cancellationToken)
+            => CreateDatasetAsync((IDatasetCreation) datasetCreation, cancellationToken);
 
         /// <inheritdoc />
         public async Task<IDataset> CreateDatasetAsync(IDatasetCreation datasetCreation, CancellationToken cancellationToken)
         {
-            var datasetData = await m_DataSource.CreateDatasetAsync(Descriptor, datasetCreation.From(), cancellationToken);
-            var dataset = datasetData.From(m_DataSource, Descriptor, DatasetFields.all);
+            var datasetDescriptor = await CreateDatasetLiteAsync(datasetCreation, cancellationToken);
+            return await DatasetEntity.GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, datasetDescriptor, CacheConfiguration.DatasetCacheConfiguration, cancellationToken);
+        }
 
-            return dataset;
+        /// <inheritdoc />
+        public Task<DatasetDescriptor> CreateDatasetLiteAsync(IDatasetCreation datasetCreation, CancellationToken cancellationToken)
+        {
+            return m_DataSource.CreateDatasetAsync(Descriptor, datasetCreation.From(), cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<IDataset> GetDatasetAsync(DatasetId datasetId, CancellationToken cancellationToken)
         {
             var datasetDescriptor = new DatasetDescriptor(Descriptor, datasetId);
-            var data = await m_DataSource.GetDatasetAsync(datasetDescriptor, FieldsFilter.DefaultDatasetIncludes, cancellationToken);
-            return data?.From(m_DataSource, datasetDescriptor, FieldsFilter.DefaultDatasetIncludes.DatasetFields);
+
+            if (CacheConfiguration.CacheDatasetList)
+            {
+                var datasetData = DatasetMap.GetValueOrDefault(datasetId);
+                return datasetData?.From(m_DataSource, DefaultCacheConfiguration,
+                    datasetDescriptor, m_CacheConfiguration.GetDatasetFieldsFilter().DatasetFields,
+                    CacheConfiguration.DatasetCacheConfiguration);
+            }
+
+            return await DatasetEntity.GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, datasetDescriptor, CacheConfiguration.DatasetCacheConfiguration, cancellationToken);
         }
 
         /// <inheritdoc />
         public async IAsyncEnumerable<IDataset> ListDatasetsAsync(Range range, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var data = m_DataSource.ListDatasetsAsync(Descriptor, range, FieldsFilter.DefaultDatasetIncludes, cancellationToken);
-            await foreach (var datasetData in data)
+            var fieldsFilter = m_CacheConfiguration.GetDatasetFieldsFilter();
+            var asyncEnumerable = CacheConfiguration.CacheDatasetList
+                ? ListCachedDatasetsAsync(range, cancellationToken)
+                : ListRemoteDatasetsAsync(range, fieldsFilter, cancellationToken);
+            await foreach (var datasetData in asyncEnumerable.WithCancellation(cancellationToken))
             {
-                yield return datasetData.From(m_DataSource, Descriptor, FieldsFilter.DefaultDatasetIncludes.DatasetFields);
+                yield return datasetData.From(m_DataSource, DefaultCacheConfiguration, Descriptor, fieldsFilter.DatasetFields, CacheConfiguration.DatasetCacheConfiguration);
             }
+        }
+
+        async IAsyncEnumerable<IDatasetData> ListCachedDatasetsAsync(Range range, [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var (start, length) = range.GetValidatedOffsetAndLength(Datasets.Count);
+            for (var i = start; i < start + length; ++i)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                yield return Datasets[i];
+            }
+
+            await Task.CompletedTask;
+        }
+
+        IAsyncEnumerable<IDatasetData> ListRemoteDatasetsAsync(Range range, FieldsFilter includedFieldsFilter, CancellationToken cancellationToken)
+        {
+            return m_DataSource.ListDatasetsAsync(Descriptor, range, includedFieldsFilter, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<IFile> GetFileAsync(string filePath, CancellationToken cancellationToken)
         {
-            var asset = await m_DataSource.GetAssetAsync(Descriptor, FieldsFilter.DefaultFileIncludes, cancellationToken);
+            var fieldsFilter = m_CacheConfiguration.GetFileFieldsFilter();
+            fieldsFilter.AssetFields |= AssetFields.files;
+
+            var asset = await m_DataSource.GetAssetAsync(Descriptor, fieldsFilter, cancellationToken);
 
             IFile file = null;
 
-            var data = asset.Files?.FirstOrDefault(x => x.Path == filePath);
-            if (data != null)
+            var fileData = asset.Files?.FirstOrDefault(x => x.Path == filePath);
+            if (fileData != null)
             {
-                file = data.From(m_DataSource, Descriptor, FieldsFilter.DefaultFileIncludes.FileFields);
+                file = fileData.From(m_DataSource, DefaultCacheConfiguration, Descriptor, fieldsFilter.FileFields, CacheConfiguration.DatasetCacheConfiguration.FileCacheConfiguration);
             }
 
             if (file == null)
@@ -376,7 +432,10 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async IAsyncEnumerable<IFile> ListFilesAsync(Range range, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var asset = await m_DataSource.GetAssetAsync(Descriptor, FieldsFilter.DefaultFileIncludes, cancellationToken);
+            var fieldsFilter = m_CacheConfiguration.GetFileFieldsFilter();
+            fieldsFilter.AssetFields |= AssetFields.files;
+
+            var asset = await m_DataSource.GetAssetAsync(Descriptor, fieldsFilter, cancellationToken);
 
             var files = asset.Files?.ToArray() ?? Array.Empty<IFileData>();
             var (start, length) = range.GetValidatedOffsetAndLength(files.Length);
@@ -384,7 +443,7 @@ namespace Unity.Cloud.AssetsEmbedded
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                yield return files[i].From(m_DataSource, Descriptor, FieldsFilter.DefaultFileIncludes.FileFields);
+                yield return files[i].From(m_DataSource, DefaultCacheConfiguration, Descriptor, fieldsFilter.FileFields, CacheConfiguration.DatasetCacheConfiguration.FileCacheConfiguration);
             }
         }
 
@@ -449,6 +508,7 @@ namespace Unity.Cloud.AssetsEmbedded
         async Task<IAssetReference> AddReferenceAsync(AssetIdentifierDto targetAssetIdentifier, CancellationToken cancellationToken)
         {
             var referenceId = await m_DataSource.CreateAssetReferenceAsync(Descriptor, targetAssetIdentifier, cancellationToken);
+
             // Ideally we would fetch the newly created reference data here, but the API does not have an entry for returning a single reference.
             return new AssetReference(Descriptor.ProjectDescriptor, referenceId)
             {
@@ -484,27 +544,19 @@ namespace Unity.Cloud.AssetsEmbedded
             return IsolatedSerialization.SerializeWithDefaultConverters(data);
         }
 
-        IAsset Copy(AssetDescriptor assetDescriptor)
+        /// <summary>
+        /// Returns an asset configured with the specified cache configuration.
+        /// </summary>
+        internal static async Task<IAsset> GetConfiguredAsync(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, AssetDescriptor descriptor, AssetCacheConfiguration? configuration, CancellationToken cancellationToken)
         {
-            return new AssetEntity(m_DataSource, assetDescriptor)
+            var asset = new AssetEntity(dataSource, defaultCacheConfiguration, descriptor, configuration);
+
+            if (asset.CacheConfiguration.HasCachingRequirements)
             {
-                m_LinkedProjects = m_LinkedProjects.ToArray(),
-                SourceProject = SourceProject,
-                Name = Name,
-                Description = Description,
-                Tags = Tags?.ToArray(),
-                SystemTags = SystemTags?.ToArray(),
-                Labels = Labels?.ToArray(),
-                ArchivedLabels = ArchivedLabels?.ToArray(),
-                Type = Type,
-                PreviewFile = PreviewFile,
-                Status = Status,
-                StatusName = StatusName,
-                State = State,
-                AuthoringInfo = AuthoringInfo,
-                MetadataEntity = {Properties = MetadataEntity.Properties},
-                SystemMetadataEntity = {Properties = SystemMetadataEntity.Properties}
-            };
+                await asset.RefreshAsync(cancellationToken);
+            }
+
+            return asset;
         }
     }
 }

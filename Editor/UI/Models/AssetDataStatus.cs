@@ -1,6 +1,6 @@
-using System;
 using System.Collections.Generic;
 using Unity.AssetManager.Core.Editor;
+using Unity.AssetManager.Upload.Editor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
@@ -20,56 +20,82 @@ namespace Unity.AssetManager.UI.Editor
         public static readonly AssetPreview.IStatus UploadOverride = new PreviewStatus(Constants.UploadNewVersionText, string.Empty, "grid-view--item-upload-override");
         public static readonly AssetPreview.IStatus UploadDuplicate = new PreviewStatus(Constants.UploadDuplicateText, string.Empty, "grid-view--item-upload-duplicate");
         public static readonly AssetPreview.IStatus UploadOutside = new PreviewStatus(Constants.UploadOutsideText, string.Empty, "grid-view--item-upload-outside");
+        public static readonly AssetPreview.IStatus UploadSourceControlled = new PreviewStatus(Constants.UploadSourceControlledText, string.Empty, UssStyles.StatusError);
 
         static class UssStyles
         {
             public static readonly string StatusIcon = "grid-view--status-icon";
-            static readonly string k_Status = Constants.GridItemStyleClassName + "-imported_status";
+            static readonly string k_Status = UssStyle.GridItemStyleClassName + "-imported_status";
             public static readonly string StatusImported = k_Status + "-imported";
             public static readonly string StatusUpToDate = k_Status + "-up_to_date";
             public static readonly string StatusOutOfDate = k_Status + "-out_of_date";
             public static readonly string StatusError = k_Status + "-error";
         }
 
-        internal static IEnumerable<AssetPreview.IStatus> GetIStatusFromAssetDataStatusType(
-            IEnumerable<AssetDataStatusType> statusTypes)
+        internal static IEnumerable<AssetPreview.IStatus> GetIStatusFromAssetDataAttributes(
+            AssetDataAttributeCollection assetDataAttributeCollection)
         {
-            var statusList = new List<AssetPreview.IStatus>();
+            var assetPreviewStatusList = new List<AssetPreview.IStatus>();
 
-            if (statusTypes == null)
+            if (assetDataAttributeCollection == null)
             {
-                return statusList;
+                return assetPreviewStatusList;
             }
 
-            foreach (var statusType in statusTypes)
+            assetPreviewStatusList.Add(GetIStatusFromImportAttributes(assetDataAttributeCollection));
+            assetPreviewStatusList.Add(GetIStatusFromUploadAttributes(assetDataAttributeCollection));
+            if (assetDataAttributeCollection.GetAttribute<LinkedDependencyAttribute>()?.IsLinked == true)
             {
-                statusList.Add(GetIStatusFromAssetDataStatusType(statusType));
+                assetPreviewStatusList.Add(Linked);
             }
 
-            return statusList;
+            return assetPreviewStatusList;
         }
 
-        internal static AssetPreview.IStatus GetIStatusFromAssetDataStatusType(AssetDataStatusType? statusType)
+        internal static AssetPreview.IStatus GetIStatusFromImportAttributes(AssetDataAttributeCollection attributeCollection)
         {
-            if (!statusType.HasValue)
+            if (attributeCollection == null || !attributeCollection.HasAttribute<ImportAttribute>())
+                return null;
+
+            return attributeCollection.GetAttribute<ImportAttribute>()?.Status switch
+            {
+                ImportAttribute.ImportStatus.NoImport => null,
+                ImportAttribute.ImportStatus.UpToDate => UpToDate,
+                ImportAttribute.ImportStatus.OutOfDate => OutOfDate,
+                ImportAttribute.ImportStatus.ErrorSync => Error,
+                _ => null
+            };
+        }
+
+        static AssetPreview.IStatus GetIStatusFromUploadAttributes(AssetDataAttributeCollection attributeCollection)
+        {
+            if (attributeCollection == null || !attributeCollection.HasAttribute<UploadAttribute>())
+                return null;
+
+            var attribute = attributeCollection.GetAttribute<UploadAttribute>();
+
+            if (attribute == null)
             {
                 return null;
             }
 
-            return statusType switch
+            var templateStatus = GetIStatusTemplateFromUploadAttributes(attribute.Status);
+
+            return templateStatus == null ? null : new PreviewStatus(templateStatus, attribute.Details);
+        }
+
+        static AssetPreview.IStatus GetIStatusTemplateFromUploadAttributes(UploadAttribute.UploadStatus status)
+        {
+            return status switch
             {
-                AssetDataStatusType.None => null,
-                AssetDataStatusType.Imported => Imported,
-                AssetDataStatusType.UpToDate => UpToDate,
-                AssetDataStatusType.OutOfDate => OutOfDate,
-                AssetDataStatusType.Error => Error,
-                AssetDataStatusType.Linked => Linked,
-                AssetDataStatusType.UploadAdd => UploadAdd,
-                AssetDataStatusType.UploadSkip => UploadSkip,
-                AssetDataStatusType.UploadOverride => UploadOverride,
-                AssetDataStatusType.UploadDuplicate => UploadDuplicate,
-                AssetDataStatusType.UploadOutside => UploadOutside,
-                _ => throw new ArgumentOutOfRangeException(nameof(statusType), statusType, null)
+                UploadAttribute.UploadStatus.DontUpload => null,
+                UploadAttribute.UploadStatus.Add => UploadAdd,
+                UploadAttribute.UploadStatus.Skip => UploadSkip,
+                UploadAttribute.UploadStatus.Override => UploadOverride,
+                UploadAttribute.UploadStatus.Duplicate => UploadDuplicate,
+                UploadAttribute.UploadStatus.ErrorOutsideProject => UploadOutside,
+                UploadAttribute.UploadStatus.SourceControlled => UploadSourceControlled,
+                _ => null
             };
         }
     }
@@ -80,12 +106,22 @@ namespace Unity.AssetManager.UI.Editor
 
         public string Description { get; }
         public string ActionText { get; }
+        public string Details { get; }
 
         public PreviewStatus(string description, string actionText, params string[] ussStyles)
         {
             Description = description;
             ActionText = actionText;
+            Details = null;
             m_Styles = ussStyles;
+        }
+
+        public PreviewStatus(AssetPreview.IStatus otherStatus, string details)
+        {
+            Description = otherStatus.Description;
+            ActionText = otherStatus.ActionText;
+            Details = details;
+            m_Styles = ((PreviewStatus)otherStatus).m_Styles;
         }
 
         public VisualElement CreateVisualTree()
