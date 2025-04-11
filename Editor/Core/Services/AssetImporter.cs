@@ -87,14 +87,8 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeReference]
         IAssetImportResolver m_Resolver;
 
-        [SerializeReference]
-        IProgressManager m_ProgressManager;
-
         readonly Dictionary<string, ImportOperation> m_ImportOperations = new();
         readonly Dictionary<Uri, DownloadOperation> m_UriToDownloadOperationMap = new();
-
-        const int k_MaxConcurrentDownloads = 10;
-        static readonly SemaphoreSlim k_DownloadFileSemaphore = new(k_MaxConcurrentDownloads);
 
         CancellationTokenSource m_TokenSource;
         BulkImportOperation m_BulkImportOperation;
@@ -103,8 +97,7 @@ namespace Unity.AssetManager.Core.Editor
         public void Inject(IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy,
             IEditorUtilityProxy editorUtilityProxy, IImportedAssetsTracker importedAssetsTracker,
             IAssetDataManager assetDataManager, IAssetOperationManager assetOperationManager,
-            ISettingsManager settingsManager, IAssetsProvider assetsProvider, IAssetImportResolver assetImportResolver,
-            IProgressManager progressManager)
+            ISettingsManager settingsManager, IAssetsProvider assetsProvider, IAssetImportResolver assetImportResolver)
         {
             m_IOProxy = ioProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
@@ -115,7 +108,6 @@ namespace Unity.AssetManager.Core.Editor
             m_SettingsManager = settingsManager;
             m_AssetsProvider = assetsProvider;
             m_Resolver = assetImportResolver;
-            m_ProgressManager = progressManager;
         }
 
         public override void OnEnable()
@@ -184,7 +176,7 @@ namespace Unity.AssetManager.Core.Editor
 
                 if (resolutions.Length > 0)
                 {
-                    if (Import(resolutions, importDestination, token))
+                    if (await Import(resolutions, importDestination, token))
                     {
                         // Isolate the assets to those from the original list;
                         // the versions may have changed so only compare part of the AssetIdentifier
@@ -216,7 +208,7 @@ namespace Unity.AssetManager.Core.Editor
                 var collectionProjectId = collection.ProjectId;
                 var collectionAssetIds = new HashSet<string>();
 
-                m_ProgressManager.Start($"Getting assets from collection {collection.GetFullPath()}");
+                m_EditorUtilityProxy.DisplayProgressBar($"Getting assets from collection {collection.GetFullPath()}", string.Empty, 0f);
 
                 // Get assets from the collection
                 await foreach (var assetIdentifier in m_AssetsProvider.SearchLiteAsync(collection.OrganizationId,
@@ -230,7 +222,7 @@ namespace Unity.AssetManager.Core.Editor
                 if (collectionAssetIds.Count == 0)
                     return;
 
-                m_ProgressManager.Stop();
+                m_EditorUtilityProxy.ClearProgressBar();
 
                 assets = assets.Where(info => info.Identifier.ProjectId == collectionProjectId && collectionAssetIds.Contains(info.Identifier.AssetId));
             }
@@ -253,15 +245,12 @@ namespace Unity.AssetManager.Core.Editor
             if (assetDatas == null || !assetDatas.Any())
                 return;
 
-            m_ProgressManager.Start("Searching outdated assets...");
+            m_EditorUtilityProxy.DisplayProgressBar("Searching outdated assets...", string.Empty, 0f);
 
-            await m_AssetsProvider.UpdateImportStatusAsync(assetDatas, token);
+            var results = await m_AssetsProvider.GatherImportStatusesAsync(assetDatas, token);
+            var outdatedAssets = assetDatas.Where(x => IsOutOfDate(x, results)).ToList();
 
-            var outdatedAssets = assetDatas.Where(x =>
-                x.AssetDataAttributeCollection?.GetAttribute<ImportAttribute>().Status ==
-                ImportAttribute.ImportStatus.OutOfDate).ToList();
-
-            m_ProgressManager.Stop();
+            m_EditorUtilityProxy.ClearProgressBar();
 
             if (outdatedAssets.Count > 0)
             {
@@ -269,23 +258,45 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
+        static bool IsOutOfDate(BaseAssetData assetData, ImportStatuses importStatuses)
+        {
+            if (importStatuses.TryGetValue(assetData.Identifier, out var status))
+            {
+                return status == ImportAttribute.ImportStatus.OutOfDate;
+            }
+
+            return false;
+        }
+
         public void ShowInProject(AssetIdentifier identifier)
         {
             try
             {
                 var importedInfo = m_AssetDataManager.GetImportedAssetInfo(identifier);
-                var primarySourceFile = importedInfo.AssetData.PrimarySourceFile;
 
-                if (primarySourceFile != null)
+                if (importedInfo != null)
                 {
-                    var fileInfo = importedInfo.FileInfos.Find(f => Utilities.ComparePaths(f.OriginalPath, primarySourceFile.Path));
-                    m_AssetDatabaseProxy.PingAssetByGuid(fileInfo.Guid);
+                    // Order is from least useable to most useable
+                    var files = importedInfo.AssetData?
+                        .GetFiles(d => d.CanBeImported)?
+                        .FilterUsableFilesAsPrimaryExtensions()
+                        .OrderBy(x => x, new AssetDataFileComparerByExtension())
+                        .ToArray() ?? Array.Empty<AssetDataFile>();
+
+                    for (var i = files.Length - 1; i >= 0; --i)
+                    {
+                        var fileInfo = importedInfo.FileInfos.Find(f => Utilities.ComparePaths(f.OriginalPath, files[i].Path));
+                        if (fileInfo != null && m_AssetDatabaseProxy.PingAssetByGuid(fileInfo.Guid))
+                            return;
+                    }
                 }
             }
             catch (Exception)
             {
-                Debug.LogError("Unable to find asset location");
+                // Ignore
             }
+
+            Debug.LogError("Unable to find asset location");
         }
 
         public void CancelImport(AssetIdentifier identifier, bool showConfirmationDialog = false)
@@ -448,9 +459,11 @@ namespace Unity.AssetManager.Core.Editor
 
         void ProcessImports(IList<ImportOperation> imports)
         {
+            bool hasErrors = false;
             foreach (var import in imports)
             {
                 m_ImportOperations.Remove(import.Identifier.AssetId);
+                hasErrors |= import.Status != OperationStatus.Success;
             }
 
             m_UriToDownloadOperationMap.Clear();
@@ -482,6 +495,15 @@ namespace Unity.AssetManager.Core.Editor
             }
             TaskUtils.TrackException(Task.WhenAll(tasks));
 
+            // If there weren't any error, we can clear the import operations
+            if (!hasErrors)
+            {
+                foreach (var import in imports)
+                {
+                    m_AssetOperationManager.ClearOperation(new TrackedAssetIdentifier(import.Identifier));
+                }
+            }
+
             m_TokenSource?.Dispose();
             m_TokenSource = null;
         }
@@ -500,7 +522,7 @@ namespace Unity.AssetManager.Core.Editor
 
                     var finalPath = Path.GetRelativePath(importOperation.TempDownloadPath, downloadPath);
 
-                    if (File.Exists(downloadPath))
+                    if (m_IOProxy.FileExists(downloadPath))
                     {
                         // If multiple requests are targeting the same asset, we should only clean it up once, otherwise we run the risk of deleting newly downloaded files
                         if (cleanedUpAssets.Add(importOperation.Identifier))
@@ -546,20 +568,25 @@ namespace Unity.AssetManager.Core.Editor
             {
                 if (assetData != null)
                 {
-                    int fileCount = 0;
-                    string fileExtension = string.Empty;
+                    var fileCount = 0;
+                    var fileExtension = string.Empty;
 
-                    if (assetData.SourceFiles != null
-                        && assetData.SourceFiles.Any())
+                    var fileExtensions = assetData.GetFiles()?.Select(adf => Path.GetExtension(adf.Path)) ?? Array.Empty<string>();
+                    if (fileExtensions.Any())
                     {
-                        fileCount = assetData.SourceFiles.Count();
+                        fileCount = fileExtensions.Count();
 
-                        var extensions = assetData.SourceFiles.Select(adf => Path.GetExtension(adf.Path));
-                        fileExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(extensions);
+                        fileExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(fileExtensions);
                         fileExtension = fileExtension?.TrimStart('.'); // remove the dot
                     }
 
-                    AnalyticsSender.SendEvent(new ImportEvent(assetData.Identifier.AssetId, fileCount, fileExtension));
+                    // We only want to send the system tags of the datasets that can be imported
+                    var systemTags = assetData.Datasets
+                        .Where(d => d.CanBeImported)
+                        .SelectMany(d => d.SystemTags)
+                        .Where(t => !string.IsNullOrEmpty(t));
+
+                    AnalyticsSender.SendEvent(new ImportEvent(assetData.Identifier.AssetId, fileCount, fileExtension, systemTags));
                 }
             }
         }
@@ -679,8 +706,6 @@ namespace Unity.AssetManager.Core.Editor
         {
             importOperation.Start();
 
-            await k_DownloadFileSemaphore.WaitAsync(token);
-
             try
             {
                 m_IOProxy.CreateDirectory(importOperation.TempDownloadPath);
@@ -691,14 +716,30 @@ namespace Unity.AssetManager.Core.Editor
                 importOperation.Finish(OperationStatus.Cancelled);
                 throw;
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 importOperation.Finish(OperationStatus.Error);
+                Debug.LogException(e);
                 throw;
             }
-            finally
+        }
+
+        static async Task StartDownloads(ImportOperation importOperation)
+        {
+            try
             {
-                k_DownloadFileSemaphore.Release();
+                await importOperation.StartDownloadRequests();
+            }
+            catch (TaskCanceledException)
+            {
+                importOperation.Finish(OperationStatus.Cancelled);
+                throw;
+            }
+            catch (Exception e)
+            {
+                importOperation.Finish(OperationStatus.Error);
+                Debug.LogException(e);
+                throw;
             }
         }
 
@@ -719,7 +760,7 @@ namespace Unity.AssetManager.Core.Editor
             return request.SendWebRequest();
         }
 
-        bool Import(IEnumerable<BaseAssetData> assetDataList, string importDestination, CancellationToken token)
+        async Task<bool> Import(IEnumerable<BaseAssetData> assetDataList, string importDestination, CancellationToken token)
         {
             if (!assetDataList.Any())
             {
@@ -766,10 +807,8 @@ namespace Unity.AssetManager.Core.Editor
 
             m_BulkImportOperation.Start();
 
-            foreach (var importOperation in importOperations)
-            {
-                TaskUtils.TrackException(StartImport(importOperation, token));
-            }
+            await TaskUtils.RunAllTasksBatched(importOperations, importOperation => StartImport(importOperation, token));
+            await TaskUtils.RunAllTasksBatched(importOperations, importOperation => StartDownloads(importOperation));
 
             return true;
         }
@@ -877,7 +916,7 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     var originalPath = Path.GetRelativePath(assetPath, file);
                     var finalPath = Path.Combine(tempPath, originalPath);
-                    if (File.Exists(file))
+                    if (m_IOProxy.FileExists(file))
                     {
                         m_IOProxy.FileMove(file, finalPath);
                     }

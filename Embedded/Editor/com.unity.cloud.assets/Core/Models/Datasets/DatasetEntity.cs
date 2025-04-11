@@ -314,8 +314,11 @@ namespace Unity.Cloud.AssetsEmbedded
                 using (var md5 = MD5.Create())
 #pragma warning restore S4790
                 {
+#if UNITY_WEBGL
+                    await CalculateMD5ChecksumInternalAsync(md5, stream, cancellationToken);
+#else
                     var result = new TaskCompletionSource<bool>();
-                    await TaskUtils.Run(async () =>
+                    await Task.Run(async () =>
                     {
                         try
                         {
@@ -327,8 +330,13 @@ namespace Unity.Cloud.AssetsEmbedded
                         }
                     }, cancellationToken);
                     await result.Task;
+#endif
                     return BitConverter.ToString(md5.Hash).Replace("-", "").ToLowerInvariant();
                 }
+            }
+            catch (Exception e)
+            {
+                throw new AggregateException(e);
             }
             finally
             {

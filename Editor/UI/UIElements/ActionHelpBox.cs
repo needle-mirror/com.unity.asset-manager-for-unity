@@ -8,6 +8,7 @@ namespace Unity.AssetManager.UI.Editor
     class ActionHelpBox : HelpBox
     {
         readonly IUnityConnectProxy m_UnityConnectProxy;
+        readonly IApplicationProxy m_ApplicationProxy;
         readonly IPageManager m_PageManager;
 
         readonly MessageActionButton m_MessageActionButton;
@@ -18,11 +19,12 @@ namespace Unity.AssetManager.UI.Editor
         static readonly string k_ServiceNotReachableMessage = L10n.Tr("Cannot reach Unity Cloud Services.");
         static readonly string k_NoConnectionUploadPageMessage = L10n.Tr("Connect to the internet to upload your assets.");
 
-        public ActionHelpBox(IUnityConnectProxy unityConnectProxy, IPageManager pageManager,
-            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
-            ILinksProxy linksProxy)
+        public ActionHelpBox(IUnityConnectProxy unityConnectProxy, IApplicationProxy applicationProxy,
+            IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            IMessageManager messageManager, ILinksProxy linksProxy)
         {
             m_UnityConnectProxy = unityConnectProxy;
+            m_ApplicationProxy = applicationProxy;
             m_PageManager = pageManager;
 
             m_MessageActionButton = new MessageActionButton(pageManager, projectOrganizationProvider,
@@ -43,13 +45,13 @@ namespace Unity.AssetManager.UI.Editor
             {
                 UIElementsUtils.Show(this);
                 messageType = HelpBoxMessageType.Warning;
-                if (Application.internetReachability == NetworkReachability.NotReachable)
+                if (m_ApplicationProxy.InternetReachable)
                 {
-                    text = m_PageManager.ActivePage is UploadPage ? $"{k_NoConnectionMessage} {k_NoConnectionUploadPageMessage}" : k_NoConnectionMessage;
+                    text = k_ServiceNotReachableMessage;
                 }
                 else
                 {
-                    text = k_ServiceNotReachableMessage;
+                    text = m_PageManager.ActivePage is UploadPage ? $"{k_NoConnectionMessage} {k_NoConnectionUploadPageMessage}" : k_NoConnectionMessage;
                 }
 
                 return;

@@ -229,7 +229,7 @@ namespace Unity.AssetManager.Core.Editor
                 trackedAsset.isFrozen,
                 trackedAsset.tags,
                 trackedAsset.files
-                    .Select(x => ConvertFile(x)),
+                    .Select(ConvertFile),
                 trackedAsset.dependencyAssets
                     .Select(x => new AssetIdentifier(x.organizationId, x.projectId, x.assetId, x.versionId)),
                 trackedAsset.metadata);
@@ -238,7 +238,7 @@ namespace Unity.AssetManager.Core.Editor
                 assetData,
                 trackedAsset.files
                     .Where(x => !string.IsNullOrEmpty(x.trackedUnityGuid))
-                    .Select(x => new ImportedFileInfo(x.trackedUnityGuid, x.path, x.checksum, x.timestamp, x.metaFileChecksum, x.metaFileTimestamp)));
+                    .Select(x => new ImportedFileInfo(string.Empty, x.trackedUnityGuid, x.path, x.checksum, x.timestamp, x.metaFileChecksum, x.metaFileTimestamp)));
         }
 
         static TrackedAssetIdentifierPersisted Convert(AssetIdentifier identifier)

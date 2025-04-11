@@ -39,9 +39,9 @@ namespace Unity.AssetManager.UI.Editor
         const string k_SelfCenter = "self-center";
         const int k_ShowSearchBarThreshold = 10;
 
-        readonly IMessageManager m_MessageManager;
-
+        readonly IApplicationProxy m_ApplicationProxy;
         readonly IPopupManager m_PopupManager;
+
         readonly Dictionary<VisualElement, BaseFilter> m_FilterPerChip = new();
 
         Button m_FilterButton;
@@ -54,11 +54,10 @@ namespace Unity.AssetManager.UI.Editor
         protected override VisualElement Container => m_FilterButton;
 
         public Filters(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            IPopupManager popupManager, IMessageManager messageManager)
+            IApplicationProxy applicationProxy, IPopupManager popupManager)
             : base(pageManager, projectOrganizationProvider)
         {
-            m_MessageManager = messageManager;
-
+            m_ApplicationProxy = applicationProxy;
             m_PopupManager = popupManager;
 
             AddToClassList(UssStyle.k_Filter);
@@ -205,7 +204,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_PopupManager.Show(m_FilterButton, PopupContainer.PopupAlignment.BottomLeft);
 
-            AnalyticsSender.SendEvent(new FilterDropdownEvent());
+            AnalyticsSender.SendEvent(new FilterDropdownEvent(m_PageManager.ActivePage.Title));
         }
 
         void BuildSelections(List<BaseFilter> availablePrimaryMetadataFilters, List<CustomMetadataFilter> availableCustomMetadataFilters, ScrollView filterSelections)
@@ -291,7 +290,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             if (UnityEngine.Mathf.Approximately(chip.resolvedStyle.top, 0))
             {
-                EditorApplication.delayCall += () => WaitUntilChipIsPositioned(chip, filter);
+                m_ApplicationProxy.DelayCall += () => WaitUntilChipIsPositioned(chip, filter);
                 return;
             }
 
@@ -705,7 +704,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             if (selectedFilters != null)
             {
-                AnalyticsSender.SendEvent(new FilterSearchEvent(filter.DisplayName, selectedFilters));
+                AnalyticsSender.SendEvent(new FilterSearchEvent(filter.DisplayName, selectedFilters, m_PageManager.ActivePage.Title));
                 m_PageManager.ActivePage.LoadingStatusChanged += OnActivePageLoadingStatusChanged;
             }
 
@@ -745,8 +744,7 @@ namespace Unity.AssetManager.UI.Editor
                         { FilterName = filter.DisplayName, FilterValue = filter.SelectedFilters != null ? string.Join(",", filter.SelectedFilters) : null });
                 }
 
-                AnalyticsSender.SendEvent(
-                    new FilterSearchResultEvent(filters, m_PageManager.ActivePage.AssetList.Count));
+                AnalyticsSender.SendEvent(new FilterSearchResultEvent(filters, m_PageManager.ActivePage.AssetList.Count, m_PageManager.ActivePage.Title));
             }
         }
 

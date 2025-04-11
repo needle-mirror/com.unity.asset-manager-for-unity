@@ -19,8 +19,10 @@ namespace Unity.AssetManager.UI.Editor
         public string CollectionPath => m_CollectionInfo?.GetFullPath();
 
         public CollectionPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
-            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager, IPageManager pageManager)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager)
+            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
+            IPageManager pageManager, IDialogManager dialogManager)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager,
+                dialogManager)
         {
             m_CollectionInfo = m_ProjectOrganizationProvider.SelectedCollection;
         }

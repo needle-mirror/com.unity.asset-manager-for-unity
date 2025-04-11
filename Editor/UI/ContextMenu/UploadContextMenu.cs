@@ -74,14 +74,23 @@ namespace Unity.AssetManager.UI.Editor
         void IncludeAllScripts(ContextualMenuPopulateEvent evt)
         {
             var uploadAssetData = (UploadAssetData)TargetAssetData;
-            var scriptsIncluded = uploadAssetData.HasAdditionalFiles();
-            AddMenuEntry(evt, L10n.Tr(Constants.IncludeAllScripts), true, scriptsIncluded,
+            var scriptsIncludedToggleValue = false;
+            var includeAllScriptsOptionEnabled = true;
+
+            UploadPage uploadPage = m_PageManager?.ActivePage as UploadPage;
+            if (uploadPage != null && uploadPage.UploadStaging != null)
+            {
+                includeAllScriptsOptionEnabled = uploadPage.UploadStaging.DependencyMode != UploadDependencyMode.Ignore;
+                scriptsIncludedToggleValue = uploadPage.UploadStaging.HasIncludeAllScripts(uploadAssetData);
+            }
+
+            AddMenuEntry(evt, L10n.Tr(Constants.IncludeAllScripts), includeAllScriptsOptionEnabled, scriptsIncludedToggleValue,
                 (_) =>
                 {
-                    if (ServicesContainer.instance.Resolve<IPageManager>().ActivePage is not UploadPage uploadPage)
+                    if (uploadPage == null)
                         return;
 
-                    uploadPage.SetIncludeAllScripts(uploadAssetData, !scriptsIncluded);
+                    uploadPage.SetIncludeAllScripts(uploadAssetData, !scriptsIncludedToggleValue);
                 });
         }
     }

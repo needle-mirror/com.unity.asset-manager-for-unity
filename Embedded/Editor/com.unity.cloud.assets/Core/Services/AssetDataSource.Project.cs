@@ -145,7 +145,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
         Task SplitRequest(IEnumerable<AssetId> assetIds, Func<IEnumerable<AssetId>, ApiRequest> buildRequest, CancellationToken cancellationToken)
         {
-            const int maxPageSize = 99;
+            const int maxPageSize = 50;
 
             var assetIdArray = assetIds.ToArray();
 

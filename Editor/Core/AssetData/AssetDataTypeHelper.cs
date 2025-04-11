@@ -17,14 +17,23 @@ namespace Unity.AssetManager.Core.Editor
         Font,
         Material,
         Mesh,
-        PhysicMaterial,
+        PhysicsMaterial,
         Prefab,
         Scene,
         Script,
         Shader,
         Texture,
         VisualEffect,
-        Other
+        Other,
+        AssemblyDefinition,
+        Asset,
+        Configuration,
+        Document,
+        Environment,
+        Image,
+        Playable,
+        ShaderGraph,
+        UnityPackage,
     }
 
     enum IconSource
@@ -77,7 +86,7 @@ namespace Unity.AssetManager.Core.Editor
 
     static class AssetDataTypeHelper
     {
-        // Order is important!
+        // Order and Case is important!
         static readonly List<UnityTypeDescriptor> k_UnityTypeDescriptors = new()
         {
             new UnityTypeDescriptor(UnityAssetType.Scene, ".unity"),
@@ -91,16 +100,18 @@ namespace Unity.AssetManager.Core.Editor
             new UnityTypeDescriptor(UnityAssetType.Material, ".mat"),
             new UnityTypeDescriptor(UnityAssetType.AnimationClip, IconSource.TextureName, "d_AnimationClip Icon",
                 ".anim"),
+            new UnityTypeDescriptor(UnityAssetType.AnimationClip, IconSource.TextureName, "d_AnimatorController Icon",
+                ".controller", ".overridecontroller"),
             new UnityTypeDescriptor(UnityAssetType.AudioClip, ".aac", ".aif", ".aiff", ".au", ".flac", ".mid",
                 ".midi", ".mp3", ".mpa", ".ogg", ".ra", ".ram", ".wav", ".wave", ".wma"),
             new UnityTypeDescriptor(UnityAssetType.AudioMixer, ".mixer"),
             new UnityTypeDescriptor(UnityAssetType.Font, ".fnt", ".fon", ".otf", ".ttf", ".ttc"),
-            new UnityTypeDescriptor(UnityAssetType.PhysicMaterial, ".physicmaterial"),
+            new UnityTypeDescriptor(UnityAssetType.PhysicsMaterial, ".physicMaterial", ".physicsMaterial2D"),
             new UnityTypeDescriptor(UnityAssetType.Script, ".cs"),
-            new UnityTypeDescriptor(UnityAssetType.Shader, ".shader"),
-            new UnityTypeDescriptor(UnityAssetType.Shader, IconSource.Resource,
+            new UnityTypeDescriptor(UnityAssetType.Shader, ".shader", ".shadervariants"),
+            new UnityTypeDescriptor(UnityAssetType.ShaderGraph, IconSource.Resource,
                 "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_graph_icon.png", ".shadergraph"),
-            new UnityTypeDescriptor(UnityAssetType.Shader, IconSource.Resource,
+            new UnityTypeDescriptor(UnityAssetType.ShaderGraph, IconSource.Resource,
                 "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_subgraph_icon.png", ".shadersubgraph"),
             new UnityTypeDescriptor(UnityAssetType.Texture, ".ai", ".apng", ".avif", ".bmp", ".cdr",
                 ".cur", ".dib", ".eps", ".exif", ".exr", ".gif", ".hdr", ".ico", ".icon", ".j", ".j2c", ".j2k",
@@ -108,12 +119,17 @@ namespace Unity.AssetManager.Core.Editor
                 ".jtf", ".mac", ".omf", ".pjp", ".pjpeg", ".png", ".psd", ".qif", ".qti", ".qtif", ".svg", ".tex",
                 ".tfw", ".tga", ".tif", ".tiff", ".webp", ".wmf"),
             new UnityTypeDescriptor(UnityAssetType.VisualEffect, IconSource.Typename,
-                "UnityEngine.VFX.VisualEffectAsset", ".vfx"),
-            new UnityTypeDescriptor(UnityAssetType.Other, IconSource.Typename, "UnityEngine.Timeline.TimelineAsset",
+                "UnityEngine.VFX.VisualEffectAsset", ".vfx", ".vfxoperator", ".vfxblock"),
+            new UnityTypeDescriptor(UnityAssetType.AssemblyDefinition, ".asmdef"),
+            new UnityTypeDescriptor(UnityAssetType.AssemblyDefinition, ".asmref"),
+            new UnityTypeDescriptor(UnityAssetType.UnityPackage, IconSource.TextureName, "d_SceneAsset Icon", ".unitypackage"),
+            new UnityTypeDescriptor(UnityAssetType.Playable, IconSource.Typename, "UnityEngine.Timeline.TimelineAsset",
                 ".playable"),
-            new UnityTypeDescriptor(UnityAssetType.Other, IconSource.TextureName, "d_AnimatorController Icon",
-                ".controller"),
-            new UnityTypeDescriptor(UnityAssetType.Other, IconSource.TextureName, "d_SceneAsset Icon", ".unitypackage")
+            new UnityTypeDescriptor(UnityAssetType.Asset, ".asset"),
+            new UnityTypeDescriptor(UnityAssetType.Configuration, ".config", ".cfg", ".conf", ".ini", ".toml"),
+            new UnityTypeDescriptor(UnityAssetType.Document, ".txt", ".json", ".xml", ".yaml", ".csv"),
+            new UnityTypeDescriptor(UnityAssetType.Environment, ".terrainlayer", ".lighting"),
+
         };
 
         private static readonly List<string> k_ImageFormatsSupportingPreviewGeneration = new()
@@ -168,6 +184,7 @@ namespace Unity.AssetManager.Core.Editor
         public static IEnumerable<BaseAssetDataFile> FilterUsableFilesAsPrimaryExtensions(this IEnumerable<BaseAssetDataFile> rawList)
         {
             return rawList.Where(x =>
+                x != null &&
                 !string.IsNullOrEmpty(x.Extension) &&
                 x.Extension != MetafilesHelper.MetaFileExtension &&
                 !AssetDataDependencyHelper.IsASystemFile(x.Extension));
@@ -182,7 +199,7 @@ namespace Unity.AssetManager.Core.Editor
 
             InitializeExtensionToUnityTypeDescriptor();
 
-            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var value))
+            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension.ToLowerInvariant(), out var value))
             {
                 return value.descriptor.GetIcon();
             }
@@ -199,7 +216,7 @@ namespace Unity.AssetManager.Core.Editor
 
             InitializeExtensionToUnityTypeDescriptor();
 
-            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var value))
+            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension.ToLowerInvariant(), out var value))
             {
                 return value.descriptor.Type;
             }
@@ -216,7 +233,7 @@ namespace Unity.AssetManager.Core.Editor
 
             InitializeExtensionToUnityTypeDescriptor();
 
-            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension, out var value))
+            if (s_ExtensionToUnityTypeDescriptor.TryGetValue(extension.ToLowerInvariant(), out var value))
             {
                 return value.priority;
             }
@@ -263,7 +280,7 @@ namespace Unity.AssetManager.Core.Editor
                 var priority = k_UnityTypeDescriptors.Count - i; // k_UnityTypeDescriptors has higher priority first, and we want higher number for higher priority
                 foreach (var ext in unityTypeDescriptor.Extensions)
                 {
-                    s_ExtensionToUnityTypeDescriptor[ext] = (unityTypeDescriptor, priority);
+                    s_ExtensionToUnityTypeDescriptor[ext.ToLowerInvariant()] = (unityTypeDescriptor, priority);
                 }
             }
         }

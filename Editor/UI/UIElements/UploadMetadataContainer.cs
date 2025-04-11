@@ -5,6 +5,7 @@ using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
 using UnityEditor.UIElements;
+using UnityEngine;
 using UnityEngine.UIElements;
 using Button = UnityEngine.UIElements.Button;
 
@@ -21,6 +22,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string k_AddCustomFieldScrollView = "add-custom-field-scroll-view";
         public const string k_AddCustomFieldPopup = "add-custom-field-popup";
         public const string k_AddCustomFieldSection = "add-custom-field-section";
+        public const string k_NoMetadataFieldLabel = "no-metadata-field-label";
     }
 
     sealed class CustomMetadataButton : Button
@@ -63,15 +65,17 @@ namespace Unity.AssetManager.UI.Editor
         readonly IPageManager m_PageManager;
         readonly IAssetDataManager m_AssetDataManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly ILinksProxy m_LinksProxy;
 
         readonly AssetDataSelection m_SelectedAssetsData = new();
 
         public UploadMetadataContainer(IPageManager pageManager, IAssetDataManager assetDataManager,
-            IProjectOrganizationProvider projectOrganizationProvider)
+            IProjectOrganizationProvider projectOrganizationProvider, ILinksProxy linksProxy)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_LinksProxy = linksProxy;
 
             BuildUI();
 
@@ -220,6 +224,21 @@ namespace Unity.AssetManager.UI.Editor
                 .Where(x => x.DisplayName.Contains(searchFieldValue, StringComparison.OrdinalIgnoreCase));
 
             var allMetadata = selection.Select(x => x.Metadata).ToList();
+
+            if (!matchingFields.Any())
+            {
+                var labelText = L10n.Tr(Constants.NoMatchingFields);
+                labelText = labelText.Replace("<a>", $"<a href=\"{m_LinksProxy.GetAssetManagerDashboardUrl()}\">");
+                var primaryLabel = new Label(labelText)
+                {
+                    enableRichText = true
+                };
+
+                primaryLabel.AddToClassList(UssStyle.k_NoMetadataFieldLabel);
+                m_MetadataScrollView.Add(primaryLabel);
+
+                return;
+            }
 
             foreach (var field in matchingFields.OrderBy(x => x.DisplayName))
             {

@@ -10,6 +10,7 @@ namespace Unity.AssetManager.UI.Editor
     {
         bool IsLoading { get; }
         string DefaultProjectName { get; }
+        string Title { get; }
         PageFilters PageFilters { get; }
         AssetIdentifier LastSelectedAssetId { get; }
         IReadOnlyCollection<BaseAssetData> AssetList { get; }

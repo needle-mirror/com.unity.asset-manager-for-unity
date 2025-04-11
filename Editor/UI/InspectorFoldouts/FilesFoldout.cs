@@ -13,17 +13,18 @@ namespace Unity.AssetManager.UI.Editor
 
         class FileItem
         {
-            public string Filename => AssetDataFile.Path;
+            readonly BaseAssetData m_AssetData;
+            readonly BaseAssetDataFile m_AssetDataFile;
+            
+            public string Filename => m_AssetDataFile.Path;
             public string Guid { get; }
-            public bool Uploaded => AssetDataFile.Available;
-
-            public BaseAssetData AssetData { get; }
-            public BaseAssetDataFile AssetDataFile { get; }
+            public bool Uploaded => m_AssetDataFile.Available;
+            public bool CanRemove => m_AssetData.CanRemovedFile(m_AssetDataFile);
 
             public FileItem(BaseAssetData assetData, BaseAssetDataFile assetDataFile)
             {
-                AssetDataFile = assetDataFile;
-                AssetData = assetData;
+                m_AssetDataFile = assetDataFile;
+                m_AssetData = assetData;
 
                 var guid = assetDataFile.Guid;
                 if (string.IsNullOrEmpty(guid))
@@ -34,48 +35,41 @@ namespace Unity.AssetManager.UI.Editor
 
                 Guid = guid;
             }
+            
+            public void Remove()
+            {
+                m_AssetData.RemoveFile(m_AssetDataFile);
+            }
         }
 
-        List<FileItem> m_FilesList = new();
-        readonly Chip m_UVCSChip;
+        readonly List<FileItem> m_FilesList = new();
 
-        public FilesFoldout(VisualElement parent, string foldoutName, string listViewName,
-            IAssetDatabaseProxy assetDatabaseProxy, string foldoutTitle = null)
-            : base(parent, foldoutName, listViewName, foldoutTitle)
+        public FilesFoldout(VisualElement parent, string foldoutTitle, bool isSourceControlled, IAssetDatabaseProxy assetDatabaseProxy)
+            : base(parent, foldoutTitle, $"files-foldout-{GetSuffix(foldoutTitle)}", $"files-list-{GetSuffix(foldoutTitle)}", "details-files-foldout", "details-files-list")
         {
             m_AssetDatabaseProxy = assetDatabaseProxy;
             SelectionChanged += TryPingItem;
 
-            m_UVCSChip = new Chip("VCS");
-            m_UVCSChip.AddToClassList("details-files-foldout-uvcs-chip");
-            m_UVCSChip.tooltip = L10n.Tr(Constants.VCSChipTooltip);
+            var uvcsChip = new Chip("VCS");
+            uvcsChip.AddToClassList("details-files-foldout-uvcs-chip");
+            uvcsChip.tooltip = L10n.Tr(Constants.VCSChipTooltip);
             var icon = new VisualElement();
             icon.AddToClassList("details-files-foldout-uvcs-chip-icon");
-            m_UVCSChip.Add(icon);
+            uvcsChip.Add(icon);
+            m_FoldoutToggle?.Add(uvcsChip);
 
-            UIElementsUtils.Hide(m_UVCSChip);
-
-            var foldout = parent.Q<Foldout>();
-            var toggle = foldout.Q<Toggle>();
-            toggle.Add(m_UVCSChip);
+            UIElementsUtils.SetDisplay(uvcsChip, isSourceControlled);
         }
 
         public override void Clear()
         {
             base.Clear();
             m_FilesList.Clear();
-            UIElementsUtils.Hide(m_UVCSChip);
         }
 
         protected override IList PrepareListItem(BaseAssetData assetData, IEnumerable<BaseAssetDataFile> items)
         {
-            m_FilesList = new List<FileItem>();
-
-            var dataset = assetData.Datasets.FirstOrDefault(d => d.Files.Exists(items.Contains));
-            if (dataset != null)
-            {
-                UIElementsUtils.SetDisplay(m_UVCSChip, dataset.IsSourceControlled);
-            }
+            m_FilesList.Clear();
 
             foreach (var assetDataFile in items.OrderBy(f => f.Path))
             {
@@ -99,12 +93,10 @@ namespace Unity.AssetManager.UI.Editor
 
             var enabled = !MetafilesHelper.IsOrphanMetafile(fileItem.Filename, m_FilesList.Select(f => f.Filename).ToList());
 
-            var removable = fileItem.AssetData.CanRemovedFile(fileItem.AssetDataFile);
-
-            element.Refresh(fileItem.Filename, fileItem.Guid, enabled, fileItem.Uploaded, removable);
+            element.Refresh(fileItem.Filename, fileItem.Guid, enabled, fileItem.Uploaded, fileItem.CanRemove);
             element.RemoveClicked = () =>
             {
-                fileItem.AssetData.RemoveFile(fileItem.AssetDataFile);
+                fileItem.Remove();
             };
         }
 
@@ -117,6 +109,11 @@ namespace Unity.AssetManager.UI.Editor
             {
                 m_AssetDatabaseProxy.PingAssetByGuid(firstPingableItem.Guid);
             }
+        }
+
+        static string GetSuffix(string title)
+        {
+            return title.ToLower().Replace(' ', '-');
         }
     }
 }

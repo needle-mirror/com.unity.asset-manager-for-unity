@@ -7,28 +7,37 @@ namespace Unity.AssetManager.Upload.Editor
 {
     static class UploadAssetStrategy
     {
-        public static IEnumerable<UploadAssetData> GenerateUploadAssets(IReadOnlyCollection<string> mainGuids,
-            IReadOnlyCollection<string> ignoredGuids, UploadSettings settings, Action<string, float> progressCallback = null)
+        public static IEnumerable<UploadAssetData> GenerateUploadAssets(UploadEdits uploadEdits, UploadSettings settings, Action<string, float> progressCallback = null)
         {
-            var dependencies = settings.DependencyMode == UploadDependencyMode.Separate
-                ? ResolveDependencies(mainGuids)
-                : new HashSet<string>();
+            Utilities.DevAssert(uploadEdits != null, "UploadEdits cannot be null");
+            if (uploadEdits == null)
+                return Enumerable.Empty<UploadAssetData>();
+
+            Utilities.DevAssert(settings != null, "UploadSettings cannot be null");
+            if (settings == null)
+                return Enumerable.Empty<UploadAssetData>();
+
+            IReadOnlyCollection<string> mainGuids = uploadEdits.MainAssetGuids;
+
+            ISet<string> dependencies = new HashSet<string>();
+            if (settings.DependencyMode == UploadDependencyMode.Separate)
+            {
+                dependencies = ResolveDependencies(mainGuids);
+            }
 
             var allGuids = new HashSet<string>(mainGuids);
             allGuids.UnionWith(dependencies);
 
-            // Generate the identifier for each asset first so they can reference to each other
-            var identifiers = allGuids.ToDictionary(guid => guid, guid => new AssetIdentifier(guid));
-
             var cache = new Dictionary<string, UploadAssetData>();
+            var cacheAllScriptsGuids = new AllScriptGuidSnapshot();
 
-            var total = identifiers.Count;
+            var total = allGuids.Count;
             var count = 0f;
 
-            foreach (var (guid, identifier) in identifiers)
+            foreach (var guid in allGuids)
             {
                 progressCallback?.Invoke(guid, count++ / total);
-                GenerateUploadAssetRecursive(ignoredGuids, settings, guid, identifiers, identifier, cache);
+                GenerateUploadAssetRecursive(guid, uploadEdits, settings, cache, cacheAllScriptsGuids);
             }
 
             // Set the dependencies for each asset
@@ -40,9 +49,11 @@ namespace Unity.AssetManager.Upload.Editor
             return cache.Values;
         }
 
-        static UploadAssetData GenerateUploadAssetRecursive(IReadOnlyCollection<string> ignoredGuids, UploadSettings settings, string guid,
-            IReadOnlyDictionary<string, AssetIdentifier> identifiers, AssetIdentifier identifier,
-            Dictionary<string, UploadAssetData> cache)
+        static UploadAssetData GenerateUploadAssetRecursive(string guid,
+            UploadEdits uploadEdits,
+            UploadSettings settings,
+            Dictionary<string, UploadAssetData> cache,
+            AllScriptGuidSnapshot cacheAllScriptGuids)
         {
             if (cache.TryGetValue(guid, out var result))
             {
@@ -53,33 +64,57 @@ namespace Unity.AssetManager.Upload.Editor
             cache[guid] = null;
 
             IEnumerable<string> dependencyGuids = null;
-
-            var files = new List<string> { guid };
+            IReadOnlyCollection<string> ignoredGuids = uploadEdits.IgnoredAssetGuids;
+            IEnumerable<string> mainFileGuids = new List<string> { guid };
+            IEnumerable<string> additionalFileGuids = Enumerable.Empty<string>();
 
             switch (settings.DependencyMode)
             {
                 case UploadDependencyMode.Embedded:
-                    files.AddRange(DependencyUtils.GetValidAssetDependencyGuids(guid, true));
+                    // When embedding, we put all asset file + dependencies in the main files list
+                    mainFileGuids = mainFileGuids.Concat(DependencyUtils.GetValidAssetDependencyGuids(guid, true));
+
+                    // If requested to include all scripts, those goes in the additional files list
+                    if (uploadEdits.IncludesAllScriptsForGuids.Contains(guid))
+                    {
+
+                        additionalFileGuids = additionalFileGuids
+                            .Concat(cacheAllScriptGuids.GetCache().Where(g => g != guid));
+                    }
                     break;
 
                 case UploadDependencyMode.Separate:
-                    dependencyGuids = DependencyUtils.GetValidAssetDependencyGuids(guid, false).ToList();
+
+                    // When creating separated assets, we build the list of dependencies starting from the main asset
+                    dependencyGuids = DependencyUtils.GetValidAssetDependencyGuids(guid, false);
+
+                    // If requested to include all scripts, we add those scripts to the dependency list
+                    if (uploadEdits.IncludesAllScriptsForGuids.Contains(guid))
+                    {
+                        dependencyGuids = dependencyGuids
+                            .Concat(cacheAllScriptGuids.GetCache().Where(g => g != guid))
+                            .Distinct();
+                    }
                     break;
             }
 
-            var filteredFiles = files.Where(fileGuid => fileGuid == guid || !ignoredGuids.Contains(fileGuid)).ToList();
+            // Filters both main and additional files to remove ignored assets
+            mainFileGuids = mainFileGuids.Where(fileGuid => fileGuid == guid || !ignoredGuids.Contains(fileGuid));
+            additionalFileGuids = additionalFileGuids.Where(fileGuid => fileGuid == guid || !ignoredGuids.Contains(fileGuid));
 
+            // Loop recursively to generate all dependencies
             var deps = new List<UploadAssetData>();
-
             if (dependencyGuids != null)
             {
                 foreach (var dependencyGuid in dependencyGuids)
                 {
-                    if (cache.ContainsKey(dependencyGuid))
+                    if (cache.TryGetValue(dependencyGuid, out var dep))
+                    {
+                        deps.Add(dep);
                         continue;
+                    }
 
-                    var dep = GenerateUploadAssetRecursive(ignoredGuids, settings, dependencyGuid, identifiers, identifiers[dependencyGuid], cache);
-
+                    dep = GenerateUploadAssetRecursive(dependencyGuid, uploadEdits, settings, cache, cacheAllScriptGuids);
                     if (dep != null)
                     {
                         // A null result means the asset is being processed in a recursive call
@@ -88,11 +123,10 @@ namespace Unity.AssetManager.Upload.Editor
                 }
             }
 
-
             var projectIdentifier = new ProjectIdentifier(settings.OrganizationId, settings.ProjectId);
             var existingAssetData = AssetDataDependencyHelper.GetAssetAssociatedWithGuid(guid, projectIdentifier.OrganizationId, projectIdentifier.ProjectId);
 
-            var assetUploadEntry = new UploadAssetData(identifier, guid, filteredFiles, deps, existingAssetData, projectIdentifier, settings.FilePathMode);
+            var assetUploadEntry = new UploadAssetData(new AssetIdentifier(guid), guid, mainFileGuids, additionalFileGuids, deps, existingAssetData, projectIdentifier, settings.FilePathMode);
 
             // NO SONAR
             cache[guid] = assetUploadEntry;
@@ -133,6 +167,25 @@ namespace Unity.AssetManager.Upload.Editor
             return assetDatabaseProxy.IsValidFolder(assetPath)
                 ? assetDatabaseProxy.GetAssetsInFolder(assetPath)
                 : new[] { guid };
+        }
+
+        /// <summary>
+        /// Tiny utility that creates a snapshot of all scripts in the project at first usage and keep those
+        /// to ensure this list doesn't change.
+        /// </summary>
+        class AllScriptGuidSnapshot
+        {
+            IEnumerable<string> m_Cache;
+
+            public IEnumerable<string> GetCache()
+            {
+                if (m_Cache == null)
+                {
+                    m_Cache = DependencyUtils.GetAllScriptGuids();
+                }
+
+                return m_Cache;
+            }
         }
     }
 }

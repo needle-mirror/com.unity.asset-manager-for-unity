@@ -98,46 +98,43 @@ namespace Unity.AssetManager.UI.Editor
 
             var token = GetCancellationToken();
 
-            if (m_AssetData != null)
-            {
-                m_AssetData.AssetDataChanged -= OnAssetDataChanged;
-            }
-
             m_AssetData = null;
 
             try
             {
                 m_AssetData = await FetchAssetData(dependencyIdentifier, token);
-                m_AssetIdentifier = m_AssetData?.Identifier ?? dependencyIdentifier;
-
-                if (m_AssetData != null)
-                {
-                    m_AssetData.AssetDataChanged += OnAssetDataChanged;
-
-                    var tasks = new[]
-                    {
-                        m_AssetData.GetAssetDataAttributesAsync(null, token),
-                        m_AssetData.ResolveDatasetsAsync(token)
-                    };
-
-                    await Task.WhenAll(tasks);
-                }
             }
             catch (OperationCanceledException)
             {
                 return;
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                Debug.LogException(e);
+                Utilities.DevLog($"Dependency ({dependencyIdentifier.AssetId}) could not found for asset.");
             }
 
+            m_AssetIdentifier = m_AssetData?.Identifier ?? dependencyIdentifier;
+
             RefreshUI();
+
+            await ResolveData(m_AssetData, token);
         }
 
-        void OnAssetDataChanged(BaseAssetData assetData, AssetDataEventType eventType)
+        async Task ResolveData(BaseAssetData assetData, CancellationToken token)
         {
-            if (assetData != m_AssetData || m_AssetData == null)
+            if (assetData == null)
+                return;
+
+            var tasks = new[]
+            {
+                assetData.GetAssetDataAttributesAsync(token),
+                assetData.ResolveDatasetsAsync(token)
+            };
+
+            await Task.WhenAll(tasks);
+
+            // If by the time the tasks have completed, the target BaseAssetData has changed, don't continue
+            if (m_AssetData != assetData)
                 return;
 
             RefreshUI();

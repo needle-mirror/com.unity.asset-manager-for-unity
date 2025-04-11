@@ -2,6 +2,8 @@ using System.Runtime.Serialization;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
+    // Dev note: [DataContract] and [EnumMember] are artifacts of the old serialization strategy.
+    // The attributes are maintained for compatibility reasons and to avoid a breaking change.
     [DataContract]
 enum TransformationStatus
     {
@@ -23,5 +25,6 @@ enum TransformationStatus
         TimedOut,
         [EnumMember(Value = "terminating")]
         Terminating,
+        Queued
     }
 }

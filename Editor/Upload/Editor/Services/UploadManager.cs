@@ -60,11 +60,6 @@ namespace Unity.AssetManager.Upload.Editor
         public event Action UploadBegan;
         public event Action<UploadEndedStatus> UploadEnded;
 
-        // Increasing this number can help speed up the whole process but mainly leads to timeouts and errors.
-        // We prefer to upload steadily and safely rather than quickly and with potential issues.
-        // Note that this number only controls how many assets are created/uploaded at the same time, and doesn't control how much files are uploaded simultaneously.
-        static readonly int k_MaxConcurrentTasks = 5;
-
         [ServiceInjection]
         public void Inject(IAssetOperationManager assetOperationManager, IImportedAssetsTracker importTracker, IAssetsProvider assetsProvider, IAssetDataManager assetDataManager)
         {
@@ -102,14 +97,15 @@ namespace Unity.AssetManager.Upload.Editor
                 }
 
                 // Prepare the IAssets
-                var createAssetTasks = await TaskUtils.RunWithMaxConcurrentTasksAsync(assetEntriesWithAllDependencies, token,
+                var createAssetTasks = await TaskUtils.RunAllTasks(assetEntriesWithAllDependencies,
                     (uploadEntry) =>
                     {
                         var operation = StartNewOperation(uploadEntry);
                         uploadEntryToOperationLookup[uploadEntry] = operation;
 
-                        return CreateOrRecycleAsset(operation, uploadEntry, token);
-                    }, k_MaxConcurrentTasks);
+                        // Intentionally not cancellable in order to retrieve the AssetUploadInfo
+                        return CreateOrRecycleAsset(operation, uploadEntry, CancellationToken.None);
+                    });
 
                 foreach (var task in createAssetTasks)
                 {
@@ -124,33 +120,58 @@ namespace Unity.AssetManager.Upload.Editor
                     identifierToAssetLookup[uploadEntry.LocalIdentifier] = assetUploadInfo.TargetAssetData;
                 }
 
+                // Since we don't check the cancellation token during the creation of the asset to ensure they complete,
+                // let's check if cancel was requested here before moving on
+                token.ThrowIfCancellationRequested();
+
                 // Prepare a cloud asset for every asset entry that we want to upload
-                await TaskUtils.RunWithMaxConcurrentTasksAsync(uploadEntryToAssetUploadInfoLookup, token,
+                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup,
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
-                        return PrepareUploadAsync(operation, entry.Value.TargetAssetData, identifierToAssetLookup, token);
-                    }, k_MaxConcurrentTasks);
+                        return FetchAssetDependenciesAsync(operation, entry.Value.TargetAssetData, identifierToAssetLookup,
+                            token);
+                    });
 
                 // Upload the assets
-                await TaskUtils.RunWithMaxConcurrentTasksAsync(uploadEntryToAssetUploadInfoLookup, token,
+                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup,
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
                         return UploadAssetAsync(entry.Value, operation, token);
-                    }, k_MaxConcurrentTasks);
+                    });
+
+                // Update the dependencies after the upload
+                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup,
+                    (entry) =>
+                    {
+                        var operation = uploadEntryToOperationLookup[entry.Key];
+                        return UpdateDependenciesAsync(operation, entry.Value.TargetAssetData, token);
+                    });
+
+                // Track the assets
+                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup,
+                    (entry) =>
+                    {
+                        return TrackAsset(entry.Value.UploadAsset, entry.Value.TargetAssetData, token);
+                    });
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException e)
             {
                 uploadEndedStatus = UploadEndedStatus.Cancelled;
 
+                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup.Values,
+                    assetUploadInfo => RemoveAttemptedUploadAssetAsync(assetUploadInfo));
+
                 foreach (var (_, operation) in uploadEntryToOperationLookup)
                 {
-                    if (operation.Status is not (OperationStatus.Success or OperationStatus.Error))
+                    if (operation.Status is not OperationStatus.Error)
                     {
                         operation.Finish(OperationStatus.Cancelled);
                     }
                 }
+
+                AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.Cancelled, e.Message));
             }
             catch (Exception)
             {
@@ -268,12 +289,31 @@ namespace Unity.AssetManager.Upload.Editor
             return operation;
         }
 
-        async Task PrepareUploadAsync(UploadOperation operation, AssetData targetAssetData,
+        async Task FetchAssetDependenciesAsync(UploadOperation operation, AssetData targetAssetData,
             IDictionary<AssetIdentifier, AssetData> identifierToAssetLookup, CancellationToken token = default)
         {
             try
             {
-                await operation.PrepareUploadAsync(targetAssetData, identifierToAssetLookup, token);
+                await operation.FetchAssetDependenciesAsync(targetAssetData, identifierToAssetLookup, token);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                operation.Finish(OperationStatus.Error);
+                AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.PreparationError, e.Message));
+                throw;
+            }
+        }
+
+        async Task UpdateDependenciesAsync(UploadOperation operation, AssetData targetAssetData, CancellationToken token = default)
+        {
+            try
+            {
+                await operation.UpdateDependenciesAsync(targetAssetData, token);
             }
             catch (OperationCanceledException)
             {
@@ -295,19 +335,14 @@ namespace Unity.AssetManager.Upload.Editor
                 await operation.UploadAsync(assetUploadInfo.TargetAssetData, token);
                 operation.Finish(OperationStatus.Success);
                 AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.Ok));
-
-                await TrackAsset(assetUploadInfo.UploadAsset, assetUploadInfo.TargetAssetData, CancellationToken.None);
             }
             catch (OperationCanceledException)
             {
-                await RemoveAttemptedUploadAssetAsync(assetUploadInfo);
                 throw;
             }
             catch (Exception e)
             {
                 Debug.LogException(e);
-
-                await RemoveAttemptedUploadAssetAsync(assetUploadInfo);
 
                 operation.Finish(OperationStatus.Error);
                 AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.UploadError, e.Message));
@@ -360,6 +395,9 @@ namespace Unity.AssetManager.Upload.Editor
 
         async Task<AssetData> RecycleAsset(IUploadAsset uploadAsset, AssetData asset, CancellationToken token)
         {
+            const ComparisonResults filesChanged = ComparisonResults.FilesAdded | ComparisonResults.FilesRemoved | ComparisonResults.FilesModified;
+            const ComparisonResults metadataChanged = ComparisonResults.MetadataAdded | ComparisonResults.MetadataRemoved | ComparisonResults.MetadataModified;
+
             if (asset.IsFrozen)
             {
                 asset = await m_AssetsProvider.CreateUnfrozenVersionAsync(asset, token);
@@ -370,15 +408,25 @@ namespace Unity.AssetManager.Upload.Editor
                 Name = uploadAsset.Name,
                 Type = uploadAsset.AssetType,
                 Tags = uploadAsset.Tags.ToList(),
-                Metadata = uploadAsset.Metadata.ToList(),
             };
+
+            // Only update metadata if it was considered modified in some way.
+            if ((uploadAsset.ComparisonResults & metadataChanged) != 0)
+            {
+                assetUpdate.Metadata = uploadAsset.Metadata.ToList();
+            }
 
             var tasks = new List<Task>
             {
                 m_AssetsProvider.UpdateAsync(asset, assetUpdate, token),
-                m_AssetsProvider.RemoveAllFiles(asset, token),
-                m_AssetsProvider.RemoveThumbnail(asset, token)
+                m_AssetsProvider.RemoveThumbnail(asset, token),
             };
+
+            // Only remove files if they were considered modified in some way.
+            if ((uploadAsset.ComparisonResults & filesChanged) != 0)
+            {
+                tasks.Add(m_AssetsProvider.RemoveAllFiles(asset, token));
+            }
 
             await Task.WhenAll(tasks);
 

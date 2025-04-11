@@ -321,13 +321,18 @@ RoleChip:hover {
 }
 
 .no-files-warning-box {
-    background-color: rgba(27, 27, 27, 1);
-    border-color: rgba(84, 84, 84, 1);
+    background-color: rgba(60, 60, 60, 1);
+    border-color: rgba(23, 23, 23, 1);
 }
 
 .same-files-warning-box {
-    background-color: rgba(27, 27, 27, 1);
-    border-color: rgba(84, 84, 84, 1);
+    background-color: rgba(60, 60, 60, 1);
+    border-color: rgba(23, 23, 23, 1);
+}
+
+.outdated-warning-box {
+    background-color: rgba(60, 60, 60, 1);
+    border-color: rgba(23, 23, 23, 1);
 }
 
 .details-page-close-button:hover, .details-page-download-cancel-button:hover {

@@ -9,25 +9,6 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Core.Editor
 {
-    [Serializable]
-    class DependencyAsset // Might need to add an interface
-    {
-        [SerializeField]
-        AssetIdentifier m_Identifier;
-
-        [SerializeReference]
-        BaseAssetData m_AssetData;
-
-        public AssetIdentifier Identifier => m_Identifier;
-        public BaseAssetData AssetData => m_AssetData;
-
-        public DependencyAsset(AssetIdentifier identifier, BaseAssetData assetData)
-        {
-            m_Identifier = identifier;
-            m_AssetData = assetData;
-        }
-    }
-
     static class AssetDataDependencyHelper
     {
         const char k_AssetIdAssetVersionSeparator = '_';
@@ -78,7 +59,7 @@ namespace Unity.AssetManager.Core.Editor
             await foreach (var dependency in assetsProvider.GetDependenciesAsync(assetData.Identifier, Range.All, token))
             {
                 hasDependencies = true;
-                yield return dependency;
+                yield return dependency.TargetAssetIdentifier;
             }
 
             if (!hasDependencies)
@@ -135,7 +116,7 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public static AssetData GetAssetAssociatedWithGuid(string assetGuid, string organizationId, string projectId)
+        public static BaseAssetData GetAssetAssociatedWithGuid(string assetGuid, string organizationId, string projectId)
         {
             Utilities.DevAssert(!string.IsNullOrEmpty(assetGuid));
             Utilities.DevAssert(!string.IsNullOrEmpty(organizationId));
@@ -150,7 +131,7 @@ namespace Unity.AssetManager.Core.Editor
             if (importedAssetInfos == null)
                 return null; // If the user has not imported the asset, we cannot recycle it.
 
-            AssetData assetData = null;
+            var matches = new List<ImportedAssetInfo>();
             foreach (var importedAssetInfo in importedAssetInfos)
             {
                 if (importedAssetInfo.FileInfos.Exists(
@@ -172,23 +153,39 @@ namespace Unity.AssetManager.Core.Editor
                     continue;
                 }
 
-                assetData = importedAssetData as AssetData;
-                break; // It is actually possible that multiple assets contain the same guid, this use case will be added in the future
+                matches.Add(importedAssetInfo);
             }
 
-            return assetData;
+            // Prioritize any imported asset where the guid is associated with a source dataset.
+            // For context, in the example where optimize and convert files have been imported and then uploaded as separate assets,
+            // we want to target the imported asset that contains those files in the source dataset and NOT the original optimize and convert dataset.
+            foreach (var importedAssetInfo in matches)
+            {
+                var importedFileInfo = importedAssetInfo.FileInfos.FirstOrDefault(f => f.Guid == assetGuid);
+                if (importedFileInfo != null && !string.IsNullOrEmpty(importedFileInfo.DatasetId))
+                {
+                    var dataset = importedAssetInfo.AssetData.Datasets.FirstOrDefault(d => d.Id == importedFileInfo.DatasetId);
+                    if (dataset is {IsSource: true})
+                    {
+                        return importedAssetInfo.AssetData;
+                    }
+                }
+            }
+
+            // It is possible that multiple assets contain the same guid, this use case will be addressed in the future
+            return matches.FirstOrDefault()?.AssetData;
         }
 
         static async Task<List<BaseAssetDataFile>> GetFilesAsync(BaseAssetData assetData, CancellationToken token)
         {
-            var files = assetData.SourceFiles?.ToList();
-            if ((files == null || !files.Any()) && assetData is AssetData ad)
+            var files = assetData.GetFiles();
+            if (!files.Any() && assetData is AssetData ad)
             {
                 await ad.ResolveDatasetsAsync(token);
-                files = assetData.SourceFiles?.ToList();
+                files = assetData.GetFiles();
             }
 
-            return files;
+            return files.ToList();
         }
     }
 }

@@ -55,6 +55,9 @@ namespace Unity.AssetManager.UI.Editor
         [SerializeReference]
         protected IMessageManager m_MessageManager;
 
+        [SerializeReference]
+        protected IDialogManager m_DialogManager;
+
         protected VisualElement m_CustomUISection;
         protected Dictionary<string, SortField> m_SortField;
         protected IAsyncEnumerator<AssetData> m_SearchRequest;
@@ -71,7 +74,7 @@ namespace Unity.AssetManager.UI.Editor
         public virtual bool DisplayUpdateAllButton => true;
         public virtual bool DisplayTitle => false;
         public virtual string DefaultProjectName => L10n.Tr(Constants.AllAssetsFolderName);
-        public virtual string Title => string.Empty;
+        public virtual string Title => GetPageName();
 
         public Dictionary<string, SortField> SortOptions
         {
@@ -118,13 +121,15 @@ namespace Unity.AssetManager.UI.Editor
                 RecommendedAction.Retry);
 
         protected BasePage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
-            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager, IPageManager pageManager)
+            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
+            IPageManager pageManager, IDialogManager dialogManager)
         {
             m_AssetDataManager = assetDataManager;
             m_AssetsProvider = assetsProvider;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_PageManager = pageManager;
             m_MessageManager = messageManager;
+            m_DialogManager = dialogManager;
 
             m_CanLoadMoreItems = true;
             m_EnabledUIComponents = UIComponents.All;

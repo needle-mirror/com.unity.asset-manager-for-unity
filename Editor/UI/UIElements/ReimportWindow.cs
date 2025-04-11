@@ -184,6 +184,7 @@ namespace Unity.AssetManager.UI.Editor
         void ConfirmResolutions()
         {
             var assetDatabase = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
+            var editorUtility = ServicesContainer.instance.Resolve<IEditorUtilityProxy>();
 
             try
             {
@@ -197,7 +198,7 @@ namespace Unity.AssetManager.UI.Editor
                     {
                         foreach (var obj in foldout.AssetDataResolutionInfo.DirtyObjects)
                         {
-                            EditorUtility.ClearDirty(obj);
+                            editorUtility.ClearDirty(obj);
 
                             var assetPath = assetDatabase.GetAssetPath(obj);
 

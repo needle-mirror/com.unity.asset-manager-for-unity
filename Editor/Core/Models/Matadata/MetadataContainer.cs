@@ -9,7 +9,8 @@ namespace Unity.AssetManager.Core.Editor
     interface IMetadataContainer : IEnumerable<IMetadata>
     {
         int Count();
-        bool ContainMetadata(IMetadata metadata);
+        bool ContainsKey(string fieldKey);
+        bool ContainsMatch(IMetadata metadata);
     }
 
     [Serializable]
@@ -38,12 +39,12 @@ namespace Unity.AssetManager.Core.Editor
             m_Dictionary = metadata.ToDictionary(x => x.FieldKey);
         }
 
-        public bool ContainMetadataKey(string fieldKey)
+        public bool ContainsKey(string fieldKey)
         {
             return m_Dictionary.ContainsKey(fieldKey);
         }
 
-        public bool ContainMetadata(IMetadata metadata)
+        public bool ContainsMatch(IMetadata metadata)
         {
             if (!m_Dictionary.TryGetValue(metadata.FieldKey, out var value))
                 return false;

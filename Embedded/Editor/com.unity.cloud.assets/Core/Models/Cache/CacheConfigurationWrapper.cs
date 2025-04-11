@@ -45,7 +45,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 fieldsFilter.Set(DatasetConfiguration, AssetConfiguration.CacheMetadataFieldKeys, AssetConfiguration.CacheSystemMetadataFieldKeys);
             }
 
-            if (AssetConfiguration.DatasetCacheConfiguration.CacheFileList)
+            if (DatasetConfiguration.CacheFileList)
             {
                 fieldsFilter.Set(FileConfiguration, AssetConfiguration.CacheMetadataFieldKeys, AssetConfiguration.CacheSystemMetadataFieldKeys);
             }
@@ -57,7 +57,7 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             var fieldsFilter = new FieldsFilter().Set(DatasetConfiguration, AssetConfiguration.CacheMetadataFieldKeys, AssetConfiguration.CacheSystemMetadataFieldKeys);
 
-            if (AssetConfiguration.DatasetCacheConfiguration.CacheFileList)
+            if (DatasetConfiguration.CacheFileList)
             {
                 fieldsFilter.Set(FileConfiguration, AssetConfiguration.CacheMetadataFieldKeys, AssetConfiguration.CacheSystemMetadataFieldKeys);
             }

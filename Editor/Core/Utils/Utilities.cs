@@ -3,25 +3,15 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace Unity.AssetManager.Core.Editor
 {
     static class Utilities
     {
-        static readonly string[] k_SizeSuffixes = { "B", "Kb", "Mb", "Gb", "Tb" };
-        static readonly int k_MD5_bufferSize = 4096;
-        static readonly List<string> k_IgnoreExtensions = new() { ".meta", ".am4u_dep", ".am4u_guid" };
-
-        static readonly IDialogManager k_DefaultDialogManager = new DialogManager();
+        static readonly string[] k_SizeSuffixes = {"B", "Kb", "Mb", "Gb", "Tb"};
 
         internal static string BytesToReadableString(double bytes)
         {
@@ -42,41 +32,9 @@ namespace Unity.AssetManager.Core.Editor
             return string.IsNullOrWhiteSpace(str) ? str : str.Replace(@"\", @"\\");
         }
 
-        public static bool DeleteAllFilesAndFoldersFromDirectory(string path)
-        {
-            var directory = new DirectoryInfo(path);
-            var success = true;
-
-            foreach (var file in directory.EnumerateFiles())
-            {
-                try
-                {
-                    file.Delete();
-                }
-                catch (IOException)
-                {
-                    success = false;
-                }
-            }
-
-            foreach (var directoryInfo in directory.EnumerateDirectories())
-            {
-                try
-                {
-                    directoryInfo.Delete(true);
-                }
-                catch (IOException)
-                {
-                    success = false;
-                }
-            }
-
-            return success;
-        }
-
         public static long DatetimeToTimestamp(DateTime value)
         {
-            return (long)(value - AssetManagerCoreConstants.UnixEpoch).TotalMilliseconds;
+            return (long) (value - AssetManagerCoreConstants.UnixEpoch).TotalMilliseconds;
         }
 
         public static string DatetimeToString(DateTime? value)
@@ -213,7 +171,8 @@ namespace Unity.AssetManager.Core.Editor
             if (string.IsNullOrEmpty(assetPath))
                 return null;
 
-            var relativePath = Path.GetRelativePath(Application.dataPath, assetPath);
+            var application = ServicesContainer.instance.Resolve<IApplicationProxy>();
+            var relativePath = Path.GetRelativePath(application.DataPath, assetPath);
             return NormalizePathSeparators(relativePath);
         }
 
@@ -238,63 +197,15 @@ namespace Unity.AssetManager.Core.Editor
             if (string.IsNullOrEmpty(path))
                 return path;
 
+            var application = ServicesContainer.instance.Resolve<IApplicationProxy>();
+
             // Path normalization depends on the current OS
-            var str = Application.platform == RuntimePlatform.WindowsEditor ?
+            var str = application.Platform == RuntimePlatform.WindowsEditor ?
                 path.Replace('/', Path.DirectorySeparatorChar) :
                 path.Replace('\\', Path.DirectorySeparatorChar);
 
             var pattern = Path.DirectorySeparatorChar == '\\' ? "\\\\+" : "/+";
             return Regex.Replace(str, pattern, Path.DirectorySeparatorChar.ToString());
-        }
-
-        public static string OpenFolderPanelInDirectory(string title, string directory, IDialogManager dialogManager = null)
-        {
-            bool isValidPath;
-            string importLocation;
-
-            do
-            {
-                dialogManager ??= k_DefaultDialogManager;
-
-                importLocation = dialogManager.OpenFolderPanel(title, directory, string.Empty);
-
-                isValidPath = string.IsNullOrEmpty(importLocation) ||
-                              IsPathSubdirectoryOfSecondPath(importLocation, directory);
-
-                if (!isValidPath)
-                {
-                    dialogManager.DisplayDialog("Select a valid folder",
-                        "The default import location must be located inside the Assets folder of your project.", "Ok");
-                }
-            } while (!isValidPath);
-
-            return importLocation;
-        }
-
-        static bool IsPathSubdirectoryOfSecondPath(string path1, string path2)
-        {
-            if (string.IsNullOrEmpty(path1))
-                return false;
-
-            var dataFolderDirectory = new DirectoryInfo(path2);
-            var inputPathDirectory = new DirectoryInfo(path1);
-
-            if(dataFolderDirectory.FullName == inputPathDirectory.FullName)
-            {
-                return true;
-            }
-
-            while (inputPathDirectory.Parent != null)
-            {
-                if (inputPathDirectory.Parent.FullName == dataFolderDirectory.FullName)
-                {
-                    return true;
-                }
-
-                inputPathDirectory = inputPathDirectory.Parent;
-            }
-
-            return false;
         }
 
         public static string GetUniqueFilename(ICollection<string> allFilenames, string filename)
@@ -359,326 +270,6 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return NormalizePathSeparators(result);
-        }
-
-        public static void SaveAssetIfDirty(string path)
-        {
-            var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
-            var asset = assetDatabaseProxy.LoadAssetAtPath(path);
-            if (asset == null)
-                return;
-
-            if (EditorUtility.IsDirty(asset))
-            {
-                assetDatabaseProxy.SaveAssetIfDirty(asset);
-            }
-            else if (asset is SceneAsset)
-            {
-                var scene = SceneManager.GetSceneByPath(path);
-                if (scene.isDirty)
-                {
-                    EditorSceneManager.SaveScene(scene);
-                }
-            }
-        }
-
-        public static bool IsFileDirty(string path)
-        {
-            // Check dirty flag
-            var asset = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().LoadAssetAtPath(path);
-            if (asset != null && EditorUtility.IsDirty(asset))
-            {
-                return true;
-            }
-
-            // Check if the file is a scene and it is dirty
-            if (asset is SceneAsset)
-            {
-                var scene = SceneManager.GetSceneByPath(path);
-                if (scene.isDirty)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        public class ComparisonResult
-        {
-            public string Details { get; }
-
-            public ComparisonResult(string details)
-            {
-                Details = details;
-            }
-        }
-
-        public static async Task<ComparisonResult> IsLocallyModifiedIgnoreDependenciesAsync(BaseAssetData assetData, ImportedAssetInfo importedAssetInfo, CancellationToken token = default)
-        {
-            if (importedAssetInfo == null)
-            {
-                // Un-imported asset cannot have modified files by definition
-                return null;
-            }
-
-            var result = SoftCompareAssetData(assetData, importedAssetInfo.AssetData);
-
-            if (result != null)
-            {
-                return result;
-            }
-
-            // Otherwise, check if the files are identical
-            return await HasLocallyModifiedFilesAsync(importedAssetInfo, token);
-        }
-
-        static ComparisonResult SoftCompareAssetData(BaseAssetData local, BaseAssetData remote)
-        {
-            // Technically, we should compare ALL editable fields, including the Name and Tags.
-            // But until the user can edit those fields, we will only compare the files.
-
-            if (local.SourceFiles.Count() != remote.SourceFiles.Count())
-            {
-                return new ComparisonResult($"The number of files has changed (from {remote.SourceFiles.Count()} to {local.SourceFiles.Count()})");
-            }
-
-            // Check if the number of dependencies is different (Without checking the dependencies themselves)
-            if (local.Dependencies.Count() != remote.Dependencies.Count())
-            {
-                return new ComparisonResult($"The number of dependencies has changed (from {remote.Dependencies.Count()} to {local.Dependencies.Count()} dependencies)");
-            }
-
-            // Check if the metadata has changed
-            if (local.Metadata.Count() != remote.Metadata.Count())
-            {
-                return new ComparisonResult($"The number of metadata entries has changed (from {remote.Metadata.Count()} to {local.Metadata.Count()})");
-            }
-
-            // Check if the list of files has changed
-            foreach (var file in local.SourceFiles)
-            {
-                if (remote.SourceFiles.FirstOrDefault(f => ComparePaths(f.Path, file.Path)) == null)
-                {
-                    return new ComparisonResult("The list of files and/or files path has changed");
-                }
-            }
-
-            // Check if the list of metadata has changed
-            foreach (var metadata in local.Metadata)
-            {
-                if (!remote.Metadata.ContainMetadata(metadata))
-                {
-                    return new ComparisonResult("The metadata has changed");
-                }
-            }
-
-            return null;
-        }
-
-        public static ComparisonResult CompareDependencies(List<AssetIdentifier> dependencies, List<AssetIdentifier> otherDependencies)
-        {
-            // Check if the dependencies are different
-            if (dependencies.Exists(dependency => !otherDependencies.Contains(dependency)))
-            {
-                return new ComparisonResult("The list of dependencies has changed");
-            }
-
-            return null;
-        }
-
-        static async Task<ComparisonResult> HasLocallyModifiedFilesAsync(ImportedAssetInfo importedAssetInfo, CancellationToken token = default)
-        {
-            if (importedAssetInfo == null)
-            {
-                // Un-imported asset cannot have modified files by definition
-                return null;
-            }
-
-            // Otherwise, check if the files are identical
-            foreach (var importedFileInfo in importedAssetInfo.FileInfos)
-            {
-                var path = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().GuidToAssetPath(importedFileInfo.Guid);
-
-                var result = await FileWasModified(path, importedFileInfo.Timestamp, importedFileInfo.Checksum, token);
-                if (result != null)
-                {
-                    return result;
-                }
-
-                // Check if the meta file was modified
-                var metaPath = MetafilesHelper.AssetMetaFile(path);
-                if (File.Exists(metaPath))
-                {
-                    result = await FileWasModified(metaPath, importedFileInfo.MetalFileTimestamp, importedFileInfo.MetaFileChecksum, token);
-                    if (result != null)
-                    {
-                        return result;
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        static async Task<ComparisonResult> FileWasModified(string path, long expectedTimestamp, string expectedChecksum, CancellationToken token)
-        {
-            // Locally modified files are always considered dirty
-            if (IsFileDirty(path))
-            {
-                return new ComparisonResult($"At least one file is dirty ({Path.GetFileName(path)})");
-            }
-
-            // Check if the file has the same modified date, in which case we know it wasn't modified
-            if (IsSameTimestamp(expectedTimestamp, path))
-            {
-                return null;
-            }
-
-            // Check if we have checksum information, in which case, a similar checksum means the file wasn't modified
-            var checksumResult = await IsSameFileChecksumAsync(expectedChecksum, path, token);
-
-            return checksumResult switch
-            {
-                ChecksumResult.Same => null,
-
-                ChecksumResult.Different => new ComparisonResult($"At least one file was modified ({Path.GetFileName(path)})"),
-
-                // In case we can't determine if the file was modified, we assume it was to avoid blocking the re-upload
-                _ => new ComparisonResult($"The system was not able to determine if the files were modified ({Path.GetFileName(path)})")
-            };
-        }
-
-        public static async Task<IEnumerable<BaseAssetDataFile>> GetModifiedFilesAsync(AssetIdentifier identifier, IEnumerable<BaseAssetDataFile> files, IAssetDataManager assetDataManager = null, CancellationToken token = default)
-        {
-            var modifiedFiles = new List<BaseAssetDataFile>();
-
-            assetDataManager ??= ServicesContainer.instance.Resolve<IAssetDataManager>();
-
-            var importedAssetInfo = assetDataManager.GetImportedAssetInfo(identifier);
-
-            if (importedAssetInfo == null)
-            {
-                return modifiedFiles;
-            }
-
-            foreach (var file in files.Where(f => !k_IgnoreExtensions.Contains(Path.GetExtension(f.Path))))
-            {
-                try
-                {
-                    var importedFileInfo = importedAssetInfo.FileInfos.Find(f => ComparePaths(f.OriginalPath, file.Path));
-
-                    if (importedFileInfo != null && await FileWasModified(AssetDatabase.GUIDToAssetPath(importedFileInfo.Guid), importedFileInfo.Timestamp, importedFileInfo.Checksum, token) != null)
-                    {
-                        modifiedFiles.Add(file);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Debug.LogError(e);
-                }
-            }
-
-            return modifiedFiles;
-        }
-
-        public static async Task<string> CalculateMD5ChecksumAsync(string path, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var stream = new FileStream(path, FileMode.Open);
-                var checksum = await CalculateMD5ChecksumAsync(stream, cancellationToken);
-                stream.Close();
-                return checksum;
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-        }
-
-        static async Task<string> CalculateMD5ChecksumAsync(Stream stream, CancellationToken cancellationToken)
-        {
-            var position = stream.Position;
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-#pragma warning disable S4790 //Using weak hashing algorithms is security-sensitive
-                using (var md5 = MD5.Create())
-#pragma warning restore S4790
-                {
-                    var result = new TaskCompletionSource<bool>();
-                    await Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await CalculateMD5ChecksumInternalAsync(md5, stream, cancellationToken);
-                        }
-                        finally
-                        {
-                            result.SetResult(true);
-                        }
-                    }, cancellationToken);
-                    await result.Task;
-                    return BitConverter.ToString(md5.Hash).Replace("-", "").ToLowerInvariant();
-                }
-            }
-            finally
-            {
-                stream.Position = position;
-            }
-        }
-
-        static async Task CalculateMD5ChecksumInternalAsync(MD5 md5, Stream stream, CancellationToken cancellationToken)
-        {
-            byte[] buffer = new byte[k_MD5_bufferSize];
-            int bytesRead;
-            do
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                bytesRead = await stream.ReadAsync(buffer, 0, k_MD5_bufferSize, cancellationToken);
-                if (bytesRead > 0)
-                {
-                    md5.TransformBlock(buffer, 0, bytesRead, null, 0);
-                }
-            } while (bytesRead > 0);
-
-            md5.TransformFinalBlock(buffer, 0, 0);
-            await Task.CompletedTask;
-        }
-
-        static long GetLastModifiedDate(string path)
-        {
-            return ((DateTimeOffset)File.GetLastWriteTimeUtc(path)).ToUnixTimeSeconds();
-        }
-
-        static bool IsSameTimestamp(long timestamp, string path)
-        {
-            if (timestamp == 0L)
-            {
-                return false;
-            }
-
-            return timestamp == GetLastModifiedDate(path);
-        }
-
-        enum ChecksumResult
-        {
-            Same,
-            Different,
-            Unknown
-        }
-
-        static async Task<ChecksumResult> IsSameFileChecksumAsync(string checksum, string path, CancellationToken token)
-        {
-            if (string.IsNullOrEmpty(checksum))
-            {
-                return ChecksumResult.Unknown;
-            }
-
-            var localChecksum = await CalculateMD5ChecksumAsync(path, token);
-            return checksum == localChecksum ? ChecksumResult.Same : ChecksumResult.Different;
         }
     }
 }

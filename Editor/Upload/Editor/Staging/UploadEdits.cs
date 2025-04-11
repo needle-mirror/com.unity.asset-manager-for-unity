@@ -29,6 +29,7 @@ namespace Unity.AssetManager.Upload.Editor
 
         public IReadOnlyCollection<string> MainAssetGuids => m_MainAssetGuids;
         public IReadOnlyCollection<string> IgnoredAssetGuids => m_IgnoredAssetGuids;
+        public IReadOnlyCollection<string> IncludesAllScriptsForGuids => m_IncludesAllScripts;
 
         public void AddToSelection(string assetOrFolderGuid)
         {

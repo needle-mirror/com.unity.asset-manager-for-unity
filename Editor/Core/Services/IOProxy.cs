@@ -10,34 +10,39 @@ namespace Unity.AssetManager.Core.Editor
     interface IIOProxy : IService
     {
         // Directory
-        public bool DirectoryExists(string directoryPath);
-        public void DirectoryDelete(string path, bool recursive);
-        public void CreateDirectory(string directoryPath);
-        public IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption);
-        public bool DeleteAllFilesAndFoldersFromDirectory(string path);
+        bool DirectoryExists(string directoryPath);
+        void DirectoryDelete(string path, bool recursive);
+        void CreateDirectory(string directoryPath);
+        IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption);
+        bool DeleteAllFilesAndFoldersFromDirectory(string path);
 
         // Directory Info
-        public string GetDirectoryInfoFullName(string path);
-        public double GetDirectorySizeBytes(string folderPath);
-        public string GetUniqueTempPathInProject();
+        string GetDirectoryInfoFullName(string path);
+        double GetDirectorySizeBytes(string folderPath);
+        string GetUniqueTempPathInProject();
 
         // File
-        public bool FileExists(string filePath);
-        public void DeleteFile(FileInfo file);
-        public void DeleteFile(string filePath, bool recursivelyRemoveEmptyParentFolders = false);
-        public FileStream Create(string path, int bufferSize, FileOptions options);
-        public void FileMove(string sourceFilePath, string destinationFilePath);
-        public string FileReadAllText(string filePath);
-        public void FileWriteAllText(string filePath, string text);
+        bool FileExists(string filePath);
+        void DeleteFile(FileInfo file);
+        void DeleteFile(string filePath, bool recursivelyRemoveEmptyParentFolders = false);
+        FileStream Create(string path, int bufferSize, FileOptions options);
+        void FileMove(string sourceFilePath, string destinationFilePath);
+        string FileReadAllText(string filePath);
+        void FileWriteAllText(string filePath, string text);
+        byte[] FileReadAllBytes(string filePath);
+        void FileWriteAllBytes(string filePath, byte[] bytes);
+        Stream FileOpenRead(string path);
 
         // File Info
-        public long GetFileLength(string path);
-        public double GetFileLengthMb(string filePath);
-        public double GetFileLengthMb(FileInfo file);
-        public double GetFilesSizeMb(IEnumerable<FileInfo> files);
-        public IEnumerable<FileInfo> GetOldestFilesFromDirectory(string directoryPath);
+        DateTime GetFileLastWriteTimeUtc(string path);
+        long GetFileLength(string path);
+        double GetFileLengthMb(string filePath);
+        double GetFileLengthMb(FileInfo file);
+        double GetFilesSizeMb(IEnumerable<FileInfo> files);
+        IEnumerable<FileInfo> GetOldestFilesFromDirectory(string directoryPath);
     }
 
+    [Serializable]
     class IOProxy : BaseService<IIOProxy>, IIOProxy
     {
         // Directory
@@ -55,7 +60,42 @@ namespace Unity.AssetManager.Core.Editor
 
         public IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption) => Directory.EnumerateFiles(path, searchPattern, searchOption);
 
-        public bool DeleteAllFilesAndFoldersFromDirectory(string path) => Utilities.DeleteAllFilesAndFoldersFromDirectory(path);
+        public bool DeleteAllFilesAndFoldersFromDirectory(string path)
+        {
+            if (!DirectoryExists(path))
+            {
+                return false;
+            }
+            
+            var directory = new DirectoryInfo(path);
+            var success = true;
+
+            foreach (var file in directory.EnumerateFiles())
+            {
+                try
+                {
+                    file.Delete();
+                }
+                catch (IOException)
+                {
+                    success = false;
+                }
+            }
+
+            foreach (var directoryInfo in directory.EnumerateDirectories())
+            {
+                try
+                {
+                    directoryInfo.Delete(true);
+                }
+                catch (IOException)
+                {
+                    success = false;
+                }
+            }
+
+            return success;
+        }
 
         // Directory Info
         public string GetDirectoryInfoFullName(string path)
@@ -160,8 +200,16 @@ namespace Unity.AssetManager.Core.Editor
         public string FileReadAllText(string filePath) => File.ReadAllText(filePath);
 
         public void FileWriteAllText(string filePath, string text) => File.WriteAllText(filePath, text);
+        
+        public byte[] FileReadAllBytes(string filePath) => File.ReadAllBytes(filePath);
+
+        public void FileWriteAllBytes(string filePath, byte[] bytes) => File.WriteAllBytes(filePath, bytes);
+        
+        public Stream FileOpenRead(string path) => File.OpenRead(path);
 
         // File Info
+        public DateTime GetFileLastWriteTimeUtc(string path) => File.GetLastWriteTimeUtc(path);
+        
         public long GetFileLength(string path)
         {
             if (!File.Exists(path))

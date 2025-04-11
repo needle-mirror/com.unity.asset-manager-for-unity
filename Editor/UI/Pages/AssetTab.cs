@@ -101,7 +101,7 @@ namespace Unity.AssetManager.UI.Editor
             CreateUserChip?.AddUserChip(chipContainer, details, searchFilterType);
         }
 
-        protected void AddProject(VisualElement container, string title, string projectId, string name = null)
+        protected void AddProjectChips(VisualElement container, string title, string[] projectIds, string name = null)
         {
             var entry = new DetailsPageEntry(title)
             {
@@ -110,7 +110,7 @@ namespace Unity.AssetManager.UI.Editor
             container.Add(entry);
 
             var chipContainer = entry.AddChipContainer();
-            CreateProjectChip?.AddProjectChip(chipContainer, projectId);
+            CreateProjectChip?.AddProjectChip(chipContainer, projectIds);
         }
 
         void AddChips(VisualElement container, string title, IEnumerable<string> chips,

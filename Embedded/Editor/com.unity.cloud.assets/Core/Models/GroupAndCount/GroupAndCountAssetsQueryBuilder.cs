@@ -269,6 +269,9 @@ namespace Unity.Cloud.AssetsEmbedded
                 "primaryType" => value.ToString().TryGetAssetTypeFromString(out var assetType)
                     ? new GroupableFieldValue(GroupableFieldValueType.AssetType, assetType)
                     : new GroupableFieldValue(GroupableFieldValueType.String, AsString(value)),
+                "datasets.primaryType" => value.ToString().TryGetAssetTypeFromString(out var assetType)
+                    ? new GroupableFieldValue(GroupableFieldValueType.AssetType, assetType)
+                    : new GroupableFieldValue(GroupableFieldValueType.String, AsString(value)),
                 _ => new GroupableFieldValue(GroupableFieldValueType.String, AsString(value))
             };
         }

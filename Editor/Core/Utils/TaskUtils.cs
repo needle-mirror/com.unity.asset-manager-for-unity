@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -8,6 +9,9 @@ namespace Unity.AssetManager.Core.Editor
 {
     static class TaskUtils
     {
+        //number based on half the back-end rate limit and to keep it the UI reactive when running batches of tasks
+        const int k_MaxConcurrentTasks = 60;
+
         public static void TrackException(Task task, Action<Exception> exceptionCallback = null)
         {
             var awaiter = task.GetAwaiter();
@@ -47,37 +51,35 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public static async Task<IReadOnlyCollection<Task>> RunWithMaxConcurrentTasksAsync<T>(IEnumerable<T> inputs,
-            CancellationToken token, Func<T, Task> taskCreation, int maxConcurrentTasks)
+        public static async Task<IReadOnlyCollection<Task>> RunAllTasks<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation)
         {
-            var semaphore = new SemaphoreSlim(maxConcurrentTasks);
-            return await RunWithMaxConcurrentTasksAsync(inputs, token, taskCreation, semaphore);
+
+            var allTasks = inputs.Select(taskCreation.Invoke).ToList();
+            await Task.WhenAll(allTasks);
+            return allTasks;
         }
 
-        public static async Task<IReadOnlyCollection<Task>> RunWithMaxConcurrentTasksAsync<T>(IEnumerable<T> inputs,
-            CancellationToken token, Func<T, Task> taskCreation, SemaphoreSlim semaphore)
+        public static async Task<IReadOnlyCollection<Task>> RunAllTasksBatched<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation)
         {
-            var allTasks = new List<Task>();
+            var inputLists = inputs.ToList();
 
-            foreach (var input in inputs)
+            //create chunks of tasks
+            var chunks = new List<List<T>>();
+            for (var i = 0; i < inputLists.Count; i += k_MaxConcurrentTasks)
             {
-                await semaphore.WaitAsync(token);
-
-                var task = taskCreation.Invoke(input);
-
-                var awaiter = task.GetAwaiter();
-                awaiter.OnCompleted(() =>
-                {
-                    semaphore.Release();
-                });
-
-                allTasks.Add(task);
+                chunks.Add(inputLists.GetRange(i, Math.Min(k_MaxConcurrentTasks, inputLists.Count - i)));
             }
 
-            await Task.WhenAll(allTasks);
+            var allTasks = new List<Task>();
+            foreach (var tasks in chunks.Select(chunk => chunk.Select(taskCreation.Invoke).ToList()))
+            {
+                allTasks.AddRange(tasks);
+                await Task.WhenAll(tasks);
+            }
 
             return allTasks;
         }
+
 
         public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> asyncEnumerable, CancellationToken token)
         {

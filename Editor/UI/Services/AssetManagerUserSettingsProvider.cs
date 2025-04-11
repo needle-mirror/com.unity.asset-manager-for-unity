@@ -49,6 +49,10 @@ namespace Unity.AssetManager.UI.Editor
         const string k_TagsCreationUploadToggle = "tagsCreationUploadToggle";
         const string k_TagsCreationUploadConfidenceLabel = "tagsCreationUploadConfidenceLabel";
         const string k_TagsCreationUploadConfidenceValue = "tagsCreationUploadConfidenceValue";
+        const string k_UploadDependenciesWithLatestLabelLabel = "uploadDependenciesWithLatestLabel";
+        const string k_UploadDependenciesWithLatestToggle = "uploadDependenciesWithLatestToggle";
+        const string k_DisableReimportModalLabel = "disableReimportModalLabel";
+        const string k_DisableReimportModalToggle = "disableReimportModalToggle";
 
         static Dictionary<CacheValidationResultError, string> cacheValidationErrorMessages =
             new()
@@ -63,8 +67,11 @@ namespace Unity.AssetManager.UI.Editor
             };
 
         readonly ICachePathHelper m_CachePathHelper;
+        readonly ICacheEvictionManager m_CacheEvictionManager;
         readonly IIOProxy m_IOProxy;
         readonly ISettingsManager m_SettingsManager;
+        readonly IApplicationProxy m_ApplicationProxy;
+        readonly IEditorUtilityProxy m_EditorUtilityProxy;
         Label m_ImportLocationPathLabel;
         Label m_AssetManagerCachePathLabel;
         Label m_CacheSizeOnDisk;
@@ -72,15 +79,17 @@ namespace Unity.AssetManager.UI.Editor
 
         HelpBox m_ErroLabel;
 
-        AssetManagerUserSettingsProvider(
-            ICachePathHelper cachePathHelper, ISettingsManager settingsManager,
-            IIOProxy ioProxy,
-            string path, IEnumerable<string> keywords = null) :
-            base(path, SettingsScope.User, keywords)
+        AssetManagerUserSettingsProvider(ICachePathHelper cachePathHelper, ICacheEvictionManager cacheEvictionManager, ISettingsManager settingsManager,
+            IIOProxy ioProxy, IApplicationProxy applicationProxy, IEditorUtilityProxy editorUtilityProxy,
+            string path, IEnumerable<string> keywords = null)
+            : base(path, SettingsScope.User, keywords)
         {
             m_CachePathHelper = cachePathHelper;
+            m_CacheEvictionManager = cacheEvictionManager;
             m_SettingsManager = settingsManager;
             m_IOProxy = ioProxy;
+            m_ApplicationProxy = applicationProxy;
+            m_EditorUtilityProxy = editorUtilityProxy;
         }
 
         /// <summary>
@@ -161,6 +170,21 @@ namespace Unity.AssetManager.UI.Editor
                 m_SettingsManager.SetIsSubfolderCreationEnabled(evt.newValue);
             });
 
+            // setup the disable reimport modal label and toggle
+            var disableReuploadModalLabel = rootElement.Q<Label>(k_DisableReimportModalLabel);
+            disableReuploadModalLabel.text = L10n.Tr(Constants.DisableReimportModalLabel);
+            disableReuploadModalLabel.tooltip = L10n.Tr(Constants.DisableReimportModalToolTip);
+            disableReuploadModalLabel.SetEnabled(m_SettingsManager.IsKeepHigherVersionEnabled);
+
+            var disableReuploadModalToggle = rootElement.Q<Toggle>(k_DisableReimportModalToggle);
+            disableReuploadModalToggle.value = m_SettingsManager.IsReimportModalDisabled;
+            disableReuploadModalToggle.tooltip = L10n.Tr(Constants.DisableReimportModalToolTip);
+            disableReuploadModalToggle.SetEnabled(m_SettingsManager.IsKeepHigherVersionEnabled);
+            disableReuploadModalToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
+            {
+                m_SettingsManager.SetDisableReimportModal(evt.newValue);
+            });
+
             // setup the keep higher version label
             var importKeepHigherVersionLabel = rootElement.Q<Label>(k_ImportKeepHigherVersionLabel);
             importKeepHigherVersionLabel.text = L10n.Tr(Constants.ImportKeepHigherVersion);
@@ -172,6 +196,19 @@ namespace Unity.AssetManager.UI.Editor
             keepHigherVersionToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
             {
                 m_SettingsManager.SetIsKeepHigherVersionEnabled(evt.newValue);
+
+                if (evt.newValue)
+                {
+                    disableReuploadModalLabel.SetEnabled(true);
+                    disableReuploadModalToggle.SetEnabled(true);
+                }
+                else
+                {
+                    disableReuploadModalLabel.SetEnabled(false);
+                    disableReuploadModalToggle.SetEnabled(false);
+                    disableReuploadModalToggle.SetValueWithoutNotify(false);
+                    m_SettingsManager.SetDisableReimportModal(false);
+                }
             });
 
             var uploadSettingsFoldout = rootElement.Q<Foldout>(k_UploadSettingsFoldout);
@@ -201,6 +238,17 @@ namespace Unity.AssetManager.UI.Editor
 
                 tagsCreationConfidenceValue.SetEnabled(evt.newValue);
                 tagsCreationConfidenceLabel.SetEnabled(evt.newValue);
+            });
+
+            // Setup upload dependencies with latest toggle
+            var uploadDependenciesWithLatestLabelLabel = rootElement.Q<Label>(k_UploadDependenciesWithLatestLabelLabel);
+            uploadDependenciesWithLatestLabelLabel.text = L10n.Tr(Constants.UploadDependenciesUsingLatestLabel);
+            var uploadDependenciesWithLatestToggle = rootElement.Q<Toggle>(k_UploadDependenciesWithLatestToggle);
+            uploadDependenciesWithLatestToggle.tooltip= L10n.Tr(Constants.UploadDependenciesUsingLatestTooltip);
+            uploadDependenciesWithLatestToggle.value = m_SettingsManager.IsUploadDependenciesUsingLatestLabel;
+            uploadDependenciesWithLatestToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
+            {
+                m_SettingsManager.SetUploadDependenciesUsingLatestLabel(evt.newValue);
             });
 
             SetupCacheLocationToolbarButton(rootElement);
@@ -235,11 +283,11 @@ namespace Unity.AssetManager.UI.Editor
             var cacheLocationDropDown = rootElement.Q<ToolbarMenu>(k_CacheLocationDropdown);
 
             cacheLocationDropDown.menu.AppendAction(GetShowInExplorerLabel(),
-                a => { EditorUtility.RevealInFinder(m_SettingsManager.BaseCacheLocation); });
+                a => { m_EditorUtilityProxy.RevealInFinder(m_SettingsManager.BaseCacheLocation); });
             cacheLocationDropDown.menu.AppendAction(L10n.Tr(Constants.ChangeLocationLabel), a =>
             {
                 var cacheLocation =
-                    EditorUtility.OpenFolderPanel(L10n.Tr(Constants.CacheLocationTitle), m_SettingsManager.BaseCacheLocation,
+                    m_EditorUtilityProxy.OpenFolderPanel(L10n.Tr(Constants.CacheLocationTitle), m_SettingsManager.BaseCacheLocation,
                         string.Empty);
 
                 // the user clicked cancel
@@ -258,11 +306,11 @@ namespace Unity.AssetManager.UI.Editor
         {
             var importLocationDropdown = rootElement.Q<ToolbarMenu>(k_ImportLocationDropdown);
             importLocationDropdown.menu.AppendAction(GetShowInExplorerLabel(),
-                a => { EditorUtility.RevealInFinder(m_SettingsManager.DefaultImportLocation); });
+                a => { m_EditorUtilityProxy.RevealInFinder(m_SettingsManager.DefaultImportLocation); });
             importLocationDropdown.menu.AppendAction(L10n.Tr(Constants.ChangeLocationLabel), a =>
             {
-                string importLocation = Utilities.OpenFolderPanelInDirectory(L10n.Tr(Constants.ImportLocationTitle),
-                    m_SettingsManager.DefaultImportLocation);
+                var importLocation = m_EditorUtilityProxy.OpenFolderPanel(L10n.Tr(Constants.ImportLocationTitle),
+                    m_SettingsManager.DefaultImportLocation, string.Empty);
 
                 // the user clicked cancel
                 if (string.IsNullOrEmpty(importLocation))
@@ -276,9 +324,9 @@ namespace Unity.AssetManager.UI.Editor
                 a => { ResetImportLocationToDefault(); });
         }
 
-        static string GetShowInExplorerLabel()
+        string GetShowInExplorerLabel()
         {
-            return Application.platform == RuntimePlatform.OSXEditor ? L10n.Tr(Constants.RevealInFinder) : L10n.Tr(Constants.ShowInExplorerLabel);
+            return m_ApplicationProxy.Platform == RuntimePlatform.OSXEditor ? L10n.Tr(Constants.RevealInFinder) : L10n.Tr(Constants.ShowInExplorerLabel);
         }
 
         void CleanCache()
@@ -308,7 +356,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void ClearExtraCache()
         {
-            CacheEvaluationEvent.RaiseEvent();
+            m_CacheEvictionManager.OnCheckEvictConditions(string.Empty);
         }
 
         void SetErrorLabel(string message)
@@ -356,7 +404,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void UpdateDefaultImportPath(string importLocation)
         {
-            if (!Directory.Exists(importLocation))
+            if (!m_IOProxy.DirectoryExists(importLocation))
             {
                 SetErrorLabel(L10n.Tr(Constants.DirectoryDoesNotExistError));
                 return;
@@ -394,8 +442,11 @@ namespace Unity.AssetManager.UI.Editor
         {
             var container = ServicesContainer.instance;
             return new AssetManagerUserSettingsProvider(container.Resolve<ICachePathHelper>(),
+                container.Resolve<ICacheEvictionManager>(),
                 container.Resolve<ISettingsManager>(),
                 container.Resolve<IIOProxy>(),
+                container.Resolve<IApplicationProxy>(),
+                container.Resolve<IEditorUtilityProxy>(),
                 k_SettingsProviderPath, new List<string>());
         }
     }

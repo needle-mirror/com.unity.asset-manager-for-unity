@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -222,7 +223,7 @@ namespace Unity.AssetManager.Core.Editor
         BaseAssetData[] m_SerializedAssetData = Array.Empty<BaseAssetData>();
 
         [SerializeReference]
-        IAssetsProvider m_AssetsProvider;
+        IPermissionsManager m_PermissionsManager;
 
         readonly Dictionary<TrackedAssetIdentifier, BaseAssetData> m_AssetData = new();
         readonly Dictionary<string, List<ImportedAssetInfo>> m_FileGuidToImportedAssetInfosMap = new();
@@ -235,19 +236,29 @@ namespace Unity.AssetManager.Core.Editor
             (IReadOnlyCollection<ImportedAssetInfo>) m_TrackedIdentifierMap.Values;
 
         [ServiceInjection]
-        public void Inject(IAssetsProvider assetsProvider)
+        public void Inject(IPermissionsManager permissionsManager)
         {
-            m_AssetsProvider = assetsProvider;
+            m_PermissionsManager = permissionsManager;
         }
 
         public override void OnEnable()
         {
-            m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            base.OnEnable();
+
+            if (m_PermissionsManager != null)
+            {
+                m_PermissionsManager.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            }
         }
 
         public override void OnDisable()
         {
-            m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            base.OnDisable();
+
+            if (m_PermissionsManager != null)
+            {
+                m_PermissionsManager.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            }
         }
 
         void OnAuthenticationStateChanged(AuthenticationState newState)

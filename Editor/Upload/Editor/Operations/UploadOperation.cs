@@ -6,8 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using Unity.Cloud.CommonEmbedded;
-using UnityEditor;
 using UnityEngine;
+using AssetUpdate = Unity.AssetManager.Core.Editor.AssetUpdate;
 using Object = UnityEngine.Object;
 using Utilities = Unity.AssetManager.Core.Editor.Utilities;
 
@@ -15,9 +15,8 @@ namespace Unity.AssetManager.Upload.Editor
 {
     class UploadOperation : AssetDataOperation, IProgress<HttpProgress>
     {
-        // All files upload from every assets should be limited in how many can be uploaded at the same time.
-        static readonly SemaphoreSlim k_MaxFileUploadSemaphore = new(15);
-
+        List<AssetIdentifier> m_Dependencies = new();
+        readonly  List<AssetDependency> m_ExistingDependencies = new();
         readonly HashSet<HttpProgress> m_HttpProgresses = new();
         readonly IUploadAsset m_UploadAsset;
 
@@ -48,7 +47,7 @@ namespace Unity.AssetManager.Upload.Editor
             ReportStep(totalProgress);
         }
 
-        public async Task PrepareUploadAsync(AssetData targetAssetData, IDictionary<AssetIdentifier, AssetData> identifierToAssetLookup,
+        public async Task FetchAssetDependenciesAsync(AssetData targetAssetData, IDictionary<AssetIdentifier, AssetData> identifierToAssetLookup,
             CancellationToken token = default)
         {
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
@@ -71,16 +70,30 @@ namespace Unity.AssetManager.Upload.Editor
                     dependencies.Add(dependency);
                 }
             }
+            m_Dependencies = dependencies;
 
-            // Even if there are no dependencies, we may need to clear any existing dependencies
-            await assetsProvider.UpdateDependenciesAsync(targetAssetData.Identifier, dependencies, token);
+            m_ExistingDependencies.Clear();
+            var cloudDependenciesAsync = assetsProvider.GetDependenciesAsync(targetAssetData.Identifier, Range.All, token);
+            await foreach (var dependency in cloudDependenciesAsync)
+            {
+                m_ExistingDependencies.Add(dependency);
+            }
+        }
+
+        public async Task UpdateDependenciesAsync(AssetData targetAssetData, CancellationToken token = default)
+        {
+            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            await assetsProvider.UpdateDependenciesAsync(targetAssetData.Identifier, m_Dependencies, m_ExistingDependencies, token);
         }
 
         public async Task UploadAsync(AssetData targetAssetData, CancellationToken token = default)
         {
+            const ComparisonResults filesChanged = ComparisonResults.FilesAdded | ComparisonResults.FilesRemoved | ComparisonResults.FilesModified;
+
             ReportStep("Preparing for upload");
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            var ioProxy = ServicesContainer.instance.Resolve<IIOProxy>();
 
             // Create a thumbnail
 
@@ -89,14 +102,19 @@ namespace Unity.AssetManager.Upload.Editor
 
             // Upload files tasks
 
-            var fileNumber = 0;
-            await TaskUtils.RunWithMaxConcurrentTasksAsync(m_UploadAsset.Files.Where(file => !string.IsNullOrEmpty(file.SourcePath)), token,
-                file =>
-                {
-                    Interlocked.Increment(ref fileNumber);
-                    ReportStep($"Preparing file {Path.GetFileName(file.SourcePath)} ({fileNumber} of {m_UploadAsset.Files.Count})");
-                    return UploadFile(file.DestinationPath, file.SourcePath);
-                }, k_MaxFileUploadSemaphore);
+            // Only upload files if they were considered modified in some way
+            // If the asset is new (ComparisonDetails == None), we always upload the files
+            if (m_UploadAsset.ComparisonResults == ComparisonResults.None || (m_UploadAsset.ComparisonResults & filesChanged) != 0)
+            {
+                var fileNumber = 0;
+                await TaskUtils.RunAllTasks(m_UploadAsset.Files.Where(file => !string.IsNullOrEmpty(file.SourcePath)),
+                    file =>
+                    {
+                        Interlocked.Increment(ref fileNumber);
+                        ReportStep($"Preparing file {Path.GetFileName(file.SourcePath)} ({fileNumber} of {m_UploadAsset.Files.Count})");
+                        return UploadFile(file.DestinationPath, file.SourcePath);
+                    });
+            }
 
             // Finalize asset
 
@@ -108,7 +126,7 @@ namespace Unity.AssetManager.Upload.Editor
 
             async Task UploadFile(string destinationPath, string sourcePath)
             {
-                await using var stream = File.OpenRead(sourcePath);
+                await using var stream = ioProxy.FileOpenRead(sourcePath);
                 var file = await assetsProvider.UploadFile(targetAssetData, destinationPath, stream, this, token);
                 // If the thumbnail has not been set, select a file that is supported for preview
                 thumbnailFile ??= AssetDataTypeHelper.IsSupportingPreviewGeneration(Path.GetExtension(destinationPath)) ? file : null;

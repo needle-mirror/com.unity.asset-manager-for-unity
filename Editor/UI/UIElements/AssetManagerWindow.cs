@@ -59,10 +59,11 @@ namespace Unity.AssetManager.UI.Editor
                 container.Resolve<IPermissionsManager>(),
                 container.Resolve<IUploadManager>(),
                 container.Resolve<IPopupManager>(),
-                container.Resolve<IAssetsProvider>(),
                 container.Resolve<IAssetImportResolver>(),
-                container.Resolve<IProgressManager>(),
-                container.Resolve<IMessageManager>());
+                container.Resolve<IMessageManager>(),
+                container.Resolve<IApplicationProxy>(),
+                container.Resolve<IDialogManager>(),
+                container.Resolve<ISettingsManager>());
 
             m_Root.RegisterCallback<GeometryChangedEvent>(OnResized);
             m_Root.OnEnable();

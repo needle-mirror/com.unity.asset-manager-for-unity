@@ -35,6 +35,6 @@ namespace Unity.Cloud.AssetsEmbedded
         /// The type of the asset.
         /// </summary>
         [DataMember(Name = "primaryType")]
-        AssetType? Type { get; }
+        string Type { get; }
     }
 }

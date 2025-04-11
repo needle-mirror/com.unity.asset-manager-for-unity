@@ -11,7 +11,7 @@ namespace Unity.AssetManager.UI.Editor
         static readonly string k_IconFolderOpen = "icon-folder-open";
         static readonly string k_IconFolderClose = "icon-folder-close";
 
-        readonly ProjectInfo m_ProjectInfo;
+        readonly string m_ProjectId;
         readonly Image m_Icon;
         readonly Label m_Label;
         readonly TextField m_TextField;
@@ -22,12 +22,12 @@ namespace Unity.AssetManager.UI.Editor
 
         internal SideBarCollectionFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager,
             IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            string foldoutName, ProjectInfo projectInfo, string collectionPath)
+            string foldoutName, string projectId, string collectionPath)
             : base(unityConnectProxy, pageManager, stateManager, messageManager, projectOrganizationProvider, foldoutName)
         {
-            m_ProjectInfo = projectInfo;
+            m_ProjectId = projectId;
             m_CollectionPath = collectionPath;
-            name = GetCollectionId(m_ProjectInfo, m_CollectionPath);
+            name = GetCollectionId(m_ProjectId, m_CollectionPath);
 
             var iconParent = this.Q(className: inputUssClassName);
             m_Icon = iconParent.Q<Image>();
@@ -40,9 +40,9 @@ namespace Unity.AssetManager.UI.Editor
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
         }
 
-        public static string GetCollectionId(ProjectInfo projectInfo, string collectionPath)
+        public static string GetCollectionId(string projectId, string collectionPath)
         {
-            return string.IsNullOrEmpty(collectionPath) ? projectInfo.Id : $"{projectInfo.Id}::{collectionPath}";
+            return string.IsNullOrEmpty(collectionPath) ? projectId : $"{projectId}::{collectionPath}";
         }
 
         public void StartRenaming()
@@ -78,7 +78,7 @@ namespace Unity.AssetManager.UI.Editor
             if (m_CollectionPath != null)
             {
                 var collectionInfo = CollectionInfo.CreateFromFullPath(m_CollectionPath);
-                collectionInfo.ProjectId = m_ProjectInfo.Id;
+                collectionInfo.ProjectId = m_ProjectId;
                 collectionInfo.OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id;
                 var contextMenu = new CollectionContextMenu(collectionInfo, m_UnityConnectProxy,
                     m_ProjectOrganizationProvider, m_PageManager, m_StateManager, m_MessageManager);
@@ -86,7 +86,7 @@ namespace Unity.AssetManager.UI.Editor
             }
             else
             {
-                var contextMenu = new ProjectContextMenu(m_ProjectInfo, m_UnityConnectProxy, m_ProjectOrganizationProvider,
+                var contextMenu = new ProjectContextMenu(m_ProjectId, m_UnityConnectProxy, m_ProjectOrganizationProvider,
                     m_PageManager, m_StateManager, m_MessageManager);
                 m_ContextualMenuManipulator = new ContextualMenuManipulator(contextMenu.SetupContextMenuEntries);
             }
@@ -106,7 +106,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnPointerDown(PointerDownEvent evt)
         {
-            if(evt.button != (int)MouseButton.LeftMouse)
+            if (evt.button != (int) MouseButton.LeftMouse)
                 return;
 
             // We skip the user's click if they aimed the check mark of the foldout
@@ -114,7 +114,7 @@ namespace Unity.AssetManager.UI.Editor
             if (evt.target != this)
                 return;
 
-            m_ProjectOrganizationProvider.SelectProject(m_ProjectInfo, m_CollectionPath, updateProject:m_CollectionPath == null);
+            m_ProjectOrganizationProvider.SelectProject(m_ProjectId, m_CollectionPath, updateProject: m_CollectionPath == null);
         }
 
         protected override void OnActivePageChanged(IPage page)
@@ -130,7 +130,7 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            var selected = projectInfo?.Id == m_ProjectInfo.Id &&
+            var selected = projectInfo?.Id == m_ProjectId &&
                            collectionInfo?.GetFullPath() == (m_CollectionPath ?? string.Empty);
 
             SetSelected(selected);
@@ -231,13 +231,13 @@ namespace Unity.AssetManager.UI.Editor
             var collectionInfo = new CollectionInfo
             {
                 OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id,
-                ProjectId =  m_ProjectInfo.Id,
+                ProjectId =  m_ProjectId,
                 ParentPath = m_CollectionPath,
                 Name = m_TextField.value
             };
 
             m_CollectionPath += $"/{m_TextField.value}";
-            name = GetCollectionId(m_ProjectInfo, m_CollectionPath);
+            name = GetCollectionId(m_ProjectId, m_CollectionPath);
 
             try
             {
@@ -273,7 +273,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_Label.text = m_TextField.value;
             var collectionInfo = CollectionInfo.CreateFromFullPath(m_CollectionPath);
-            collectionInfo.ProjectId = m_ProjectInfo.Id;
+            collectionInfo.ProjectId = m_ProjectId;
             collectionInfo.OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id;
 
             try

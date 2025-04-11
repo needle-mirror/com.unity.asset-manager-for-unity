@@ -49,7 +49,7 @@ namespace Unity.AssetManager.UI.Editor
             if (IsImporting || !m_UnityConnectProxy.AreCloudServicesReachable)
                 return;
 
-            var permissionsManager = ServicesContainer.instance.Resolve<PermissionsManager>();
+            var permissionsManager = ServicesContainer.instance.Resolve<IPermissionsManager>();
             var importPermission = await permissionsManager.CheckPermissionAsync(TargetAssetData.Identifier.OrganizationId, TargetAssetData.Identifier.ProjectId, Constants.ImportPermission);
 
             var enabled = UIEnabledStates.HasPermissions.GetFlag(importPermission);

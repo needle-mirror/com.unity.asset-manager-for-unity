@@ -46,7 +46,6 @@ namespace Unity.AssetManager.UI.Editor
         Sort m_Sort;
         TwoPaneSplitView m_CategoriesSplit;
         TwoPaneSplitView m_InspectorSplit;
-        BlockingProgressPanel m_BlockingProgressPanel;
 
         AssetsGridView m_AssetsGridView;
         readonly List<SelectionInspectorPage> m_SelectionInspectorPages = new();
@@ -69,10 +68,11 @@ namespace Unity.AssetManager.UI.Editor
         readonly IPermissionsManager m_PermissionsManager;
         readonly IUploadManager m_UploadManager;
         readonly IPopupManager m_PopupManager;
-        readonly IAssetsProvider m_AssetsProvider;
         readonly IAssetImportResolver m_AssetImportResolver;
-        readonly IProgressManager m_ProgressManager;
         readonly IMessageManager m_MessageManager;
+        readonly IApplicationProxy m_ApplicationProxy;
+        readonly IDialogManager m_DialogManager;
+        readonly ISettingsManager m_SettingsManager;
 
         static int InspectorPanelLastWidth
         {
@@ -93,10 +93,11 @@ namespace Unity.AssetManager.UI.Editor
             IPermissionsManager permissionsManager,
             IUploadManager uploadManager,
             IPopupManager popupManager,
-            IAssetsProvider assetsProvider,
             IAssetImportResolver assetImportResolver,
-            IProgressManager progressManager,
-            IMessageManager messageManager)
+            IMessageManager messageManager,
+            IApplicationProxy applicationProxy,
+            IDialogManager dialogManager,
+            ISettingsManager settingsManager)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -111,10 +112,11 @@ namespace Unity.AssetManager.UI.Editor
             m_PermissionsManager = permissionsManager;
             m_UploadManager = uploadManager;
             m_PopupManager = popupManager;
-            m_AssetsProvider = assetsProvider;
             m_AssetImportResolver = assetImportResolver;
-            m_ProgressManager = progressManager;
             m_MessageManager = messageManager;
+            m_ApplicationProxy = applicationProxy;
+            m_DialogManager = dialogManager;
+            m_SettingsManager = settingsManager;
         }
 
         public void OnEnable()
@@ -183,14 +185,14 @@ namespace Unity.AssetManager.UI.Editor
 
             var actionHelpBoxContainer = new VisualElement();
             actionHelpBoxContainer.AddToClassList("HelpBoxContainer");
-            m_ActionHelpBox = new ActionHelpBox(m_UnityConnect, m_PageManager, m_ProjectOrganizationProvider,
-                m_MessageManager, m_LinksProxy);
+            m_ActionHelpBox = new ActionHelpBox(m_UnityConnect, m_ApplicationProxy, m_PageManager,
+                m_ProjectOrganizationProvider, m_MessageManager, m_LinksProxy);
             actionHelpBoxContainer.Add(m_ActionHelpBox);
             m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
 
             var storageInfoHelpBoxContainer = new VisualElement();
             storageInfoHelpBoxContainer.AddToClassList("HelpBoxContainer");
-            var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_AssetsProvider, m_UnityConnect);
+            var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect);
             storageInfoHelpBoxContainer.Add(storageInfoHelpBox);
             m_SearchContentSplitViewContainer.Add(storageInfoHelpBoxContainer);
 
@@ -208,7 +210,7 @@ namespace Unity.AssetManager.UI.Editor
             m_Breadcrumbs = new Breadcrumbs(m_PageManager, m_ProjectOrganizationProvider);
             topLeftContainer.Add(m_Breadcrumbs);
 
-            var roleChip = new RoleChip(m_PageManager, m_ProjectOrganizationProvider, m_PermissionsManager);
+            var roleChip = new RoleChip(m_PageManager, m_ProjectOrganizationProvider, m_PermissionsManager, m_LinksProxy);
             topLeftContainer.Add(roleChip);
 
             topContainer.Add(topLeftContainer);
@@ -231,8 +233,7 @@ namespace Unity.AssetManager.UI.Editor
             filtersSortContainer.AddToClassList("unity-filters-sort-container");
             m_SearchContentSplitViewContainer.Add(filtersSortContainer);
 
-            m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider, m_PopupManager,
-                m_MessageManager);
+            m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider, m_ApplicationProxy, m_PopupManager);
             filtersSortContainer.Add(m_Filters);
 
             m_Sort = new Sort(m_PageManager, m_ProjectOrganizationProvider);
@@ -257,15 +258,15 @@ namespace Unity.AssetManager.UI.Editor
 
             m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager,
                 m_AssetDataManager, m_AssetOperationManager, m_LinksProxy, m_UploadManager, m_AssetImporter,
-                m_AssetsProvider, m_MessageManager);
+                m_PermissionsManager, m_MessageManager, m_ApplicationProxy);
 
             m_SelectionInspectorPages.Add(new AssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
                 m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy,
-                m_UnityConnect, m_ProjectIconDownloader, m_PermissionsManager));
+                m_UnityConnect, m_ProjectIconDownloader, m_PermissionsManager, m_DialogManager));
 
             m_SelectionInspectorPages.Add(new MultiAssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
                 m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect,
-                m_ProjectIconDownloader, m_PermissionsManager));
+                m_ProjectIconDownloader, m_PermissionsManager, m_DialogManager));
 
             m_SelectionInspectorContainer = new VisualElement();
             m_SelectionInspectorContainer.AddToClassList("SelectionInspectorContainer");
@@ -302,50 +303,33 @@ namespace Unity.AssetManager.UI.Editor
             content.Add(m_CustomizableSection);
 
             SetCustomFieldsVisibility(m_PageManager.ActivePage);
-
-            // This have to be done last to be sure it's on top of everything
-            m_BlockingProgressPanel = new BlockingProgressPanel();
-            UIElementsUtils.Hide(m_BlockingProgressPanel);
-
-            Add(m_BlockingProgressPanel);
         }
 
         void RegisterCallbacks()
         {
             m_SelectionInspectorContainer.RegisterCallback<GeometryChangedEvent>(OnInspectorResized);
 
-            m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            m_PermissionsManager.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.UIComponentEnabledChanged += OnUIComponentEnabledChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged += OnLoadingStateChanged;
             m_UnityConnect.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
-            m_AssetImportResolver.SetConflictResolver(new AssetImportDecisionMaker());
-            m_ProgressManager.Show += OnShowProgressPanel;
-            m_ProgressManager.Hide += OnHideProgressPanel;
-            m_ProgressManager.Progress += OnProgressPanelChanged;
+            m_AssetImportResolver.SetConflictResolver(new AssetImportDecisionMaker(m_SettingsManager));
         }
 
         void UnregisterCallbacks()
         {
             m_SelectionInspectorContainer?.UnregisterCallback<GeometryChangedEvent>(OnInspectorResized);
 
-            m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            m_PermissionsManager.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_PageManager.UIComponentEnabledChanged -= OnUIComponentEnabledChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged -= OnLoadingStateChanged;
             m_UnityConnect.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
-
-            // Could be null if the tool is being reload after the package is updated
-            if (m_ProgressManager != null)
-            {
-                m_ProgressManager.Show -= OnShowProgressPanel;
-                m_ProgressManager.Hide -= OnHideProgressPanel;
-                m_ProgressManager.Progress -= OnProgressPanelChanged;
-            }
         }
 
         static void OnInspectorResized(GeometryChangedEvent evt)
@@ -456,23 +440,6 @@ namespace Unity.AssetManager.UI.Editor
             m_SideBar.SetContentEnabled(uiComponent.HasFlag(UIComponents.ProjectSideBar));
         }
 
-        void OnProgressPanelChanged(float progress)
-        {
-            m_BlockingProgressPanel.SetProgress(progress);
-        }
-
-        void OnHideProgressPanel()
-        {
-            UIElementsUtils.Hide(m_BlockingProgressPanel);
-        }
-
-        void OnShowProgressPanel(string message)
-        {
-            UIElementsUtils.Show(m_BlockingProgressPanel);
-            m_BlockingProgressPanel.SetProgress(0f);
-            m_BlockingProgressPanel.SetMessage(message);
-        }
-
         void Refresh()
         {
             if (!m_UnityConnect.AreCloudServicesReachable)
@@ -487,7 +454,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_StorageInfoRefreshScheduledItem.Resume();
 
-            if (m_AssetsProvider.AuthenticationState == AuthenticationState.AwaitingLogin)
+            if (m_PermissionsManager.AuthenticationState == AuthenticationState.AwaitingLogin)
             {
                 UIElementsUtils.Hide(m_LoginPage);
                 UIElementsUtils.Show(m_AwaitingLoginPage);
@@ -495,7 +462,7 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            if (m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedOut)
+            if (m_PermissionsManager.AuthenticationState == AuthenticationState.LoggedOut)
             {
                 UIElementsUtils.Show(m_LoginPage);
                 UIElementsUtils.Hide(m_AwaitingLoginPage);
@@ -506,7 +473,7 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            if (m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedIn)
+            if (m_PermissionsManager.AuthenticationState == AuthenticationState.LoggedIn)
             {
                 UIElementsUtils.Hide(m_LoginPage);
                 UIElementsUtils.Hide(m_AwaitingLoginPage);

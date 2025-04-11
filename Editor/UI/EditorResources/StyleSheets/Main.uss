@@ -74,7 +74,7 @@
     background-position-x: left 0;
 }
 
-.collapse-sidebar-button:focus{
+.collapse-sidebar-button:focus {
     border-width: 1px;
     border-color: #7BAEFA;
 }
@@ -88,7 +88,7 @@
     background-size: 24px 24px;
 }
 
-.expand-sidebar-button:focus{
+.expand-sidebar-button:focus {
     border-width: 1px;
     border-color: #7BAEFA;
 }
@@ -107,12 +107,12 @@
     flex-shrink: 0;
 }
 
-.SidebarTitle{
+.SidebarTitle {
     margin: 8px 0 0 8px;
     -unity-font-style: bold;
 }
 
-SideBarFoldout .unity-base-field__input{
+SideBarFoldout .unity-base-field__input {
     flex-shrink: 1;
 }
 
@@ -164,7 +164,7 @@ SideBarCollectionFoldout Image.icon-folder-close {
     width: 30px;
 }
 
-SideBarButton>ListView {
+SideBarButton > ListView {
     margin-left: 5px;
 }
 
@@ -173,21 +173,21 @@ SideBarButton {
     min-height: 32px;
     width: auto;
     border-width: 1px;
-    border-color: rgba(0,0,0,0);
+    border-color: rgba(0, 0, 0, 0);
 }
 
-SideBarButton:focus{
+SideBarButton:focus {
     border-width: 1px;
     border-color: #7BAEFA;
 }
 
-SideBarButton>Image {
+SideBarButton > Image {
     max-height: 16px;
     max-width: 16px;
     align-self: center;
 }
 
-SideBarButton>Label {
+SideBarButton > Label {
     align-self: center;
 }
 
@@ -196,12 +196,12 @@ SideBarButton>Label {
     flex-basis: auto;
 }
 
-.SelectionInspectorContainer{
+.SelectionInspectorContainer {
     min-width: 200px;
     flex-basis: auto;
 }
 
-.ContentPanel{
+.ContentPanel {
     flex-basis: auto;
     flex-direction: row;
     flex-grow: 1;
@@ -249,11 +249,11 @@ TwoPaneSplitView {
 }
 
 /*!* Overrides the blue triangle in foldout*!*/
-.unity-foldout__toggle>.unity-toggle__input:focus:checked>.unity-toggle__checkmark {
+.unity-foldout__toggle > .unity-toggle__input:focus:checked > .unity-toggle__checkmark {
     background-image: resource("uipackageresources/images/d_in_foldout_on.png");
 }
 
-.unity-foldout__toggle>.unity-toggle__input:focus>.unity-toggle__checkmark {
+.unity-foldout__toggle > .unity-toggle__input:focus > .unity-toggle__checkmark {
     background-image: resource("uipackageresources/images/d_in_foldout.png");
 }
 
@@ -273,28 +273,28 @@ TwoPaneSplitView {
     margin-left: 22px;
 }
 
-.allAssetsFolder Toggle{
-    padding-left: 0px;
+.allAssetsFolder Toggle {
+    padding-left: 0;
 }
 
 .allAssetsFolder {
     margin-left: 5px;
 }
 
-.collections-top-level-folder > Toggle{
+.collections-top-level-folder > Toggle {
     padding-left: 4px;
 }
 
-.collections-top-level-folder > Toggle > VisualElement > Image{
+.collections-top-level-folder > Toggle > VisualElement > Image {
     display: none;
-    width: 0px;
+    width: 0;
 }
 
-.collections-top-level-folder > Toggle > VisualElement > ToolbarSpacer{
+.collections-top-level-folder > Toggle > VisualElement > ToolbarSpacer {
     width: 3px;
 }
 
-.collections-top-level-folder > Toggle > VisualElement > Label{
+.collections-top-level-folder > Toggle > VisualElement > Label {
     -unity-font-style: bold;
 }
 
@@ -303,7 +303,7 @@ TwoPaneSplitView {
     opacity: 0.5;
 }
 
-/*This is a UIToolkit bug where the second element of the foldouts' list
+/*This is a UIToolkit issue where the second element of the foldouts' list
 is not intended properly and we need this to fix that issue*/
 .unity-foldout--depth-1 .unity-foldout__toggle,
 .unity-foldout--depth-2 .unity-foldout__toggle,
@@ -429,7 +429,7 @@ PageTitle {
 /************************************************
 * Filters
 ************************************************/
-.unity-filters-sort-container{
+.unity-filters-sort-container {
     flex-direction: row;
     flex-wrap: wrap;
     flex-shrink: 0;
@@ -584,7 +584,7 @@ PageTitle {
 /************************************************
 * Sort
 ************************************************/
-.unity-sort{
+.unity-sort {
     flex-direction: row;
     flex-shrink: 0;
     padding-top: 6px;
@@ -765,7 +765,7 @@ TabView {
     left: 0;
 }
 
-.tab-button--selected .tab-button-underscore-bar{
+.tab-button--selected .tab-button-underscore-bar {
     display: flex;
 }
 
@@ -858,14 +858,14 @@ TextField {
     height: 18px;
 }
 
-.SearchFilterChip>Label {
+.SearchFilterChip > Label {
     overflow: hidden;
     text-overflow: ellipsis;
     width: auto;
     padding-right: 5px;
 }
 
-.SearchFilterChip>Button {
+.SearchFilterChip > Button {
     flex-shrink: 0;
 }
 
@@ -925,8 +925,7 @@ RoleChip > Label {
     -unity-text-align: middle-center;
 }
 
-ProjectChip > Image
-{
+ProjectChip > Image {
     width: 16px;
     height: 16px;
     padding: 2px;
@@ -936,8 +935,7 @@ ProjectChip > Image
     flex-shrink: 0;
 }
 
-UserChip #InitialsCircle
-{
+UserChip #InitialsCircle {
     width: 16px;
     height: 16px;
     padding: 2px;
@@ -946,8 +944,7 @@ UserChip #InitialsCircle
     flex-shrink: 0;
 }
 
-UserChip #Initials
-{
+UserChip #Initials {
     -unity-text-align: middle-center;
     -unity-font-style: bold;
     color: white;
@@ -1007,7 +1004,7 @@ AssetsGridView {
 .grid-view--item-label {
     text-overflow: ellipsis;
     overflow: hidden;
-    bottom: 0px;
+    bottom: 0;
     width: 100%;
     height: 25px;
     visibility: visible;
@@ -1082,7 +1079,7 @@ AssetsGridView {
     flex-grow: 0;
     flex-shrink: 0;
     height: 150px;
-    margin: 2.5px;
+    margin: 2px;
     width: 125px;
 }
 
@@ -1099,10 +1096,10 @@ AssetsGridView {
 
 .grid-view--item-imported_status {
     position: absolute;
-    bottom: 0px;
-    right: 0px;
-    top: 0px;
-    left: 0px;
+    bottom: 0;
+    right: 0;
+    top: 0;
+    left: 0;
 }
 
 .grid-view--status-icon {
@@ -1110,7 +1107,7 @@ AssetsGridView {
     bottom: 3px;
     right: 3px;
     border-radius: 10px;
-    background-size : 14px 14px;
+    background-size: 14px 14px;
     width: 20px;
     height: 20px;
 }
@@ -1213,7 +1210,7 @@ AssetsGridView {
     flex-direction: row;
     flex-shrink: 0;
     justify-content: flex-start;
-    margin: 2.5px 6px;
+    margin: 2px 6px;
 }
 
 GridMessageView {
@@ -1304,19 +1301,19 @@ GridMessageView > .unity-label {
     left: 2px;
     width: 24px;
     height: 24px;
-    background-color: rgba(25,25,25,0.8);
+    background-color: rgba(25, 25, 25, 0.8);
     padding: 3px;
     padding-left: 5px;
     border-radius: 4px;
 }
 
-.asset-preview-toggle .unity-toggle__checkmark{
+.asset-preview-toggle .unity-toggle__checkmark {
     border-color: dimgray;
     border-width: 1px;
     border-radius: 2px;
 }
 
-.asset-preview-toggle:hover .unity-toggle__checkmark{
+.asset-preview-toggle:hover .unity-toggle__checkmark {
     border-color: darkgray;
     border-width: 1px;
     border-radius: 2px;
@@ -1332,7 +1329,7 @@ GridMessageView > .unity-label {
 
 HelpBox {
     min-height: 60px;
-    border-width: 0.5px;
+    border-width: 1px;
     margin: 5px;
     padding: 10px;
     flex-shrink: 0;
@@ -1403,10 +1400,10 @@ HelpBox > Button {
 
 .inspector-page-container {
     position: absolute;
-    left: 0px;
-    top: 0px;
-    right: 0px;
-    bottom: 0px;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
 }
 
 .inspector-page-top {
@@ -1442,10 +1439,10 @@ HelpBox > Button {
 MultiAssetDetailsPage {
     height: 100%;
     position: absolute;
-    left: 0px;
-    top: 0px;
-    right: 0px;
-    bottom: 0px;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
     overflow: scroll;
 }
 
@@ -1469,8 +1466,8 @@ MultiAssetDetailsPage {
     left: 5px;
 }
 
-.multi-selection-foldout > .* > .unity-foldout__content {
-    margin-left: 0px;
+.multi-selection-foldout > . * > .unity-foldout__content {
+    margin-left: 0;
 }
 
 /************************************************
@@ -1480,10 +1477,10 @@ MultiAssetDetailsPage {
 AssetDetailsPage {
     height: 100%;
     position: absolute;
-    left: 0px;
-    top: 0px;
-    right: 0px;
-    bottom: 0px;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
     overflow: scroll;
 }
 
@@ -1500,7 +1497,7 @@ AssetDetailsPage {
     flex-shrink: 1;
 }
 
-.details-page-dashboard-link{
+.details-page-dashboard-link {
     cursor: link;
     margin-left: 4px;
     width: 16px;
@@ -1584,8 +1581,7 @@ AssetDetailsPage {
     width: 100%;
 }
 
-.asset-version-details-foldout
-{
+.asset-version-details-foldout {
     margin-bottom: 8px;
 }
 
@@ -1596,15 +1592,13 @@ AssetDetailsPage {
     border-width: 0;
 }
 
-.asset-version-label-container
-{
+.asset-version-label-container {
     flex-direction: row-reverse;
     flex-wrap: wrap;
     flex-shrink: 0;
 }
 
-.asset-version-label
-{
+.asset-version-label {
     margin: 2px;
     padding: 2px 6px;
     border-radius: 10px;
@@ -1647,7 +1641,7 @@ AssetDetailsPage {
     align-items: center;
 }
 
-.details-page-download-progress-container{
+.details-page-download-progress-container {
     display: none;
     margin-bottom: 4px;
     margin-top: 4px;
@@ -1664,7 +1658,7 @@ AssetDetailsPage {
 
 .grid-view--item > * > .progress-bar-container {
     position: absolute;
-    bottom: 0px;
+    bottom: 0;
 }
 
 .progress-bar--error {
@@ -1703,22 +1697,21 @@ AssetDetailsPage {
     flex-grow: 1;
 }
 
-.details-files-foldout > Toggle{
+.details-files-foldout > Toggle {
     padding: 8px 10px 8px 10px;
     margin: 0 0 5px 0;
 }
 
-.details-files-foldout > Toggle > VisualElement{
+.details-files-foldout > Toggle > VisualElement {
     flex-direction: row-reverse;
 }
 
-.details-files-foldout > Toggle > VisualElement > Label{
+.details-files-foldout > Toggle > VisualElement > Label {
     position: absolute;
     left: 5px;
 }
 
-.details-files-foldout-uvcs-chip
-{
+.details-files-foldout-uvcs-chip {
     position: absolute;
     right: 32px;
     top: 3px;
@@ -1728,8 +1721,7 @@ AssetDetailsPage {
     background-color: rgba(0, 255, 0, 0.1);
 }
 
-.details-files-foldout-uvcs-chip-icon
-{
+.details-files-foldout-uvcs-chip-icon {
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Check-Circle.png');
     width: 16px;
     height: 16px;
@@ -1749,6 +1741,18 @@ AssetDetailsPage {
 }
 
 .same-files-warning-box {
+    width: auto;
+    height: 55px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    border-width: 1px;
+    flex-direction: row;
+    overflow: hidden;
+}
+
+.outdated-warning-box {
     width: auto;
     height: 55px;
     margin-top: 5px;
@@ -1815,12 +1819,35 @@ AssetDetailsPage {
     white-space: normal;
 }
 
+.outdated-warning-box > Image {
+    width: 25px;
+    height: 25px;
+    margin-top: auto;
+    margin-bottom: auto;
+    margin-left: 10px;
+    flex-shrink: 0;
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Common/Warning.png');
+}
+
+.outdated-warning-box > Label {
+    height: 25px;
+    margin-top: auto;
+    margin-bottom: auto;
+    padding-left: 10px;
+    margin-right: 10px;
+    color: white;
+    flex-shrink: 1;
+    -unity-text-align: middle-left;
+    overflow: visible;
+    white-space: normal;
+}
+
 .asset-details-page-container {
     position: absolute;
-    left: 0px;
-    top: 0px;
-    right: 0px;
-    bottom: 0px;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
 }
 
 .image-container {
@@ -1904,7 +1931,7 @@ AssetDetailsPage {
 }
 
 .import-button,
-.remove-button{
+.remove-button {
     flex-direction: row;
     height: 40px;
     flex-grow: 1;
@@ -1937,13 +1964,13 @@ AssetDetailsPage {
     justify-content: center;
 }
 
-.import-buttons-container DropdownField  .unity-popup-field__input {
-    background-color: rgba(0,0,0,0);
+.import-buttons-container DropdownField .unity-popup-field__input {
+    background-color: rgba(0, 0, 0, 0);
     border-width: 0;
 }
 
-.remove-buttons-container DropdownField  .unity-popup-field__input {
-    background-color: rgba(0,0,0,0);
+.remove-buttons-container DropdownField .unity-popup-field__input {
+    background-color: rgba(0, 0, 0, 0);
     border-width: 0;
 }
 
@@ -1995,7 +2022,7 @@ AssetDetailsPage {
 }
 
 .details-page-file-item-icon {
-    background-size : 16px 16px;
+    background-size: 16px 16px;
     width: 20px;
     flex-shrink: 0;
 }
@@ -2051,11 +2078,11 @@ AssetDetailsPage {
 }
 
 .details-files-foldout .unity-foldout__content {
-    margin-left: 0px;
+    margin-left: 0;
 }
 
 .details-page-in-project-item {
-    background-size : 16px 16px;
+    background-size: 16px 16px;
     width: 20px;
     flex-shrink: 0;
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Folder-Close.png');
@@ -2063,7 +2090,7 @@ AssetDetailsPage {
 }
 
 .details-page-three-dots-item {
-    background-size : 16px 16px;
+    background-size: 16px 16px;
     width: 25px;
     flex-shrink: 0;
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Settings.png');
@@ -2117,12 +2144,12 @@ AssetDetailsPage {
 
 }
 
-.details-page-entry-value-text{
+.details-page-entry-value-text {
     white-space: normal;
     max-height: 150px;
 }
 
-.details-page-loading-label{
+.details-page-loading-label {
     justify-content: center;
     flex-grow: 1;
     margin-top: 24px;
@@ -2134,29 +2161,24 @@ AssetDetailsPage {
 * Timestamp picker
 ************************************************/
 
-.timestamp-picker-field
-{
+.timestamp-picker-field {
     width: 55px;
     height: 18px;
 }
 
-.timestamp-picker-field .unity-base-popup-field__arrow
-{
+.timestamp-picker-field .unity-base-popup-field__arrow {
     margin: 0 4px 0 0;
 }
 
-.timestamp-picker-field.unity-integer-field
-{
+.timestamp-picker-field.unity-integer-field {
     margin-left: 0;
 }
 
-.invalid-field-label
-{
+.invalid-field-label {
     color: red;
 }
 
-.invalid-text-field .unity-base-text-field__input
-{
+.invalid-text-field .unity-base-text-field__input {
     border-color: red;
     border-width: 1px;
     border-radius: 4px;
@@ -2166,19 +2188,16 @@ AssetDetailsPage {
 * Multi-selection picker
 ************************************************/
 
-.multi-selection-picker-entry
-{
+.multi-selection-picker-entry {
     flex-direction: row;
     justify-content: space-between;
 }
 
-.multi-selection-picker-text
-{
+.multi-selection-picker-text {
     -unity-font-style: bold;
 }
 
-.multi-selection-picker-label
-{
+.multi-selection-picker-label {
     -unity-font-style: normal;
 }
 
@@ -2209,49 +2228,41 @@ AssetDetailsPage {
     align-items: center;
 }
 
-.add-custom-field-section
-{
+.add-custom-field-section {
     align-items: center;
 }
 
-.add-custom-field-button
-{
+.add-custom-field-button {
     width: 100%;
     margin: 10px 0 10px 0;
 }
 
-.add-custom-field-popup
-{
+.add-custom-field-popup {
     width: 100%;
     border-width: 1px;
     border-color: #5F5F5F;
     padding: 5px 10px 5px 10px;
 }
 
-.add-custom-field-search-field
-{
+.add-custom-field-search-field {
     width: 100%;
 }
 
-.add-custom-field-scroll-view
-{
+.add-custom-field-scroll-view {
     max-height: 300px;
     margin-top: 5px;
 }
 
-.custom-field-list-item
-{
+.custom-field-list-item {
     margin: 1px 0 1px 0;
     flex-direction: row;
 }
 
-.custom-field-list-item:hover
-{
+.custom-field-list-item:hover {
     background-color: #2F60C1;
 }
 
-.custom-field-list-item-icon
-{
+.custom-field-list-item-icon {
     width: 15px;
 }
 
@@ -2289,7 +2300,7 @@ AssetDetailsPage {
 }
 
 .metadata-page-entry-kebab-button {
-    background-size : 16px 16px;
+    background-size: 16px 16px;
     width: 20px;
     height: 20px;
     flex-shrink: 0;
@@ -2297,36 +2308,37 @@ AssetDetailsPage {
     -unity-background-image-tint-color: var(--icon-tint-color);
 }
 
-.invalid-field-label
-{
+.invalid-field-label {
     color: red;
 }
 
-.invalid-text-field .unity-base-text-field__input
-{
+.invalid-text-field .unity-base-text-field__input {
     border-color: red;
     border-width: 1px;
     border-radius: 4px;
 }
 
-.metadata-text-field-label
-{
+.metadata-text-field-label {
     margin-left: 7px;
     font-size: 11px;
+}
+
+.no-metadata-field-label {
+    white-space: normal;
+    padding-left:5px;
+    margin-bottom: 5px;
 }
 
 /************************************************
 * Timestamp picker
 ************************************************/
 
-.timestamp-picker-field
-{
+.timestamp-picker-field {
     width: 49px;
     height: 18px;
 }
 
-.timestamp-picker-field .unity-base-popup-field__arrow
-{
+.timestamp-picker-field .unity-base-popup-field__arrow {
     margin: 0 4px 0 0;
 }
 
@@ -2334,19 +2346,16 @@ AssetDetailsPage {
 * Multi-selection picker
 ************************************************/
 
-.multi-selection-picker-entry
-{
+.multi-selection-picker-entry {
     flex-direction: row;
     justify-content: space-between;
 }
 
-.multi-selection-picker-text
-{
+.multi-selection-picker-text {
     -unity-font-style: bold;
 }
 
-.multi-selection-picker-label
-{
+.multi-selection-picker-label {
     -unity-font-style: normal;
 }
 
@@ -2394,29 +2403,25 @@ AssetDetailsPage {
 #titleLabel {
     font-size: 19px;
     -unity-font-style: bold;
-    padding-top: 0px;
+    padding-top: 0;
     margin-bottom: 10px;
 }
 
 .settings-foldout {
     border-width: 1px;
-    margin: 2px 9px 2px 6px;
+    margin: 2px 6px;
+    padding: 9px;
     min-width: 330px;
 }
 
-.settings-foldout Label {
-    margin: 2px 0 0 3px;
+.settings-foldout > Toggle {
+    margin-bottom: 6px;
+    -unity-font-style: bold;
 }
 
-.import-settings-container {
-    margin-bottom: 20px;
-    margin-top: 10px;
-}
-
-.cache-settings-container {
-    flex-direction: row;
-    margin-bottom: 20px;
-    margin-top: 10px;
+.settings-label {
+    width: 340px;
+    padding: 6px;
 }
 
 #cacheSizeOnDiskContainer {
@@ -2425,48 +2430,17 @@ AssetDetailsPage {
     margin-top: 5px;
 }
 
-.cache-settings-label,
-.cache-settings-element {
-    padding-left: 10px;
-}
-
-.cache-settings-element {
-    flex-grow: 1;
-}
-
-.cache-settings-label {
-    padding-bottom: 9px;
-}
-
-#cacheSize {
-    padding-top: 5px;
-}
-
 #unity-text-field {
     max-width: 50px;
 }
 
 #cacheSizeOnDisk {
-    padding-top: 1px;
     flex-grow: 1;
 }
 
-.upload-settings-container {
-    margin-bottom: 20px;
-    margin-top: 10px;
-}
-
-.upload-settings-label {
-    width: 400px;
-}
-
-.confidence-threshold-container {
-    flex-direction: row;
-    margin-top: 5px;
-}
-
-.confidence-threshold{
+.settings-slider {
     flex-grow: 1;
+    height: 20px;
 }
 
 .asset-manager-path {
@@ -2493,25 +2467,10 @@ AssetDetailsPage {
 .asset-manager-dropdown {
     border-width: 0;
 }
-
-.max-cache-size {
-    margin: 2px 5px;
-}
-
-#cleanCache {
+ 
+.settings-button {
     width: 120px;
-    margin-left: 10px;
-}
-
-.label-toolbar-combo {
-    flex-direction: row;
-    flex-grow: 1;
-    justify-content: space-between;
-}
-
-.import-setting-name {
-    width: 250px;
-    padding-bottom: 7px;
+    height: 20px;
 }
 
 /************************************************
@@ -2595,7 +2554,7 @@ AssetDetailsPage {
     border-radius: 8px;
 }
 
-.upload-page-settings-panel DropdownField Label.unity-text-element.unity-label.unity-base-field__label.unity-base-popup-field__label.unity-popup-field__label{
+.upload-page-settings-panel DropdownField Label.unity-text-element.unity-label.unity-base-field__label.unity-base-popup-field__label.unity-popup-field__label {
     min-width: 0;
     flex-shrink: 1;
     flex-grow: 1;
@@ -2636,15 +2595,15 @@ AssetDetailsPage {
 }
 
 .upload-page-all-actions-section,
-.in-project-page-all-actions-section{
+.in-project-page-all-actions-section {
     flex-direction: row;
-    height : 30px;
+    height: 30px;
     align-self: center;
 }
 
 .upload-page-upload-button,
 .upload-page-reset-button,
-.in-project-page-update-all-button{
+.in-project-page-update-all-button {
     text-overflow: ellipsis;
     overflow: hidden;
     flex-shrink: 1;
@@ -2721,30 +2680,26 @@ PopupContainer {
     flex-shrink: 1;
 }
 
-.reimport-foldout-header
-{
+.reimport-foldout-header {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
     flex-grow: 1;
 }
 
-.reimport-foldout-header-text
-{
+.reimport-foldout-header-text {
     margin-left: 4px;
     flex-direction: row;
 }
 
-.reimport-foldout-header-text-name
-{
+.reimport-foldout-header-text-name {
     -unity-font-style: bold;
     text-overflow: ellipsis;
     overflow: hidden;
     flex-shrink: 1;
 }
 
-.reimport-foldout-header-dropdown
-{
+.reimport-foldout-header-dropdown {
     flex-direction: column;
     border-radius: 4px;
     margin-right: 0;
@@ -2753,13 +2708,11 @@ PopupContainer {
     width: 85px;
 }
 
-.reimport-foldout-header-dropdown .unity-base-popup-field__text
-{
+.reimport-foldout-header-dropdown .unity-base-popup-field__text {
     margin: 0;
 }
 
-.reimport-foldout-content
-{
+.reimport-foldout-content {
     margin-left: 6px;
     border-width: 1px;
     flex-direction: column;
@@ -2781,8 +2734,7 @@ PopupContainer {
     flex-shrink: 1;
 }
 
-.reimport-foldout-content-entry-status--warning
-{
+.reimport-foldout-content-entry-status--warning {
     flex-shrink: 0;
     width: 16px;
     height: 16px;
@@ -2801,13 +2753,13 @@ PopupContainer {
 * Blocking Progress Panel
 ************************************************/
 BlockingProgressPanel {
-	width: 100%;
+    width: 100%;
     height: 100%;
-	position: absolute;
-	background-color: rgba(0,0,0,0);
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0);
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 
 BlockingProgressPanel Label {

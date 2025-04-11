@@ -24,7 +24,10 @@ namespace Unity.AssetManager.UI.Editor
         {
             public List<FilterData> SelectedFilters;
             public int ResultCount;
+            public string PageTitle;
         }
+
+        const string k_UnknownPageTitle = "Unknown";
 
         internal const string k_EventName = AnalyticsSender.EventPrefix + "SearchFilteredResult";
         internal const int k_EventVersion = 1;
@@ -34,12 +37,13 @@ namespace Unity.AssetManager.UI.Editor
 
         FilterSearchResultEventData m_Data;
 
-        internal FilterSearchResultEvent(List<FilterData> selectedFilter, int resultCount)
+        internal FilterSearchResultEvent(List<FilterData> selectedFilter, int resultCount, string activePage = k_UnknownPageTitle)
         {
             m_Data = new FilterSearchResultEventData
             {
                 SelectedFilters = selectedFilter,
-                ResultCount = resultCount
+                ResultCount = resultCount,
+                PageTitle = activePage
             };
         }
 

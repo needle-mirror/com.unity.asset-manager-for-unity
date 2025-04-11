@@ -41,6 +41,9 @@ namespace Unity.AssetManager.UI.Editor
         IMessageManager m_MessageManager;
 
         [SerializeReference]
+        IDialogManager m_DialogManager;
+
+        [SerializeReference]
         IAssetOperationManager m_AssetOperationManager;
 
         [SerializeReference]
@@ -74,7 +77,7 @@ namespace Unity.AssetManager.UI.Editor
         [ServiceInjection]
         public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider,
             IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider,
-            IAssetOperationManager assetOperationManager, IMessageManager messageManager)
+            IAssetOperationManager assetOperationManager, IMessageManager messageManager, IDialogManager dialogManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_AssetsProvider = assetsProvider;
@@ -82,6 +85,7 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_AssetOperationManager = assetOperationManager;
             m_MessageManager = messageManager;
+            m_DialogManager = dialogManager;
         }
 
         public override void OnEnable()
@@ -89,6 +93,13 @@ namespace Unity.AssetManager.UI.Editor
             m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
 
             m_ActivePage?.OnEnable();
+        }
+
+        protected override void ValidateServiceDependencies()
+        {
+            base.ValidateServiceDependencies();
+
+            m_DialogManager = ServicesContainer.instance.Get<IDialogManager>();
         }
 
         public override void OnDisable()
@@ -153,8 +164,8 @@ namespace Unity.AssetManager.UI.Editor
 
         IPage CreatePage<T>()
         {
-            var page = (IPage)Activator.CreateInstance(typeof(T), m_AssetDataManager,
-                m_AssetsProvider, m_ProjectOrganizationProvider, m_MessageManager, this);
+            var page = (IPage) Activator.CreateInstance(typeof(T), m_AssetDataManager, m_AssetsProvider,
+                m_ProjectOrganizationProvider, m_MessageManager, this, m_DialogManager);
             RegisterPageEvents(page);
             return page;
         }

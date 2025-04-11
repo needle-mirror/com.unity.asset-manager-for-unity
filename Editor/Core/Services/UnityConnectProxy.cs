@@ -9,7 +9,7 @@ namespace Unity.AssetManager.Core.Editor
     interface IUnityConnectProxy : IService
     {
         event Action<bool> CloudServicesReachabilityChanged;
-        event Action<string> OrganizationIdChanged;
+        event Action OrganizationIdChanged;
         string OrganizationId { get; }
         string ProjectId { get; }
 
@@ -23,7 +23,7 @@ namespace Unity.AssetManager.Core.Editor
     class UnityConnectProxy : BaseService<IUnityConnectProxy>, IUnityConnectProxy
     {
         public event Action<bool> CloudServicesReachabilityChanged;
-        public event Action<string> OrganizationIdChanged;
+        public event Action OrganizationIdChanged;
 
         public string OrganizationId => m_ConnectedOrganizationId;
 
@@ -51,81 +51,83 @@ namespace Unity.AssetManager.Core.Editor
             NotReachable
         }
 
+        [SerializeReference]
+        IApplicationProxy m_ApplicationProxy;
+
         [SerializeField]
         double m_LastInternetCheck;
 
         [SerializeField]
-        bool m_IsInternetReachable;
-
-        [SerializeField]
         bool m_IsCouldServicesReachableRequestComplete;
+
+        [ServiceInjection]
+        public void Inject(IApplicationProxy applicationProxy)
+        {
+            m_ApplicationProxy = applicationProxy;
+        }
 
         public override void OnEnable()
         {
-            m_LastInternetCheck = EditorApplication.timeSinceStartup;
+            base.OnEnable();
+
+            m_LastInternetCheck = m_ApplicationProxy.TimeSinceStartup;
             CheckCloudServicesHealth();
 
-            EditorApplication.update += Update;
+            m_ApplicationProxy.Update += Update;
+        }
+
+        protected override void ValidateServiceDependencies()
+        {
+            base.ValidateServiceDependencies();
+
+            m_ApplicationProxy ??= ServicesContainer.instance.Get<IApplicationProxy>();
         }
 
         public override void OnDisable()
         {
-            EditorApplication.update -= Update;
-        }
-
-        void OnProjectStateChanged()
-        {
-            OrganizationIdChanged?.Invoke(m_ConnectedOrganizationId);
+            if (m_ApplicationProxy != null)
+                m_ApplicationProxy.Update -= Update;
         }
 
         void Update()
         {
- #if UNITY_2021
+#if UNITY_2021
             if (CloudProjectSettings.organizationId != k_NoValue && !m_ConnectedOrganizationId.Equals(CloudProjectSettings.organizationId))
             {
                 m_ConnectedOrganizationId = CloudProjectSettings.organizationId;
- #else
+#else
             if (!m_ConnectedOrganizationId.Equals(CloudProjectSettings.organizationKey))
             {
                 m_ConnectedOrganizationId = CloudProjectSettings.organizationKey;
 #endif
                 m_ConnectedProjectId = k_NoValue;
-                OnProjectStateChanged();
+                OrganizationIdChanged?.Invoke();
             }
             else if (!m_ConnectedProjectId.Equals(CloudProjectSettings.projectId))
             {
                 m_ConnectedProjectId = CloudProjectSettings.projectId;
-                OnProjectStateChanged();
             }
 
-            if (EditorApplication.timeSinceStartup - m_LastInternetCheck < 2.0 || !m_IsCouldServicesReachableRequestComplete)
+            var timeSinceStartup = m_ApplicationProxy.TimeSinceStartup;
+
+            if (timeSinceStartup - m_LastInternetCheck < 2.0 || !m_IsCouldServicesReachableRequestComplete)
                 return;
 
-            m_LastInternetCheck = EditorApplication.timeSinceStartup;
+            m_LastInternetCheck = timeSinceStartup;
 
             CheckCloudServicesReachability();
         }
 
         void CheckCloudServicesReachability()
         {
-            var internetReachable = Application.internetReachability != NetworkReachability.NotReachable;
-            if (m_IsInternetReachable && !internetReachable)
+            if (!m_ApplicationProxy.InternetReachable && m_AreCloudServicesReachable != CloudServiceReachability.NotReachable)
             {
-                m_IsInternetReachable = false;
                 m_AreCloudServicesReachable = CloudServiceReachability.NotReachable;
                 CloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
             }
-            else if (internetReachable)
+            else
             {
-                if (!m_IsInternetReachable)
-                {
-                    m_IsInternetReachable = true;
-                    CheckCloudServicesHealth();
-                }
-                else if (!AreCloudServicesReachable)
-                {
-                    CheckCloudServicesHealth();
-                }
+                CheckCloudServicesHealth();
             }
         }
 
@@ -138,15 +140,27 @@ namespace Unity.AssetManager.Core.Editor
             {
                 asyncOperation.completed += _ =>
                 {
-                    m_AreCloudServicesReachable = request.responseCode is >= 200 and < 300 ? CloudServiceReachability.Reachable : CloudServiceReachability.NotReachable;
-                    CloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
-                    m_IsCouldServicesReachableRequestComplete = true;
+                    var cloudServiceReachability = request.result == UnityWebRequest.Result.Success
+                        ? CloudServiceReachability.Reachable
+                        : CloudServiceReachability.NotReachable;
+
+                    if (m_AreCloudServicesReachable != cloudServiceReachability)
+                    {
+                        m_AreCloudServicesReachable = cloudServiceReachability;
+                        CloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
+                    }
                 };
             }
             catch (Exception)
             {
-                m_AreCloudServicesReachable = CloudServiceReachability.NotReachable;
-                CloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
+                if (AreCloudServicesReachable)
+                {
+                    m_AreCloudServicesReachable = CloudServiceReachability.NotReachable;
+                    CloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
+                }
+            }
+            finally
+            {
                 m_IsCouldServicesReachableRequestComplete = true;
             }
         }

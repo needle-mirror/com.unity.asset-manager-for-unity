@@ -90,7 +90,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string NoProjectSelected = "No project selected";
         public const string UploadMetadata = "Upload Metadata";
         public const string AddCustomField = "Add custom field";
-        public const string MetadataPartialEditing = "Metadata that are only one some of the selected assets cannot be multi-edited.";
+        public const string MetadataPartialEditing = "Metadata that are only on some of the selected assets cannot be multi-edited.";
+        public const string NoMatchingFields = "No field exists. To add custom fields, go to the <a>dashboard</a> and create a new metadata field.";
 
         // Preview Status
         public const string ImportedText = "Asset is imported";
@@ -127,6 +128,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string DateText = "Date";
         public const string TagsText = "Tags";
         public const string ProjectText = "Project";
+        public const string ProjectsText = "Projects";
         public const string AssetTypeText = "Asset Type";
         public const string StatusText = "Status";
         public const string SourceFilesText = "Source Files";
@@ -151,6 +153,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string ImportActionText = "Import";
         public const string ImportToActionText = "Import To";
         public const string ImportButtonTooltip = "Imports all associated files of the Cloud Asset into your Unity project";
+        public const string ImportButtonDropdownTooltip = "Additional import options";
         public const string UpdateToLatestActionText = "Update To Latest";
         public const string ReimportActionText = "Reimport";
         public const string ReimportButtonTooltip = "Reimports all associated files of the Cloud Asset into your Unity project";
@@ -179,6 +182,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string RemoveFromProjectButtonDisabledToolTip = "There is nothing to remove from the project.";
         public const string ImportButtonDisabledToolTip = "There is nothing to import.";
         public const string ImportNoPermissionMessage = "You don’t have permissions to import this asset. \nSee your role from the project settings page on \nthe Asset Manager dashboard.";
+        public const string FilteredAssetOutdatedWarning = "Asset is not up to date. Update your asset to see the latest asset details.";
 
         // Grid View
         public const string EmptyCollectionsText = "This collection has no assets, use the Asset Manager dashboard to link your assets to a collection.";
@@ -239,6 +243,10 @@ namespace Unity.AssetManager.UI.Editor
         public const string TagsCreation = "Generate tags automatically based on preview image";
         public const string TagsCreationConfidenceLevel = "Confidence level for automatic tags generation";
         public const string TagsCreationConfidenceLevelTooltip = "The higher the value, the more accurate the tags will be.";
+        public const string UploadDependenciesUsingLatestLabel = "Upload dependencies with Latest version label";
+        public const string UploadDependenciesUsingLatestTooltip = "Enable this option to map asset dependencies to their latest versions during upload, ensuring the latest versions are used during import.";
+        public const string DisableReimportModalLabel = "Disable the reimport modal";
+        public const string DisableReimportModalToolTip = "When enabled, no conflict resolution modals will be shown when importing and \"replace\" will be applied to everything. \"Avoid rolling back versions of dependencies\" must be enabled to use this setting.";
 
         // Collection
         public const string CollectionCreate = "Create new collection";

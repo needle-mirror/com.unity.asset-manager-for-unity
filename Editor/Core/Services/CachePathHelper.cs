@@ -14,6 +14,7 @@ namespace Unity.AssetManager.Core.Editor
         string GetDefaultCacheLocation();
     }
 
+    [Serializable]
     class CachePathHelper : BaseService<ICachePathHelper>, ICachePathHelper
     {
         const string k_UnsupportedPlatformError = "Unsupported platform";

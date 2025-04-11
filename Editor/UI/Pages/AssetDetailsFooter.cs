@@ -33,7 +33,7 @@ namespace Unity.AssetManager.UI.Editor
         public event Func<bool> StopTracking;
         public event Func<bool> StopTrackingOnlySelected;
 
-        public AssetDetailsFooter(VisualElement visualElement)
+        public AssetDetailsFooter(VisualElement visualElement, IDialogManager dialogManager)
         {
             m_FooterVisualElement = visualElement.Q("footer");
 
@@ -53,13 +53,17 @@ namespace Unity.AssetManager.UI.Editor
 
             ButtonsContainer = buttonsContainer;
 
-            m_ImportButton = new ImportButton();
-            m_ImportButton.focusable = false;
+            m_ImportButton = new ImportButton(dialogManager)
+            {
+                focusable = false
+            };
             ButtonsContainer.Add(m_ImportButton);
             m_ShowInProjectBrowserButton = CreateBigButton(ButtonsContainer, Constants.ShowInProjectActionText);
-            m_RemoveButton = new RemoveButton(false);
-            m_RemoveButton.text = L10n.Tr(Constants.RemoveFromProjectActionText);
-            m_RemoveButton.focusable = false;
+            m_RemoveButton = new RemoveButton(false)
+            {
+                text = L10n.Tr(Constants.RemoveFromProjectActionText),
+                focusable = false
+            };
             ButtonsContainer.Add(m_RemoveButton);
 
             m_ImportButton.RegisterCallback(BeginImport);

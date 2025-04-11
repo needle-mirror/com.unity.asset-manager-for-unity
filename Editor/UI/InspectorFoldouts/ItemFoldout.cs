@@ -8,10 +8,11 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
-    abstract class ItemFoldout<TData, TBinding> where TBinding : VisualElement // TODO Convert to a VisualElement
+    abstract class ItemFoldout<TData, TBinding> where TBinding : VisualElement
     {
-        readonly ListView m_ListView;
         readonly Foldout m_Foldout;
+        readonly ListView m_ListView;
+        protected readonly Toggle m_FoldoutToggle;
 
         readonly string m_FoldoutExpandedClassName = "details-foldout-expanded";
         readonly string m_FoldoutTitle;
@@ -19,7 +20,11 @@ namespace Unity.AssetManager.UI.Editor
         public bool Expanded
         {
             get => m_Foldout.value;
-            set => m_Foldout.value = value;
+            set
+            {
+                m_Foldout.SetValueWithoutNotify(value);
+                RefreshFoldoutStyleBasedOnExpansionStatus();
+            }
         }
 
         public bool IsEmpty => m_ListView.itemsSource == null || m_ListView.itemsSource.Count == 0;
@@ -30,68 +35,54 @@ namespace Unity.AssetManager.UI.Editor
 
         protected event Action<IEnumerable<object>> SelectionChanged;
 
-        protected ItemFoldout(VisualElement parent, string foldoutName, string listViewName, string foldoutTitle = null,
-            string foldoutExpandedClassName = null)
+        protected ItemFoldout(VisualElement parent, string foldoutTitle, string foldoutName, string listViewName,
+            string foldoutClassName = null, string listClassName = null, string foldoutExpandedClassName = null)
         {
-            m_Foldout = parent.Q<Foldout>(foldoutName);
-            m_ListView = parent.Q<ListView>(listViewName);
+            m_FoldoutTitle = foldoutTitle;
 
-            // In case the uxml file was not pre build, we can manually create them
-            if (m_Foldout == null)
+            m_Foldout = new Foldout
             {
-                m_Foldout = new Foldout();
-                m_Foldout.AddToClassList(foldoutName);
-                m_Foldout.name = foldoutName;
-                if (!string.IsNullOrEmpty(foldoutTitle))
-                {
-                    m_FoldoutTitle = foldoutTitle;
-                    m_Foldout.text = L10n.Tr(m_FoldoutTitle);
-                }
+                name = foldoutName,
+                viewDataKey = foldoutName,
+                text = L10n.Tr(m_FoldoutTitle)
+            };
+            parent.Add(m_Foldout);
 
-                parent.contentContainer.hierarchy.Add(m_Foldout);
+            if (!string.IsNullOrEmpty(foldoutClassName))
+                m_Foldout.AddToClassList(foldoutClassName);
 
-                m_ListView = new ListView();
-                m_ListView.AddToClassList(listViewName);
-                m_ListView.name = listViewName;
-                m_Foldout.contentContainer.hierarchy.Add(m_ListView);
-            }
-            else
+            m_ListView = new ListView
             {
-                if (!string.IsNullOrEmpty(foldoutTitle))
-                {
-                    m_FoldoutTitle = foldoutTitle;
-                    m_Foldout.text = L10n.Tr(m_FoldoutTitle);
-                }
-                else
-                {
-                    m_FoldoutTitle = m_Foldout.text;
-                }
+                name = listViewName,
+                viewDataKey = listViewName,
+                selectionType = SelectionType.None,
+                focusable = true,
+            };
+            m_Foldout.Add(m_ListView);
+            
+            if (!string.IsNullOrEmpty(listClassName))
+                m_ListView.AddToClassList(listClassName);
+
+            m_FoldoutToggle = m_Foldout.Q<Toggle>();
+            if (m_FoldoutToggle != null)
+            {
+                m_FoldoutToggle.focusable = false;
             }
 
-            var toggle = m_Foldout.Q<Toggle>();
-            if (toggle != null)
-            {
-                toggle.focusable = false;
-            }
-            m_ListView.focusable = false;
-
-            if (foldoutExpandedClassName != null)
+            if (!string.IsNullOrEmpty(foldoutExpandedClassName))
             {
                 m_FoldoutExpandedClassName = foldoutExpandedClassName;
             }
 
-            m_Foldout.viewDataKey = foldoutName;
-            m_ListView.viewDataKey = listViewName;
-            m_ListView.selectionType = SelectionType.None;
             m_ListView.selectionChanged += RaiseSelectionChangedEvent;
         }
 
-        public void RegisterValueChangedCallback(Action<object> action)
+        public void RegisterValueChangedCallback(Action<bool> action)
         {
             m_Foldout.RegisterValueChangedCallback(_ =>
             {
                 RefreshFoldoutStyleBasedOnExpansionStatus();
-                action?.Invoke(null);
+                action?.Invoke(Expanded);
             });
         }
 

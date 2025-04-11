@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "unity": "2022.3",
   "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.",
   "keywords": [
@@ -20,18 +20,18 @@
     "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.3.0"
+    "com.unity.asset-manager-for-unity.tests": "1.4.0"
   },
   "_upm": {
-    "changelog": "[Added]\n- New ability to add and edit custom metadata fields on 1 or more assets at upload\n- New ability to filter by custom metadata fields from the Assets' tab\n- Added a search bar in filter selection\n- Added an update all button on the In Project tab to allow users to get the latest version of all their imported assets\n- New default behaviour when removing an asset with dependencies from your local project is to remove the exclusive (not shared with another imported asset) dependencies alongside it.\n  - Users can also remove only the parent using the drop down options or stop tracking the assets with the cloud.\n- New default behaviour at reimport recommends keeping the highest version of an asset, even if the asset you are importing points to an older version.\n  - This can be changed in the plugin preference\n- Added support for custom version label in asset versions panel\n- Added an upload status tooltip to display information about what's causing an asset to be re-uploaded (detected change on the asset or its dependencies)\n- New import state icon on dependencies to quickly identify outdated dependencies\n\n[Changed]\n- Import asset status is now refreshed when switching page, switching project and selecting an asset\n- Re-uploading on a specific cloud asset keeps its name and tags\n- Modifying the upload file path mode will re-trigger a status check\n- In reimport window, instead of having Ver. 1 -> Ver. 1, now we show _ -> Ver. 1 to let users know they don't have this asset imported.\n- If no project is selected when entering Upload page, the breadcrumb show \"No project selected\" instead of \"All Assets\"\n- Change \"Update All To Latest\" context menu option name when we are in Assets tab for \"Update All Imported Assets From This Project\" or \"Update All Imported Assets From This Collection\"\n- Avoid re-uploading assets with datasets that are using UVCS.\n\n[Fixed]\n- Fix \"too many requests\" exception happening when staging multiple asset in the upload tab\n- Fixed the upload status icon on the preview in the detail page not refreshing\n- Improved import operation speed\n- Too many requests exception on ImportStatus filtering and/or sorting for In Project assets.\n- Reimporting an asset for which the files have been moved into other folders will keep those files in these new folders instead of moving them back to their initial location.\n- Fix the errors that appeared in the console when upgrading a package\n- Successfully uploaded assets are now tracked if other ones failed or have been cancelled\n- Improved asset grid scrolling\n- In Upload page, when an item is selected, the ignore toggle stays visible.\n- Don't show no files or no dependencies messages before loading is done\n- Fixed wrong dependency version displayed in the detail view\n- Fix the empty page when opening the app after selecting an organization and project in project settings menu.\n- Detail view not updating after changing upload settings\n- Detail view not updating after including/excluding all scripts\n- Order collections in project list by alphabetical order\n- Messages, search bar and filter now survive domain reload\n- Reduce considerably the time taken to ignore/include when a lot of asset are selected and avoid Editor to block on the process.\n- Fix status not updated after remove from project\n- Scrollbar offset is now saved after domain reload"
+    "changelog": "[Added]\n- Added support for optimized and converted files. Selecting import will result in all the files being imported into the project\n- Added the capacity to use the 'latest' label for asset dependencies when uploading assets in the asset manager preferences\n- Added a warning message when filtering and viewing outdated local assets\n- Added a setting in the preferences to disable the conflict resolution modal when importing\n- Added informational text when no metadata field exists in the project when trying to add one to an asset\n- Added support for displaying all linked projects in the Asset Details Page\n\n[Changed]\n- Exposed all supported Unity Editor types\n- Files with no local modifications are no longer re-uploaded when custom metadata fields are added, ensuring a faster and more efficient upload process.\n- Adding assets to upload via the contextual menu option no longer clears assets already in the upload page\n- Remove the green progress bar once import is completed successfully\n- Uploaded audio files display an audio preview on the dashboard\n- Changed loading dialog when analyzing assets to upload\n- Reduce the client side rate limitation of actions such as upload and download\n\n[Fixed]\n- The \"Include All Scripts\" option now follows the Upload Settings Dependency Mode without duplicating scripts\n- \"Physics Material\" type filter now works\n- Fixed a typo for the \"Physics Material\" asset type filter\n- Fixed build of WebGL when using both Asset Manager for Unity and the Cloud SDKs (com.unity.cloud.assets)\n- Remove newly created assets when cancelling an Upload\n- Source controlled assets cannot be re-uploaded with the \"force new version\" upload mode\n- Fixed null exception when adding or removing collections from the project hierarchy\n- Fixed importing of asset versions from the Versions tab of the Asset Details panel"
   },
   "upmCi": {
-    "footprint": "97be69b67c1e143530d790b46a4ec3402aa67e7f"
+    "footprint": "5e2f70836861f57d3f718a80a70d57105def458d"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.3/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.4/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "96b97704fd8a845cc27d872ae88470d8b232f99b"
+    "revision": "0619ff7ab7cd1eba68be4d6dc9c2cc0f373ba50f"
   }
 }

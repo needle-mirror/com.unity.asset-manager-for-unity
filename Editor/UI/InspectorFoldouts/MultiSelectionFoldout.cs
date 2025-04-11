@@ -17,25 +17,24 @@ namespace Unity.AssetManager.UI.Editor
         List<BaseAssetData> m_FilesList = new();
         readonly Button m_Button;
 
-        public MultiSelectionFoldout(VisualElement parent, string foldoutName, string buttonTitle, Action buttonCallback , string foldoutTitle = null, string foldoutExpandedClassName = null)
-            : base(parent, foldoutName, k_ViewListName, foldoutTitle, foldoutExpandedClassName)
+        public MultiSelectionFoldout(VisualElement parent, string foldoutTitle, string foldoutName, string buttonTitle, Action buttonCallback, string foldoutExpandedClassName = null)
+            : base(parent, foldoutTitle, foldoutName, k_ViewListName, k_FoldoutClassName, string.Empty, foldoutExpandedClassName)
         {
-            var foldout = parent.Q<Foldout>(foldoutName);
-            foldout.AddToClassList(k_FoldoutClassName);
-
-            var toggle = foldout.Q<Toggle>();
-            var checkmark = toggle.Q<VisualElement>(k_CheckMarkName);
-            checkmark.parent.style.flexDirection = FlexDirection.Row;
-            var label = toggle.Q<Label>();
-            label.style.position = Position.Relative;
-            m_Button = new Button
+            if (m_FoldoutToggle != null)
             {
-                text = L10n.Tr(buttonTitle)
-            };
-            m_Button.clicked += buttonCallback;
-            m_Button.style.position = Position.Relative;
-            m_Button.style.paddingLeft = 6;
-            toggle.Add(m_Button);
+                var checkmark = m_FoldoutToggle.Q(k_CheckMarkName);
+                checkmark.parent.style.flexDirection = FlexDirection.Row;
+                var label = m_FoldoutToggle.Q<Label>();
+                label.style.position = Position.Relative;
+                m_Button = new Button
+                {
+                    text = L10n.Tr(buttonTitle)
+                };
+                m_Button.clicked += buttonCallback;
+                m_Button.style.position = Position.Relative;
+                m_Button.style.paddingLeft = 6;
+                m_FoldoutToggle.Add(m_Button);
+            }
         }
 
         public override void Clear()

@@ -58,10 +58,10 @@ namespace Unity.AssetManager.UI.Editor
         IUploadManager m_UploadManager;
 
         [SerializeReference]
-        IProgressManager m_ProgressManager;
+        IAssetOperationManager m_AssetOperationManager;
 
         [SerializeReference]
-        IAssetOperationManager m_AssetOperationManager;
+        ISettingsManager m_SettingsManager;
 
         bool SavedUploadSettingsPanelOpened
         {
@@ -70,6 +70,7 @@ namespace Unity.AssetManager.UI.Editor
         }
 
         UploadStaging m_UploadStaging = UploadContextScriptableObject.instance.UploadStaging;
+        public UploadStaging UploadStaging => m_UploadStaging;
 
         IReadOnlyCollection<AssetIdentifier> m_SelectionToRestore;
 
@@ -87,12 +88,12 @@ namespace Unity.AssetManager.UI.Editor
 
         public UploadPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
             IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
-            IPageManager pageManager)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager)
+            IPageManager pageManager, IDialogManager dialogManager)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager, dialogManager)
         {
             m_UploadManager = ServicesContainer.instance.Resolve<IUploadManager>();
-            m_ProgressManager = ServicesContainer.instance.Resolve<IProgressManager>();
             m_AssetOperationManager = ServicesContainer.instance.Resolve<IAssetOperationManager>();
+            m_SettingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
         }
 
         [MenuItem("Assets/Upload to Asset Manager", false, 21)]
@@ -143,7 +144,7 @@ namespace Unity.AssetManager.UI.Editor
 
             if (m_UploadManager.IsUploading)
             {
-                m_ProjectOrganizationProvider.SelectProject(new ProjectInfo { Id = m_UploadStaging.ProjectId }, m_UploadStaging.CollectionPath);
+                m_ProjectOrganizationProvider.SelectProject(m_UploadStaging.ProjectId, m_UploadStaging.CollectionPath);
             }
             else
             {
@@ -174,9 +175,6 @@ namespace Unity.AssetManager.UI.Editor
             m_UploadManager.UploadEnded += OnUploadEnded;
 
             m_UploadStaging.UploadAssetEntriesChanged += UpdateButtonsState;
-            m_UploadStaging.RefreshStatusStarted += OnRefreshStatusStarted;
-            m_UploadStaging.RefreshStatusFinished += OnRefreshStatusFinished;
-            m_UploadStaging.RefreshStatusProgress += OnRefreshStatusProgress;
             m_UploadStaging.StagingStatusChanged += OnStagingStatusChanged;
 
             m_UploadStaging.RebuildAssetList(m_AssetDataManager);
@@ -189,9 +187,6 @@ namespace Unity.AssetManager.UI.Editor
             m_UploadManager.UploadEnded -= OnUploadEnded;
 
             m_UploadStaging.UploadAssetEntriesChanged -= UpdateButtonsState;
-            m_UploadStaging.RefreshStatusStarted -= OnRefreshStatusStarted;
-            m_UploadStaging.RefreshStatusFinished -= OnRefreshStatusFinished;
-            m_UploadStaging.RefreshStatusProgress -= OnRefreshStatusProgress;
             m_UploadStaging.StagingStatusChanged -= OnStagingStatusChanged;
         }
 
@@ -268,21 +263,6 @@ namespace Unity.AssetManager.UI.Editor
             UpdateButtonsState();
         }
 
-        void OnRefreshStatusStarted()
-        {
-            m_ProgressManager.Start(L10n.Tr(Constants.ComparingAssetsWithCloud));
-        }
-
-        void OnRefreshStatusProgress(string message, float progress)
-        {
-            m_ProgressManager.SetProgress(progress);
-        }
-
-        void OnRefreshStatusFinished()
-        {
-            m_ProgressManager.Stop();
-        }
-
         void OnStagingStatusChanged()
         {
             ManageHelpBoxMessages();
@@ -310,7 +290,7 @@ namespace Unity.AssetManager.UI.Editor
         public void AddAssets(List<Object> objects)
         {
             var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
-            AddAssets(objects.Select(assetDatabaseProxy.GetAssetPath).Select(assetDatabaseProxy.AssetPathToGuid), false);
+            AddAssets(objects.Select(assetDatabaseProxy.GetAssetPath).Select(assetDatabaseProxy.AssetPathToGuid));
         }
 
         public void RemoveAsset(UploadAssetData uploadAssetData)
@@ -351,17 +331,12 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        void AddAssets(IEnumerable<string> assetGuids, bool clear = true)
+        void AddAssets(IEnumerable<string> assetGuids)
         {
             if (m_UploadManager.IsUploading)
             {
                 Debug.LogError("You cannot add assets during upload.");
                 return;
-            }
-
-            if (clear)
-            {
-                m_UploadStaging.Clear();
             }
 
             foreach (var assetGuid in assetGuids)
@@ -378,14 +353,16 @@ namespace Unity.AssetManager.UI.Editor
 
             Utilities.DevLog("Analysing Selection for upload to cloud...");
 
-            EditorUtility.DisplayProgressBar("Analysing Assets For Upload...", null, 0f);
+            m_DialogManager?.DisplayProgressBar("Analysing Assets For Upload...", 0f);
+
+            var assetDatabase = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
 
             m_UploadStaging.GenerateUploadAssetData((guid, progress) =>
             {
                 try
                 {
-                    var assetName = Path.GetFileName(AssetDatabase.GUIDToAssetPath(guid));
-                    EditorUtility.DisplayProgressBar("Analysing Assets For Upload...", assetName, progress);
+                    var assetName = Path.GetFileName(assetDatabase.GuidToAssetPath(guid));
+                    m_DialogManager?.DisplayProgressBar("Analysing Assets For Upload...", progress * 0.5f, assetName);
                 }
                 catch (Exception e)
                 {
@@ -393,21 +370,39 @@ namespace Unity.AssetManager.UI.Editor
                 }
             });
 
-            EditorUtility.ClearProgressBar();
-
             Clear(true);
 
-            RefreshStagingStatus();
+            RefreshStagingStatus(0.5f);
         }
 
-        public void RefreshStagingStatus()
+        void RefreshStagingStatus(float startProgress = 0f)
         {
-            TaskUtils.TrackException(m_UploadStaging.RefreshStatusAsync(checkWithCloud: true, default));
+            TaskUtils.TrackException(m_UploadStaging.RefreshStatusAsync(checkWithCloud: true, (info, progress) =>
+            {
+                if (progress >= 1f)
+                {
+                    m_DialogManager?.ClearProgressBar();
+                }
+                else
+                {
+                    m_DialogManager?.DisplayProgressBar("Resolving asset statuses", progress * (1f - startProgress) + startProgress, info);
+                }
+            }, default));
         }
 
         public void RefreshLocalStatus()
         {
-            TaskUtils.TrackException(m_UploadStaging.RefreshStatusAsync(checkWithCloud: false, default));
+            TaskUtils.TrackException(m_UploadStaging.RefreshStatusAsync(checkWithCloud: false, (info, progress) =>
+            {
+                if (progress >= 1f)
+                {
+                    m_DialogManager?.ClearProgressBar();
+                }
+                else
+                {
+                    m_DialogManager?.DisplayProgressBar("Resolving asset statuses", progress, info);
+                }
+            }, default));
         }
 
         protected internal override async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(
@@ -643,22 +638,17 @@ namespace Unity.AssetManager.UI.Editor
         {
             try
             {
-                AnalyticsSender.SendEvent(new UploadEvent(uploadEntries.Count,
-                    uploadEntries.SelectMany(e => e.Files)
-                        .Where(f => !MetafilesHelper.IsMetafile(f.SourcePath))
-                        .Select(f =>
-                        {
-                            var extension = Path.GetExtension(f.SourcePath);
-                            if (extension.Length > 1)
-                            {
-                                extension = extension[1..];
-                            }
+                var uploadSettings = new UploadEvent.UploadSettings
+                {
+                    UploadMode = m_UploadStaging.UploadMode.ToString(),
+                    DependencyMode = m_UploadStaging.DependencyMode.ToString(),
+                    FilePathMode = m_UploadStaging.FilePathMode.ToString(),
+                    UseCollection = !string.IsNullOrEmpty(m_UploadStaging.CollectionPath),
+                    UseLatestDependencies = m_SettingsManager.IsUploadDependenciesUsingLatestLabel
+                };
 
-                            return extension;
-                        })
-                        .ToArray(),
-                    !string.IsNullOrEmpty(m_UploadStaging.CollectionPath),
-                    m_UploadStaging));
+                var uploadEvent = UploadEvent.CreateFromUploadData(uploadEntries, uploadSettings);
+                AnalyticsSender.SendEvent(uploadEvent);
             }
             catch (Exception e)
             {
@@ -774,14 +764,14 @@ namespace Unity.AssetManager.UI.Editor
             if (m_PageManager.ActivePage != this)
                 return;
 
-            m_ProjectOrganizationProvider.SelectProject(new ProjectInfo { Id = m_UploadStaging.ProjectId }, m_UploadStaging.CollectionPath);
+            m_ProjectOrganizationProvider.SelectProject(m_UploadStaging.ProjectId, m_UploadStaging.CollectionPath);
             m_PageManager.SetActivePage<CollectionPage>();
         }
 
         public void SetIncludeAllScripts(UploadAssetData uploadAssetData, bool include)
         {
-            m_UploadStaging.SetIncludeAllScripts(uploadAssetData.Identifier, include);
-            RefreshLocalStatus();
+            m_UploadStaging.SetIncludeAllScripts(uploadAssetData, include);
+            Reload(); // Recalculate the upload asset data
         }
 
         public void AddMetadata(IEnumerable<(UploadAssetData, IMetadata)> toAddOrReplace)

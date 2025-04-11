@@ -18,6 +18,7 @@ namespace Unity.AssetManager.UI.Editor
         protected readonly ILinksProxy m_LinksProxy;
         protected readonly IUnityConnectProxy m_UnityConnectProxy;
         protected readonly IStateManager m_StateManager;
+        protected readonly IDialogManager m_DialogManager;
 
         static readonly string k_InspectorPageContainerUxml = "InspectorPageContainer";
         static readonly string k_InspectorPageScrollviewClassName = "inspector-page-scrollview";
@@ -39,7 +40,8 @@ namespace Unity.AssetManager.UI.Editor
             ILinksProxy linksProxy,
             IUnityConnectProxy unityConnectProxy,
             IProjectIconDownloader projectIconDownloader,
-            IPermissionsManager permissionsManager)
+            IPermissionsManager permissionsManager,
+            IDialogManager dialogManager)
         {
             m_AssetImporter = assetImporter;
             m_AssetOperationManager = assetOperationManager;
@@ -52,6 +54,7 @@ namespace Unity.AssetManager.UI.Editor
             m_LinksProxy = linksProxy;
             m_UnityConnectProxy = unityConnectProxy;
             m_StateManager = stateManager;
+            m_DialogManager = dialogManager;
         }
 
         protected virtual void BuildUxmlDocument()
@@ -66,7 +69,7 @@ namespace Unity.AssetManager.UI.Editor
 
             // Upload metadata container
             m_UploadMetadataContainer = m_ScrollView.contentContainer.Q<VisualElement>("upload-metadata-container");
-            m_UploadMetadataContainer.Add(new UploadMetadataContainer(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider));
+            m_UploadMetadataContainer.Add(new UploadMetadataContainer(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider, m_LinksProxy));
             RefreshUploadMetadataContainer(); // Hide the container by default
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
@@ -76,6 +79,7 @@ namespace Unity.AssetManager.UI.Editor
         protected void RefreshScrollView()
         {
             // Bug in UI Toolkit where the scrollview does not update its size when the foldout is expanded/collapsed.
+            // NOTE: Cannot reproduce on 2022.3
             schedule.Execute(_ => { m_ScrollView.verticalScrollerVisibility = ScrollerVisibility.Auto; })
                 .StartingIn(25);
         }

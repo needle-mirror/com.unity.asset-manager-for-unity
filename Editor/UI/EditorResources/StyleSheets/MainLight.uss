@@ -352,6 +352,14 @@ TagChip:hover, ProjectChip:hover, UserChip:hover {
     color: black;
 }
 
+.outdated-warning-box {
+     background-color: rgba(198, 198, 198, 1);
+ }
+
+.outdated-warning-box > Label{
+    color: #090909;
+}
+
 .details-page-close-button:hover, .details-page-download-cancel-button:hover {
     background-color: #EFEFEF;
 }

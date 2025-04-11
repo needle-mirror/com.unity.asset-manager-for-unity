@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SettingsManagement;
@@ -17,7 +18,8 @@ namespace Unity.AssetManager.Core.Editor
         bool IsTagsCreationUploadEnabled { get; }
         int TagsConfidenceThresholdPercent { get; }
         float TagsConfidenceThreshold { get; }
-
+        bool IsUploadDependenciesUsingLatestLabel { get; }
+        bool IsReimportModalDisabled { get; }
         void SetIsSubfolderCreationEnabled(bool value);
         void SetIsKeepHigherVersionEnabled(bool value);
         void SetCacheLocation(string cacheLocation);
@@ -27,8 +29,12 @@ namespace Unity.AssetManager.Core.Editor
 
         string ResetCacheLocation();
         string ResetImportLocation();
+
+        void SetUploadDependenciesUsingLatestLabel(bool value);
+        void SetDisableReimportModal(bool value);
     }
 
+    [Serializable]
     class AssetManagerSettingsManager : BaseService<ISettingsManager>, ISettingsManager
     {
         [SerializeReference]
@@ -45,6 +51,8 @@ namespace Unity.AssetManager.Core.Editor
         const string k_AssetManagerCacheLocationKey = "AM4U.assetManagerCacheLocation";
         const string k_TagsCreationConfidenceThreshold = "AM4U.tagsCreationConfidenceThreshold";
         const int k_DefaultConfidenceLevel = 80;
+        const string k_UploadDependenciesUsingLatestLabel = "AM4U.uploadDependenciesUsingLatestLabel";
+        const string k_ReimportModalDisabled = "AM4U.reimportModalDisabled";
 
         Settings m_Settings;
 
@@ -84,6 +92,8 @@ namespace Unity.AssetManager.Core.Editor
 
         public int TagsConfidenceThresholdPercent => Instance.Get(k_TagsCreationConfidenceThreshold, SettingsScope.User, k_DefaultConfidenceLevel);
         public float TagsConfidenceThreshold => TagsConfidenceThresholdPercent / 100f;
+        public bool IsUploadDependenciesUsingLatestLabel => Instance.Get(k_UploadDependenciesUsingLatestLabel, SettingsScope.User, false);
+        public bool IsReimportModalDisabled => Instance.Get(k_ReimportModalDisabled, SettingsScope.User, false);
 
         public string BaseCacheLocation
         {
@@ -206,6 +216,16 @@ namespace Unity.AssetManager.Core.Editor
             var defaultLocation = m_CachePathHelper.GetDefaultCacheLocation();
             SetCacheLocation(defaultLocation);
             return Path.Combine(defaultLocation, AssetManagerCoreConstants.CacheTexturesFolderName);
+        }
+
+        public void SetUploadDependenciesUsingLatestLabel(bool value)
+        {
+            Instance.Set(k_UploadDependenciesUsingLatestLabel, value, SettingsScope.User);
+        }
+
+        public void SetDisableReimportModal(bool value)
+        {
+            Instance.Set(k_ReimportModalDisabled, value, SettingsScope.User);
         }
     }
 }

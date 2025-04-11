@@ -12,6 +12,7 @@ namespace Unity.AssetManager.Core.Editor
         void OnCheckEvictConditions(string filePathToAddToCache);
     }
 
+    [Serializable]
     class CacheEvictionManager : BaseService<ICacheEvictionManager>, ICacheEvictionManager
     {
         double m_CurrentSizeMb;
@@ -27,16 +28,6 @@ namespace Unity.AssetManager.Core.Editor
         {
             m_IOProxy = IOProxy;
             m_SettingsManager = settingsManager;
-        }
-
-        public override void OnEnable()
-        {
-            SubscribeToEvents();
-        }
-
-        void SubscribeToEvents()
-        {
-            CacheEvaluationEvent.EvaluateCache += OnCheckEvictConditions;
         }
 
         public void OnCheckEvictConditions(string filePathToAddToCache)

@@ -8,9 +8,8 @@ namespace Unity.AssetManager.UI.Editor
     {
         readonly IPageManager m_PageManager;
 
-        public DependenciesFoldout(VisualElement parent, string foldoutName, string listViewName,
-            IPageManager pageManager, string foldoutTitle = null)
-            : base(parent, foldoutName, listViewName, foldoutTitle)
+        public DependenciesFoldout(VisualElement parent, string foldoutTitle, IPageManager pageManager)
+            : base(parent, foldoutTitle, "dependencies-foldout", "dependencies-list", "details-files-foldout", "details-files-list")
         {
             m_PageManager = pageManager;
         }

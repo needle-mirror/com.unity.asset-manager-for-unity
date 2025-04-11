@@ -12,6 +12,8 @@ namespace Unity.AssetManager.Upload.Editor
         [SerializeField]
         string m_SourcePath;
 
+        public string SourcePath => m_SourcePath;
+
         public UploadAssetDataFile(string sourcePath, string destinationPath, string description, IEnumerable<string> tags)
         {
             m_SourcePath = sourcePath;
@@ -29,11 +31,14 @@ namespace Unity.AssetManager.Upload.Editor
 
         static long GetFileSize(string assetPath)
         {
-            var fullPath = System.IO.Path.Combine(Application.dataPath, Utilities.GetPathRelativeToAssetsFolder(assetPath));
+            var application = ServicesContainer.instance.Resolve<IApplicationProxy>();
+            var io = ServicesContainer.instance.Resolve<IIOProxy>();
+            
+            var fullPath = System.IO.Path.Combine(application.DataPath, Utilities.GetPathRelativeToAssetsFolder(assetPath));
 
-            if (System.IO.File.Exists(fullPath))
+            if (io.FileExists(fullPath))
             {
-                return new System.IO.FileInfo(fullPath).Length;
+                return io.GetFileLength(fullPath);
             }
 
             Debug.LogError("Asset does not exist: " + fullPath);

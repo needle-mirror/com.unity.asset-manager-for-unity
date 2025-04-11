@@ -20,6 +20,9 @@ namespace Unity.AssetManager.Core.Editor
     [Serializable]
     class DownloadManager : BaseService<IDownloadManager>, IDownloadManager
     {
+        [SerializeReference]
+        IApplicationProxy m_ApplicationProxy;
+
         [SerializeField]
         ulong m_LastDownloadOperationId;
 
@@ -37,14 +40,32 @@ namespace Unity.AssetManager.Core.Editor
         public event Action<DownloadOperation> DownloadProgress = delegate { };
         public event Action<DownloadOperation> DownloadFinalized = delegate { };
 
+        [ServiceInjection]
+        public void Inject(IApplicationProxy applicationProxy)
+        {
+            m_ApplicationProxy = applicationProxy;
+        }
+
         public override void OnEnable()
         {
-            EditorApplication.update += Update;
+            base.OnEnable();
+
+            m_ApplicationProxy.Update += Update;
+        }
+
+        protected override void ValidateServiceDependencies()
+        {
+            base.ValidateServiceDependencies();
+
+            m_ApplicationProxy ??= ServicesContainer.instance.Get<IApplicationProxy>();
         }
 
         public override void OnDisable()
         {
+            // Maintaining for backwards compatibility before IApplicationProxy was serialized
             EditorApplication.update -= Update;
+            if (m_ApplicationProxy != null)
+                m_ApplicationProxy.Update -= Update;
         }
 
         public T CreateDownloadOperation<T>(string url) where T : DownloadOperation, new()

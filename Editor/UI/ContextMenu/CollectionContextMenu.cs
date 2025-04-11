@@ -71,7 +71,7 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             var newFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
-                m_MessageManager, m_ProjectOrganizationProvider, name, projectInfo, m_CollectionInfo.GetFullPath());
+                m_MessageManager, m_ProjectOrganizationProvider, name, projectInfo.Id, m_CollectionInfo.GetFullPath());
             m_Target.Add(newFoldout);
             newFoldout.StartNaming();
         }
@@ -114,9 +114,9 @@ namespace Unity.AssetManager.UI.Editor
                     throw;
                 }
 
-                if(isSelected)
+                if (isSelected)
                 {
-                    m_ProjectOrganizationProvider.SelectProject(projectInfo, m_CollectionInfo.ParentPath);
+                    m_ProjectOrganizationProvider.SelectProject(projectInfo.Id, m_CollectionInfo.ParentPath);
                 }
             }
         }

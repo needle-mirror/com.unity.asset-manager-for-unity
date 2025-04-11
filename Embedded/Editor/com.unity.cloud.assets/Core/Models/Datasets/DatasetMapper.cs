@@ -31,9 +31,17 @@ namespace Unity.Cloud.AssetsEmbedded
 
         internal static DatasetProperties From(this IDatasetData datasetData, DatasetFields includeFields)
         {
+            if (!includeFields.HasFlag(DatasetFields.primaryType) ||
+                string.IsNullOrEmpty(datasetData.Type) ||
+                !datasetData.Type.TryGetAssetTypeFromString(out var type))
+            {
+                type = AssetType.Other;
+            }
+            
             var datasetProperties = new DatasetProperties
             {
                 Name = datasetData.Name,
+                Type = type,
                 Tags = datasetData.Tags ?? Array.Empty<string>(),
                 SystemTags = datasetData.SystemTags ?? Array.Empty<string>(),
                 StatusName = datasetData.Status,
@@ -46,6 +54,8 @@ namespace Unity.Cloud.AssetsEmbedded
                 datasetProperties.AuthoringInfo = new AuthoringInfo(datasetData.CreatedBy, datasetData.Created, datasetData.UpdatedBy, datasetData.Updated);
             if (includeFields.HasFlag(DatasetFields.filesOrder))
                 datasetProperties.FileOrder = datasetData.FileOrder;
+            if (includeFields.HasFlag(DatasetFields.workflowName))
+                datasetProperties.WorkflowName = datasetData.WorkflowName;
 
             return datasetProperties;
         }
@@ -69,6 +79,7 @@ namespace Unity.Cloud.AssetsEmbedded
             return new DatasetUpdateData
             {
                 Name = dataset.Name,
+                Type = dataset.Type?.GetValueAsString(),
                 Description = dataset.Description,
                 Tags = dataset.Tags,
                 FileOrder = dataset.FileOrder,
@@ -81,6 +92,7 @@ namespace Unity.Cloud.AssetsEmbedded
             return new DatasetBaseData
             {
                 Name = dataset.Name,
+                Type = dataset.Type?.GetValueAsString(),
                 Description = dataset.Description,
                 Metadata = dataset.Metadata?.ToObjectDictionary() ?? new Dictionary<string, object>(),
                 Tags = dataset.Tags ?? new List<string>(), // WORKAROUND until backend supports null metadata

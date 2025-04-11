@@ -93,7 +93,6 @@ namespace Unity.AssetManager.Core.Editor
     class PersistenceLegacy : IPersistenceVersion
     {
         readonly Dictionary<ImportedAssetInfoPersistenceLegacy, ImportedAssetInfo> m_ImportedAssetInfos = new();
-        readonly Dictionary<DependencyAssetPersistenceLegacy, DependencyAsset> m_DependencyAssets = new();
         readonly Dictionary<ImportedFileInfoPersistenceLegacy, ImportedFileInfo> m_ImportedFileInfos = new();
         readonly Dictionary<AssetDataPersistenceLegacy, AssetData> m_AssetDatas = new();
         readonly Dictionary<AssetDataFilePersistenceLegacy, AssetDataFile> m_AssetDataFiles = new();
@@ -204,6 +203,7 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             importedFileInfo = new ImportedFileInfo(
+                string.Empty,
                 persistedLegacy.Guid,
                 persistedLegacy.OriginalPath);
 

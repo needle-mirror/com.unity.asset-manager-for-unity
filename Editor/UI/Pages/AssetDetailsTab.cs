@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -21,6 +23,7 @@ namespace Unity.AssetManager.UI.Editor
         const string k_FileCountName = "file-count";
 
         readonly AssetPreview m_AssetPreview;
+        readonly VisualElement m_OutdatedWarningBox;
         readonly VisualElement m_EntriesContainer;
 
         BaseAssetData m_AssetData;
@@ -30,7 +33,9 @@ namespace Unity.AssetManager.UI.Editor
         public override bool EnabledWhenDisconnected => true;
         public override VisualElement Root { get; }
 
-        public AssetDetailsTab(VisualElement visualElement)
+        readonly Func<bool> m_IsFilterActive;
+
+        public AssetDetailsTab(VisualElement visualElement, Func<bool> isFilterActive = null)
         {
             var root = visualElement.Q("details-page-content-container");
             Root = root;
@@ -40,9 +45,15 @@ namespace Unity.AssetManager.UI.Editor
             root.Add(m_EntriesContainer);
             m_EntriesContainer.SendToBack();
 
+            m_OutdatedWarningBox = root.Q("outdated-warning-box");
+            m_OutdatedWarningBox.Q<Label>().text = L10n.Tr(Constants.FilteredAssetOutdatedWarning);
+            m_OutdatedWarningBox.SendToBack();
+
             m_AssetPreview = new AssetPreview {name = "details-page-asset-preview"};
             m_AssetPreview.AddToClassList(UssStyle.DetailsPageThumbnailContainer);
             m_AssetPreview.AddToClassList(UssStyle.ImageContainer);
+
+            m_IsFilterActive = isFilterActive;
         }
 
         public override void OnSelection(BaseAssetData assetData)
@@ -52,8 +63,6 @@ namespace Unity.AssetManager.UI.Editor
 
         public override void RefreshUI(BaseAssetData assetData, bool isLoading = false)
         {
-            SetEventHandlers(assetData);
-
             // Remove asset preview from hierarchy to avoid it being destroyed when clearing the container
             m_AssetPreview.RemoveFromHierarchy();
 
@@ -64,11 +73,16 @@ namespace Unity.AssetManager.UI.Editor
             m_AssetPreview.SetAssetType(assetData.PrimaryExtension);
             UpdatePreviewStatus(AssetDataStatus.GetIStatusFromAssetDataAttributes(assetData.AssetDataAttributeCollection));
 
+            UpdateStatusWarning(assetData.AssetDataAttributeCollection);
+
             m_EntriesContainer.Add(m_AssetPreview);
             SetPreviewImage(assetData.Thumbnail);
 
+            var projectIds = GetProjectIdsDisplayList(assetData.Identifier.ProjectId, assetData.LinkedProjects);
+            var projectEntryTitle = projectIds.Length > 1 ? Constants.ProjectsText : Constants.ProjectText;
+            AddProjectChips(m_EntriesContainer, projectEntryTitle, projectIds, "entry-project");
+
             AddTagChips(m_EntriesContainer, Constants.TagsText, assetData.Tags);
-            AddProject(m_EntriesContainer, Constants.ProjectText, assetData.Identifier.ProjectId, "entry-project");
             AddText(m_EntriesContainer, Constants.StatusText, assetData.Status);
             AddText(m_EntriesContainer, Constants.AssetTypeText, assetData.AssetType.DisplayValue());
             AddText(m_EntriesContainer, Constants.TotalFilesText, "-", k_FileCountName);
@@ -92,29 +106,6 @@ namespace Unity.AssetManager.UI.Editor
             if (isLoading)
             {
                 AddLoadingText(m_EntriesContainer);
-            }
-        }
-
-        void SetEventHandlers(BaseAssetData assetData)
-        {
-            if(m_AssetData != null && m_AssetData.Identifier.Equals(assetData.Identifier))
-                return;
-
-            // Unsubscribe from previous asset data events
-            if (m_AssetData != null)
-                m_AssetData.AssetDataChanged -= OnAssetDataChanged;
-
-            m_AssetData = assetData;
-            assetData.AssetDataChanged += OnAssetDataChanged;
-        }
-
-        void OnAssetDataChanged(BaseAssetData obj, AssetDataEventType eventType)
-        {
-            switch (eventType)
-            {
-                case AssetDataEventType.AssetDataAttributesChanged:
-                    UpdatePreviewStatus(AssetDataStatus.GetIStatusFromAssetDataAttributes(obj.AssetDataAttributeCollection));
-                    break;
             }
         }
 
@@ -195,6 +186,18 @@ namespace Unity.AssetManager.UI.Editor
             m_AssetPreview.SetStatuses(status);
         }
 
+        public void UpdateStatusWarning(AssetDataAttributeCollection assetDataAttributeCollection)
+        {
+            // If the selected asset is outdated and selected via filtered results, we want to warn
+            // the user that the asset may not be displaying all up-to-date information.
+
+            var status = assetDataAttributeCollection?.GetAttribute<ImportAttribute>()?.Status;
+
+            var filterActive = m_IsFilterActive?.Invoke() ?? false;
+            var displayOutdatedWarning = filterActive && status == ImportAttribute.ImportStatus.OutOfDate;
+            UIElementsUtils.SetDisplay(m_OutdatedWarningBox, displayOutdatedWarning);
+        }
+
         public void SetPreviewImage(Texture2D texture)
         {
             m_AssetPreview.SetThumbnail(texture);
@@ -213,6 +216,16 @@ namespace Unity.AssetManager.UI.Editor
         public void SetPrimaryExtension(string primaryExtension)
         {
             m_AssetPreview.SetAssetType(primaryExtension);
+        }
+
+        static string[] GetProjectIdsDisplayList(string currentProjectId, IEnumerable<ProjectIdentifier> linkedProjects)
+        {
+            // Ensure the current project is first in the list
+            var uniqueProjectIds = new HashSet<string>() { currentProjectId };
+            foreach (var linkedProject in linkedProjects)
+                uniqueProjectIds.Add(linkedProject.ProjectId);
+
+            return uniqueProjectIds.ToArray();
         }
     }
 }

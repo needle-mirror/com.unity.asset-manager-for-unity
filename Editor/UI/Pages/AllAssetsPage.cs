@@ -12,8 +12,10 @@ namespace Unity.AssetManager.UI.Editor
     class AllAssetsPage : BasePage
     {
         public AllAssetsPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
-            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager, IPageManager pageManager)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager) { }
+            IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
+            IPageManager pageManager, IDialogManager dialogManager)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager,
+                dialogManager) { }
 
         public override bool DisplayBreadcrumbs => true;
 

@@ -47,6 +47,7 @@ namespace Unity.AssetManager.UI.Editor
 
         static readonly string k_NoChangelogProvided = $"<i>{L10n.Tr(Constants.NoChangeLogText)}</i>";
 
+        readonly IDialogManager m_DialogManager;
         readonly IUIPreferences m_UIPreferences;
 
         string m_CurrentProjectId;
@@ -60,12 +61,13 @@ namespace Unity.AssetManager.UI.Editor
 
         public event Action<string, IEnumerable<BaseAssetData>> ImportAsset;
 
-        public AssetVersionsTab(VisualElement visualElement)
+        public AssetVersionsTab(VisualElement visualElement, IDialogManager dialogManager)
         {
             var root = new VisualElement();
             root.AddToClassList(UssStyle.DetailsPageContentContainer);
             visualElement.Add(root);
 
+            m_DialogManager = dialogManager;
             m_UIPreferences = ServicesContainer.instance.Resolve<IUIPreferences>();
 
             m_CurrentProjectId = m_UIPreferences.GetString(k_PreferencesProjectId, string.Empty);
@@ -134,7 +136,7 @@ namespace Unity.AssetManager.UI.Editor
                 AddText(foldout, Constants.DateText, data.Updated?.ToLocalTime().ToString("G"));
                 AddText(foldout, Constants.StatusText, data.Status);
 
-                var importButton = new ImportButton();
+                var importButton = new ImportButton(m_DialogManager);
                 foldout.Add(importButton);
                 importButton.RegisterCallback(importLocation => BeginImport(importLocation, data));
             }

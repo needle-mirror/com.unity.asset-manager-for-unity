@@ -108,6 +108,9 @@ namespace Unity.AssetManager.Core.Editor
         class TrackedFilePersisted
         {
             [SerializeField]
+            public string datasetId;
+            
+            [SerializeField]
             public string path; // key
 
             [SerializeField]
@@ -145,6 +148,9 @@ namespace Unity.AssetManager.Core.Editor
         class TrackedDatasetPersisted
         {
             [SerializeField]
+            public string id;
+            
+            [SerializeField]
             public string name;
 
             [SerializeField]
@@ -178,20 +184,18 @@ namespace Unity.AssetManager.Core.Editor
             var importedFileInfos =
                 fileInfos.ToDictionary(x => x.OriginalPath.Replace('\\', '/'), x => x);
 
-            var files = new List<BaseAssetDataFile>();
+            var files = new List<TrackedFilePersisted>();
             foreach (var dataset in assetData.Datasets)
             {
-                files.AddRange(dataset.Files);
+                files.AddRange(dataset.Files
+                    .Select(x => ConvertToFile(dataset.Id, x, importedFileInfos.GetValueOrDefault(x.Path))));
             }
-            trackedAsset.files = files
-                .Select(x => x as AssetDataFile)
-                .Where(x => x != null)
-                .Select(x => ConvertToFile(x, importedFileInfos.GetValueOrDefault(x.Path)))
-                .ToList();
 
+            trackedAsset.files = files;
             trackedAsset.datasets = assetData.Datasets
                 .Select(x => new TrackedDatasetPersisted
                 {
+                    id = x.Id,
                     name = x.Name,
                     systemTags = x.SystemTags.ToList(),
                     fileKeys = x.Files.Select(f => f.Path).ToList()
@@ -236,8 +240,8 @@ namespace Unity.AssetManager.Core.Editor
                 var datasetFilesPaths = dataset.fileKeys;
                 var datasetFilesData = datasetFilesPaths.Select(x => datasetFiles.GetValueOrDefault(x)).ToList();
                 var datasetFilesDataFiltered = datasetFilesData.Where(x => x != null).ToList();
-                var datasetFilesConverted = datasetFilesDataFiltered.Select(x => ConvertFile(x)).ToList();
-                yield return new AssetDataset(dataset.name, dataset.systemTags, datasetFilesConverted);
+                var datasetFilesConverted = datasetFilesDataFiltered.Select(ConvertFile).ToList();
+                yield return new AssetDataset(dataset.id, dataset.name, dataset.systemTags, datasetFilesConverted);
             }
         }
 
@@ -275,7 +279,7 @@ namespace Unity.AssetManager.Core.Editor
                 assetData,
                 trackedAsset.files
                     .Where(x => !string.IsNullOrEmpty(x.trackedUnityGuid))
-                    .Select(x => new ImportedFileInfo(x.trackedUnityGuid, x.path, x.checksum, x.timestamp, x.metaFileChecksum, x.metaFileTimestamp)));
+                    .Select(x => new ImportedFileInfo(x.datasetId, x.trackedUnityGuid, x.path, x.checksum, x.timestamp, x.metaFileChecksum, x.metaFileTimestamp)));
         }
 
         static TrackedAssetIdentifierPersisted Convert(AssetIdentifier identifier)
@@ -308,22 +312,23 @@ namespace Unity.AssetManager.Core.Editor
             version.tags = assetData.Tags?.ToList();
         }
 
-        static TrackedFilePersisted ConvertToFile(AssetDataFile assetDataFile, ImportedFileInfo fileInfo)
+        static TrackedFilePersisted ConvertToFile(string datasetId, BaseAssetDataFile assetDataFile, ImportedFileInfo fileInfo)
         {
-            var trackedFile = new TrackedFilePersisted();
-            trackedFile.path = assetDataFile.Path;
-            trackedFile.trackedUnityGuid = fileInfo?.Guid;
-            trackedFile.extension = assetDataFile.Extension;
-            trackedFile.available = assetDataFile.Available;
-            trackedFile.description = assetDataFile.Description;
-            trackedFile.fileSize = assetDataFile.FileSize;
-            trackedFile.tags = assetDataFile.Tags?.ToList();
-            trackedFile.checksum = fileInfo?.Checksum;
-            trackedFile.timestamp = fileInfo?.Timestamp ?? 0L;
-            trackedFile.metaFileChecksum = fileInfo?.MetaFileChecksum;
-            trackedFile.metaFileTimestamp = fileInfo?.MetalFileTimestamp ?? 0L;
-
-            return trackedFile;
+            return new TrackedFilePersisted
+            {
+                datasetId = datasetId,
+                path = assetDataFile.Path,
+                trackedUnityGuid = fileInfo?.Guid,
+                extension = assetDataFile.Extension,
+                available = assetDataFile.Available,
+                description = assetDataFile.Description,
+                fileSize = assetDataFile.FileSize,
+                tags = assetDataFile.Tags?.ToList(),
+                checksum = fileInfo?.Checksum,
+                timestamp = fileInfo?.Timestamp ?? 0L,
+                metaFileChecksum = fileInfo?.MetaFileChecksum,
+                metaFileTimestamp = fileInfo?.MetalFileTimestamp ?? 0L
+            };
         }
 
         static string SerializeEntry(TrackedAssetPersisted trackedAsset)

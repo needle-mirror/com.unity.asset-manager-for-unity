@@ -12,8 +12,12 @@ namespace Unity.AssetManager.Core.Editor
         None,
         ThumbnailChanged,
         AssetDataAttributesChanged,
+        FilesChanged,
         PrimaryFileChanged,
-        ToggleValueChanged
+        ToggleValueChanged,
+        DependenciesChanged,
+        PropertiesChanged,
+        LinkedProjectsChanged,
     }
 
     [Serializable]
@@ -41,17 +45,18 @@ namespace Unity.AssetManager.Core.Editor
         public abstract IEnumerable<BaseAssetData> Versions { get; }
         public abstract IEnumerable<AssetLabel> Labels { get; }
 
-        public abstract Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null, CancellationToken token = default);
-        public abstract Task GetAssetDataAttributesAsync(Action<AssetIdentifier, AssetDataAttributeCollection> callback = null, CancellationToken token = default);
+        public abstract Task GetThumbnailAsync(CancellationToken token = default);
+        public abstract Task GetAssetDataAttributesAsync(CancellationToken token = default);
         public abstract Task ResolveDatasetsAsync(CancellationToken token = default);
 
         public abstract Task RefreshPropertiesAsync(CancellationToken token = default);
         public abstract Task RefreshVersionsAsync(CancellationToken token = default);
         public abstract Task RefreshDependenciesAsync(CancellationToken token = default);
+        public abstract Task RefreshLinkedProjectsAsync(CancellationToken token = default);
 
         public string PrimaryExtension => m_PrimarySourceFile?.Extension;
 
-        protected const string k_Source = "Source";
+        protected const string k_Source = AssetDataset.k_SourceTag;
         protected const string k_NotSynced = "NotSynced";
 
         [SerializeField]
@@ -68,8 +73,8 @@ namespace Unity.AssetManager.Core.Editor
 
         [SerializeReference]
         protected MetadataContainer m_Metadata = new();
-
-        public IEnumerable<BaseAssetDataFile> SourceFiles => Datasets.FirstOrDefault(d => d.SystemTags.Contains(k_Source))?.Files;
+        [SerializeField]
+        protected List<ProjectIdentifier> m_LinkedProjects = new();
 
         public virtual Texture2D Thumbnail
         {
@@ -119,10 +124,28 @@ namespace Unity.AssetManager.Core.Editor
         public virtual IEnumerable<AssetDataset> Datasets
         {
             get => m_Datasets;
-            set => m_Datasets = value?.ToList();
+            internal set => m_Datasets = value?.ToList();
         }
 
-        public BaseAssetDataFile PrimarySourceFile => m_PrimarySourceFile;
+        public BaseAssetDataFile PrimarySourceFile
+        {
+            get => m_PrimarySourceFile;
+            private set
+            {
+                m_PrimarySourceFile = value;
+                InvokeEvent(AssetDataEventType.PrimaryFileChanged);
+            }
+        }
+
+        public virtual IEnumerable<ProjectIdentifier> LinkedProjects
+        {
+            get => m_LinkedProjects;
+            protected set
+            {
+                m_LinkedProjects = value?.ToList();
+                InvokeEvent(AssetDataEventType.LinkedProjectsChanged);
+            }
+        }
 
         public virtual void ResetAssetDataAttributes()
         {
@@ -132,6 +155,14 @@ namespace Unity.AssetManager.Core.Editor
         protected void InvokeEvent(AssetDataEventType eventType)
         {
             AssetDataChanged?.Invoke(this, eventType);
+        }
+
+        public IEnumerable<BaseAssetDataFile> GetFiles(Func<AssetDataset, bool> predicate = null)
+        {
+            if (predicate != null)
+                return Datasets?.Where(predicate).SelectMany(d => d.Files) ?? Array.Empty<BaseAssetDataFile>();
+
+            return Datasets?.SelectMany(d => d.Files) ?? Array.Empty<BaseAssetDataFile>();
         }
 
         public virtual bool CanRemovedFile(BaseAssetDataFile assetDataFile)
@@ -149,14 +180,66 @@ namespace Unity.AssetManager.Core.Editor
             if (m_Datasets == null || !m_Datasets.Any())
                 return;
 
-            var sourceDataset = Datasets.FirstOrDefault(d => d.SystemTags.Contains(k_Source));
-            var sourceFiles = sourceDataset?.Files?.ToList();
-            m_PrimarySourceFile = sourceFiles
-                ?.FilterUsableFilesAsPrimaryExtensions()
+            // Only consider files in datasets that will be visible to the user
+            PrimarySourceFile = GetFiles(d => d.CanBeImported)?
+                .FilterUsableFilesAsPrimaryExtensions()
                 .OrderBy(x => x, new AssetDataFileComparerByExtension())
                 .LastOrDefault();
+        }
 
-            InvokeEvent(AssetDataEventType.PrimaryFileChanged);
+        private protected ComparisonDetails Compare(BaseAssetData other, Func<AssetDataset, bool> datasetsToComparePredicate = null)
+        {
+            // Technically, we should compare ALL editable fields, including the Name and Tags.
+            // But until the user can edit those fields, we will only compare the files.
+
+            var results = new List<ComparisonDetails>();
+
+            var localFiles = GetFiles(datasetsToComparePredicate).Select(f => f.Path).ToHashSet();
+            var otherFiles = other.GetFiles(datasetsToComparePredicate).Select(f => f.Path).ToHashSet();
+
+            // Check for added files
+            var filesAdded = localFiles.Except(otherFiles);
+            if (filesAdded.Any())
+            {
+                results.Add(new ComparisonDetails(ComparisonResults.FilesAdded, $"Files added to {Name}: {string.Join(", ", filesAdded)}"));
+            }
+
+            // Check for removed files
+            var filesRemoved = otherFiles.Except(localFiles);
+            if (filesRemoved.Any())
+            {
+                results.Add(new ComparisonDetails(ComparisonResults.FilesRemoved, $"Files removed from {Name}: {string.Join(", ", filesRemoved)}"));
+            }
+
+            // Don't check for modified files, this is done by HasLocallyModifiedFilesAsync as an optional, separate call as this is an expensive operation.
+
+            var localMetadata = Metadata.Select(m => m.FieldKey).ToHashSet();
+            var otherMetadata = other.Metadata.Select(m => m.FieldKey).ToHashSet();
+
+            // Check for added metadata
+            var metadataAdded = localMetadata.Except(otherMetadata);
+            if (metadataAdded.Any())
+            {
+                results.Add(new ComparisonDetails(ComparisonResults.MetadataAdded, $"Metadata added to {Name}: {string.Join(", ", metadataAdded)}"));
+            }
+
+            // Check for removed metadata
+            var metadataRemoved = otherMetadata.Except(localMetadata);
+            if (metadataRemoved.Any())
+            {
+                results.Add(new ComparisonDetails(ComparisonResults.MetadataRemoved, $"Metadata removed from {Name}: {string.Join(", ", metadataRemoved)}"));
+            }
+
+            // Check if the list of metadata has changed
+            foreach (var metadata in Metadata)
+            {
+                if (other.Metadata.ContainsKey(metadata.FieldKey) && !other.Metadata.ContainsMatch(metadata))
+                {
+                    results.Add(new ComparisonDetails(ComparisonResults.MetadataModified, $"The value of metadata {metadata.Name} has changed for {Name}."));
+                }
+            }
+
+            return ComparisonDetails.Merge(results.ToArray());
         }
     }
 

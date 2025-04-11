@@ -8,6 +8,9 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         [DataMember(Name = "name")]
         string Name { get; }
+        
+        [DataMember(Name = "primaryType")]
+        string Type { get; }
 
         [DataMember(Name = "description")]
         string Description { get; }

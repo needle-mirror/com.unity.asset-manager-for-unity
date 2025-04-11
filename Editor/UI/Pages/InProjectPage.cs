@@ -33,8 +33,9 @@ namespace Unity.AssetManager.UI.Editor
 
         public InProjectPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
             IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
-            IPageManager pageManager)
-            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager) { }
+            IPageManager pageManager, IDialogManager dialogManager)
+            : base(assetDataManager, assetsProvider, projectOrganizationProvider, messageManager, pageManager,
+                dialogManager) { }
 
         public override void OnEnable()
         {
@@ -230,7 +231,14 @@ namespace Unity.AssetManager.UI.Editor
             if (unityConnectProxy.AreCloudServicesReachable)
             {
                 // Only refresh the status for those that don't have it.
-                await m_AssetsProvider.UpdateImportStatusAsync(assetDatas, token);
+                var results = await m_AssetsProvider.GatherImportStatusesAsync(assetDatas, token);
+                foreach (var assetData in assetDatas)
+                {
+                    if (results.TryGetValue(assetData.Identifier, out var status))
+                    {
+                        assetData.AssetDataAttributeCollection = new AssetDataAttributeCollection(new ImportAttribute(status));
+                    }
+                }
             }
         }
     }

@@ -17,6 +17,11 @@ namespace Unity.Cloud.AssetsEmbedded
         /// A description of the dataset.
         /// </summary>
         public string Description { get; internal set; }
+        
+        /// <summary>
+        /// The type of the dataset.
+        /// </summary>
+        public AssetType Type { get; internal set; }
 
         /// <summary>
         /// The user tags of the dataset.
@@ -47,5 +52,10 @@ namespace Unity.Cloud.AssetsEmbedded
         /// Indicates whether the dataset is visible or not.
         /// </summary>
         public bool IsVisible { get; internal set; }
+        
+        /// <summary>
+        /// The name of the workflow which outputs to the dataset.
+        /// </summary>
+        public string WorkflowName { get; internal set; }
     }
 }

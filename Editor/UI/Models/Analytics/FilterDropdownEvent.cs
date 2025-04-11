@@ -13,7 +13,11 @@ namespace Unity.AssetManager.UI.Editor
 #else
         internal class FilterDropdownEventData : BaseEventData
 #endif
-        { }
+        {
+            public string PageTitle;
+        }
+
+        const string k_UnknownPageTitle = "Unknown";
 
         internal const string k_EventName = AnalyticsSender.EventPrefix + "FilterDropdown";
         internal const int k_EventVersion = 1;
@@ -23,9 +27,12 @@ namespace Unity.AssetManager.UI.Editor
 
         FilterDropdownEventData m_Data;
 
-        internal FilterDropdownEvent()
+        internal FilterDropdownEvent(string activePage = k_UnknownPageTitle)
         {
-            m_Data = new FilterDropdownEventData();
+            m_Data = new FilterDropdownEventData
+            {
+                PageTitle = activePage
+            };
         }
 
 #if UNITY_2023_2_OR_NEWER

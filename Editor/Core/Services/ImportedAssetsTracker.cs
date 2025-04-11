@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -22,26 +23,36 @@ namespace Unity.AssetManager.Core.Editor
         IAssetDatabaseProxy m_AssetDatabaseProxy;
 
         [SerializeReference]
+        IApplicationProxy m_ApplicationProxy;
+
+        [SerializeReference]
         IAssetDataManager m_AssetDataManager;
 
         [SerializeReference]
         IIOProxy m_IOProxy;
+        
+        [SerializeReference]
+        IFileUtility m_FileUtility;
 
         const string k_ImportedAssetFolderName = "ImportedAssetInfo";
 
         string m_ImportedAssetInfoFolderPath;
 
         [ServiceInjection]
-        public void Inject(IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy, IAssetDataManager assetDataManager)
+        public void Inject(IIOProxy ioProxy, IApplicationProxy applicationProxy, IAssetDatabaseProxy assetDatabaseProxy, IAssetDataManager assetDataManager, IFileUtility fileUtility)
         {
             m_IOProxy = ioProxy;
+            m_ApplicationProxy = applicationProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
             m_AssetDataManager = assetDataManager;
+            m_FileUtility = fileUtility;
         }
 
         public override void OnEnable()
         {
-            m_ImportedAssetInfoFolderPath = Path.Combine(Application.dataPath, "..", "ProjectSettings", "Packages",
+            base.OnEnable();
+
+            m_ImportedAssetInfoFolderPath = Path.Combine(m_ApplicationProxy.DataPath, "..", "ProjectSettings", "Packages",
                 AssetManagerCoreConstants.PackageName, k_ImportedAssetFolderName);
             if (!m_InitialImportedAssetInfoLoaded)
             {
@@ -53,13 +64,21 @@ namespace Unity.AssetManager.Core.Editor
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
         }
 
+        protected override void ValidateServiceDependencies()
+        {
+            base.ValidateServiceDependencies();
+
+            m_ApplicationProxy ??= ServicesContainer.instance.Get<IApplicationProxy>();
+            m_FileUtility ??= ServicesContainer.instance.Get<IFileUtility>();
+        }
+
         public async Task TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, BaseAssetData assetData)
         {
             var fileInfos = new List<ImportedFileInfo>();
             foreach (var item in assetPaths)
             {
                 var assetPath = Utilities.GetPathRelativeToAssetsFolderIncludeAssets(item.finalPath);
-                var guid = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().AssetPathToGuid(assetPath);
+                var guid = m_AssetDatabaseProxy.AssetPathToGuid(assetPath);
 
                 // Sometimes the download asset file is not tracked by the AssetDatabase and for those cases there won't be a guid related to it
                 // like meta files, .DS_Stores and .gitignore files
@@ -75,13 +94,15 @@ namespace Unity.AssetManager.Core.Editor
                 var metaFileTimestamp = 0L;
                 string metaFileChecksum = null;
 
-                if (File.Exists(metafilePath))
+                if (m_IOProxy.FileExists(metafilePath))
                 {
                     // Ideally run this task in parallel to the one above
                     (metaFileTimestamp, metaFileChecksum) = await ExtractTimestampAndChecksum(metafilePath);
                 }
 
-                var fileInfo = new ImportedFileInfo(guid, item.originalPath, checksum, timestamp, metaFileChecksum, metaFileTimestamp);
+                var datasetId = assetData.Datasets.FirstOrDefault(x => x.Files.Any(f => f.Path == item.originalPath))?.Id;
+
+                var fileInfo = new ImportedFileInfo(datasetId, guid, item.originalPath, checksum, timestamp, metaFileChecksum, metaFileTimestamp);
                 fileInfos.Add(fileInfo);
             }
 
@@ -92,10 +113,10 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        static async Task<(long, string)> ExtractTimestampAndChecksum(string assetPath)
+        async Task<(long, string)> ExtractTimestampAndChecksum(string assetPath)
         {
-            var timestamp = ((DateTimeOffset)File.GetLastWriteTimeUtc(assetPath)).ToUnixTimeSeconds();
-            var checksum = await Utilities.CalculateMD5ChecksumAsync(assetPath, default);
+            var timestamp = m_FileUtility.GetTimestamp(assetPath);
+            var checksum = await m_FileUtility.CalculateMD5ChecksumAsync(assetPath, default);
 
             return (timestamp, checksum);
         }
@@ -193,7 +214,7 @@ namespace Unity.AssetManager.Core.Editor
             foreach (var assetPath in deletedAssets)
             {
                 //Get an assetid from the deleted path // paths will be file id's in the context of am4u
-                var guid = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().AssetPathToGuid(assetPath);
+                var guid = m_AssetDatabaseProxy.AssetPathToGuid(assetPath);
                 if (m_AssetDataManager.GetImportedAssetInfosFromFileGuid(guid) == null)
                     continue;
 

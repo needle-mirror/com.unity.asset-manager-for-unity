@@ -44,7 +44,16 @@ namespace Unity.AssetManager.Core.Editor
         bool m_Enabled;
         int m_EnableCount;
 
-        public virtual void OnEnable() { }
+        public virtual void OnEnable()
+        {
+            ValidateServiceDependencies();
+        }
+
+        /// <summary>
+        /// Checks that service dependencies are resolved.
+        /// This is generally as a result of services not being previously serialized.
+        /// </summary>
+        protected virtual void ValidateServiceDependencies() { }
 
         public virtual void OnDisable() { }
     }
@@ -118,8 +127,15 @@ namespace Unity.AssetManager.Core.Editor
 
             foreach (var serviceInfo in m_SerializedServices)
             {
-                Register(serviceInfo.Service);
-                m_Dependencies.TryAdd(serviceInfo.Service, serviceInfo.Dependencies.ToHashSet());
+                // A previously serialized service may no longer exist
+                if (serviceInfo.Service == null)
+                    continue;
+                
+                Register_Internal(serviceInfo.Service);
+
+                // Remove any dependencies that may have been serialized but are no longer valid
+                var dependencies = serviceInfo.Dependencies.Where(d => d != null).ToHashSet();
+                m_Dependencies.TryAdd(serviceInfo.Service, dependencies);
             }
 
             BuildReverseDependencies();
@@ -133,7 +149,7 @@ namespace Unity.AssetManager.Core.Editor
 
             foreach (var service in services)
             {
-                Register(service);
+                Register_Internal(service);
             }
 
             InjectServicesAndBuildDependencies();
@@ -141,9 +157,44 @@ namespace Unity.AssetManager.Core.Editor
             BuildReverseDependencies();
         }
 
+        public void TryInitializeServices(params IService[] services)
+        {
+            var hasUnregisteredServices = false;
+
+            foreach (var service in services)
+            {
+                if (m_RegisteredServices.GetValueOrDefault(service.RegistrationType) == null)
+                {
+                    Register_Internal(service);
+                    hasUnregisteredServices = true;
+                }
+            }
+
+            if (hasUnregisteredServices)
+            {
+                InjectServicesAndBuildDependencies();
+                BuildReverseDependencies();
+            }
+        }
+
         public bool IsInitialized()
         {
             return m_RegisteredServices.Count > 0;
+        }
+
+        public void Register(IService service)
+        {
+            Register_Internal(service);
+            InjectService(service);
+        }
+
+        internal void Register_Internal(IService service)
+        {
+            if (service != null)
+            {
+                var serviceType = service.RegistrationType ?? service.GetType();
+                m_RegisteredServices[serviceType] = service;
+            }
         }
 
         void RegisterReverseDependencies(IService service)
@@ -164,29 +215,6 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public IService Register(IService service, Type serviceType = null) // This should not be public and tests will have to use another way to inject specific services
-        {
-            if (service == null)
-            {
-                return null;
-            }
-
-            if (serviceType == null)
-            {
-                serviceType = service.GetType();
-            }
-
-            m_RegisteredServices[serviceType] = service;
-
-            var registrationType = service.RegistrationType;
-            if (registrationType != null)
-            {
-                m_RegisteredServices[registrationType] = service;
-            }
-
-            return service;
-        }
-
         void BuildReverseDependencies()
         {
             m_ReverseDependencies.Clear();
@@ -195,6 +223,20 @@ namespace Unity.AssetManager.Core.Editor
             {
                 RegisterReverseDependencies(service);
             }
+        }
+
+        /// <summary>
+        /// Internal method to get a service without resolving its dependencies or enabling it.
+        /// This should primarily be used in a service's OnEnable method to get other services in cases where they were not previously serialized.
+        /// </summary>
+        internal T Get<T>() where T : class, IService
+        {
+            if (m_RegisteredServices.TryGetValue(typeof(T), out var result))
+            {
+                return result as T;
+            }
+
+            return null;
         }
 
         public T Resolve<T>() where T : class, IService
@@ -240,7 +282,7 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public void InjectServicesAndBuildDependencies()
+        void InjectServicesAndBuildDependencies()
         {
             m_Dependencies.Clear();
 
@@ -250,8 +292,11 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public void InjectService(IService inst)
+        void InjectService(IService inst)
         {
+            if (inst == null)
+                return;
+
             var type = inst.GetType();
             var methods = type.GetMethods();
 

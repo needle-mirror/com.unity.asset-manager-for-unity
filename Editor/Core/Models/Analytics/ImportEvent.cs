@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Analytics;
 
@@ -27,6 +29,8 @@ namespace Unity.AssetManager.Core.Editor
             /// The primary file extension of the asset being imported
             /// </summary>
             public string FileExtension;
+
+            public string[] DatasetSystemTags;
         }
 
         internal const string k_EventName = AnalyticsSender.EventPrefix + "Import";
@@ -37,13 +41,14 @@ namespace Unity.AssetManager.Core.Editor
 
         ImportEventData m_Data;
 
-        internal ImportEvent(string assetId, int fileCount = 0, string fileExtension = "")
+        internal ImportEvent(string assetId, int fileCount = 0, string fileExtension = "", IEnumerable<string> datasetSystemTags = null)
         {
             m_Data = new ImportEventData
             {
                 AssetId = assetId,
                 FileCount = fileCount,
-                FileExtension = fileExtension
+                FileExtension = fileExtension,
+                DatasetSystemTags = datasetSystemTags?.ToArray()
             };
         }
 

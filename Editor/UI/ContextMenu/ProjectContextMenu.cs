@@ -12,15 +12,15 @@ namespace Unity.AssetManager.UI.Editor
         readonly IPageManager m_PageManager;
         readonly IStateManager m_StateManager;
         readonly IMessageManager m_MessageManager;
-        readonly ProjectInfo m_ProjectInfo;
+        readonly string m_ProjectId;
 
         VisualElement m_Target;
 
-        public ProjectContextMenu(ProjectInfo projectInfo, IUnityConnectProxy unityConnectProxy,
+        public ProjectContextMenu(string projectId, IUnityConnectProxy unityConnectProxy,
             IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager,
             IStateManager stateManager, IMessageManager messageManager)
         {
-            m_ProjectInfo = projectInfo;
+            m_ProjectId = projectId;
             m_UnityConnectProxy = unityConnectProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_PageManager = pageManager;
@@ -35,7 +35,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 m_Target = (VisualElement)evt.target;
                 AddMenuEntry(evt, Constants.CollectionCreate,
-                    m_UnityConnectProxy.AreCloudServicesReachable && m_ProjectInfo != null,
+                    m_UnityConnectProxy.AreCloudServicesReachable && !string.IsNullOrEmpty(m_ProjectId),
                     (_) =>
                     {
                         CreateCollection();
@@ -47,14 +47,19 @@ namespace Unity.AssetManager.UI.Editor
         {
             var name = Constants.CollectionDefaultName;
 
-            var index = 1;
-            while(m_ProjectInfo.CollectionInfos.Any(c => c.GetFullPath() == $"{name}"))
+            var projectInfo = m_ProjectOrganizationProvider.GetProject(m_ProjectId);
+
+            if (projectInfo?.CollectionInfos != null)
             {
-                name = $"{Constants.CollectionDefaultName} ({index++})";
+                var index = 1;
+                while (projectInfo.CollectionInfos.Any(c => c.GetFullPath() == $"{name}"))
+                {
+                    name = $"{Constants.CollectionDefaultName} ({index++})";
+                }
             }
 
             var newFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
-                m_MessageManager, m_ProjectOrganizationProvider, name, m_ProjectInfo, string.Empty);
+                m_MessageManager, m_ProjectOrganizationProvider, name, m_ProjectId, string.Empty);
             m_Target.Add(newFoldout);
             newFoldout.StartNaming();
         }

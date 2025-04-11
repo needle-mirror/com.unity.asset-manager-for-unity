@@ -19,6 +19,7 @@ namespace Unity.AssetManager.UI.Editor
     {
         readonly Button m_ImportButton;
         readonly DropdownField m_ImportToDropdown;
+        readonly IDialogManager m_DialogManager;
 
         public string text
         {
@@ -26,8 +27,10 @@ namespace Unity.AssetManager.UI.Editor
             set => m_ImportButton.text = value;
         }
 
-        public ImportButton()
+        public ImportButton(IDialogManager dialogManager)
         {
+            m_DialogManager = dialogManager;
+
             AddToClassList(UssStyle.ImportButtonsContainer);
 
             m_ImportButton = CreateImportButton(this);
@@ -72,6 +75,7 @@ namespace Unity.AssetManager.UI.Editor
             };
             UIElementsUtils.Hide(importToDropdown.Q(null, "unity-base-popup-field__text"));
             importToDropdown.AddToClassList(UssStyle.ImportToButton);
+            importToDropdown.tooltip = L10n.Tr(Constants.ImportButtonDropdownTooltip);
 
             importToDropdown.choices = new List<string> { L10n.Tr(Constants.ImportToActionText) };
 
@@ -82,7 +86,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void ShowImportOptions(Action<string> beginImport)
         {
-            var importLocation = Utilities.OpenFolderPanelInDirectory(L10n.Tr(Constants.ImportLocationTitle),
+            var importLocation = m_DialogManager.OpenFolderPanel(L10n.Tr(Constants.ImportLocationTitle),
                 AssetManagerCoreConstants.AssetsFolderName);
 
             if (string.IsNullOrEmpty(importLocation))
@@ -90,9 +94,12 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            var location = Application.dataPath == importLocation
+            var application = ServicesContainer.instance.Resolve<IApplicationProxy>();
+            var dataPath = application.DataPath;
+
+            var location = dataPath == importLocation
                 ? string.Empty
-                : importLocation[(Application.dataPath.Length + 1)..];
+                : importLocation[(dataPath.Length + 1)..];
             beginImport(Path.Combine(AssetManagerCoreConstants.AssetsFolderName, location));
         }
     }

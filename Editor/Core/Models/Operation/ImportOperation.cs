@@ -57,7 +57,6 @@ namespace Unity.AssetManager.Core.Editor
         public string TempDownloadPath => m_TempDownloadPath;
 
         public BaseAssetData AssetData => m_AssetData;
-        AssetData TypedAssetData => m_AssetData as AssetData; // keep this one private
         public IReadOnlyCollection<IFileDownload> DownloadRequests => m_DownloadRequests;
 
         public override AssetIdentifier Identifier => m_AssetData?.Identifier;
@@ -104,7 +103,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public async Task ImportAsync(CancellationToken token = default)
         {
-            if (TypedAssetData == null)
+            if (m_AssetData == null)
                 return;
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
@@ -114,13 +113,22 @@ namespace Unity.AssetManager.Core.Editor
 
             try
             {
-                var downloadUrls = await assetsProvider.GetAssetDownloadUrlsAsync(TypedAssetData, fetchDownloadUrlsOperation, token);
+                var tasks = new List<Task<IReadOnlyDictionary<string, Uri>>>();
+
+                foreach (var dataset in m_AssetData.Datasets.Where(x => x.CanBeImported))
+                {
+                    tasks.Add(assetsProvider.GetDatasetDownloadUrlsAsync(m_AssetData.Identifier, dataset, fetchDownloadUrlsOperation, token));
+                }
+
+                var results = await Task.WhenAll(tasks);
+
+                var downloadUrls = results.SelectMany(x => x).ToDictionary(x => x.Key, x => x.Value);
 
                 fetchDownloadUrlsOperation.Finish(OperationStatus.Success);
 
                 if (downloadUrls.Count == 0)
                 {
-                    Utilities.DevLog($"Nothing to download from asset '{TypedAssetData?.Name}'.");
+                    Utilities.DevLog($"Nothing to download from asset '{m_AssetData?.Name}'.");
                     Finish(OperationStatus.Success);
                     return;
                 }
@@ -155,11 +163,10 @@ namespace Unity.AssetManager.Core.Editor
 
             if (m_DownloadRequests.Count == 0)
             {
-                throw new InvalidOperationException($"Nothing to download from asset '{TypedAssetData?.Name}'. Asset is empty, unavailable or corrupted.");
+                throw new InvalidOperationException($"Nothing to download from asset '{m_AssetData?.Name}'. Asset is empty, unavailable or corrupted.");
             }
-
-            await StartDownloadRequests();
         }
+
 
         static UnityWebRequest CreateFileDownloadRequest(string url, string path)
         {
@@ -171,11 +178,13 @@ namespace Unity.AssetManager.Core.Editor
             return request;
         }
 
-        async Task StartDownloadRequests()
+        public async Task StartDownloadRequests()
         {
             if (Status is not OperationStatus.InProgress)
                 return;
 
+            var downloadOperation = new FileDownloadOperation();
+            downloadOperation.Start();
             var operations = m_DownloadRequests.Select(r => r.WebRequest.SendWebRequest()).ToList();
 
             while (operations.Exists(x => !x.isDone))
@@ -183,7 +192,7 @@ namespace Unity.AssetManager.Core.Editor
                 if (Progress - m_LastReportedProgress > 0.01)
                 {
                     m_LastReportedProgress = Progress;
-
+                    downloadOperation.SetProgress(Progress);
                     Report();
                 }
 
@@ -193,6 +202,8 @@ namespace Unity.AssetManager.Core.Editor
             var status = m_DownloadRequests.Exists(x => !string.IsNullOrEmpty(x.WebRequest.error))
                 ? OperationStatus.Error
                 : OperationStatus.Success;
+
+            downloadOperation.Finish(status);
 
             Finish(status);
         }

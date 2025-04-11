@@ -4,6 +4,34 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-04-11
+[Added]
+- Added support for optimized and converted files. Selecting import will result in all the files being imported into the project
+- Added the capacity to use the 'latest' label for asset dependencies when uploading assets in the asset manager preferences
+- Added a warning message when filtering and viewing outdated local assets
+- Added a setting in the preferences to disable the conflict resolution modal when importing
+- Added informational text when no metadata field exists in the project when trying to add one to an asset
+- Added support for displaying all linked projects in the Asset Details Page
+
+[Changed]
+- Exposed all supported Unity Editor types
+- Files with no local modifications are no longer re-uploaded when custom metadata fields are added, ensuring a faster and more efficient upload process.
+- Adding assets to upload via the contextual menu option no longer clears assets already in the upload page
+- Remove the green progress bar once import is completed successfully
+- Uploaded audio files display an audio preview on the dashboard
+- Changed loading dialog when analyzing assets to upload
+- Reduce the client side rate limitation of actions such as upload and download
+
+[Fixed]
+- The "Include All Scripts" option now follows the Upload Settings Dependency Mode without duplicating scripts
+- "Physics Material" type filter now works
+- Fixed a typo for the "Physics Material" asset type filter
+- Fixed build of WebGL when using both Asset Manager for Unity and the Cloud SDKs (com.unity.cloud.assets)
+- Remove newly created assets when cancelling an Upload
+- Source controlled assets cannot be re-uploaded with the "force new version" upload mode
+- Fixed null exception when adding or removing collections from the project hierarchy
+- Fixed importing of asset versions from the Versions tab of the Asset Details panel
+
 ## [1.3.0] - 2025-02-21
 [Added]
 - New ability to add and edit custom metadata fields on 1 or more assets at upload

@@ -11,18 +11,20 @@ namespace Unity.AssetManager.UI.Editor
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IPermissionsManager m_PermissionsManager;
+        readonly ILinksProxy m_LinksProxy;
 
         bool m_IsShown;
 
-        static readonly string k_DocumentationUrl =
-            "https://docs.unity.com/cloud/en-us/asset-manager/org-project-roles";
+        static readonly string k_DocumentationPage = "org-project-roles";
 
         internal RoleChip(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            IPermissionsManager permissionsManager) : base(string.Empty)
+            IPermissionsManager permissionsManager, ILinksProxy linksProxy)
+            : base(string.Empty)
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_PermissionsManager = permissionsManager;
+            m_LinksProxy = linksProxy;
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
@@ -30,7 +32,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnClicked(ClickEvent evt)
         {
-            Application.OpenURL(k_DocumentationUrl);
+            m_LinksProxy.OpenAssetManagerDocumentationPage(k_DocumentationPage);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)

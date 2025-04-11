@@ -4,16 +4,19 @@ namespace Unity.Cloud.AssetsEmbedded
 {
     interface IDatasetInfo
     {
-        /// <inheritdoc cref="IDataset.Name"/>
+        /// <inheritdoc cref="DatasetProperties.Name"/>
         string Name { get; }
+        
+        /// <inheritdoc cref="DatasetProperties.Type"/>
+        AssetType? Type { get; }
 
-        /// <inheritdoc cref="IDataset.Description"/>
+        /// <inheritdoc cref="DatasetProperties.Description"/>
         string Description { get; }
 
-        /// <inheritdoc cref="IDataset.Tags"/>
+        /// <inheritdoc cref="DatasetProperties.Tags"/>
         List<string> Tags { get; }
 
-        /// <inheritdoc cref="IDataset.IsVisible"/>
+        /// <inheritdoc cref="DatasetProperties.IsVisible"/>
         bool? IsVisible { get; }
     }
 }

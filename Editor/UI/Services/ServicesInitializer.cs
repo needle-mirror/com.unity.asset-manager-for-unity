@@ -11,6 +11,11 @@ namespace Unity.AssetManager.UI.Editor
         static void Init()
         {
             InitializeServices();
+
+            // For backwards compatibility, register services that did not previously exist.
+            ServicesContainer.instance.TryInitializeServices(
+                new DialogManager(),
+                new FileUtility());
         }
 
         public static void ResetServices()
@@ -50,8 +55,7 @@ namespace Unity.AssetManager.UI.Editor
                 new PermissionsManager(),
                 new UIPreferences(),
                 new DragAndDropProjectBrowserProxy(),
-                new UtilitiesProxy(),
-                new ProgressManager(),
+                new FileUtility(),
                 new MessageManager(),
 
                 // UI
@@ -59,7 +63,8 @@ namespace Unity.AssetManager.UI.Editor
                 new LinksProxy(),
                 new PopupManager(),
                 new PageManager(),
-                new ContextMenuBuilder());
+                new ContextMenuBuilder(),
+                new DialogManager());
         }
     }
 }

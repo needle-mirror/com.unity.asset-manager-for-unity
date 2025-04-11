@@ -84,6 +84,7 @@ namespace Unity.AssetManager.Core.Editor
         Task m_RefreshDependenciesTask;
         Task m_RefreshVersionsTask;
         Task m_ThumbnailUrlTask;
+        Task m_LinkedProjectsTask;
 
         IThumbnailDownloader m_ThumbnailDownloader;
 
@@ -129,7 +130,8 @@ namespace Unity.AssetManager.Core.Editor
             string previewFilePath,
             bool isFrozen,
             IEnumerable<string> tags,
-            IEnumerable<AssetLabel> labels = null)
+            IEnumerable<AssetLabel> labels = null,
+            IEnumerable<ProjectIdentifier> linkedProjects = null)
         {
             m_Identifier = assetIdentifier;
             m_SequenceNumber = sequenceNumber;
@@ -147,6 +149,7 @@ namespace Unity.AssetManager.Core.Editor
             m_IsFrozen = isFrozen;
             m_Tags = tags?.ToList() ?? new List<string>();
             m_Labels = labels?.ToList() ?? new List<AssetLabel>();
+            m_LinkedProjects = linkedProjects?.ToList() ?? new List<ProjectIdentifier>();
         }
 #pragma warning restore S107
 
@@ -268,25 +271,21 @@ namespace Unity.AssetManager.Core.Editor
             m_Tags = other.Tags?.ToList() ?? new List<string>();
             m_Metadata = new MetadataContainer(other.m_Metadata?.ToList() ?? new List<IMetadata>());
             m_Labels = other.Labels.ToList();
+            m_LinkedProjects = other.LinkedProjects.ToList();
 
             // Focus on copying the primary datasets.
             foreach (var dataset in other.Datasets)
             {
-                if (TryCopyDataset(dataset, k_Source))
-                    continue;
-
-                TryCopyDataset(dataset, "Preview");
+                _ = AssetDataset.k_PrimaryDatasetSystemTags.FirstOrDefault(x => TryCopyDataset(dataset, x));
             }
         }
 
-        public override async Task GetThumbnailAsync(Action<AssetIdentifier, Texture2D> callback = null,
-            CancellationToken token = default)
+        public override async Task GetThumbnailAsync(CancellationToken token = default)
         {
-            // Because a AssetData is tight to a version, and preview modification creates a new version,
+            // Because a AssetData is tied to a version, and preview modification creates a new version,
             // we can assume that the thumbnail is always the same.
             if (Thumbnail != null || m_ThumbnailProcessed)
             {
-                callback?.Invoke(Identifier, Thumbnail);
                 return;
             }
 
@@ -294,7 +293,8 @@ namespace Unity.AssetManager.Core.Editor
             var cachedThumbnail = ThumbnailDownloader.GetCachedThumbnail(Identifier);
             if (cachedThumbnail != null)
             {
-                SetThumbnailAndInvokeCallback(cachedThumbnail, callback);
+                m_ThumbnailProcessed = true;
+                Thumbnail = cachedThumbnail;
                 return;
             }
 
@@ -312,88 +312,9 @@ namespace Unity.AssetManager.Core.Editor
             ThumbnailDownloader.DownloadThumbnail(Identifier, m_ThumbnailUrl,
                 (_, texture) =>
                 {
-                    SetThumbnailAndInvokeCallback(texture, callback);
+                    m_ThumbnailProcessed = true;
+                    Thumbnail = texture;
                 });
-        }
-
-        void SetThumbnailAndInvokeCallback(Texture2D texture, Action<AssetIdentifier, Texture2D> callback)
-        {
-            Thumbnail = texture;
-            m_ThumbnailProcessed = true;
-            callback?.Invoke(Identifier, Thumbnail);
-        }
-
-        public override async Task GetAssetDataAttributesAsync(
-            Action<AssetIdentifier, AssetDataAttributeCollection> callback = null,
-            CancellationToken token = default)
-        {
-            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
-
-            if (AssetDataAttributeCollection != null && AssetDataAttributeCollection.HasAttribute<ImportAttribute>())
-            {
-                if (assetDataManager.IsInProject(Identifier))
-                {
-                    callback?.Invoke(Identifier, AssetDataAttributeCollection);
-                }
-                else
-                {
-                    // Case where the asset is not in the project anymore
-                    AssetDataAttributeCollection = null;
-                }
-
-                return;
-            }
-
-            if (m_AssetDataAttributesTask == null)
-            {
-                var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
-                var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-                if (assetsSdkProvider.AuthenticationState == AuthenticationState.LoggedIn &&
-                    unityConnectProxy.AreCloudServicesReachable &&
-                    assetDataManager.IsInProject(Identifier))
-                {
-                    m_AssetDataAttributesTask = ServicesContainer.instance.Resolve<IAssetsProvider>()
-                        .UpdateImportStatusAsync(new[] {this}, token);
-                }
-            }
-
-            if (m_AssetDataAttributesTask != null)
-            {
-                await m_AssetDataAttributesTask;
-                m_AssetDataAttributesTask = null;
-            }
-
-            callback?.Invoke(Identifier, AssetDataAttributeCollection);
-        }
-
-        public override async Task ResolveDatasetsAsync(CancellationToken token = default)
-        {
-            // Because an AssetData is tight to a version, and files modification creates a new version,
-            // we can assume that the primary extension is always the same.
-            if (m_DatasetProcessed || !string.IsNullOrEmpty(PrimaryExtension))
-                return;
-
-            // Wait for the refresh of properties as dataset info will be bundled
-            if (m_RefreshPropertiesTask != null)
-            {
-                await m_RefreshPropertiesTask;
-            }
-
-            m_DatasetTask ??= ResolveDatasetInternalAsync(token);
-
-            try
-            {
-                await m_DatasetTask;
-                m_DatasetProcessed = true;
-            }
-            catch (ForbiddenException)
-            {
-                // Ignore if the Asset is unavailable
-            }
-            finally
-            {
-                m_DatasetTask = null;
-            }
         }
 
         async Task GetThumbnailUrlAsync(CancellationToken token)
@@ -428,6 +349,117 @@ namespace Unity.AssetManager.Core.Editor
             m_ThumbnailUrl = previewFileUrl?.ToString() ?? string.Empty;
         }
 
+        public override async Task GetAssetDataAttributesAsync(CancellationToken token = default)
+        {
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+            var isInProject = assetDataManager.IsInProject(Identifier);
+
+            if (AssetDataAttributeCollection != null && AssetDataAttributeCollection.HasAttribute<ImportAttribute>())
+            {
+                // Check if the the asset is still in the project anymore, if not clear the import status.
+                if (!isInProject)
+                {
+                    AssetDataAttributeCollection = null;
+                }
+
+                return;
+            }
+
+            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
+            if (m_AssetDataAttributesTask == null && unityConnectProxy.AreCloudServicesReachable && isInProject)
+            {
+                m_AssetDataAttributesTask = GetDatasetAttributesInternalAsync(token);
+            }
+
+            if (m_AssetDataAttributesTask != null)
+            {
+                try
+                {
+                    await m_AssetDataAttributesTask;
+                }
+                finally
+                {
+                    m_AssetDataAttributesTask = null;
+                }
+            }
+        }
+
+        async Task GetDatasetAttributesInternalAsync(CancellationToken token = default)
+        {
+            var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            var results = await assetsSdkProvider.GatherImportStatusesAsync(new[] {this}, token);
+
+            if (results.TryGetValue(Identifier, out var status))
+            {
+                AssetDataAttributeCollection = new AssetDataAttributeCollection(new ImportAttribute(status));
+            }
+            else
+            {
+                ResetAssetDataAttributes();
+            }
+        }
+
+        public override async Task ResolveDatasetsAsync(CancellationToken token = default)
+        {
+            // Because an AssetData is tied to a version, and files modification creates a new version,
+            // we can assume that the primary extension is always the same.
+            if (m_DatasetProcessed || !string.IsNullOrEmpty(PrimaryExtension))
+                return;
+
+            // Wait for the refresh of properties as dataset info will be bundled
+            if (m_RefreshPropertiesTask != null)
+            {
+                await m_RefreshPropertiesTask;
+            }
+
+            m_DatasetTask ??= ResolveDatasetInternalAsync(token);
+
+            try
+            {
+                await m_DatasetTask;
+                m_DatasetProcessed = true;
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if the Asset is unavailable
+            }
+            finally
+            {
+                m_DatasetTask = null;
+            }
+        }
+
+        async Task ResolveDatasetInternalAsync(CancellationToken token = default)
+        {
+            try
+            {
+                var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+
+                var sourceDataset = Datasets.FirstOrDefault(d => d.IsSource);
+
+                if (sourceDataset == null)
+                {
+                    Utilities.DevLogWarning($"Source dataset not set for asset {Name}");
+
+                    sourceDataset = new AssetDataset(k_Source, new List<string> {k_Source, k_NotSynced}, null);
+                    Datasets = new List<AssetDataset> {sourceDataset};
+                }
+
+                var tasks = Datasets.Select(dataset => dataset.GetFilesAsync(assetsProvider, Identifier, token));
+                await Task.WhenAll(tasks);
+
+                token.ThrowIfCancellationRequested();
+
+                ResolvePrimaryExtension();
+                
+                InvokeEvent(AssetDataEventType.FilesChanged);
+            }
+            catch (HttpRequestException)
+            {
+                // Ignore unreachable host
+            }
+        }
+
         public override async Task RefreshPropertiesAsync(CancellationToken token = default)
         {
             m_RefreshPropertiesTask ??= RefreshPropertiesInternalAsync(token);
@@ -451,46 +483,8 @@ namespace Unity.AssetManager.Core.Editor
             var updatedAsset = await assetsSdkProvider.GetAssetAsync(Identifier, token);
 
             FillFromOther(updatedAsset);
-        }
 
-        async Task ResolveDatasetInternalAsync(CancellationToken token = default)
-        {
-            try
-            {
-                var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-
-                var sourceDataset = Datasets.FirstOrDefault(d => d.SystemTags.Contains(k_Source));
-
-                if (sourceDataset == null)
-                {
-                    Utilities.DevLogWarning($"Source dataset not set for asset {Name}");
-
-                    sourceDataset = new AssetDataset(k_Source, new List<string> {k_Source, k_NotSynced}, null);
-                    Datasets = new List<AssetDataset> {sourceDataset};
-                }
-
-                var files = new List<BaseAssetDataFile>();
-                await foreach (var file in assetsProvider.ListFilesAsync(Identifier, sourceDataset, Range.All, token))
-                {
-                    files.Add(file);
-                }
-
-                token.ThrowIfCancellationRequested();
-
-                sourceDataset.Files = files;
-
-                var sourceFiles = sourceDataset.Files?.ToList();
-                m_PrimarySourceFile = sourceFiles
-                    ?.FilterUsableFilesAsPrimaryExtensions()
-                    .OrderBy(x => x, new AssetDataFileComparerByExtension())
-                    .LastOrDefault();
-
-                InvokeEvent(AssetDataEventType.PrimaryFileChanged);
-            }
-            catch (HttpRequestException)
-            {
-                // Ignore unreachable host
-            }
+            InvokeEvent(AssetDataEventType.PropertiesChanged);
         }
 
         public override async Task RefreshDependenciesAsync(CancellationToken token = default)
@@ -524,6 +518,8 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             m_Dependencies = dependencies;
+
+            InvokeEvent(AssetDataEventType.DependenciesChanged);
         }
 
         public override async Task RefreshVersionsAsync(CancellationToken token = default)
@@ -561,6 +557,31 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             m_Versions = versions;
+        }
+
+        public override async Task RefreshLinkedProjectsAsync(CancellationToken token = default)
+        {
+            m_LinkedProjectsTask ??= RefreshLinkedProjectsInternalAsync(token);
+            try
+            {
+                await m_LinkedProjectsTask;
+            }
+            catch (HttpRequestException)
+            {
+                // Ignore unreachable host
+            }
+            finally
+            {
+                m_LinkedProjectsTask = null;
+            }
+        }
+
+        async Task RefreshLinkedProjectsInternalAsync(CancellationToken token = default)
+        {
+            var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            var linkedProjects = await assetsSdkProvider.GetLinkedProjectsAsync(this, token);
+
+            LinkedProjects = linkedProjects;
         }
 
         bool TryCopyDataset(AssetDataset dataset, string targetSystemLabel)

@@ -94,7 +94,7 @@ namespace Unity.AssetManager.UI.Editor
 
             var content = new VisualElement();
             content.AddToClassList(UssStyle.ReimportFoldoutContent);
-            foreach (var file in m_AssetData.SourceFiles)
+            foreach (var file in m_AssetData.GetFiles())
             {
                 // Hide meta files unless they are in conflict
                 if (file.Extension == ".meta" && !assetDataResolutionInfo.ExistsConflict(file))

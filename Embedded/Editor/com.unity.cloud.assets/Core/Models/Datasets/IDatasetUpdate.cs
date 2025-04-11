@@ -4,7 +4,7 @@ namespace Unity.Cloud.AssetsEmbedded
 {
     interface IDatasetUpdate : IDatasetInfo
     {
-        /// <inheritdoc cref="IDataset.FileOrder"/>
+        /// <inheritdoc cref="DatasetProperties.FileOrder"/>
         IReadOnlyList<string> FileOrder { get; }
     }
 }

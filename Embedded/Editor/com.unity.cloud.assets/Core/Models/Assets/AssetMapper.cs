@@ -46,6 +46,11 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             var organizationId = assetDescriptor.OrganizationId;
 
+            if (string.IsNullOrEmpty(assetData.Type) || !assetData.Type.TryGetAssetTypeFromString(out var assetType))
+            {
+                assetType = AssetType.Other;
+            }
+
             var assetProperties = new AssetProperties
             {
                 LinkedProjects = assetData.LinkedProjectIds?.Select(projectId => new ProjectDescriptor(organizationId, projectId)).ToArray() ?? Array.Empty<ProjectDescriptor>(),
@@ -53,7 +58,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 Name = assetData.Name,
                 Tags = assetData.Tags ?? Array.Empty<string>(),
                 SystemTags = assetData.SystemTags ?? Array.Empty<string>(),
-                Type = assetData.Type ?? AssetType.Other,
+                Type = assetType,
                 StatusName = assetData.Status
             };
 
@@ -112,7 +117,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 Description = assetCreation.Description,
                 Tags = assetCreation.Tags?.Where(s => !string.IsNullOrWhiteSpace(s)),
                 StatusFlowId = assetCreation.StatusFlowDescriptor?.StatusFlowId,
-                Type = assetCreation.Type,
+                Type = assetCreation.Type.GetValueAsString(),
                 Metadata = assetCreation.Metadata?.ToObjectDictionary() ?? new Dictionary<string, object>(),
                 Collections = assetCreation.Collections,
             };
@@ -125,7 +130,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 Name = assetUpdate.Name,
                 Description = assetUpdate.Description,
                 Tags = assetUpdate.Tags?.Where(s => !string.IsNullOrWhiteSpace(s)),
-                Type = assetUpdate.Type,
+                Type = assetUpdate.Type?.GetValueAsString(),
                 PreviewFile = assetUpdate.PreviewFile,
             };
         }
@@ -185,7 +190,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 Description = assetProperties.Description,
                 Tags = assetProperties.Tags,
                 SystemTags = assetProperties.SystemTags,
-                Type = assetProperties.Type,
+                Type = assetProperties.Type.GetValueAsString(),
                 PreviewFilePath = assetProperties.PreviewFileDescriptor?.Path,
                 PreviewFileDatasetId = assetProperties.PreviewFileDescriptor?.DatasetId ?? default,
                 Status = assetProperties.StatusName,

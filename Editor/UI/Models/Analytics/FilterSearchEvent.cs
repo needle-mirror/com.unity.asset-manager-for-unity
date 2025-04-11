@@ -17,7 +17,10 @@ namespace Unity.AssetManager.UI.Editor
         {
             public string FilterName;
             public string FilterValue;
+            public string PageTitle;
         }
+
+        const string k_UnknownPageTitle = "Unknown";
 
         internal const string k_EventName = AnalyticsSender.EventPrefix + "FilterSearch";
         internal const int k_EventVersion = 1;
@@ -27,12 +30,13 @@ namespace Unity.AssetManager.UI.Editor
 
         FilterSearchEventData m_Data;
 
-        internal FilterSearchEvent(string filterName, List<string> filterValues)
+        internal FilterSearchEvent(string filterName, List<string> filterValues, string activePage = k_UnknownPageTitle)
         {
             m_Data = new FilterSearchEventData
             {
                 FilterName = filterName,
-                FilterValue = filterValues != null ? string.Join(",", filterValues) : null
+                FilterValue = filterValues != null ? string.Join(",", filterValues) : null,
+                PageTitle = activePage
             };
         }
 

@@ -27,6 +27,7 @@ namespace Unity.Cloud.AssetsEmbedded
         readonly IServiceHttpClient m_ServiceHttpClient;
         readonly IServiceHostResolver m_PublicServiceHostResolver;
         readonly Dictionary<string, IServiceHttpClient> m_HttpClients = new();
+        readonly object m_Lock = new();
 
         internal AssetDataSource(IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver)
         {
@@ -452,29 +453,39 @@ namespace Unity.Cloud.AssetsEmbedded
         IServiceHttpClient RateLimitedServiceClient(ApiRequest request, string httpMethod)
         {
             var requestKey = request.GetType() + httpMethod;
+            IServiceHttpClient client;
 
-            if (m_HttpClients.TryGetValue(requestKey, out var client)) return client;
+            lock (m_Lock)
+            {
+                if (m_HttpClients.TryGetValue(requestKey, out client)) return client;
 
-            client = IsSlowRequest(request)
-                ? new RateLimitedServiceHttpClient(m_ServiceHttpClient, k_QueueLimit, k_SlowTokensPerPeriod,
-                    k_SlowTokenLimit, TimeSpan.FromSeconds(k_SlowReplenishmentPeriod))
-                : new RateLimitedServiceHttpClient(m_ServiceHttpClient, k_QueueLimit, k_DefaultTokensPerPeriod,
-                    k_DefaultTokenLimit, TimeSpan.FromSeconds(k_ReplenishmentPeriod));
+                client = IsSlowRequest(request)
+                    ? new RateLimitedServiceHttpClient(m_ServiceHttpClient, k_QueueLimit, k_SlowTokensPerPeriod,
+                        k_SlowTokenLimit, TimeSpan.FromSeconds(k_SlowReplenishmentPeriod))
+                    : new RateLimitedServiceHttpClient(m_ServiceHttpClient, k_QueueLimit, k_DefaultTokensPerPeriod,
+                        k_DefaultTokenLimit, TimeSpan.FromSeconds(k_ReplenishmentPeriod));
 
-            m_HttpClients[requestKey] = client;
+                m_HttpClients[requestKey] = client;
+            }
+
             return client;
         }
 
         IServiceHttpClient RateLimitedServiceClient(string requestType, HttpMethod httpMethod)
         {
             var requestKey = requestType + httpMethod;
+            IServiceHttpClient client;
 
-            if (m_HttpClients.TryGetValue(requestKey, out var client)) return client;
+            lock (m_Lock)
+            {
+                if (m_HttpClients.TryGetValue(requestKey, out client)) return client;
 
-            client = new RateLimitedServiceHttpClient(m_ServiceHttpClient, k_QueueLimit, k_DefaultTokensPerPeriod,
-                k_SlowTokenLimit, TimeSpan.FromSeconds(k_ReplenishmentPeriod));
+                client = new RateLimitedServiceHttpClient(m_ServiceHttpClient, k_QueueLimit, k_DefaultTokensPerPeriod,
+                    k_SlowTokenLimit, TimeSpan.FromSeconds(k_ReplenishmentPeriod));
 
-            m_HttpClients[requestKey] = client;
+                m_HttpClients[requestKey] = client;
+            }
+
             return client;
         }
 

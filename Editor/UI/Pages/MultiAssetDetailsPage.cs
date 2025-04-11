@@ -20,11 +20,11 @@ namespace Unity.AssetManager.UI.Editor
         static readonly string k_MultiSelectionRemoveName = "multi-selection-remove-button";
         static readonly string k_InspectorFooterContainerName = "footer-container";
 
-        static readonly string k_UnimportedFoldoutClassName = "multi-selection-unimported-foldout";
-        static readonly string k_ImportedFoldoutClassName = "multi-selection-imported-foldout";
-        static readonly string k_UploadRemovedFoldoutClassName = "multi-selection-upload-removed-foldout";
-        static readonly string k_UploadIgnoredFoldoutClassName = "multi-selection-upload-ignored-foldout";
-        static readonly string k_UploadIncludedFoldoutClassName = "multi-selection-upload-included-foldout";
+        static readonly string k_UnimportedFoldoutName = "multi-selection-unimported-foldout";
+        static readonly string k_ImportedFoldoutName = "multi-selection-imported-foldout";
+        static readonly string k_UploadRemovedFoldoutName = "multi-selection-upload-removed-foldout";
+        static readonly string k_UploadIgnoredFoldoutName = "multi-selection-upload-ignored-foldout";
+        static readonly string k_UploadIncludedFoldoutName = "multi-selection-upload-included-foldout";
 
         static readonly string k_UnimportedFoldoutTitle = "Unimported";
         static readonly string k_ImportedFoldoutTitle = "Imported";
@@ -53,10 +53,10 @@ namespace Unity.AssetManager.UI.Editor
             IStateManager stateManager, IPageManager pageManager, IAssetDataManager assetDataManager,
             IAssetDatabaseProxy assetDatabaseProxy, IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, IProjectIconDownloader projectIconDownloader,
-            IPermissionsManager permissionsManager)
+            IPermissionsManager permissionsManager, IDialogManager dialogManager)
             : base(assetImporter, assetOperationManager, stateManager, pageManager, assetDataManager,
                 assetDatabaseProxy, projectOrganizationProvider, linksProxy, unityConnectProxy, projectIconDownloader,
-                permissionsManager)
+                permissionsManager, dialogManager)
         {
             BuildUxmlDocument();
 
@@ -74,31 +74,26 @@ namespace Unity.AssetManager.UI.Editor
 
             var container = m_ScrollView.Q<VisualElement>(k_InspectorScrollviewContainerClassName);
 
-            m_Foldouts[FoldoutName.Unimported] = new MultiSelectionFoldout(container, k_UnimportedFoldoutClassName,
-                Constants.ImportActionText, ImportUnimportedAssetsAsync, k_UnimportedFoldoutTitle,
-                k_MultiSelectionFoldoutExpandedClassName);
+            m_Foldouts[FoldoutName.Unimported] = new MultiSelectionFoldout(container, k_UnimportedFoldoutTitle, k_UnimportedFoldoutName,
+                Constants.ImportActionText, ImportUnimportedAssetsAsync, k_MultiSelectionFoldoutExpandedClassName);
 
-            m_Foldouts[FoldoutName.Imported] = new MultiSelectionFoldout(container, k_ImportedFoldoutClassName,
-                Constants.ReimportActionText, ReImportAssetsAsync, k_ImportedFoldoutTitle,
-                k_MultiSelectionFoldoutExpandedClassName);
+            m_Foldouts[FoldoutName.Imported] = new MultiSelectionFoldout(container, k_ImportedFoldoutTitle, k_ImportedFoldoutName,
+                Constants.ReimportActionText, ReImportAssetsAsync, k_MultiSelectionFoldoutExpandedClassName);
 
-            m_Foldouts[FoldoutName.UploadRemoved] = new MultiSelectionFoldout(container, k_UploadRemovedFoldoutClassName,
-                Constants.RemoveAll, RemoveUploadAssets, k_UploadRemovedFoldoutTitle,
-                k_MultiSelectionFoldoutExpandedClassName);
+            m_Foldouts[FoldoutName.UploadRemoved] = new MultiSelectionFoldout(container, k_UploadRemovedFoldoutTitle, k_UploadRemovedFoldoutName,
+                Constants.RemoveAll, RemoveUploadAssets, k_MultiSelectionFoldoutExpandedClassName);
 
-            m_Foldouts[FoldoutName.UploadIgnored] = new MultiSelectionFoldout(container, k_UploadIgnoredFoldoutClassName,
-                Constants.IncludeAll, IncludeUploadAssets, k_UploadIgnoredFoldoutTitle,
-                k_MultiSelectionFoldoutExpandedClassName);
+            m_Foldouts[FoldoutName.UploadIgnored] = new MultiSelectionFoldout(container, k_UploadIgnoredFoldoutTitle, k_UploadIgnoredFoldoutName,
+                Constants.IncludeAll, IncludeUploadAssets, k_MultiSelectionFoldoutExpandedClassName);
 
-            m_Foldouts[FoldoutName.UploadIncluded] = new MultiSelectionFoldout(container, k_UploadIncludedFoldoutClassName,
-                Constants.IgnoreAll, IgnoreUploadAssets, k_UploadIncludedFoldoutTitle,
-                k_MultiSelectionFoldoutExpandedClassName);
+            m_Foldouts[FoldoutName.UploadIncluded] = new MultiSelectionFoldout(container, k_UploadIncludedFoldoutTitle, k_UploadIncludedFoldoutName,
+                Constants.IgnoreAll, IgnoreUploadAssets, k_MultiSelectionFoldoutExpandedClassName);
 
             foreach (var foldout in m_Foldouts)
             {
-                foldout.Value.RegisterValueChangedCallback(_ =>
+                foldout.Value.RegisterValueChangedCallback(value =>
                 {
-                    m_StateManager.MultiSelectionFoldoutsValues[(int)foldout.Key] = foldout.Value.Expanded;
+                    m_StateManager.MultiSelectionFoldoutsValues[(int)foldout.Key] = value;
                     RefreshScrollView();
                 });
                 foldout.Value.Expanded = m_StateManager.MultiSelectionFoldoutsValues[(int)foldout.Key];

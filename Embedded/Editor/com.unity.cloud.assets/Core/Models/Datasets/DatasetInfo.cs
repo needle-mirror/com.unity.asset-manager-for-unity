@@ -8,6 +8,9 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         /// <inheritdoc />
         public string Name { get; set; }
+        
+        /// <inheritdoc />
+        public AssetType? Type { get; set; }
 
         /// <inheritdoc />
         public string Description { get; set; }

@@ -43,6 +43,8 @@ namespace Unity.Cloud.AssetsEmbedded
         systemMetadata = 16,
         files = 32,
         filesOrder = 64,
+        primaryType = 128,
+        workflowName = 256,
     }
 
     [Flags]
@@ -114,7 +116,7 @@ namespace Unity.Cloud.AssetsEmbedded
         public static FieldsFilter DefaultDatasetIncludes => new()
         {
             AssetFields = AssetFields.datasets,
-            DatasetFields = DatasetFields.description | DatasetFields.authoring | DatasetFields.filesOrder,
+            DatasetFields = DatasetFields.description | DatasetFields.authoring | DatasetFields.filesOrder | DatasetFields.primaryType | DatasetFields.workflowName,
             FileFields = FileFields.none,
         };
 

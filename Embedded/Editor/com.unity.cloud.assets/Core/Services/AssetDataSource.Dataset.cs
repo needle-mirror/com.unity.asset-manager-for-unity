@@ -59,11 +59,11 @@ namespace Unity.Cloud.AssetsEmbedded
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                    var request = getListRequest(next, pageSize);
+                var request = getListRequest(next, pageSize);
                 var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
 
                 var jsonContent = await response.GetContentAsString();
-                    cancellationToken.ThrowIfCancellationRequested();
+                cancellationToken.ThrowIfCancellationRequested();
 
                 var pageDto = IsolatedSerialization.DeserializeWithDefaultConverters<EntityPageDto<T>>(jsonContent);
 

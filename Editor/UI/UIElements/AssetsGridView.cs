@@ -30,7 +30,8 @@ namespace Unity.AssetManager.UI.Editor
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IUploadManager m_UploadManager;
         readonly IAssetImporter m_AssetImporter;
-        readonly IAssetsProvider m_AssetsProvider;
+        readonly IPermissionsManager m_PermissionsManager;
+        readonly IApplicationProxy m_ApplicationProxy;
 
         bool m_IsClickedItemAlreadySelected;
         AssetIdentifier m_SelectedAssetIdentifier;
@@ -43,8 +44,9 @@ namespace Unity.AssetManager.UI.Editor
             ILinksProxy linksProxy,
             IUploadManager uploadManager,
             IAssetImporter assetImporter,
-            IAssetsProvider assetsProvider,
-            IMessageManager messageManager)
+            IPermissionsManager permissionsManager,
+            IMessageManager messageManager,
+            IApplicationProxy applicationProxy)
         {
             m_UnityConnect = unityConnect;
             m_PageManager = pageManager;
@@ -53,7 +55,8 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_UploadManager = uploadManager;
             m_AssetImporter = assetImporter;
-            m_AssetsProvider = assetsProvider;
+            m_PermissionsManager = permissionsManager;
+            m_ApplicationProxy = applicationProxy;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
             Add(m_Gridview);
@@ -76,7 +79,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             ServicesContainer.instance.Resolve<IDragAndDropProjectBrowserProxy>().RegisterProjectBrowserHandler(OnProjectBrowserDrop);
 
-            m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            m_PermissionsManager.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
             m_Gridview.GridViewLastItemVisible += OnLastGridViewItemVisible;
@@ -98,7 +101,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             ServicesContainer.instance.Resolve<IDragAndDropProjectBrowserProxy>().UnRegisterProjectBrowserHandler(OnProjectBrowserDrop);
 
-            m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            m_PermissionsManager.AuthenticationStateChanged -= OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
             m_Gridview.GridViewLastItemVisible -= OnLastGridViewItemVisible;
@@ -112,7 +115,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnSelectedAssetChanged(IPage page, IEnumerable<AssetIdentifier> assets)
         {
-            EditorApplication.delayCall -= DelayedScrollToSelectedAsset;
+            m_ApplicationProxy.DelayCall -= DelayedScrollToSelectedAsset;
 
             if (assets.Any())
             {
@@ -121,7 +124,7 @@ namespace Unity.AssetManager.UI.Editor
                 if (asset != null)
                 {
                     m_SelectedAssetIdentifier = asset.Identifier;
-                    EditorApplication.delayCall += DelayedScrollToSelectedAsset;
+                    m_ApplicationProxy.DelayCall += DelayedScrollToSelectedAsset;
                 }
             }
         }
@@ -138,7 +141,7 @@ namespace Unity.AssetManager.UI.Editor
             }
             finally
             {
-                EditorApplication.delayCall -= DelayedScrollToSelectedAsset;
+                m_ApplicationProxy.DelayCall -= DelayedScrollToSelectedAsset;
             }
         }
 

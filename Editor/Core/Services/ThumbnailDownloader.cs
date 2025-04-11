@@ -130,7 +130,7 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             var bytes = texture.EncodeToPNG();
-            Task.Run(() => File.WriteAllBytes(path, bytes));
+            Task.Run(() => m_IOProxy.FileWriteAllBytes(path, bytes));
         }
 
         Texture2D LoadThumbnailFromDisk(AssetIdentifier assetIdentifier)
@@ -143,7 +143,7 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             var texture2D = new Texture2D(1, 1);
-            texture2D.LoadImage(File.ReadAllBytes(path));
+            texture2D.LoadImage(m_IOProxy.FileReadAllBytes(path));
 
             return texture2D;
         }

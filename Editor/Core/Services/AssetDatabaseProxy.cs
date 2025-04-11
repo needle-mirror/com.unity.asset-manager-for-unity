@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Core.Editor
@@ -19,33 +22,38 @@ namespace Unity.AssetManager.Core.Editor
         string GetAssetPath(Object obj);
         string GetTextMetaFilePathFromAssetPath(string fileName);
         string[] GetDependencies(string assetPath, bool recursive);
-        void SaveAssetIfDirty(Object obj);
-        void ImportAsset(string path);
+        void SaveAssetIfDirty(string assetPath);
+        void ImportAsset(string assetPath);
         string[] GetLabels(Object obj);
         void StartAssetEditing();
         void StopAssetEditing();
         Object LoadAssetAtPath(string assetPath);
         Object LoadAssetAtPath(string assetPath, Type type);
 
-        void PingAssetByGuid(string guid);
+        bool PingAssetByGuid(string guid);
         bool CanPingAssetByGuid(string guid);
         IEnumerable<string> GetAssetsInFolder(string folder);
     }
 
+    [Serializable]
+    [ExcludeFromCoverage]
     class AssetDatabaseProxy : BaseService<IAssetDatabaseProxy>, IAssetDatabaseProxy
     {
         class AssetPostprocessor : UnityEditor.AssetPostprocessor
         {
             static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
             {
-                ServicesContainer.instance.Resolve<AssetDatabaseProxy>().PostprocessAllAssets?.Invoke(importedAssets, deletedAssets, movedAssets, movedFromAssetPaths);
+                if (ServicesContainer.instance.Resolve<IAssetDatabaseProxy>() is AssetDatabaseProxy assetDatabaseProxy)
+                {
+                    assetDatabaseProxy.PostprocessAllAssets?.Invoke(importedAssets, deletedAssets, movedAssets, movedFromAssetPaths);
+                }
             }
         }
 
         public event Action<string[] /*importedAssets*/, string[] /*deletedAssets*/, string[] /*movedAssets*/, string[] /*movedFromAssetPaths*/> PostprocessAllAssets = delegate {};
 
-
         // Wrapper AssetDatabase methods
+
         public string[] FindAssets(string filter, string[] searchInFolders) => AssetDatabase.FindAssets(filter, searchInFolders);
 
         public bool DeleteAssets(string[] paths, List<string> outFailedPaths) => AssetDatabase.DeleteAssets(paths, outFailedPaths);
@@ -63,10 +71,28 @@ namespace Unity.AssetManager.Core.Editor
         public string GetTextMetaFilePathFromAssetPath(string fileName) => AssetDatabase.GetTextMetaFilePathFromAssetPath(fileName);
 
         public string[] GetDependencies(string assetPath, bool recursive) => AssetDatabase.GetDependencies(assetPath, recursive);
+        
+        public void SaveAssetIfDirty(string assetPath)
+        {
+            var asset = LoadAssetAtPath(assetPath);
+            if (asset == null)
+                return;
 
-        public void SaveAssetIfDirty(Object obj) => AssetDatabase.SaveAssetIfDirty(obj);
+            if (asset is SceneAsset)
+            {
+                var scene = SceneManager.GetSceneByPath(assetPath);
+                if (scene.isDirty)
+                {
+                    EditorSceneManager.SaveScene(scene);
+                }
+            }
+            else
+            {
+                AssetDatabase.SaveAssetIfDirty(asset);
+            }
+        }
 
-        public void ImportAsset(string path) => AssetDatabase.ImportAsset(path);
+        public void ImportAsset(string assetPath) => AssetDatabase.ImportAsset(assetPath);
 
         public string[] GetLabels(Object obj) => AssetDatabase.GetLabels(obj);
 
@@ -80,20 +106,22 @@ namespace Unity.AssetManager.Core.Editor
 
         // End of wrapper AssetDatabase methods
 
-
         Object GetAssetObject(string guid)
         {
             return LoadAssetAtPath(GuidToAssetPath(guid));
         }
 
-        public void PingAssetByGuid(string guid)
+        public bool PingAssetByGuid(string guid)
         {
             var assetObject = GetAssetObject(guid);
 
             if (assetObject != null)
             {
                 EditorGUIUtility.PingObject(assetObject);
+                return true;
             }
+
+            return false;
         }
 
         public bool CanPingAssetByGuid(string guid)
@@ -103,11 +131,11 @@ namespace Unity.AssetManager.Core.Editor
 
         public IEnumerable<string> GetAssetsInFolder(string folder)
         {
-            var subAssetGuids = AssetDatabase.FindAssets(string.Empty, new[] { folder });
+            var subAssetGuids = FindAssets(string.Empty, new[] { folder });
             foreach (var subAssetGuid in subAssetGuids)
             {
-                var path = AssetDatabase.GUIDToAssetPath(subAssetGuid);
-                if (!AssetDatabase.IsValidFolder(path))
+                var path = GuidToAssetPath(subAssetGuid);
+                if (!IsValidFolder(path))
                 {
                     yield return subAssetGuid;
                 }

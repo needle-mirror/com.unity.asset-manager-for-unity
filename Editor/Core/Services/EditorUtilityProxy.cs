@@ -1,28 +1,56 @@
 using System;
-using System.ComponentModel;
 using UnityEditor;
+using UnityEngine.TestTools;
+using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Core.Editor
 {
     interface IEditorUtilityProxy : IService
     {
-        bool DisplayDialog(string title, string message, string ok, [DefaultValue("\"\"")] string cancel);
+        bool IsDirty(Object obj);
 
-        int DisplayDialogComplex(string title, string message, string ok, [DefaultValue("\"\"")] string cancel,
-            string alt);
+        void ClearDirty(Object obj);
+
+        void RevealInFinder(string path);
+
+        void DisplayProgressBar(string title, string info, float progress);
+
+        void ClearProgressBar();
+
+        bool DisplayDialog(string title, string message, string ok);
+
+        bool DisplayDialog(string title, string message, string ok, string cancel);
+
+        int DisplayDialogComplex(string title, string message, string ok, string cancel, string alt);
+
+        string OpenFolderPanel(string title, string folder, string defaultName);
     }
 
+    [Serializable]
+    [ExcludeFromCoverage]
     class EditorUtilityProxy : BaseService<IEditorUtilityProxy>, IEditorUtilityProxy
     {
-        public bool DisplayDialog(string title, string message, string ok, [DefaultValue("\"\"")] string cancel)
-        {
-            return EditorUtility.DisplayDialog(title, message, ok, cancel);
-        }
+        public bool IsDirty(Object obj) => EditorUtility.IsDirty(obj);
 
-        public int DisplayDialogComplex(string title, string message, string ok, [DefaultValue("\"\"")] string cancel,
-            string alt)
-        {
-            return EditorUtility.DisplayDialogComplex(title, message, ok, cancel, alt);
-        }
+        public void ClearDirty(Object obj) => EditorUtility.ClearDirty(obj);
+
+        public void RevealInFinder(string path) => EditorUtility.RevealInFinder(path);
+
+        public void DisplayProgressBar(string title, string info, float progress) =>
+            EditorUtility.DisplayProgressBar(title, info, progress);
+
+        public void ClearProgressBar() => EditorUtility.ClearProgressBar();
+
+        public bool DisplayDialog(string title, string message, string ok) =>
+            EditorUtility.DisplayDialog(title, message, ok);
+
+        public bool DisplayDialog(string title, string message, string ok, string cancel) =>
+            EditorUtility.DisplayDialog(title, message, ok, cancel);
+
+        public int DisplayDialogComplex(string title, string message, string ok, string cancel, string alt) =>
+            EditorUtility.DisplayDialogComplex(title, message, ok, cancel, alt);
+
+        public string OpenFolderPanel(string title, string folder, string defaultName) =>
+            EditorUtility.OpenFolderPanel(title, folder, defaultName);
     }
 }

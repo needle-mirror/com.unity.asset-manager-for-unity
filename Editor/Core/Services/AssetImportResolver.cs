@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -33,6 +35,7 @@ namespace Unity.AssetManager.Core.Editor
         public ResolutionSelection ResolutionSelection;
     }
 
+    [Serializable]
     class AssetImportResolver : BaseService<IAssetImportResolver>, IAssetImportResolver
     {
         [Serializable]
@@ -57,7 +60,38 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
+        [SerializeReference]
+        IAssetDataManager m_AssetDataManager;
+
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
+
+        [SerializeReference]
+        IIOProxy m_IOProxy;
+
+        [SerializeReference]
+        ISettingsManager m_SettingsManager;
+
         IAssetImportDecisionMaker m_ConflictResolver;
+
+        [ServiceInjection]
+        public void Inject(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider, IIOProxy ioProxy, ISettingsManager settingsManager)
+        {
+            m_AssetDataManager = assetDataManager;
+            m_AssetsProvider = assetsProvider;
+            m_IOProxy = ioProxy;
+            m_SettingsManager = settingsManager;
+        }
+
+        protected override void ValidateServiceDependencies()
+        {
+            base.ValidateServiceDependencies();
+
+            m_AssetDataManager ??= ServicesContainer.instance.Get<IAssetDataManager>();
+            m_AssetsProvider ??= ServicesContainer.instance.Get<IAssetsProvider>();
+            m_IOProxy ??= ServicesContainer.instance.Get<IIOProxy>();
+            m_SettingsManager ??= ServicesContainer.instance.Get<ISettingsManager>();
+        }
 
         public void SetConflictResolver(IAssetImportDecisionMaker conflictResolver)
         {
@@ -74,18 +108,15 @@ namespace Unity.AssetManager.Core.Editor
                     return null;
                 }
 
-                var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
-                var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+                var assetsAndDependencies = await GetUpdatedAssetDataAndDependenciesAsync(assets, importType, token);
 
-                var assetsAndDependencies = await GetUpdatedAssetDataAndDependenciesAsync(assetsProvider, assets, importType, token);
-
-                if (!CheckIfAssetsAlreadyInProject(assetDataManager, assets, importDestination, assetsAndDependencies, out var updatedAssetData))
+                if (!CheckIfAssetsAlreadyInProject(assets, importDestination, assetsAndDependencies, out var updatedAssetData))
                 {
                     return assetsAndDependencies;
                 }
 
                 // Check if the assets have changes
-                await updatedAssetData.CheckUpdatedAssetDataAsync(token);
+                await CheckUpdatedAssetDataAsync(updatedAssetData, token);
 
                 Utilities.DevAssert(m_ConflictResolver != null);
 
@@ -105,19 +136,17 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        static bool CheckIfAssetsAlreadyInProject(IAssetDataManager assetDataManager, IEnumerable<BaseAssetData> assets,
-            string importDestination, HashSet<BaseAssetData> assetsAndDependencies, out UpdatedAssetData updatedAssetData)
+        bool CheckIfAssetsAlreadyInProject(IEnumerable<BaseAssetData> assets, string importDestination,
+            HashSet<BaseAssetData> assetsAndDependencies, out UpdatedAssetData updatedAssetData)
         {
-            var settings = ServicesContainer.instance.Resolve<ISettingsManager>();
-
             updatedAssetData = new UpdatedAssetData();
 
             var isFoundAtLeastOne = false;
             foreach (var asset in assetsAndDependencies)
             {
-                var resolutionInfo = new AssetDataResolutionInfo(asset, assetDataManager);
+                var existingFiles = asset.GetFiles().Where(f => Exists(importDestination, asset, f));
+                var resolutionInfo = new AssetDataResolutionInfo(asset, existingFiles, m_AssetDataManager);
 
-                resolutionInfo.GatherFileConflicts(settings, importDestination);
                 isFoundAtLeastOne |= resolutionInfo.HasConflicts;
 
                 if (assets.Any(a => TrackedAssetIdentifier.IsFromSameAsset(a.Identifier, asset.Identifier)))
@@ -135,12 +164,40 @@ namespace Unity.AssetManager.Core.Editor
             return isFoundAtLeastOne;
         }
 
-        static async Task<HashSet<BaseAssetData>> GetUpdatedAssetDataAndDependenciesAsync(
-            IAssetsProvider assetsProvider, IEnumerable<BaseAssetData> assetDatas,
-            ImportOperation.ImportType importType, CancellationToken token)
+        bool Exists(string destinationPath, BaseAssetData assetData, BaseAssetDataFile file)
         {
-            assetDatas = await GetUpdatedAssetDataAsync(assetsProvider, assetDatas.Select(x => x.Identifier),
-                importType, token);
+            if (m_SettingsManager.IsSubfolderCreationEnabled)
+            {
+                var regex = new Regex(@"[\\\/:*?""<>|]", RegexOptions.None, TimeSpan.FromMilliseconds(100));
+                var sanitizedAssetName = regex.Replace(assetData.Name, "");
+                destinationPath = Path.Combine(destinationPath, $"{sanitizedAssetName.Trim()}");
+            }
+
+            var filePath = Path.Combine(destinationPath, file.Path);
+            return m_IOProxy.FileExists(filePath);
+        }
+
+        async Task CheckUpdatedAssetDataAsync(UpdatedAssetData updatedAssetData, CancellationToken token)
+        {
+            var resolutionInfos = updatedAssetData.Assets.Union(updatedAssetData.Dependants).ToList();
+            if (resolutionInfos.Count == 0)
+                return;
+
+            var tasks = new List<Task>();
+            foreach (var assetDataInfo in resolutionInfos)
+            {
+                tasks.Add(assetDataInfo.GatherFileConflictsAsync(m_AssetDataManager, token));
+            }
+
+            // TODO in the future, this could also check upward dependencies
+
+            await Task.WhenAll(tasks);
+        }
+
+        async Task<HashSet<BaseAssetData>> GetUpdatedAssetDataAndDependenciesAsync(
+            IEnumerable<BaseAssetData> assetDatas, ImportOperation.ImportType importType, CancellationToken token)
+        {
+            assetDatas = await GetUpdatedAssetDataAsync(assetDatas.Select(x => x.Identifier), importType, token);
 
 #if AM4U_DEV
             var t = new Stopwatch();
@@ -159,7 +216,7 @@ namespace Unity.AssetManager.Core.Editor
             var depTasks = new List<Task>();
             foreach (var asset in assetDatas)
             {
-                depTasks.Add(GetDependenciesRecursivelyAsync(assetsProvider, importType, asset, dependencies, token));
+                depTasks.Add(GetDependenciesRecursivelyAsync(importType, asset, dependencies, token));
             }
 
             await Task.WhenAll(depTasks);
@@ -169,12 +226,14 @@ namespace Unity.AssetManager.Core.Editor
             Utilities.DevLog($"Took {t.ElapsedMilliseconds / 1000f:F2} s to gather dependencies");
 #endif
 
-            return dependencies.Select(x => x.Value.AssetData).ToHashSet();
+            return dependencies
+                .Select(x => x.Value.AssetData)
+                .Where(x => x != null)
+                .ToHashSet();
         }
 
-        static async Task GetDependenciesRecursivelyAsync(IAssetsProvider assetsProvider,
-            ImportOperation.ImportType importType, BaseAssetData root, Dictionary<string, DependencyNode> assetDatas,
-            CancellationToken token)
+        async Task GetDependenciesRecursivelyAsync(ImportOperation.ImportType importType, BaseAssetData root,
+            Dictionary<string, DependencyNode> assetDatas, CancellationToken token)
         {
             var key = BuildDependencyKey(root);
 
@@ -216,8 +275,7 @@ namespace Unity.AssetManager.Core.Editor
                 return;
 
             // Make sure those dependencies are the most up to date.
-            var dependencies =
-                (await GetUpdatedAssetDataAsync(assetsProvider, dependencyIdentifiers, importType, token)).ToArray();
+            var dependencies = (await GetUpdatedAssetDataAsync(dependencyIdentifiers, importType, token)).ToArray();
 
             // Create new entries for each dependency
             for (var i = 0; i < dependencies.Length; ++i)
@@ -251,21 +309,21 @@ namespace Unity.AssetManager.Core.Editor
 
             foreach (var dependency in dependencies)
             {
-                tasks.Add(GetDependenciesRecursivelyAsync(assetsProvider, importType, dependency, assetDatas, token));
+                tasks.Add(GetDependenciesRecursivelyAsync(importType, dependency, assetDatas, token));
             }
 
             await Task.WhenAll(tasks);
         }
 
-        static async Task<IEnumerable<BaseAssetData>> GetUpdatedAssetDataAsync(IAssetsProvider assetsProvider,
-            IEnumerable<AssetIdentifier> assetIdentifiers, ImportOperation.ImportType importType, CancellationToken token)
+        async Task<IEnumerable<BaseAssetData>> GetUpdatedAssetDataAsync(IEnumerable<AssetIdentifier> assetIdentifiers,
+            ImportOperation.ImportType importType, CancellationToken token)
         {
 #if AM4U_DEV
             var t = new Stopwatch();
             t.Start();
 #endif
 
-            var assetDatas = await SearchUpdatedAssetDataAsync(assetsProvider, assetIdentifiers, importType, token);
+            var assetDatas = await SearchUpdatedAssetDataAsync(assetIdentifiers, importType, token);
 
 #if AM4U_DEV
             Utilities.DevLog($"Took {t.ElapsedMilliseconds / 1000f:F2} s to update {assetDatas.Count()} assets.");
@@ -292,8 +350,8 @@ namespace Unity.AssetManager.Core.Editor
             return assetDatas;
         }
 
-        static async Task<IEnumerable<BaseAssetData>> SearchUpdatedAssetDataAsync(IAssetsProvider assetsProvider,
-            IEnumerable<AssetIdentifier> assetIdentifiers, ImportOperation.ImportType importType, CancellationToken token)
+        async Task<IEnumerable<BaseAssetData>> SearchUpdatedAssetDataAsync(IEnumerable<AssetIdentifier> assetIdentifiers,
+            ImportOperation.ImportType importType, CancellationToken token)
         {
             // Split the searches by organization
 
@@ -317,7 +375,7 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             var tasks = assetsByOrg
-                .Select(kvp => SearchUpdatedAssetDataAsync(assetsProvider, kvp.Key, kvp.Value, importType, token))
+                .Select(kvp => SearchUpdatedAssetDataAsync(kvp.Key, kvp.Value, importType, token))
                 .ToArray();
 
             await Task.WhenAll(tasks);
@@ -332,9 +390,8 @@ namespace Unity.AssetManager.Core.Editor
             return targetAssetDatas;
         }
 
-        static async Task<IEnumerable<BaseAssetData>> SearchUpdatedAssetDataAsync(IAssetsProvider assetsProvider,
-            string organizationId, List<AssetIdentifier> assetIdentifiers, ImportOperation.ImportType importType,
-            CancellationToken token)
+        async Task<IEnumerable<BaseAssetData>> SearchUpdatedAssetDataAsync(string organizationId,
+            List<AssetIdentifier> assetIdentifiers, ImportOperation.ImportType importType, CancellationToken token)
         {
             // If there is only 1 asset, fetch that asset info directly (search has more overhead than a direct fetch).
             if (assetIdentifiers.Count == 1)
@@ -343,8 +400,8 @@ namespace Unity.AssetManager.Core.Editor
                 var asset = importType switch
                 {
                     ImportOperation.ImportType.Import =>
-                        await assetsProvider.GetAssetAsync(identifier, token),
-                    _ => await assetsProvider.GetLatestAssetVersionAsync(identifier, token)
+                        await m_AssetsProvider.GetAssetAsync(identifier, token),
+                    _ => await m_AssetsProvider.GetLatestAssetVersionAsync(identifier, token)
                 };
 
                 return new[] {asset};
@@ -356,13 +413,14 @@ namespace Unity.AssetManager.Core.Editor
             var startIndex = 0;
             while (startIndex < assetIdentifiers.Count)
             {
-                var maxCount = Math.Min(assetsProvider.DefaultSearchPageSize, assetIdentifiers.Count - startIndex);
+                var maxCount = Math.Min(m_AssetsProvider.DefaultSearchPageSize, assetIdentifiers.Count - startIndex);
 
                 var assetIdentifierRange = assetIdentifiers.GetRange(startIndex, maxCount);
                 var searchFilter = BuildSearchFilter(assetIdentifierRange, importType);
-                tasks.Add(SearchUpdatedAssetDataAsync(assetsProvider, organizationId, searchFilter, assetIdentifierRange, token));
+                tasks.Add(SearchUpdatedAssetDataAsync(m_AssetsProvider, organizationId, searchFilter,
+                    assetIdentifierRange, token));
 
-                startIndex += assetsProvider.DefaultSearchPageSize;
+                startIndex += m_AssetsProvider.DefaultSearchPageSize;
             }
 
             await Task.WhenAll(tasks);

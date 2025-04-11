@@ -145,7 +145,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 var projectFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager,
                     m_StateManager, m_MessageManager, m_ProjectOrganizationProvider, projectInfo.Name,
-                    projectInfo, null);
+                    projectInfo.Id, null);
                 m_ScrollContainer.Add(projectFoldout);
                 m_SideBarProjectFoldouts[projectInfo.Id] = projectFoldout;
 
@@ -162,12 +162,8 @@ namespace Unity.AssetManager.UI.Editor
             projectFoldout.Clear();
             projectFoldout.ChangeBackToChildlessFolder();
 
-            projectInfo.OnCollectionsUpdated -= TryAddCollections;
             if (projectInfo.CollectionInfos == null)
-            {
-                projectInfo.OnCollectionsUpdated += TryAddCollections;
                 return;
-            }
 
             if (!projectInfo.CollectionInfos.Any())
                 return;
@@ -208,12 +204,12 @@ namespace Unity.AssetManager.UI.Editor
         {
             return new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
                 m_MessageManager, m_ProjectOrganizationProvider,
-                foldoutName, projectInfo, collectionPath);
+                foldoutName, projectInfo.Id, collectionPath);
         }
 
         SideBarFoldout GetCollectionFoldout(ProjectInfo projectInfo, string collectionPath)
         {
-            var collectionId = SideBarCollectionFoldout.GetCollectionId(projectInfo, collectionPath);
+            var collectionId = SideBarCollectionFoldout.GetCollectionId(projectInfo.Id, collectionPath);
             return m_ScrollContainer.Q<SideBarFoldout>(collectionId);
         }
 

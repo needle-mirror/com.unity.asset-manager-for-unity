@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -36,7 +37,7 @@ namespace Unity.AssetManager.Core.Editor
         Texture2D[] m_SerializedIcons;
 
         [SerializeReference]
-        IAssetsProvider m_AssetsProvider;
+        IPermissionsManager m_PermissionsManager;
 
         [SerializeReference]
         ICacheEvictionManager m_CacheEvictionManager;
@@ -67,9 +68,9 @@ namespace Unity.AssetManager.Core.Editor
         OrganizationInfo m_OrganizationInfo;
 
         [ServiceInjection]
-        public void Inject(IUnityConnectProxy unityConnectProxy, IDownloadManager downloadManager, IIOProxy ioProxy, ISettingsManager settingsManager,
-            ICacheEvictionManager cacheEvictionManager, IProjectOrganizationProvider projectOrganizationProvider,
-            IAssetsProvider assetsProvider)
+        public void Inject(IUnityConnectProxy unityConnectProxy, IDownloadManager downloadManager, IIOProxy ioProxy,
+            ISettingsManager settingsManager, ICacheEvictionManager cacheEvictionManager,
+            IProjectOrganizationProvider projectOrganizationProvider, IPermissionsManager permissionsManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -77,15 +78,24 @@ namespace Unity.AssetManager.Core.Editor
             m_IOProxy = ioProxy;
             m_SettingsManager = settingsManager;
             m_CacheEvictionManager = cacheEvictionManager;
-            m_AssetsProvider = assetsProvider;
+            m_PermissionsManager = permissionsManager;
         }
 
         public override void OnEnable()
         {
+            base.OnEnable();
+
             m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_DownloadManager.DownloadFinalized += OnDownloadFinalized;
-            m_AssetsProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            m_PermissionsManager.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        }
+
+        protected override void ValidateServiceDependencies()
+        {
+            base.ValidateServiceDependencies();
+
+            m_PermissionsManager ??= ServicesContainer.instance.Get<IPermissionsManager>();
         }
 
         public override void OnDisable()
@@ -93,7 +103,9 @@ namespace Unity.AssetManager.Core.Editor
             m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_DownloadManager.DownloadFinalized -= OnDownloadFinalized;
-            m_AssetsProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+
+            if (m_PermissionsManager != null)
+                m_PermissionsManager.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         }
 
         void OnAuthenticationStateChanged(AuthenticationState newState)
@@ -109,7 +121,7 @@ namespace Unity.AssetManager.Core.Editor
         private void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
             if (cloudServicesReachable && m_OrganizationInfo != null &&
-                m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedIn)
+                m_PermissionsManager.AuthenticationState == AuthenticationState.LoggedIn)
             {
                 OnOrganizationChanged(m_OrganizationInfo);
             }
@@ -167,10 +179,9 @@ namespace Unity.AssetManager.Core.Editor
 
         void OnDownloadFinalized(DownloadOperation operation)
         {
-            if (!m_DownloadIdToProjectIdMap.TryGetValue(operation.Id, out var projectId))
+            if (!m_DownloadIdToProjectIdMap.Remove(operation.Id, out var projectId))
                 return;
 
-            m_DownloadIdToProjectIdMap.Remove(operation.Id);
             if (!m_IconDownloadCallbacks.TryGetValue(operation.Url, out var callbacks) || callbacks.Count == 0)
                 return;
 
@@ -206,7 +217,7 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             var texture2D = new Texture2D(1, 1);
-            texture2D.LoadImage(File.ReadAllBytes(iconPath));
+            texture2D.LoadImage(m_IOProxy.FileReadAllBytes(iconPath));
             texture2D.hideFlags = HideFlags.HideAndDontSave;
             m_Icons[url] = texture2D;
             return texture2D;
@@ -217,9 +228,9 @@ namespace Unity.AssetManager.Core.Editor
             m_OrganizationInfo = organizationInfo;
             if (organizationInfo != null
                 && m_UnityConnectProxy.AreCloudServicesReachable
-                && m_AssetsProvider.AuthenticationState == AuthenticationState.LoggedIn)
+                && m_PermissionsManager.AuthenticationState == AuthenticationState.LoggedIn)
             {
-                var iconsUrls = await m_AssetsProvider.GetProjectIconUrlsAsync(organizationInfo.Id, CancellationToken.None);
+                var iconsUrls = await m_ProjectOrganizationProvider.GetProjectIconUrlsAsync(organizationInfo.Id, CancellationToken.None);
 
                 if (iconsUrls == null)
                     return;

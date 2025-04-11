@@ -16,6 +16,9 @@ Before you upload assets to Asset Manager, make sure you meet the [Prerequisites
 > **Important**:
 Ensure that all upload operations are completed before triggering a domain reload (like entering playmode).
 
+> **Note**:
+> To modify the Asset Manager Editor preferences for uploading assets, see [User Preferences](preferences.md).
+
 ## Upload assets to Cloud
 
 To upload your assets from your local project in the Unity Editor to the Asset Manager, follow these steps:
