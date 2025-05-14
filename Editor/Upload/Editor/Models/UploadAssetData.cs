@@ -37,7 +37,7 @@ namespace Unity.AssetManager.Upload.Editor
         bool m_IsDependency;
 
         [SerializeField]
-        AssetType m_AssetType;
+        Core.Editor.AssetType m_AssetType;
 
         [SerializeField]
         List<string> m_MainFileGuids = new();
@@ -112,7 +112,7 @@ namespace Unity.AssetManager.Upload.Editor
 
         public override int ParentSequenceNumber => -1;
         public override string Changelog => "";
-        public override AssetType AssetType => m_AssetType;
+        public override Core.Editor.AssetType AssetType => m_AssetType;
         public override string Status => "Local";
         public override DateTime? Updated => null;
         public override DateTime? Created => null;
@@ -454,7 +454,7 @@ namespace Unity.AssetManager.Upload.Editor
                     {
                         return UploadAttribute.UploadStatus.SourceControlled;
                     }
-                    
+
                     if (isAssetInSourceDataset)
                     {
                         // Make sure we gather comparison details so that we update the correct data if necessary
@@ -483,7 +483,7 @@ namespace Unity.AssetManager.Upload.Editor
             // Next, check if there are modifications in the files.
             var fileComparisons = await HasLocallyModifiedFilesAsync(importedAssetInfo, token);
             m_ComparisonDetails = Core.Editor.ComparisonDetails.Merge(m_ComparisonDetails, fileComparisons);
-            
+
             return m_ComparisonDetails.Results != ComparisonResults.None;
         }
 

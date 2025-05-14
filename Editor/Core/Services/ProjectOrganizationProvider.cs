@@ -30,6 +30,11 @@ namespace Unity.AssetManager.Core.Editor
 
         public async Task<List<string>> GetUserNamesAsync(List<string> userIds)
         {
+            if (userIds == null || userIds.Count == 0)
+            {
+                return new List<string>();
+            }
+            
             var userInfos = await GetUserInfosAsync();
             return userInfos.Where(u => userIds.Contains(u.UserId)).Select(u => u.Name).Distinct().ToList();
         }
@@ -46,17 +51,19 @@ namespace Unity.AssetManager.Core.Editor
             return userInfos.FirstOrDefault(u => u.Name == userName)?.UserId;
         }
 
-        public async Task<List<UserInfo>> GetUserInfosAsync(Action<List<UserInfo>> callback = null)
+        public async Task<List<UserInfo>> GetUserInfosAsync(Action<List<UserInfo>> callback = null, CancellationToken cancellationToken = default)
         {
             if (m_UserInfos != null)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                
                 callback?.Invoke(m_UserInfos);
                 return m_UserInfos;
             }
 
             if (m_UserInfosTask == null)
             {
-                m_UserInfosTask = GetUserInfosInternalAsync();
+                m_UserInfosTask = GetUserInfosInternalAsync(cancellationToken);
             }
 
             m_UserInfos = await m_UserInfosTask;
@@ -66,11 +73,11 @@ namespace Unity.AssetManager.Core.Editor
             return m_UserInfos;
         }
 
-        async Task<List<UserInfo>> GetUserInfosInternalAsync()
+        async Task<List<UserInfo>> GetUserInfosInternalAsync(CancellationToken cancellationToken)
         {
             var userInfos = new List<UserInfo>();
             await foreach (var userInfo in ServicesContainer.instance.Resolve<IProjectOrganizationProvider>()
-                               .GetOrganizationUsersAsync(Id, Range.All, CancellationToken.None))
+                               .GetOrganizationUsersAsync(Id, Range.All, cancellationToken))
             {
                 userInfos.Add(userInfo);
             }

@@ -94,10 +94,10 @@ namespace Unity.AssetManager.UI.Editor
         public const string NoMatchingFields = "No field exists. To add custom fields, go to the <a>dashboard</a> and create a new metadata field.";
 
         // Preview Status
-        public const string ImportedText = "Asset is imported";
-        public const string UpToDateText = "Asset is up to date";
-        public const string OutOfDateText = "Asset is outdated";
-        public const string StatusErrorText = "Asset was deleted or is not accessible";
+        public const string ImportedText = "Asset is imported from Asset Manager";
+        public const string UpToDateText = "Asset is up to date relative to Asset Manager";
+        public const string OutOfDateText = "Asset is outdated relative to Asset Manager";
+        public const string StatusErrorText = "Asset was deleted from Asset Manager or is not accessible";
 
         // Upload Status
         public const string LinkedText = "This asset is a dependency of another asset";
@@ -219,6 +219,7 @@ namespace Unity.AssetManager.UI.Editor
 
         public const string ImportSettingsTitle = "Import Settings";
         public const string ImportDefaultLocation = "Default import location";
+        public const string ImportDefaultLocationError = "Please select an import location path relative to the project's Assets folder.";
         public const string ImportCreateSubfolders = "Create subfolder on import";
         public const string ImportCreateSubfoldersTooltip = "Enabling this option will automatically generate a folder named after the cloud asset and import files within it";
         public const string ImportKeepHigherVersion = "Avoid rolling back versions of dependencies";
@@ -243,10 +244,21 @@ namespace Unity.AssetManager.UI.Editor
         public const string TagsCreation = "Generate tags automatically based on preview image";
         public const string TagsCreationConfidenceLevel = "Confidence level for automatic tags generation";
         public const string TagsCreationConfidenceLevelTooltip = "The higher the value, the more accurate the tags will be.";
-        public const string UploadDependenciesUsingLatestLabel = "Upload dependencies with Latest version label";
-        public const string UploadDependenciesUsingLatestTooltip = "Enable this option to map asset dependencies to their latest versions during upload, ensuring the latest versions are used during import.";
+        public const string UploadDependenciesUsingLatestLabel = "Pin dependencies to 'Latest' version label during upload";
+        public const string UploadDependenciesUsingLatestTooltip = "Enable this option to map asset dependencies to their latest versions during upload, ensuring the latest versions are used during import. ";
+        public const string UploadDependenciesUsingLatestHelpText = "This setting only applies when dependencies are set to \"Separate\". It doesn't affect uploads with dependencies set to \"Embedded\" or \"Ignore\".";
+
         public const string DisableReimportModalLabel = "Disable the reimport modal";
         public const string DisableReimportModalToolTip = "When enabled, no conflict resolution modals will be shown when importing and \"replace\" will be applied to everything. \"Avoid rolling back versions of dependencies\" must be enabled to use this setting.";
+
+        public const string ProjectWindowSettingsTitle = "Project Window Settings";
+        public const string ProjectWindowIconOverlayToggleLabel = "Enable icon overlay in the project window";
+        public const string ProjectWindowIconOverlayToggleTooltip = "Enable or disable the icon overlay in the project window. The icon overlay shows the status of Asset Manager assets relative to the cloud.";
+        public const string ProjectWindowIconOverlayPositionLabel = "Icon overlay position";
+        public const string ProjectWindowIconOverlayPositionTooltip = "Choose the position of the icon overlay on the asset icon";
+        public const string ProjectWindowIconOverlayDisplayTypeLabel = "Display detailed icon overlay";
+        public const string ProjectWindowIconOverlayDisplayTypeTooltip = "Enabling the detailed overlay will show the status of the Asset Manager asset relative to the cloud. Else only the import status is shown.";
+
 
         // Collection
         public const string CollectionCreate = "Create new collection";

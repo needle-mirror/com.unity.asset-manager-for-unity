@@ -25,6 +25,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 var titleElement = new Label(L10n.Tr(title));
                 titleElement.AddToClassList(UssStyle.MetadataPageEntryLabel);
+                titleElement.tooltip = title;
                 Add(titleElement);
             }
 

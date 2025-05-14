@@ -7,7 +7,7 @@ namespace Unity.AssetManager.UI.Editor
     class NumberMetadataFilter : CustomMetadataFilter
     {
         [SerializeReference]
-        NumberMetadata m_NumberMetadata;
+        Core.Editor.NumberMetadata m_NumberMetadata;
 
         public double Value;
 
@@ -16,7 +16,7 @@ namespace Unity.AssetManager.UI.Editor
         public NumberMetadataFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider, IMetadata metadata)
             : base(page, projectOrganizationProvider, assetsProvider, metadata)
         {
-            m_NumberMetadata = metadata as NumberMetadata;
+            m_NumberMetadata = metadata as Core.Editor.NumberMetadata;
         }
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)

@@ -116,11 +116,10 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public static BaseAssetData GetAssetAssociatedWithGuid(string assetGuid, string organizationId, string projectId)
+        public static BaseAssetData GetAssetAssociatedWithGuid(string assetGuid, string organizationId, string projectId = null)
         {
             Utilities.DevAssert(!string.IsNullOrEmpty(assetGuid));
             Utilities.DevAssert(!string.IsNullOrEmpty(organizationId));
-            Utilities.DevAssert(!string.IsNullOrEmpty(projectId));
 
             // First, check if the guid is associated with an asset that was already imported
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
@@ -147,14 +146,17 @@ namespace Unity.AssetManager.Core.Editor
                 var importedAssetData = importedAssetInfo.AssetData;
 
                 // Imported asset must match current project and still exist in the provider for it to be recycled
-                if (importedAssetData == null || importedAssetData.Identifier.OrganizationId != organizationId ||
-                    importedAssetData.Identifier.ProjectId != projectId)
+                if (importedAssetData == null || importedAssetData.Identifier.OrganizationId != organizationId
+                    || projectId != null && importedAssetData.Identifier.ProjectId != projectId)
                 {
                     continue;
                 }
 
                 matches.Add(importedAssetInfo);
             }
+
+            // we prioritize the most recent asset for the matches
+            matches = matches.OrderByDescending(a => a.AssetData.Created ?? DateTime.MinValue).ToList();
 
             // Prioritize any imported asset where the guid is associated with a source dataset.
             // For context, in the example where optimize and convert files have been imported and then uploaded as separate assets,

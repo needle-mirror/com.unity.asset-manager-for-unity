@@ -24,8 +24,6 @@
                     <ui:Label name="outdated-warning-label" class="text-bold" />
                 </ui:VisualElement>
                 <ui:VisualElement name="files-container" style="flex-grow: 1;" />
-                <ui:VisualElement name="dependencies-container" style="flex-grow: 1;" />
-                <ui:Label name="no-dependencies-label" class="no-dependencies-label" />
             </ui:VisualElement>
             <ui:VisualElement name="upload-metadata-container" class="px-2" />
         </ui:ScrollView>

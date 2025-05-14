@@ -35,9 +35,9 @@ namespace Unity.AssetManager.UI.Editor
         }
     }
 
-    class TextMetadataField : MetadataField<TextMetadata>
+    class TextMetadataField : MetadataField<Core.Editor.TextMetadata>
     {
-        public TextMetadataField(List<TextMetadata> representedMetadata)
+        public TextMetadataField(List<Core.Editor.TextMetadata> representedMetadata)
             : base(representedMetadata)
         {
             var textField = new MultiValueTextField(representedMetadata.Select(x => x.Value).ToList());
@@ -53,9 +53,9 @@ namespace Unity.AssetManager.UI.Editor
         }
     }
 
-    class NumberMetadataField : MetadataField<NumberMetadata>
+    class NumberMetadataField : MetadataField<Core.Editor.NumberMetadata>
     {
-        public NumberMetadataField(List<NumberMetadata> representedMetadata)
+        public NumberMetadataField(List<Core.Editor.NumberMetadata> representedMetadata)
             : base(representedMetadata)
         {
             var doubleField = new MultiValueDoubleField(representedMetadata.Select(x => x.Value).ToList());
@@ -71,9 +71,9 @@ namespace Unity.AssetManager.UI.Editor
         }
     }
 
-    class BooleanMetadataField : MetadataField<BooleanMetadata>
+    class BooleanMetadataField : MetadataField<Core.Editor.BooleanMetadata>
     {
-        public BooleanMetadataField(List<BooleanMetadata> representedMetadata)
+        public BooleanMetadataField(List<Core.Editor.BooleanMetadata> representedMetadata)
             : base(representedMetadata)
         {
             var toggle = new MultiValueToggle(representedMetadata.Select(x => x.Value).ToList());
@@ -89,12 +89,12 @@ namespace Unity.AssetManager.UI.Editor
         }
     }
 
-    class UrlMetadataField : MetadataField<UrlMetadata>
+    class UrlMetadataField : MetadataField<Core.Editor.UrlMetadata>
     {
         readonly TextField m_UrlTextField;
         readonly Label m_UrlLabel;
 
-        public UrlMetadataField(List<UrlMetadata> representedMetadata)
+        public UrlMetadataField(List<Core.Editor.UrlMetadata> representedMetadata)
             :base(representedMetadata)
         {
             m_UrlTextField = new MultiValueTextField(representedMetadata.Select(x =>
@@ -119,6 +119,9 @@ namespace Unity.AssetManager.UI.Editor
             verticalContainer.Add(hyperlinkLabel);
 
             Add(verticalContainer);
+
+            // Set the default value to about:blank since URI cannot be null
+            m_RepresentedMetadata.ForEach(x => x.Value = new UriEntry(new Uri("about:blank"), string.Empty));
         }
 
         void OnUrlChanged(ChangeEvent<string> evt)
@@ -151,9 +154,9 @@ namespace Unity.AssetManager.UI.Editor
         }
     }
 
-    class TimestampMetadataField : MetadataField<TimestampMetadata>
+    class TimestampMetadataField : MetadataField<Core.Editor.TimestampMetadata>
     {
-        public TimestampMetadataField(List<TimestampMetadata> representedMetadata)
+        public TimestampMetadataField(List<Core.Editor.TimestampMetadata> representedMetadata)
             : base(representedMetadata)
         {
             var picker = new MultiValueTimestampPicker(representedMetadata.Select(x => x.Value.DateTime).ToList());
@@ -169,13 +172,13 @@ namespace Unity.AssetManager.UI.Editor
         }
     }
 
-    class UserMetadataField : MetadataField<UserMetadata>
+    class UserMetadataField : MetadataField<Core.Editor.UserMetadata>
     {
         readonly List<UserInfo> m_UserInfos;
 
         readonly MultiValueDropdownField m_MultiValueDropdownField;
 
-        public UserMetadataField(List<UserMetadata> representedMetadata,
+        public UserMetadataField(List<Core.Editor.UserMetadata> representedMetadata,
             List<UserInfo> userInfos)
             : base(representedMetadata)
         {
@@ -189,6 +192,11 @@ namespace Unity.AssetManager.UI.Editor
             m_MultiValueDropdownField.RegisterValueChangedCallback(evt => OnValueChanged());
 
             Add(m_MultiValueDropdownField);
+
+            if (m_MultiValueDropdownField.choices.Count > 0)
+            {
+                m_MultiValueDropdownField.SetValueWithoutNotify(m_MultiValueDropdownField.choices[0]);
+            }
         }
 
         void OnValueChanged()
@@ -199,9 +207,9 @@ namespace Unity.AssetManager.UI.Editor
         }
     }
 
-    class SingleSelectionMetadataField : MetadataField<SingleSelectionMetadata>
+    class SingleSelectionMetadataField : MetadataField<Core.Editor.SingleSelectionMetadata>
     {
-        public SingleSelectionMetadataField(List<SingleSelectionMetadata> representedMetadata,
+        public SingleSelectionMetadataField(List<Core.Editor.SingleSelectionMetadata> representedMetadata,
             List<string> choices)
             : base(representedMetadata)
         {
@@ -219,7 +227,7 @@ namespace Unity.AssetManager.UI.Editor
         }
     }
 
-    class MultiSelectionMetadataField : MetadataField<MultiSelectionMetadata>
+    class MultiSelectionMetadataField : MetadataField<Core.Editor.MultiSelectionMetadata>
     {
         public MultiSelectionMetadataField(string displayName,
             List<MultiSelectionMetadata> representedMetadata, List<string> choices)

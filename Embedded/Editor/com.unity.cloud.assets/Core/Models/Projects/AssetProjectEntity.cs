@@ -171,6 +171,13 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        public Task DeleteUnfrozenAssetVersionAsync(AssetId assetId, AssetVersion assetVersion, CancellationToken cancellationToken)
+        {
+            var assetDescriptor = new AssetDescriptor(Descriptor, assetId, assetVersion);
+            return m_DataSource.DeleteUnfrozenAssetVersionAsync(assetDescriptor, cancellationToken);
+        }
+
+        /// <inheritdoc />
         public CollectionQueryBuilder QueryCollections()
         {
             return new CollectionQueryBuilder(m_DataSource, m_DefaultCacheConfiguration, Descriptor);

@@ -27,6 +27,7 @@ namespace Unity.AssetManager.UI.Editor
 
         AssetIdentifier m_AssetIdentifier;
         BaseAssetData m_AssetData;
+        string m_VersionLabel;
 
         CancellationTokenSource m_CancellationTokenSource;
 
@@ -114,6 +115,7 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             m_AssetIdentifier = m_AssetData?.Identifier ?? dependencyIdentifier;
+            m_VersionLabel = dependencyIdentifier.VersionLabel;
 
             RefreshUI();
 
@@ -146,7 +148,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_FileName.text = m_AssetData?.Name ?? $"{m_AssetIdentifier?.AssetId} (unavailable)";
 
-            SetStatuses(AssetDataStatus.GetIStatusFromAssetDataAttributes(m_AssetData?.AssetDataAttributeCollection));
+            SetStatuses(m_AssetData?.AssetDataAttributeCollection.GetOverallStatus());
 
             m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(m_AssetData?.PrimaryExtension);
 
@@ -232,7 +234,7 @@ namespace Unity.AssetManager.UI.Editor
             if (assetData == null)
                 return;
 
-            UIElementsUtils.SetSequenceNumberText(m_VersionNumber, assetData);
+            UIElementsUtils.SetSequenceNumberText(m_VersionNumber, assetData, m_VersionLabel);
         }
     }
 }

@@ -40,9 +40,8 @@ namespace Unity.AssetManager.UI.Editor
     {
         public MultiValueDropdownField(List<string> values, List<string> choices)
         {
-            this.InitializeFieldAsMultiValue(values);
-
             this.choices = choices;
+            this.InitializeFieldAsMultiValue(values);
         }
     }
 

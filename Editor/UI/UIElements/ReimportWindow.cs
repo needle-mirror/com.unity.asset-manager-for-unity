@@ -39,7 +39,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly List<ReimportFoldout> m_ConflictsFoldouts = new();
         IEnumerable<ResolutionData> m_Resolutions;
 
-        public static void CreateModalWindow(UpdatedAssetData data, Action<IEnumerable<ResolutionData>> callback = null,
+        public static void CreateModalWindow(UpdatedAssetData data, ImportSettingsInternal importSettings, Action<IEnumerable<ResolutionData>> callback = null,
             Action cancelCallback = null)
         {
             ReimportWindow window = GetWindow<ReimportWindow>(k_WindowTitle);
@@ -47,7 +47,7 @@ namespace Unity.AssetManager.UI.Editor
 
             window.m_Callback = callback;
             window.m_CancelCallback = cancelCallback;
-            window.CreateConflictsList(data);
+            window.CreateConflictsList(data, importSettings.AvoidRollingBackAssetVersion);
             window.CreateUpwardDependenciesList(data);
 
             window.ShowModal();
@@ -129,7 +129,7 @@ namespace Unity.AssetManager.UI.Editor
             footer.Add(okButton);
         }
 
-        void CreateConflictsList(UpdatedAssetData updatedAssetData)
+        void CreateConflictsList(UpdatedAssetData updatedAssetData, bool avoidRollingBackAssetVersion)
         {
             var allConflictedData = updatedAssetData.Assets.Where(a=> a.HasConflicts).Union(updatedAssetData.Dependants.Where(a=>a.HasConflicts));
 
@@ -146,7 +146,7 @@ namespace Unity.AssetManager.UI.Editor
 
             foreach (var data in showedData)
             {
-                var reimportFoldout = new ReimportFoldout(data);
+                var reimportFoldout = new ReimportFoldout(data, avoidRollingBackAssetVersion);
                 m_ReimportFoldouts.Add(reimportFoldout);
 
                 if (data.HasConflicts)

@@ -241,26 +241,29 @@ namespace Unity.AssetManager.Core.Editor
             return 0; // lowest priority
         }
 
-        public static Regex GetRegexForExtensions(List<UnityAssetType> types)
+        public static Regex GetRegexForExtensions(List<AssetType> types)
         {
             var pattern = string.Empty;
 
-            foreach (var type in types)
+            foreach (var extension in types
+                         .SelectMany(GetTypeExtensions)
+                         .Where(value => !string.IsNullOrEmpty(value)))
             {
-                var extensions = k_UnityTypeDescriptors.Find(x => x.Type == type)?.Extensions;
-
-                if (extensions != null)
-                {
-                    foreach (var extension in extensions)
-                    {
-                        pattern += $"|{extension}";
-                    }
-                }
+                pattern += $"|{extension}";
             }
 
             pattern = pattern[1..];
 
             return new Regex($".*({pattern})", RegexOptions.IgnoreCase);
+        }
+
+        static IEnumerable<string> GetTypeExtensions(AssetType type)
+        {
+            return k_UnityTypeDescriptors
+                    .FirstOrDefault(descriptor => descriptor.Type.ConvertUnityAssetTypeToAssetType() == type)
+                    ?.Extensions
+                    ?.ToArray()
+                ?? Array.Empty<string>();
         }
 
         public static bool IsSupportingPreviewGeneration(string extension)

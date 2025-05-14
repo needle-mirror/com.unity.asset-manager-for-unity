@@ -24,6 +24,7 @@ namespace Unity.AssetManager.UI.Editor
 
         const string k_ImportSettingsFoldout = "importSettingsFoldout";
         const string k_ImportLocationPath = "importLocationPath";
+        const string k_ImportLocationErrorBox = "importLocationErrorBox";
         const string k_ImportLocationDropdown = "importLocationDropdown";
         const string k_ImportDefaultLocationLabel = "importSettingsDefaultLocationLabel";
         const string k_ImportCreateSubFolderLabel = "importSettingsCreateSubfolderLabel";
@@ -51,8 +52,25 @@ namespace Unity.AssetManager.UI.Editor
         const string k_TagsCreationUploadConfidenceValue = "tagsCreationUploadConfidenceValue";
         const string k_UploadDependenciesWithLatestLabelLabel = "uploadDependenciesWithLatestLabel";
         const string k_UploadDependenciesWithLatestToggle = "uploadDependenciesWithLatestToggle";
+        const string k_UploadDependenciesHelpBox = "uploadDependenciesHelpBox";
         const string k_DisableReimportModalLabel = "disableReimportModalLabel";
         const string k_DisableReimportModalToggle = "disableReimportModalToggle";
+
+        const string k_ProjectWindowSettingsFoldout = "projectWindowSettingsFoldout";
+        const string k_ProjectWindowShowIconOverlayLabel = "projectWindowShowIconOverlayLabel";
+        const string k_ProjectWindowShowIconOverlayToggle = "projectWindowShowIconOverlayToggle";
+        const string k_ProjectWindowIconOverlayPositionLabel = "projectWindowIconOverlayPositionLabel";
+        const string k_ProjectWindowIconOverlayPositionDropdown = "projectWindowIconOverlayPositionDropdown";
+        const string k_ProjectWindowIconOverlayDisplayTypeLabel = "projectWindowIconOverlayDisplayTypeLabel";
+        const string k_ProjectWindowIconOverlayDisplayTypeToggle = "projectWindowIconOverlayDisplayTypeToggle";
+
+        static readonly string[] k_ProjectWindowIconOverlayPositionOptions =
+        {
+            L10n.Tr("Top Right"),
+            L10n.Tr("Top Left"),
+            L10n.Tr("Bottom Left"),
+            L10n.Tr("Bottom Right"),
+        };
 
         static Dictionary<CacheValidationResultError, string> cacheValidationErrorMessages =
             new()
@@ -77,7 +95,8 @@ namespace Unity.AssetManager.UI.Editor
         Label m_CacheSizeOnDisk;
         Button m_ClearExtraCacheButton;
 
-        HelpBox m_ErroLabel;
+        HelpBox m_CacheErrorLabel;
+        HelpBox m_ImportLocationErrorLabel;
 
         AssetManagerUserSettingsProvider(ICachePathHelper cachePathHelper, ICacheEvictionManager cacheEvictionManager, ISettingsManager settingsManager,
             IIOProxy ioProxy, IApplicationProxy applicationProxy, IEditorUtilityProxy editorUtilityProxy,
@@ -117,6 +136,9 @@ namespace Unity.AssetManager.UI.Editor
             m_ImportLocationPathLabel = rootElement.Q<Label>(k_ImportLocationPath);
             SetPathLabelTextAndTooltip(m_ImportLocationPathLabel, m_SettingsManager.DefaultImportLocation, true);
 
+            m_ImportLocationErrorLabel = rootElement.Q<HelpBox>(k_ImportLocationErrorBox);
+            UIElementsUtils.Hide(m_ImportLocationErrorLabel);
+
             // setup the creation subfolder label
             var importCreateSubFolderLabel = rootElement.Q<Label>(k_ImportCreateSubFolderLabel);
             importCreateSubFolderLabel.text = L10n.Tr(Constants.ImportCreateSubfolders);
@@ -145,8 +167,8 @@ namespace Unity.AssetManager.UI.Editor
             var refreshButton = rootElement.Q<Button>(k_RefreshButton);
             refreshButton.text = L10n.Tr(Constants.CacheRefresh);
             refreshButton.clicked += RefreshCacheSizeOnDiskLabel;
-            m_ErroLabel = rootElement.Q<HelpBox>(k_DisabledErrorBox);
-            UIElementsUtils.Hide(m_ErroLabel);
+            m_CacheErrorLabel = rootElement.Q<HelpBox>(k_DisabledErrorBox);
+            UIElementsUtils.Hide(m_CacheErrorLabel);
             var cleanCacheButton = rootElement.Q<Button>(k_CleanCache);
             cleanCacheButton.text = L10n.Tr(Constants.CleanCache);
             cleanCacheButton.clicked += CleanCache;
@@ -251,9 +273,67 @@ namespace Unity.AssetManager.UI.Editor
                 m_SettingsManager.SetUploadDependenciesUsingLatestLabel(evt.newValue);
             });
 
+            var uploadDependenciesHelpBox = rootElement.Q<HelpBox>(k_UploadDependenciesHelpBox);
+            uploadDependenciesHelpBox.text = L10n.Tr(Constants.UploadDependenciesUsingLatestHelpText);
+
             SetupCacheLocationToolbarButton(rootElement);
             SetupImportLocationToolbarButton(rootElement);
             SetupCacheSize(rootElement);
+
+            var projectWindowSettingsFoldout = rootElement.Q<Foldout>(k_ProjectWindowSettingsFoldout);
+            projectWindowSettingsFoldout.text = L10n.Tr(Constants.ProjectWindowSettingsTitle);
+
+            // Setup project window icon overlay position dropdown
+            var projectWindowIconOverlayPositionLabel = rootElement.Q<Label>(k_ProjectWindowIconOverlayPositionLabel);
+            projectWindowIconOverlayPositionLabel.text = L10n.Tr(Constants.ProjectWindowIconOverlayPositionLabel);
+            projectWindowIconOverlayPositionLabel.SetEnabled(m_SettingsManager.IsProjectWindowIconOverlayEnabled);
+
+            var projectWindowIconOverlayPositionDropdown = rootElement.Q<DropdownField>(k_ProjectWindowIconOverlayPositionDropdown);
+
+            // Remove the default label from the dropdown
+            var defaultDropdownLabel = projectWindowIconOverlayPositionDropdown.Q<Label>();
+            defaultDropdownLabel.style.display = DisplayStyle.None;
+
+            projectWindowIconOverlayPositionDropdown.tooltip = L10n.Tr(Constants.ProjectWindowIconOverlayPositionTooltip);
+            projectWindowIconOverlayPositionDropdown.choices = k_ProjectWindowIconOverlayPositionOptions.ToList();
+            projectWindowIconOverlayPositionDropdown.value = k_ProjectWindowIconOverlayPositionOptions[m_SettingsManager.ProjectWindowIconOverlayPosition];
+            projectWindowIconOverlayPositionDropdown.RegisterValueChangedCallback(evt =>
+            {
+                m_SettingsManager.SetProjectWindowIconOverlayPosition(Array.IndexOf(k_ProjectWindowIconOverlayPositionOptions, evt.newValue));
+            });
+
+            projectWindowIconOverlayPositionDropdown.SetEnabled(m_SettingsManager.IsProjectWindowIconOverlayEnabled);
+
+            // Setup project window icon overlay display type toggle
+            var projectWindowIconOverlayDisplayTypeLabel = rootElement.Q<Label>(k_ProjectWindowIconOverlayDisplayTypeLabel);
+            projectWindowIconOverlayDisplayTypeLabel.text = L10n.Tr(Constants.ProjectWindowIconOverlayDisplayTypeLabel);
+            projectWindowIconOverlayDisplayTypeLabel.SetEnabled(m_SettingsManager.IsProjectWindowIconOverlayEnabled);
+
+            var projectWindowIconOverlayDisplayTypeToggle = rootElement.Q<Toggle>(k_ProjectWindowIconOverlayDisplayTypeToggle);
+            projectWindowIconOverlayDisplayTypeToggle.tooltip = L10n.Tr(Constants.ProjectWindowIconOverlayDisplayTypeTooltip);
+            projectWindowIconOverlayDisplayTypeToggle.value = m_SettingsManager.DisplayDetailedProjectWindowIconOverlay;
+            projectWindowIconOverlayDisplayTypeToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
+            {
+                m_SettingsManager.SetProjectWindowIconOverlayDisplayType(evt.newValue);
+            });
+            projectWindowIconOverlayDisplayTypeToggle.SetEnabled(m_SettingsManager.IsProjectWindowIconOverlayEnabled);
+
+            // Setup project window icon overlay toggle
+            var projectWindowIconOverlayLabel = rootElement.Q<Label>(k_ProjectWindowShowIconOverlayLabel);
+            projectWindowIconOverlayLabel.text = L10n.Tr(Constants.ProjectWindowIconOverlayToggleLabel);
+            var projectWindowShowIconOverlayToggle = rootElement.Q<Toggle>(k_ProjectWindowShowIconOverlayToggle);
+            projectWindowShowIconOverlayToggle.tooltip = L10n.Tr(Constants.ProjectWindowIconOverlayToggleTooltip);
+            projectWindowShowIconOverlayToggle.value = m_SettingsManager.IsProjectWindowIconOverlayEnabled;
+            projectWindowShowIconOverlayToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
+            {
+                m_SettingsManager.SetProjectWindowIconOverlayEnabled(evt.newValue);
+
+                projectWindowIconOverlayPositionLabel.SetEnabled(evt.newValue);
+                projectWindowIconOverlayPositionDropdown.SetEnabled(evt.newValue);
+                projectWindowIconOverlayDisplayTypeLabel.SetEnabled(evt.newValue);
+                projectWindowIconOverlayDisplayTypeToggle.SetEnabled(evt.newValue);
+            });
+
         }
 
         void SetupCacheSize(VisualElement rootElement)
@@ -318,7 +398,9 @@ namespace Unity.AssetManager.UI.Editor
                     return;
                 }
 
+
                 UpdateDefaultImportPath(importLocation);
+
             });
             importLocationDropdown.menu.AppendAction(L10n.Tr(Constants.ResetDefaultLocation),
                 a => { ResetImportLocationToDefault(); });
@@ -344,7 +426,7 @@ namespace Unity.AssetManager.UI.Editor
 
             if (!result)
             {
-                SetErrorLabel(L10n.Tr(Constants.AccessError));
+                SetCacheErrorLabel(L10n.Tr(Constants.AccessError));
             }
         }
 
@@ -359,10 +441,16 @@ namespace Unity.AssetManager.UI.Editor
             m_CacheEvictionManager.OnCheckEvictConditions(string.Empty);
         }
 
-        void SetErrorLabel(string message)
+        void SetCacheErrorLabel(string message)
         {
-            UIElementsUtils.Show(m_ErroLabel);
-            m_ErroLabel.text = message;
+            UIElementsUtils.Show(m_CacheErrorLabel);
+            m_CacheErrorLabel.text = message;
+        }
+
+        void SetImportLocationErrorLabel(string message)
+        {
+            UIElementsUtils.Show(m_ImportLocationErrorLabel);
+            m_ImportLocationErrorLabel.text = message;
         }
 
         /// <summary>
@@ -379,6 +467,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             var defaultLocation = m_SettingsManager.ResetImportLocation();
             SetPathLabelTextAndTooltip(m_ImportLocationPathLabel, defaultLocation, true);
+            UIElementsUtils.Hide(m_ImportLocationErrorLabel);
         }
 
         /// <summary>
@@ -392,11 +481,11 @@ namespace Unity.AssetManager.UI.Editor
 
             if (!validationResult.Success)
             {
-                SetErrorLabel(CreateUpdateCacheErrorMessage(validationResult.ErrorType, cacheLocation));
+                SetCacheErrorLabel(CreateUpdateCacheErrorMessage(validationResult.ErrorType, cacheLocation));
                 return;
             }
 
-            UIElementsUtils.Hide(m_ErroLabel);
+            UIElementsUtils.Hide(m_CacheErrorLabel);
             m_SettingsManager.SetCacheLocation(cacheLocation);
             SetPathLabelTextAndTooltip(m_AssetManagerCachePathLabel, cacheLocation, false);
             RefreshCacheSizeOnDiskLabel();
@@ -406,11 +495,17 @@ namespace Unity.AssetManager.UI.Editor
         {
             if (!m_IOProxy.DirectoryExists(importLocation))
             {
-                SetErrorLabel(L10n.Tr(Constants.DirectoryDoesNotExistError));
+                SetImportLocationErrorLabel(L10n.Tr(Constants.DirectoryDoesNotExistError));
                 return;
             }
 
-            UIElementsUtils.Hide(m_ErroLabel);
+            if(!importLocation.StartsWith(m_ApplicationProxy.DataPath))
+            {
+                SetImportLocationErrorLabel(L10n.Tr(Constants.ImportDefaultLocationError));
+                return;
+            }
+
+            UIElementsUtils.Hide(m_ImportLocationErrorLabel);
             m_SettingsManager.DefaultImportLocation = importLocation;
             SetPathLabelTextAndTooltip(m_ImportLocationPathLabel, importLocation, true);
         }

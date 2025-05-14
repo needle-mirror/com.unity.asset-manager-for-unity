@@ -108,9 +108,8 @@ namespace Unity.AssetManager.Core.Editor
         {
             try
             {
-                var stream = new FileStream(path, FileMode.Open);
+                await using var stream = File.OpenRead(path);
                 var checksum = await CalculateMD5ChecksumAsync(stream, cancellationToken);
-                stream.Close();
                 return checksum;
             }
             catch (Exception)

@@ -449,7 +449,7 @@ namespace Unity.AssetManager.UI.Editor
                     : "Initiating new search request.");
 
                 var assetSearchFilter = m_PageFilters.AssetSearchFilter;
-                assetSearchFilter.Collection = collectionPath;
+                assetSearchFilter.Collection = new List<string> {collectionPath};
                 assetSearchFilter.Searches = m_PageFilters.SearchFilters?.ToList();
 
                 m_SearchRequest = m_AssetsProvider.SearchAsync(organizationId, projectIds, assetSearchFilter,
@@ -521,28 +521,28 @@ namespace Unity.AssetManager.UI.Editor
                 switch (metadataField.Type)
                 {
                     case MetadataFieldType.Text:
-                        metadataFilter = new TextMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new TextMetadata(metadataField.Key, metadataField.DisplayName, string.Empty));
+                        metadataFilter = new TextMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.TextMetadata(metadataField.Key, metadataField.DisplayName, string.Empty));
                         break;
                     case MetadataFieldType.Boolean:
-                        metadataFilter = new BooleanMetadataFilter(this, m_ProjectOrganizationProvider,m_AssetsProvider, new BooleanMetadata(metadataField.Key, metadataField.DisplayName, false));
+                        metadataFilter = new BooleanMetadataFilter(this, m_ProjectOrganizationProvider,m_AssetsProvider, new Core.Editor.BooleanMetadata(metadataField.Key, metadataField.DisplayName, false));
                         break;
                     case MetadataFieldType.Number:
-                        metadataFilter = new NumberMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new NumberMetadata(metadataField.Key, metadataField.DisplayName, 0));
+                        metadataFilter = new NumberMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.NumberMetadata(metadataField.Key, metadataField.DisplayName, 0));
                         break;
                     case MetadataFieldType.Url:
-                        metadataFilter = new UrlMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new UrlMetadata(metadataField.Key, metadataField.DisplayName, new UriEntry(default, string.Empty)));
+                        metadataFilter = new UrlMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.UrlMetadata(metadataField.Key, metadataField.DisplayName, new UriEntry(default, string.Empty)));
                         break;
                     case MetadataFieldType.Timestamp:
-                        metadataFilter = new TimestampMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new TimestampMetadata(metadataField.Key, metadataField.DisplayName, new DateTimeEntry(DateTime.Today)));
+                        metadataFilter = new TimestampMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.TimestampMetadata(metadataField.Key, metadataField.DisplayName, new DateTimeEntry(DateTime.Today)));
                         break;
                     case MetadataFieldType.User:
-                        metadataFilter = new UserMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new UserMetadata(metadataField.Key, metadataField.DisplayName, string.Empty));
+                        metadataFilter = new UserMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.UserMetadata(metadataField.Key, metadataField.DisplayName, string.Empty));
                         break;
                     case MetadataFieldType.SingleSelection:
-                        metadataFilter = new SingleSelectionMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new SingleSelectionMetadata(metadataField.Key, metadataField.DisplayName, string.Empty));
+                        metadataFilter = new SingleSelectionMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.SingleSelectionMetadata(metadataField.Key, metadataField.DisplayName, string.Empty));
                         break;
                     case MetadataFieldType.MultiSelection:
-                        metadataFilter = new MultiSelectionMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new MultiSelectionMetadata(metadataField.Key, metadataField.DisplayName, null));
+                        metadataFilter = new MultiSelectionMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.MultiSelectionMetadata(metadataField.Key, metadataField.DisplayName, null));
                         break;
                 }
 

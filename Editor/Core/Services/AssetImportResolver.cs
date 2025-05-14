@@ -12,13 +12,12 @@ namespace Unity.AssetManager.Core.Editor
 {
     interface IAssetImportDecisionMaker
     {
-        Task<IEnumerable<ResolutionData>> ResolveConflicts(UpdatedAssetData data);
+        Task<IEnumerable<ResolutionData>> ResolveConflicts(UpdatedAssetData data, ImportSettingsInternal importSettings);
     }
 
     interface IAssetImportResolver : IService
     {
-        Task<IEnumerable<BaseAssetData>> Resolve(IEnumerable<BaseAssetData> assets, ImportOperation.ImportType importType,
-            string importDestination, CancellationToken token);
+        Task<IEnumerable<BaseAssetData>> Resolve(IEnumerable<BaseAssetData> assets, ImportSettingsInternal importSettings, CancellationToken token);
 
         void SetConflictResolver(IAssetImportDecisionMaker conflictResolver);
     }
@@ -72,6 +71,7 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeReference]
         ISettingsManager m_SettingsManager;
 
+        [SerializeReference]
         IAssetImportDecisionMaker m_ConflictResolver;
 
         [ServiceInjection]
@@ -98,8 +98,7 @@ namespace Unity.AssetManager.Core.Editor
             m_ConflictResolver = conflictResolver;
         }
 
-        public async Task<IEnumerable<BaseAssetData>> Resolve(IEnumerable<BaseAssetData> assets,
-            ImportOperation.ImportType importType, string importDestination, CancellationToken token)
+        public async Task<IEnumerable<BaseAssetData>> Resolve(IEnumerable<BaseAssetData> assets, ImportSettingsInternal importSettings, CancellationToken token)
         {
             try
             {
@@ -108,9 +107,9 @@ namespace Unity.AssetManager.Core.Editor
                     return null;
                 }
 
-                var assetsAndDependencies = await GetUpdatedAssetDataAndDependenciesAsync(assets, importType, token);
+                var assetsAndDependencies = await GetUpdatedAssetDataAndDependenciesAsync(assets, importSettings.ImportType, token);
 
-                if (!CheckIfAssetsAlreadyInProject(assets, importDestination, assetsAndDependencies, out var updatedAssetData))
+                if (!CheckIfAssetsAlreadyInProject(assets, importSettings.ImportPath, assetsAndDependencies, out var updatedAssetData))
                 {
                     return assetsAndDependencies;
                 }
@@ -126,7 +125,7 @@ namespace Unity.AssetManager.Core.Editor
                     return updatedAssetData.Assets.Select(c => c.AssetData);
                 }
 
-                var resolutions = await m_ConflictResolver.ResolveConflicts(updatedAssetData);
+                var resolutions = await m_ConflictResolver.ResolveConflicts(updatedAssetData, importSettings);
                 return resolutions?.Where(c => c.ResolutionSelection == ResolutionSelection.Replace)
                     .Select(c => c.AssetData);
             }
@@ -216,7 +215,7 @@ namespace Unity.AssetManager.Core.Editor
             var depTasks = new List<Task>();
             foreach (var asset in assetDatas)
             {
-                depTasks.Add(GetDependenciesRecursivelyAsync(importType, asset, dependencies, token));
+                depTasks.Add(GetDependenciesRecursivelyAsync(ImportOperation.ImportType.Import, asset, dependencies, token));
             }
 
             await Task.WhenAll(depTasks);

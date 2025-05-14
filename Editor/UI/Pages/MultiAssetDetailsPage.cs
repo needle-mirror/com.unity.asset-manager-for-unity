@@ -7,6 +7,7 @@ using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ImportSettings = Unity.AssetManager.Editor.ImportSettings;
 
 namespace Unity.AssetManager.UI.Editor
 {
@@ -373,11 +374,12 @@ namespace Unity.AssetManager.UI.Editor
             m_PageManager.ActivePage.ToggleAsset(m_SelectedAssetsData.Selection.Cast<UploadAssetData>().Where(x => x.CanBeIgnored && x.IsIgnored).Select(a => a.Identifier).FirstOrDefault(), true);
         }
 
-        void ImportListAsync(List<BaseAssetData> assetsData)
+        void ImportListAsync(List<BaseAssetData> assetsData, bool isReimport)
         {
             try
             {
-                m_AssetImporter.StartImportAsync(assetsData, ImportOperation.ImportType.UpdateToLatest);
+                var source = isReimport ? ImportTrigger.ReimportMultiselect : ImportTrigger.ImportMultiselect;
+                m_AssetImporter.StartImportAsync(source, assetsData, new ImportSettings {Type = ImportOperation.ImportType.UpdateToLatest});
             }
             catch (Exception e)
             {
@@ -395,7 +397,7 @@ namespace Unity.AssetManager.UI.Editor
                 ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.ImportAll)
                 : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Import));
 
-            ImportListAsync(unimportedAssets);
+            ImportListAsync(unimportedAssets, false);
         }
 
         void ReImportAssetsAsync()
@@ -407,7 +409,7 @@ namespace Unity.AssetManager.UI.Editor
                 ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.ReImportAll)
                 : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Reimport));
 
-            ImportListAsync(importedAssets);
+            ImportListAsync(importedAssets, true);
         }
 
         void RemoveAllFromLocalProject()

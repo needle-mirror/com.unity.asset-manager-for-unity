@@ -4,6 +4,30 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2025-05-14
+[Added]
+- An overlay icon showing the Asset Manager import status can now be viewed on assets in the Project Window
+- Public API for triggering import operations programmatically
+- Added capacity to select and copy important values in asset details page
+- Added support to erase unfrozen version when the user cancel an upload
+- Add validation to the import path location to prevent user from setting it outside the project
+
+[Changed]
+- Allow assets to have dependencies on assets from other projects when not using the upload mode `Force new asset`
+- User and URL metadata field now have a default value to prevent errors
+- Show version label for an asset dependencies
+
+[Fixed]
+- Fix an issue where deleting an asset in the cloud and re-uploading it would make "Skip Identical" never work thereafter
+- Fix to import dependencies at the specified version instead of always latest
+- Fix asset details page sometime not showing the dependencies correctly
+- Fix an issue where upload mode `Skip identical` would wrongly see dependencies as changed
+- Fix metadata fields shrinking inconsistently in upload tab when adjusting tab size
+- Metadata update that fails because of bad values have a clearer log
+- Fix dropdowns not showing mixed value dash when editing multiple assets with different metadata single-select values
+- Fix select all on rename field first click
+- Fix filter display for selected filters count
+
 ## [1.4.0] - 2025-04-11
 [Added]
 - Added support for optimized and converted files. Selecting import will result in all the files being imported into the project

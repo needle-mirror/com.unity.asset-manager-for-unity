@@ -49,6 +49,7 @@ namespace Unity.AssetManager.UI.Editor
 
         readonly IDialogManager m_DialogManager;
         readonly IUIPreferences m_UIPreferences;
+        readonly List<string> m_ImportedVersions = new List<string>();
 
         string m_CurrentProjectId;
         LoadingTask m_LoadingTask;
@@ -59,7 +60,7 @@ namespace Unity.AssetManager.UI.Editor
         public override bool EnabledWhenDisconnected => false;
         public override VisualElement Root { get; }
 
-        public event Action<string, IEnumerable<BaseAssetData>> ImportAsset;
+        public event Action<ImportTrigger, string, IEnumerable<BaseAssetData>> ImportAsset;
 
         public AssetVersionsTab(VisualElement visualElement, IDialogManager dialogManager)
         {
@@ -113,11 +114,11 @@ namespace Unity.AssetManager.UI.Editor
             {
                 var foldout = CreateFoldout(data);
 
-                if(data.Labels != null)
+                if (data.Labels != null)
                 {
                     foreach (var label in data.Labels)
                     {
-                        AddText(foldout.parent.Q(k_FoldoutLabelsContainer), null, label.Name, new[] { UssStyle.AssetVersionLabel, UssStyle.AssetVersionLabel_Filled });
+                        AddText(foldout.parent.Q(k_FoldoutLabelsContainer), null, label.Name, new[] {UssStyle.AssetVersionLabel, UssStyle.AssetVersionLabel_Filled});
                     }
                 }
 
@@ -154,6 +155,8 @@ namespace Unity.AssetManager.UI.Editor
             {
                 return;
             }
+            
+            m_ImportedVersions.Clear();
 
             var assetOperation = operationInProgress as AssetDataOperation;
             var isEnabled = enabled.IsImportAvailable();
@@ -167,6 +170,11 @@ namespace Unity.AssetManager.UI.Editor
 
                 var versionOperation = assetOperation?.Identifier.Version == identifier.Version ? operationInProgress : null;
                 var inProject = enabled.HasFlag(UIEnabledStates.InProject) && assetData.Identifier.Equals(identifier);
+
+                if (inProject)
+                {
+                    m_ImportedVersions.Add(identifier.Version);
+                }
 
                 RefreshImportedChip(foldoutContainer, inProject && !enabled.HasFlag(UIEnabledStates.IsImporting));
 
@@ -276,7 +284,8 @@ namespace Unity.AssetManager.UI.Editor
 
         void BeginImport(string importLocation, BaseAssetData assetData)
         {
-            ImportAsset?.Invoke(importLocation, new[] {assetData});
+            var trigger = m_ImportedVersions.Contains(assetData.Identifier.Version) ? ImportTrigger.ReimportVersion : ImportTrigger.ImportVersion;
+            ImportAsset?.Invoke(trigger, importLocation, new[] {assetData});
         }
 
         static void RefreshImportedChip(VisualElement foldoutContainer, bool isChipEnabled)

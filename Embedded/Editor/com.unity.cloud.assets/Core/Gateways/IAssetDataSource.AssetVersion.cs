@@ -28,6 +28,14 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<AssetVersion> CreateUnfrozenAssetVersionAsync(AssetDescriptor parentAssetDescriptor, string statusFlowId, CancellationToken cancellationToken);
 
         /// <summary>
+        /// Deletes an asset version.
+        /// </summary>
+        /// <param name="assetDescriptor">The object containing the necessary information to identify the asset.</param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task with no result.</returns>
+        Task DeleteUnfrozenAssetVersionAsync(AssetDescriptor assetDescriptor, CancellationToken cancellationToken);
+
+        /// <summary>
         /// Submits an asset version to be frozen.
         /// </summary>
         /// <param name="assetDescriptor">The object containing the necessary information to identify the asset.</param>

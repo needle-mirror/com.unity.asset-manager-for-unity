@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Core.Editor
 {
-    interface IMetadata
+    interface IMetadata: IEquatable<IMetadata>
     {
         public string FieldKey { get; }
         public string Name { get; }
@@ -46,12 +46,45 @@ namespace Unity.AssetManager.Core.Editor
             m_Value = value;
         }
 
-        public IMetadata Clone()
+        public virtual IMetadata Clone()
         {
             return Activator.CreateInstance(GetType(), m_FieldKey, m_Name, m_Value) as IMetadata;
         }
 
         public object GetValue() => m_Value;
+
+        public virtual bool Equals(IMetadata other)
+        {
+            if (ReferenceEquals(null, other)) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return m_FieldKey == other.FieldKey &&
+                m_Name == other.Name &&
+                m_Type == other.Type &&
+                Equals(GetValue(), other.GetValue());
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((MetadataBase<T>)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(FieldKey, Name, (int)Type, Value);
+        }
+
+        public static bool operator ==(MetadataBase<T> left, MetadataBase<T> right)
+        {
+            return Equals(left, right);
+        }
+
+        public static bool operator !=(MetadataBase<T> left, MetadataBase<T> right)
+        {
+            return !Equals(left, right);
+        }
     }
 
     [Serializable]
@@ -192,6 +225,46 @@ namespace Unity.AssetManager.Core.Editor
         public MultiSelectionMetadata(string fieldKey, string name, List<string> value)
             : base(MetadataFieldType.MultiSelection, fieldKey, name, value)
         {
+        }
+
+        public override IMetadata Clone()
+        {
+            return new MultiSelectionMetadata(FieldKey, Name, new(Value));
+        }
+
+        public override bool Equals(IMetadata other)
+        {
+            if (ReferenceEquals(null, other)) return false;
+            if (ReferenceEquals(this, other)) return true;
+            if (other is not MultiSelectionMetadata otherMultiSelection) return false;
+
+            return FieldKey == other.FieldKey &&
+                Name == other.Name &&
+                Type == other.Type &&
+                new HashSet<string>(Value).SetEquals(new HashSet<string>(otherMultiSelection.Value));
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((IMetadata)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(FieldKey, Name, (int)Type, GetValue());
+        }
+
+        public static bool operator ==(MultiSelectionMetadata left, MultiSelectionMetadata right)
+        {
+            return Equals(left, right);
+        }
+
+        public static bool operator !=(MultiSelectionMetadata left, MultiSelectionMetadata right)
+        {
+            return !Equals(left, right);
         }
     }
 }

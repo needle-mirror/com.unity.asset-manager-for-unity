@@ -10,7 +10,7 @@ namespace Unity.AssetManager.Core.Editor
     {
         int Count();
         bool ContainsKey(string fieldKey);
-        bool ContainsMatch(IMetadata metadata);
+        bool ContainsMatch(IMetadata otherMetadata);
     }
 
     [Serializable]
@@ -44,14 +44,12 @@ namespace Unity.AssetManager.Core.Editor
             return m_Dictionary.ContainsKey(fieldKey);
         }
 
-        public bool ContainsMatch(IMetadata metadata)
+        public bool ContainsMatch(IMetadata otherMetadata)
         {
-            if (!m_Dictionary.TryGetValue(metadata.FieldKey, out var value))
+            if (!m_Dictionary.TryGetValue(otherMetadata.FieldKey, out var existingMetadata))
                 return false;
 
-            return value.Name == metadata.Name
-                   && value.Type == metadata.Type
-                   && ((value.GetValue() == null && metadata.GetValue() == null) || value.GetValue().Equals(metadata.GetValue()));
+            return existingMetadata.Equals(otherMetadata);
         }
 
         public int Count()

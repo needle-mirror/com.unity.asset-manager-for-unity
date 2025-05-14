@@ -20,6 +20,9 @@ namespace Unity.AssetManager.Core.Editor
         float TagsConfidenceThreshold { get; }
         bool IsUploadDependenciesUsingLatestLabel { get; }
         bool IsReimportModalDisabled { get; }
+        bool IsProjectWindowIconOverlayEnabled { get; }
+        int ProjectWindowIconOverlayPosition { get; }
+        bool DisplayDetailedProjectWindowIconOverlay { get; }
         void SetIsSubfolderCreationEnabled(bool value);
         void SetIsKeepHigherVersionEnabled(bool value);
         void SetCacheLocation(string cacheLocation);
@@ -32,6 +35,10 @@ namespace Unity.AssetManager.Core.Editor
 
         void SetUploadDependenciesUsingLatestLabel(bool value);
         void SetDisableReimportModal(bool value);
+
+        void SetProjectWindowIconOverlayEnabled(bool value);
+        void SetProjectWindowIconOverlayPosition(int value);
+        void SetProjectWindowIconOverlayDisplayType(bool value);
     }
 
     [Serializable]
@@ -53,6 +60,17 @@ namespace Unity.AssetManager.Core.Editor
         const int k_DefaultConfidenceLevel = 80;
         const string k_UploadDependenciesUsingLatestLabel = "AM4U.uploadDependenciesUsingLatestLabel";
         const string k_ReimportModalDisabled = "AM4U.reimportModalDisabled";
+        const string k_ProjectWindowIconOverlayEnabled = "AM4U.projectWindowIconOverlayEnabled";
+        const string k_ProjectWindowIconOverlayPosition = "AM4U.projectWindowIconOverlayPosition";
+        const string k_ProjectWindowIconOverlayType = "AM4U.projectWindowIconOverlayType";
+
+        enum ProjectIconOverlayPosition
+        {
+            TopRight = 0,
+            TopLeft = 1,
+            BottomLeft = 2,
+            BottomRight = 3,
+        }
 
         Settings m_Settings;
 
@@ -94,6 +112,10 @@ namespace Unity.AssetManager.Core.Editor
         public float TagsConfidenceThreshold => TagsConfidenceThresholdPercent / 100f;
         public bool IsUploadDependenciesUsingLatestLabel => Instance.Get(k_UploadDependenciesUsingLatestLabel, SettingsScope.User, false);
         public bool IsReimportModalDisabled => Instance.Get(k_ReimportModalDisabled, SettingsScope.User, false);
+
+        public bool IsProjectWindowIconOverlayEnabled => Instance.Get(k_ProjectWindowIconOverlayEnabled, SettingsScope.User, true);
+        public int ProjectWindowIconOverlayPosition => Instance.Get(k_ProjectWindowIconOverlayPosition, SettingsScope.User, (int)ProjectIconOverlayPosition.TopRight);
+        public bool DisplayDetailedProjectWindowIconOverlay => Instance.Get(k_ProjectWindowIconOverlayType, SettingsScope.User, true);
 
         public string BaseCacheLocation
         {
@@ -226,6 +248,21 @@ namespace Unity.AssetManager.Core.Editor
         public void SetDisableReimportModal(bool value)
         {
             Instance.Set(k_ReimportModalDisabled, value, SettingsScope.User);
+        }
+
+        public void SetProjectWindowIconOverlayEnabled(bool value)
+        {
+            Instance.Set(k_ProjectWindowIconOverlayEnabled, value, SettingsScope.User);
+        }
+
+        public void SetProjectWindowIconOverlayPosition(int value)
+        {
+            Instance.Set(k_ProjectWindowIconOverlayPosition, value, SettingsScope.User);
+        }
+
+        public void SetProjectWindowIconOverlayDisplayType(bool value)
+        {
+            Instance.Set(k_ProjectWindowIconOverlayType, value, SettingsScope.User);
         }
     }
 }

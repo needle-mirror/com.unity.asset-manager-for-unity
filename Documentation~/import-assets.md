@@ -21,8 +21,8 @@ To import a cloud asset into your Unity Editor project, follow these steps:
 After you import an asset, you can move the files to another destination folder.
 
 > **Note**:
-If the asset has optimized and converted files, these will be imported alongside the source files. For more information, see [Optimize and Convert](https://docs.unity.com/cloud/en-us/asset-manager/optimize-and-convert).
-Once imported, you will only be able to upload these transformed files as new assets, they cannot be re-uploaded to the original asset.
+If the asset has optimized and converted files, they're imported along with the source files. For more information, see [Optimize and Convert](https://docs.unity.com/cloud/en-us/asset-manager/optimize-and-convert).
+After import, you can upload the transformed files only as new assets. You can't re-upload them to the original asset.
 
 ## Browse imported assets
 
@@ -84,7 +84,7 @@ Asset import states feature helps you to identify the import status of each asse
 
 ### Check asset import state
 
-On the bottom right corner of an asset card, you can identify the asset state icon. This icon represents the asset's import status. The following are the different types of import states available in Asset Manager for unity:
+In the bottom right corner of an asset card, you can identify the asset state icon. This icon represents the asset's import status. The following are the different types of import states available in Asset Manager for unity:
 
 ![Asset import states](./images/asset-import-state.png)
 

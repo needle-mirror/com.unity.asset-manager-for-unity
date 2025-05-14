@@ -82,7 +82,7 @@ namespace Unity.AssetManager.UI.Editor
                 return $"{DisplayName} : {SelectedFilters[0]}";
             }
 
-            return $"{DisplayName} : {SelectedFilters[0]} +1";
+            return $"{DisplayName} : {SelectedFilters[0]} +{SelectedFilters.Count - 1}";
         }
     }
 }

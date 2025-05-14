@@ -12,6 +12,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string InvalidTextFieldStyleClass = "invalid-text-field";
         public const string UnityTextElementStyleClass = "unity-text-element";
         public const string TimestampPickerFieldStyleClass = "timestamp-picker-field";
+        public const string TimePickerFieldLabel = "metadata-timepicker-field-label";
         public const string FlexRowStyleClass = "flex-row";
         public const string FlexColumnStyleClass = "flex-column";
     }
@@ -88,6 +89,7 @@ namespace Unity.AssetManager.UI.Editor
             dateHorizontalContainer.Add(m_DayPicker);
 
             m_DateLabel = new Label(Constants.DateLabel);
+            m_DateLabel.AddToClassList(UssStyle.TimePickerFieldLabel);
 
             m_HourPicker = new DropdownField
             {
@@ -122,6 +124,7 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.SetDisplay(timeHorizontalContainer, showTime);
 
             var timeLabel = new Label(Constants.TimeLabel);
+            timeLabel.AddToClassList(UssStyle.TimePickerFieldLabel);
             UIElementsUtils.SetDisplay(timeLabel, showTime);
 
             var verticalContainer = new VisualElement();

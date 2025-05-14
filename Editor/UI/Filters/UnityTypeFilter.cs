@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
@@ -46,14 +47,14 @@ namespace Unity.AssetManager.UI.Editor
                 }
             }
 
-            assetSearchFilter.UnityTypes = unityTypes;
+            assetSearchFilter.AssetTypes = unityTypes.Select(x => x.ConvertUnityAssetTypeToAssetType()).ToList();
         }
 
         protected override void IncludeFilter(List<string> selectedFilters)
         {
             if(selectedFilters == null)
             {
-                m_Page.PageFilters.AssetSearchFilter.UnityTypes = null;
+                m_Page.PageFilters.AssetSearchFilter.AssetTypes = null;
                 return;
             }
 
@@ -67,12 +68,12 @@ namespace Unity.AssetManager.UI.Editor
                 }
             }
 
-            m_Page.PageFilters.AssetSearchFilter.UnityTypes = unityTypes;
+            m_Page.PageFilters.AssetSearchFilter.AssetTypes = unityTypes.Select(x => x.ConvertUnityAssetTypeToAssetType()).ToList();
         }
 
         protected override void ClearFilter()
         {
-            m_Page.PageFilters.AssetSearchFilter.UnityTypes = null;
+            m_Page.PageFilters.AssetSearchFilter.AssetTypes = null;
         }
 
         protected override Task<List<string>> GetSelectionsAsync()

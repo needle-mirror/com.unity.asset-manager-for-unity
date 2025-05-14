@@ -16,10 +16,15 @@ namespace Unity.AssetManager.UI.Editor
     {
         static readonly string k_UIResourcesLocation = $"Packages/{AssetManagerCoreConstants.PackageName}/Editor/UI/EditorResources/";
 
-        public static void SetSequenceNumberText(Label label, BaseAssetData assetData)
+        public static void SetSequenceNumberText(Label label, BaseAssetData assetData, string versionLabel = "")
         {
             string versionText;
-            if (assetData.SequenceNumber > 0)
+
+            if(!string.IsNullOrEmpty(versionLabel))
+            {
+                versionText = L10n.Tr(versionLabel);
+            }
+            else if (assetData.SequenceNumber > 0)
             {
                 versionText = L10n.Tr(Constants.VersionText) + assetData.SequenceNumber;
             }
@@ -37,8 +42,14 @@ namespace Unity.AssetManager.UI.Editor
         internal static Texture GetPackageIcon()
         {
             var filename = $"Package-Icon-{(EditorGUIUtility.isProSkin ? "Dark" : "Light")}.png";
+            var filepath = Path.Combine(k_UIResourcesLocation, "Images/PackageIcon/", filename);
+            return GetTexture(filepath);
+        }
+
+        internal static Texture GetTexture(string filepath)
+        {
             return ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().LoadAssetAtPath(
-                Path.Combine(k_UIResourcesLocation, "Images/Common/", filename),
+                Path.Combine(k_UIResourcesLocation, filepath),
                 typeof(Texture)) as Texture;
         }
 

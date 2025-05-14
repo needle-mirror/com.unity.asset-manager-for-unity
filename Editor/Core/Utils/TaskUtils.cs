@@ -33,6 +33,21 @@ namespace Unity.AssetManager.Core.Editor
             _ = task;
         }
 
+        public static async Task WaitForTaskWithHandleExceptions(Task task)
+        {
+            try
+            {
+                await task;
+            }
+            catch (Exception)
+            {
+                if (task.IsFaulted && task.Exception != null)
+                {
+                    Debug.LogException(task.Exception);
+                }
+            }
+        }
+
         public static async Task WaitForTasksWithHandleExceptions(IReadOnlyCollection<Task> tasks)
         {
             try

@@ -354,7 +354,8 @@ namespace Unity.AssetManager.Upload.Editor
         {
             if (uploadInfo.TargetAssetDataWasRecycled)
             {
-                // TODO: SDK should provide a way to delete an asset version soon
+                await m_AssetsProvider.RemoveUnfrozenAssetVersion(uploadInfo.TargetAssetData.Identifier,
+                    CancellationToken.None);
             }
             else
             {

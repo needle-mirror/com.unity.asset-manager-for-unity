@@ -165,6 +165,16 @@ namespace Unity.Cloud.AssetsEmbedded
         Task UnlinkAssetsAsync(IEnumerable<AssetId> assetIds, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
+        /// Deletes an asset version.
+        /// </summary>
+        /// <param name="assetId">The id of the asset. </param>
+        /// <param name="assetVersion">The version of the asset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task with no result. </returns>
+        /// <remarks>Can only be called on a version that is unfrozen. </remarks>
+        Task DeleteUnfrozenAssetVersionAsync(AssetId assetId, AssetVersion assetVersion, CancellationToken cancellationToken) => throw new NotImplementedException();
+        
+        /// <summary>
         /// Returns a builder to create a query to search a project's <see cref="IAssetCollection"/>.
         /// </summary>
         /// <returns>A <see cref="CollectionQueryBuilder"/>. </returns>

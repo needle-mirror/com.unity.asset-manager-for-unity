@@ -1,6 +1,7 @@
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
+using UnityEngine;
 using AssetImporter = Unity.AssetManager.Core.Editor.AssetImporter;
 
 namespace Unity.AssetManager.UI.Editor
@@ -64,7 +65,17 @@ namespace Unity.AssetManager.UI.Editor
                 new PopupManager(),
                 new PageManager(),
                 new ContextMenuBuilder(),
-                new DialogManager());
+                new DialogManager(),
+                new ProjectWindowProxy(),
+                new ProjectWindowIconOverlay());
+
+            // Post-initialization configurations
+            var settingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
+            var assetImportResolver = ServicesContainer.instance.Resolve<IAssetImportResolver>();
+            if (assetImportResolver != null && settingsManager != null)
+            {
+                assetImportResolver.SetConflictResolver(new AssetImportDecisionMaker(settingsManager));
+            }
         }
     }
 }

@@ -8,7 +8,7 @@ namespace Unity.AssetManager.UI.Editor
     class NumberRangeMetadataFilter : CustomMetadataFilter
     {
         [SerializeReference]
-        NumberMetadata m_NumberMetadata;
+        Core.Editor.NumberMetadata m_NumberMetadata;
 
         [SerializeField]
         double m_FromValue;
@@ -24,14 +24,14 @@ namespace Unity.AssetManager.UI.Editor
         public NumberRangeMetadataFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider, IMetadata metadata)
             : base(page, projectOrganizationProvider, assetsProvider, metadata)
         {
-            m_NumberMetadata = metadata as NumberMetadata;
+            m_NumberMetadata = metadata as Core.Editor.NumberMetadata;
         }
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
             assetSearchFilter.CustomMetadata ??= new List<IMetadata>();
-            assetSearchFilter.CustomMetadata.Add(new NumberMetadata(m_NumberMetadata.FieldKey, m_NumberMetadata.Name, m_FromValue));
-            assetSearchFilter.CustomMetadata.Add(new NumberMetadata(m_NumberMetadata.FieldKey, m_NumberMetadata.Name, m_ToValue));
+            assetSearchFilter.CustomMetadata.Add(new Core.Editor.NumberMetadata(m_NumberMetadata.FieldKey, m_NumberMetadata.Name, m_FromValue));
+            assetSearchFilter.CustomMetadata.Add(new Core.Editor.NumberMetadata(m_NumberMetadata.FieldKey, m_NumberMetadata.Name, m_ToValue));
         }
 
         protected override void IncludeFilter(List<string> selectedFilters)

@@ -16,6 +16,7 @@ namespace Unity.AssetManager.UI.Editor
         public AssetDetailsHeader(VisualElement visualElement)
         {
             m_AssetName = visualElement.Q<Label>("asset-name");
+            m_AssetName.selection.isSelectable = true;
             m_AssetVersion = visualElement.Q<Label>("asset-version");
             m_AssetDashboardLink = visualElement.Q<Image>("asset-dashboard-link");
             m_AssetDashboardLink.tooltip = L10n.Tr(Constants.DashboardLinkTooltip);

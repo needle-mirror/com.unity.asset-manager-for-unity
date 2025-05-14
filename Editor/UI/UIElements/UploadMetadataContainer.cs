@@ -270,14 +270,14 @@ namespace Unity.AssetManager.UI.Editor
         static IMetadata CreateMetadataFromFieldDefinition(IMetadataFieldDefinition def) =>
             def.Type switch
             {
-                MetadataFieldType.Text => new TextMetadata(def.Key, def.DisplayName, string.Empty),
-                MetadataFieldType.Number => new NumberMetadata(def.Key, def.DisplayName, 0),
-                MetadataFieldType.Boolean => new BooleanMetadata(def.Key, def.DisplayName, false),
-                MetadataFieldType.Url => new UrlMetadata(def.Key, def.DisplayName, new UriEntry(null, string.Empty)),
-                MetadataFieldType.Timestamp => new TimestampMetadata(def.Key, def.DisplayName, new DateTimeEntry(DateTime.Now)),
-                MetadataFieldType.User => new UserMetadata(def.Key, def.DisplayName, string.Empty),
-                MetadataFieldType.SingleSelection => new SingleSelectionMetadata(def.Key, def.DisplayName, string.Empty),
-                MetadataFieldType.MultiSelection => new MultiSelectionMetadata(def.Key, def.DisplayName, new List<string>()),
+                MetadataFieldType.Text => new Core.Editor.TextMetadata(def.Key, def.DisplayName, string.Empty),
+                MetadataFieldType.Number => new Core.Editor.NumberMetadata(def.Key, def.DisplayName, 0),
+                MetadataFieldType.Boolean => new Core.Editor.BooleanMetadata(def.Key, def.DisplayName, false),
+                MetadataFieldType.Url => new Core.Editor.UrlMetadata(def.Key, def.DisplayName, new UriEntry(null, string.Empty)),
+                MetadataFieldType.Timestamp => new Core.Editor.TimestampMetadata(def.Key, def.DisplayName, new DateTimeEntry(DateTime.Now)),
+                MetadataFieldType.User => new Core.Editor.UserMetadata(def.Key, def.DisplayName, string.Empty),
+                MetadataFieldType.SingleSelection => new Core.Editor.SingleSelectionMetadata(def.Key, def.DisplayName, string.Empty),
+                MetadataFieldType.MultiSelection => new Core.Editor.MultiSelectionMetadata(def.Key, def.DisplayName, new List<string>()),
                 _ => throw new InvalidOperationException(Constants.UnexpectedFieldDefinitionType)
             };
 
@@ -286,16 +286,16 @@ namespace Unity.AssetManager.UI.Editor
         {
             MetadataElement metadataField = fieldDefinition.Type switch
             {
-                MetadataFieldType.Text => new TextMetadataField(metadata.Cast<TextMetadata>().ToList()),
-                MetadataFieldType.Number => new NumberMetadataField(metadata.Cast<NumberMetadata>().ToList()),
-                MetadataFieldType.Boolean => new BooleanMetadataField(metadata.Cast<BooleanMetadata>().ToList()),
-                MetadataFieldType.Url => new UrlMetadataField(metadata.Cast<UrlMetadata>().ToList()),
-                MetadataFieldType.Timestamp => new TimestampMetadataField(metadata.Cast<TimestampMetadata>().ToList()),
-                MetadataFieldType.User => new UserMetadataField(metadata.Cast<UserMetadata>().ToList(), GetUserInfoList().ToList()),
-                MetadataFieldType.SingleSelection => new SingleSelectionMetadataField(metadata.Cast<SingleSelectionMetadata>().ToList(),
+                MetadataFieldType.Text => new TextMetadataField(metadata.Cast<Core.Editor.TextMetadata>().ToList()),
+                MetadataFieldType.Number => new NumberMetadataField(metadata.Cast<Core.Editor.NumberMetadata>().ToList()),
+                MetadataFieldType.Boolean => new BooleanMetadataField(metadata.Cast<Core.Editor.BooleanMetadata>().ToList()),
+                MetadataFieldType.Url => new UrlMetadataField(metadata.Cast<Core.Editor.UrlMetadata>().ToList()),
+                MetadataFieldType.Timestamp => new TimestampMetadataField(metadata.Cast<Core.Editor.TimestampMetadata>().ToList()),
+                MetadataFieldType.User => new UserMetadataField(metadata.Cast<Core.Editor.UserMetadata>().ToList(), GetUserInfoList().ToList()),
+                MetadataFieldType.SingleSelection => new SingleSelectionMetadataField(metadata.Cast<Core.Editor.SingleSelectionMetadata>().ToList(),
                     ((SelectionFieldDefinition)fieldDefinition).AcceptedValues.ToList()),
                 MetadataFieldType.MultiSelection => new MultiSelectionMetadataField(fieldDefinition.DisplayName,
-                    metadata.Cast<MultiSelectionMetadata>().ToList(),
+                    metadata.Cast<Core.Editor.MultiSelectionMetadata>().ToList(),
                     ((SelectionFieldDefinition)fieldDefinition).AcceptedValues.ToList()),
                 _ => throw new InvalidOperationException(Constants.UnexpectedFieldDefinitionType)
             };

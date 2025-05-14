@@ -25,6 +25,11 @@ namespace Unity.AssetManager.Core.Editor
 #endif
         {
             /// <summary>
+            /// The trigger that started the import operation
+            /// </summary>
+            public string Trigger;
+
+            /// <summary>
             /// The ID of the asset being imported
             /// </summary>
             public List<string> AssetIds;
@@ -58,11 +63,13 @@ namespace Unity.AssetManager.Core.Editor
 
         ImportEndEventData m_Data;
 
-        internal ImportEndEvent(ImportEndStatus status, List<string> assetIds, DateTime startTime, DateTime finishTime, string error = "")
+        internal ImportEndEvent(ImportTrigger trigger, ImportEndStatus status, List<string> assetIds, DateTime startTime, DateTime finishTime, string error = "")
         {
+            Utilities.DevAssert(trigger != null);
             var elapsedTime = finishTime - startTime;
             m_Data = new ImportEndEventData
             {
+                Trigger = trigger?.ToString(),
                 AssetIds = assetIds,
                 ElapsedTime = (long)elapsedTime.TotalMilliseconds, // we don't need fractional milliseconds... also, event is set to numerical, so it fails if we send fractional
                 ErrorMessage = error,

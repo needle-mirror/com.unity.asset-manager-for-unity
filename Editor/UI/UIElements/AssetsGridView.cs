@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEditor;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
+using ImportSettings = Unity.AssetManager.Editor.ImportSettings;
 
 namespace Unity.AssetManager.UI.Editor
 {
@@ -17,7 +18,12 @@ namespace Unity.AssetManager.UI.Editor
         void BindWithItem(BaseAssetData assetData);
     }
 
-    class AssetsGridView : VisualElement
+    interface IAssetsGridView
+    {
+        void Refresh();
+    }
+
+    class AssetsGridView : VisualElement, IAssetsGridView
     {
         readonly GridView m_Gridview;
         readonly GridMessageView m_GridMessageView;
@@ -73,6 +79,7 @@ namespace Unity.AssetManager.UI.Editor
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+            RegisterCallback<KeyDownEvent>(OnKeyDown);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
@@ -186,7 +193,12 @@ namespace Unity.AssetManager.UI.Editor
 
                 try
                 {
-                    m_AssetImporter.StartImportAsync(assetsData, ImportOperation.ImportType.UpdateToLatest, path);
+                    var settings = new ImportSettings
+                    {
+                        DestinationPathOverride = path,
+                        Type = ImportOperation.ImportType.UpdateToLatest,
+                    };
+                    m_AssetImporter.StartImportAsync(ImportTrigger.DragAndDrop, assetsData, settings);
                 }
                 catch (Exception e)
                 {
@@ -290,7 +302,7 @@ namespace Unity.AssetManager.UI.Editor
             item.BindWithItem(assetId);
         }
 
-        void Refresh()
+        public void Refresh()
         {
             UIElementsUtils.Hide(m_Gridview);
 
@@ -367,6 +379,37 @@ namespace Unity.AssetManager.UI.Editor
 #else
             return (eventModifiers & EventModifiers.Control) != 0 && (eventModifiers & EventModifiers.Shift) == 0;
 #endif
+        }
+
+        void OnKeyDown(KeyDownEvent evt)
+        {
+            switch (evt.keyCode)
+            {
+#if UNITY_EDITOR_OSX
+                case KeyCode.A when evt.commandKey:
+#else
+                case KeyCode.A when evt.ctrlKey:
+#endif
+                {
+                    evt.StopPropagation();
+                    var page = m_PageManager.ActivePage;
+                    if (page?.AssetList != null && page.AssetList.Any())
+                    {
+                        page.SelectAssets(page.AssetList.Select(x => x.Identifier).ToList());
+                    }
+                    break;
+                }
+                case KeyCode.Escape:
+                {
+                    var page = m_PageManager.ActivePage;
+                    if (page?.SelectedAssets.Any() ?? false)
+                    {
+                        evt.StopPropagation();
+                        page.ClearSelection();
+                    }
+                    break;
+                }
+            }
         }
     }
 }

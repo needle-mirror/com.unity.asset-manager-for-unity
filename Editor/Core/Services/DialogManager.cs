@@ -51,7 +51,7 @@ namespace Unity.AssetManager.Core.Editor
             {
                 importLocation = m_EditorUtility.OpenFolderPanel(title, folder, string.Empty);
 
-                isValidPath = string.IsNullOrEmpty(importLocation) || IsSubdirectory(importLocation, folder);
+                isValidPath = string.IsNullOrEmpty(importLocation) || Utilities.IsSubdirectoryOrSame(importLocation, folder);
 
                 if (!isValidPath)
                 {
@@ -61,17 +61,6 @@ namespace Unity.AssetManager.Core.Editor
             } while (!isValidPath);
 
             return importLocation;
-        }
-
-        static bool IsSubdirectory(string subdirectoryPath, string directoryPath)
-        {
-            if (string.IsNullOrEmpty(subdirectoryPath))
-                return false;
-
-            var directory = new DirectoryInfo(directoryPath);
-            var subdirectory = new DirectoryInfo(subdirectoryPath);
-
-            return subdirectory.FullName.StartsWith(directory.FullName);
         }
     }
 }

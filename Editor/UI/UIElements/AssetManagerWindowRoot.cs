@@ -316,7 +316,6 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged += OnLoadingStateChanged;
             m_UnityConnect.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
-            m_AssetImportResolver.SetConflictResolver(new AssetImportDecisionMaker(m_SettingsManager));
         }
 
         void UnregisterCallbacks()

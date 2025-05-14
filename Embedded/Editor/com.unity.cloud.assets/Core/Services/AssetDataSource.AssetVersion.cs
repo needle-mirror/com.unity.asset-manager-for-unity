@@ -41,6 +41,15 @@ namespace Unity.Cloud.AssetsEmbedded
             var dto = IsolatedSerialization.Deserialize<AssetVersionDto>(jsonContent, IsolatedSerialization.defaultSettings);
             return new AssetVersion(dto.Version);
         }
+        
+        /// <inheritdoc />
+        public Task DeleteUnfrozenAssetVersionAsync(AssetDescriptor assetDescriptor, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var request = new AssetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion);
+            return RateLimitedServiceClient(request, HttpMethod.Delete).DeleteAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
+        }
 
         /// <inheritdoc />
         public async Task<int?> FreezeAssetVersionAsync(AssetDescriptor assetDescriptor, string changeLog, bool? forceFreeze, CancellationToken cancellationToken)

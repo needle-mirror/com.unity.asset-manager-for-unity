@@ -93,6 +93,10 @@
     border-color: #7BAEFA;
 }
 
+.sidebar-text-field > TextInput > TextElement{
+    padding-left: 10px;
+}
+
 .sidebar-top-section {
     flex-direction: row;
     justify-content: space-between;
@@ -388,11 +392,21 @@ UpdateAllButton {
     align-self: flex-end;
 }
 
+UpdateAllButton > .unity-button {
+    padding: 1px;
+}
+
 .unity-update-all-button-icon {
-    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/AssetStatus/ArrowDown@2x.png');
     width: 16px;
     height: 16px;
-    margin-right: 4px;
+}
+
+.unity-update-all-button-icon.active {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/AssetStatus/ArrowDown@2x.png');
+}
+
+.unity-update-all-button-icon.inactive {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/AssetStatus/ArrowDownInactive@2x.png');
 }
 
 .unity-update-all-button-container {
@@ -882,10 +896,12 @@ TextField {
 ************************************************/
 
 Chip, TagChip {
-    padding: 5px 10px;
-    padding-right: 10px;
-    border-radius: 12px;
+    padding: 1px 10px;
+    border-radius: 8px;
+    height: 16px;
     margin: 2px;
+    margin-left: 0;
+    margin-right: 4px;
     flex-shrink: 0;
 }
 
@@ -894,9 +910,10 @@ TagChip {
 }
 
 ProjectChip, UserChip {
-    padding: 5px 5px;
-    padding-right: 10px;
-    border-radius: 12px;
+    height: 16px;
+    padding: 0;
+    padding-right: 8px;
+    border-radius: 8px;
     margin-right: 5px;
     flex-shrink: 1;
     flex-direction: row;
@@ -928,10 +945,10 @@ RoleChip > Label {
 ProjectChip > Image {
     width: 16px;
     height: 16px;
-    padding: 2px;
+    padding: 0;
     border-radius: 8px;
     background-color: blueviolet;
-    margin-right: 5px;
+    margin-right: 8px;
     flex-shrink: 0;
 }
 
@@ -939,8 +956,9 @@ UserChip #InitialsCircle {
     width: 16px;
     height: 16px;
     padding: 2px;
+    margin: 0;
+    margin-right: 8px;
     border-radius: 8px;
-    margin-right: 5px;
     flex-shrink: 0;
 }
 
@@ -1352,6 +1370,16 @@ HelpBox > Button {
     flex-shrink: 0;
 }
 
+.info-helpbox{
+    padding:2px;
+    min-height: 0px;
+    margin:0px 5px;
+}
+
+.info-helpbox > Label{
+    font-size:10px;
+}
+
 /************************************************
 * Inspector Page Container
 ************************************************/
@@ -1466,7 +1494,7 @@ MultiAssetDetailsPage {
     left: 5px;
 }
 
-.multi-selection-foldout > . * > .unity-foldout__content {
+.multi-selection-foldout > * > .unity-foldout__content {
     margin-left: 0;
 }
 
@@ -1693,8 +1721,10 @@ AssetDetailsPage {
 
 .details-files-foldout {
     -unity-font-style: bold;
-    margin-top: 20px;
     flex-grow: 1;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    margin-left: 0;
 }
 
 .details-files-foldout > Toggle {
@@ -1726,6 +1756,10 @@ AssetDetailsPage {
     width: 16px;
     height: 16px;
     margin-right: 4px;
+}
+
+#files-foldout-optimize-and-convert {
+    margin-top: 0;
 }
 
 .no-files-warning-box {
@@ -1767,7 +1801,7 @@ AssetDetailsPage {
 .no-dependencies-label {
     align-self: center;
     -unity-font-style: bold;
-    margin-top: 12px;
+    margin: 10px 0;
     flex-wrap: wrap;
     white-space: normal;
     -unity-text-align: middle-center;
@@ -2081,14 +2115,6 @@ AssetDetailsPage {
     margin-left: 0;
 }
 
-.details-page-in-project-item {
-    background-size: 16px 16px;
-    width: 20px;
-    flex-shrink: 0;
-    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Folder-Close.png');
-    -unity-background-image-tint-color: var(--icon-tint-color);
-}
-
 .details-page-three-dots-item {
     background-size: 16px 16px;
     width: 25px;
@@ -2121,7 +2147,7 @@ AssetDetailsPage {
 
 .details-page-entry-label {
     width: 90px;
-    height: 20px;
+    height: 16px;
     text-overflow: ellipsis;
     overflow: hidden;
     -unity-text-align: middle-left;
@@ -2131,8 +2157,8 @@ AssetDetailsPage {
 .details-page-entry {
     flex-shrink: 1;
     flex-direction: row;
-    margin-top: 4px;
-    margin-bottom: 4px;
+    margin-top: 2px;
+    margin-bottom: 2px;
     align-items: center;
 }
 
@@ -2164,6 +2190,7 @@ AssetDetailsPage {
 .timestamp-picker-field {
     width: 55px;
     height: 18px;
+    flex-shrink: 1;
 }
 
 .timestamp-picker-field .unity-base-popup-field__arrow {
@@ -2189,9 +2216,11 @@ AssetDetailsPage {
 ************************************************/
 
 .multi-selection-picker-entry {
+    display: flex;
     flex-direction: row;
     justify-content: space-between;
 }
+
 
 .multi-selection-picker-text {
     -unity-font-style: bold;
@@ -2199,6 +2228,12 @@ AssetDetailsPage {
 
 .multi-selection-picker-label {
     -unity-font-style: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right:5px;
+    min-width: 20px;
+    flex-shrink: 1;
+    max-width: 150px;
 }
 
 /************************************************
@@ -2271,6 +2306,7 @@ AssetDetailsPage {
     flex-direction: row;
     display: flex;
     justify-content: space-between;
+    margin-bottom:5px;
 }
 
 .metadata-page-entry-label {
@@ -2294,18 +2330,29 @@ AssetDetailsPage {
 
 .metadata-page-entry-metadata-field {
     flex-grow: 1;
-    flex-shrink: 0;
+    flex-shrink: 1;
     margin-right: 5px;
     align-self: center;
+    min-width: 0;
+    flex-basis: 0;
+}
+
+.metadata-page-entry-label{
+    min-width: 20px;
+    flex-shrink: 0;
+    width:90px;
+    align-self: flex-start;
 }
 
 .metadata-page-entry-kebab-button {
     background-size: 16px 16px;
     width: 20px;
+    min-width:20px;
     height: 20px;
     flex-shrink: 0;
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Settings.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
+    align-self: flex-start;
 }
 
 .invalid-field-label {
@@ -2319,27 +2366,19 @@ AssetDetailsPage {
 }
 
 .metadata-text-field-label {
-    margin-left: 7px;
+    margin-left: 5px;
     font-size: 11px;
+    overflow: hidden;
+}
+
+.metadata-timepicker-field-label {
+    overflow: hidden;
 }
 
 .no-metadata-field-label {
     white-space: normal;
     padding-left:5px;
     margin-bottom: 5px;
-}
-
-/************************************************
-* Timestamp picker
-************************************************/
-
-.timestamp-picker-field {
-    width: 49px;
-    height: 18px;
-}
-
-.timestamp-picker-field .unity-base-popup-field__arrow {
-    margin: 0 4px 0 0;
 }
 
 /************************************************
@@ -2467,7 +2506,7 @@ AssetDetailsPage {
 .asset-manager-dropdown {
     border-width: 0;
 }
- 
+
 .settings-button {
     width: 120px;
     height: 20px;

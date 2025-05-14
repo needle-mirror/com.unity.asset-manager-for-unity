@@ -13,6 +13,8 @@ using Unity.Cloud.CommonEmbedded;
 
 [assembly: InternalsVisibleTo("Unity.AssetManager.Core.Editor.Tests")]
 
+[assembly: InternalsVisibleTo("Unity.AssetManager.EndToEnd.Editor.Tests")]
+
 [assembly: InternalsVisibleTo("Unity.AssetManager.UI.Editor.Tests")]
 
 [assembly: InternalsVisibleTo("Unity.AssetManager.Upload.Editor.Tests")]

@@ -12,8 +12,8 @@ namespace Unity.AssetManager.Core.Editor
 {
     class AssetDataResolutionInfo
     {
-        static readonly List<string> k_IgnoreExtensions = new() { ".meta", ".am4u_dep", ".am4u_guid" };
-        
+        static readonly List<string> k_IgnoreExtensions = new() {".meta", ".am4u_dep", ".am4u_guid"};
+
         readonly List<BaseAssetDataFile> m_FileConflicts = new();
         readonly List<Object> m_DirtyObjects = new();
 
@@ -60,7 +60,7 @@ namespace Unity.AssetManager.Core.Editor
         public async Task GatherFileConflictsAsync(IAssetDataManager assetDataManager, CancellationToken token)
         {
             var importedAssetInfo = assetDataManager.GetImportedAssetInfo(AssetData.Identifier);
-            
+
             var modifiedFiles = await GetModifiedFilesAsync(importedAssetInfo, AssetData.GetFiles(), token);
 
             m_FileConflicts.AddRange(modifiedFiles);
@@ -105,7 +105,7 @@ namespace Unity.AssetManager.Core.Editor
             {
                 return modifiedFiles;
             }
-            
+
             var assetDatabase = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
             var fileUtility = ServicesContainer.instance.Resolve<IFileUtility>();
 
@@ -118,8 +118,16 @@ namespace Unity.AssetManager.Core.Editor
                     {
                         continue;
                     }
-                    
+
                     var filePath = assetDatabase.GuidToAssetPath(importedFileInfo.Guid);
+
+                    // Check if the file exists, the import info may be out of date.
+                    // If the file no longer exists, we don't need to check for modifications; treat it as if the file was never imported.
+                    if (string.IsNullOrEmpty(filePath))
+                    {
+                        continue;
+                    }
+
                     var result = await fileUtility.FileWasModified(filePath, importedFileInfo.Timestamp, importedFileInfo.Checksum, token);
                     if (result.Results != ComparisonResults.None)
                     {

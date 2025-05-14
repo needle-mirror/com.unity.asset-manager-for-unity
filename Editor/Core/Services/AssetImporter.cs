@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.AssetManager.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -16,9 +17,9 @@ namespace Unity.AssetManager.Core.Editor
     {
         ImportOperation GetImportOperation(AssetIdentifier identifier);
         bool IsImporting(AssetIdentifier identifier);
-        Task<IEnumerable<BaseAssetData>> StartImportAsync(List<BaseAssetData> assets, ImportOperation.ImportType importType, string importDestination = null);
-        Task UpdateAllToLatestAsync(ProjectInfo project, CollectionInfo collection,  CancellationToken token);
-        Task UpdateAllToLatestAsync(IEnumerable<BaseAssetData> assets, CancellationToken token);
+        Task<ImportResultInternal> StartImportAsync(ImportTrigger trigger, List<BaseAssetData> assets, ImportSettings importSettings, CancellationToken cancellationToken = default);
+        Task UpdateAllToLatestAsync(ImportTrigger trigger, ProjectInfo project, CollectionInfo collection,  CancellationToken token);
+        Task UpdateAllToLatestAsync(ImportTrigger trigger, IEnumerable<BaseAssetData> assets, CancellationToken token);
         void StopTrackingAssets(List<AssetIdentifier> identifiers);
         bool RemoveImport(AssetIdentifier identifier, bool showConfirmationDialog = false);
         bool RemoveImports(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false);
@@ -87,6 +88,13 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeReference]
         IAssetImportResolver m_Resolver;
 
+        [SerializeReference]
+        IApplicationProxy m_ApplicationProxy;
+
+        // Do not serialize as import operations are not domain reload safe and the flag should be reset.
+        [NonSerialized]
+        bool m_IsImporting;
+
         readonly Dictionary<string, ImportOperation> m_ImportOperations = new();
         readonly Dictionary<Uri, DownloadOperation> m_UriToDownloadOperationMap = new();
 
@@ -97,7 +105,8 @@ namespace Unity.AssetManager.Core.Editor
         public void Inject(IIOProxy ioProxy, IAssetDatabaseProxy assetDatabaseProxy,
             IEditorUtilityProxy editorUtilityProxy, IImportedAssetsTracker importedAssetsTracker,
             IAssetDataManager assetDataManager, IAssetOperationManager assetOperationManager,
-            ISettingsManager settingsManager, IAssetsProvider assetsProvider, IAssetImportResolver assetImportResolver)
+            ISettingsManager settingsManager, IAssetsProvider assetsProvider, IAssetImportResolver assetImportResolver,
+            IApplicationProxy applicationProxy)
         {
             m_IOProxy = ioProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
@@ -108,6 +117,7 @@ namespace Unity.AssetManager.Core.Editor
             m_SettingsManager = settingsManager;
             m_AssetsProvider = assetsProvider;
             m_Resolver = assetImportResolver;
+            m_ApplicationProxy = applicationProxy;
         }
 
         public override void OnEnable()
@@ -131,9 +141,58 @@ namespace Unity.AssetManager.Core.Editor
             return importOperation is { Status: OperationStatus.InProgress };
         }
 
-        public async Task<IEnumerable<BaseAssetData>> StartImportAsync(List<BaseAssetData> assets, ImportOperation.ImportType importType, string importDestination = null)
+        public async Task<ImportResultInternal> StartImportAsync(ImportTrigger trigger, List<BaseAssetData> assets, ImportSettings importSettings, CancellationToken cancellationToken = default)
         {
-            SendImportAnalytics(assets);
+            if (m_IsImporting)
+            {
+                return new ImportResultInternal
+                {
+                    OperationInProgress = true
+                };
+            }
+
+            if (!string.IsNullOrEmpty(importSettings.DestinationPathOverride))
+            {
+                if (!Utilities.IsSubdirectoryOrSame(importSettings.DestinationPathOverride, m_ApplicationProxy.DataPath))
+                    throw new ArgumentException("Import destination is outside of the Assets folder.");
+            }
+
+            m_IsImporting = true;
+
+            SendImportAnalytics(trigger, assets);
+
+            var avoidRollingBackAssetVersion = false;
+            var disableReimportModal = false;
+
+            switch (importSettings.ConflictResolutionOverride)
+            {
+                case ConflictResolutionOverride.None:
+                    disableReimportModal = m_SettingsManager.IsReimportModalDisabled;
+                    avoidRollingBackAssetVersion = m_SettingsManager.IsKeepHigherVersionEnabled;
+                    break;
+
+                case ConflictResolutionOverride.AllowAssetVersionRollbackAndShowConflictResolver:
+                    disableReimportModal = false;
+                    avoidRollingBackAssetVersion = false;
+                    break;
+
+                case ConflictResolutionOverride.PreventAssetVersionRollbackAndShowConflictResolver:
+                    disableReimportModal = false;
+                    avoidRollingBackAssetVersion = true;
+                    break;
+
+                case ConflictResolutionOverride.PreventAssetVersionRollbackAndReplaceAll:
+                    disableReimportModal = true;
+                    avoidRollingBackAssetVersion = true;
+                    break;
+            }
+
+            var mappedImportSettings = new ImportSettingsInternal(
+                importSettings.Type,
+                disableReimportModal,
+                avoidRollingBackAssetVersion,
+                m_SettingsManager.DefaultImportLocation,
+                importSettings.DestinationPathOverride);
 
             m_AssetOperationManager.ClearFinishedOperations();
 
@@ -151,19 +210,14 @@ namespace Unity.AssetManager.Core.Editor
                     syncWithCloudOperations.Add(operation);
                 }
 
-                m_TokenSource = new CancellationTokenSource();
+                m_TokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 var token = m_TokenSource.Token;
 
                 BaseAssetData[] resolutions;
                 try
                 {
-                    var result = await m_Resolver.Resolve(assets,
-                        importType,
-                        importDestination ?? m_SettingsManager.DefaultImportLocation,
-                        token);
+                    var result = await m_Resolver.Resolve(assets, mappedImportSettings, token);
                     resolutions = result?.ToArray() ?? Array.Empty<BaseAssetData>();
-
-                    token.ThrowIfCancellationRequested();
                 }
                 finally
                 {
@@ -174,30 +228,51 @@ namespace Unity.AssetManager.Core.Editor
                     }
                 }
 
+                var importResult = new ImportResultInternal
+                {
+                    AssetsAndDependencies = Array.Empty<BaseAssetData>(),
+                    Assets = Array.Empty<BaseAssetData>()
+                };
+
                 if (resolutions.Length > 0)
                 {
-                    if (await Import(resolutions, importDestination, token))
+                    if (await Import(trigger, resolutions, mappedImportSettings, token))
                     {
+                        importResult.AssetsAndDependencies = resolutions;
+
                         // Isolate the assets to those from the original list;
                         // the versions may have changed so only compare part of the AssetIdentifier
-                        return resolutions.Where(x => assets.Any(y =>
+                        importResult.Assets = resolutions.Where(x => assets.Any(y =>
                             y.Identifier.OrganizationId == x.Identifier.OrganizationId &&
                             y.Identifier.ProjectId == x.Identifier.ProjectId &&
                             y.Identifier.AssetId == x.Identifier.AssetId));
                     }
-
-                    return null;
                 }
 
-                return null;
+                // Because the Import call above will not throw on cancel, we need to check the token here
+                token.ThrowIfCancellationRequested();
+
+                return importResult;
             }
-            catch
+            catch (OperationCanceledException)
             {
-                return null;
+                Debug.Log("Import operation cancelled.");
+                return new ImportResultInternal
+                {
+                    Cancelled = true
+                };
+            }
+            catch (Exception)
+            {
+                return default;
+            }
+            finally
+            {
+                m_IsImporting = false;
             }
         }
 
-        public async Task UpdateAllToLatestAsync(ProjectInfo project, CollectionInfo collection, CancellationToken token)
+        public async Task UpdateAllToLatestAsync(ImportTrigger trigger, ProjectInfo project, CollectionInfo collection, CancellationToken token)
         {
             var insideCollection = collection != null && !string.IsNullOrEmpty(collection.Name);
 
@@ -212,8 +287,8 @@ namespace Unity.AssetManager.Core.Editor
 
                 // Get assets from the collection
                 await foreach (var assetIdentifier in m_AssetsProvider.SearchLiteAsync(collection.OrganizationId,
-                                   new List<string> { collectionProjectId },
-                                   new AssetSearchFilter { Collection = collection.GetFullPath() },
+                                   new List<string> {collectionProjectId},
+                                   new AssetSearchFilter {Collection = new List<string> {collection.GetFullPath()}},
                                    SortField.Name, SortingOrder.Ascending, 0, 0, token))
                 {
                     collectionAssetIds.Add(assetIdentifier.AssetId);
@@ -231,16 +306,16 @@ namespace Unity.AssetManager.Core.Editor
                 assets = assets.Where(info => info.Identifier.ProjectId == project.Id);
             }
 
-            await UpdateAllToLatestAsync_Internal(assets, token);
+            await UpdateAllToLatestAsync_Internal(trigger, assets, token);
         }
 
-        public Task UpdateAllToLatestAsync(IEnumerable<BaseAssetData> assets, CancellationToken token)
+        public Task UpdateAllToLatestAsync(ImportTrigger trigger, IEnumerable<BaseAssetData> assets, CancellationToken token)
         {
             assets = assets?.Where(a => m_AssetDataManager.ImportedAssetInfos.Any(i => i.Identifier == a.Identifier));
-            return UpdateAllToLatestAsync_Internal(assets, token);
+            return UpdateAllToLatestAsync_Internal(trigger, assets, token);
         }
 
-        async Task UpdateAllToLatestAsync_Internal(IEnumerable<BaseAssetData> assetDatas, CancellationToken token)
+        async Task UpdateAllToLatestAsync_Internal(ImportTrigger trigger, IEnumerable<BaseAssetData> assetDatas, CancellationToken token)
         {
             if (assetDatas == null || !assetDatas.Any())
                 return;
@@ -254,7 +329,7 @@ namespace Unity.AssetManager.Core.Editor
 
             if (outdatedAssets.Count > 0)
             {
-                await StartImportAsync(outdatedAssets, ImportOperation.ImportType.UpdateToLatest);
+                await StartImportAsync(trigger, outdatedAssets, new ImportSettings {Type = ImportOperation.ImportType.UpdateToLatest}, token);
             }
         }
 
@@ -457,7 +532,7 @@ namespace Unity.AssetManager.Core.Editor
             m_ImportOperations.Remove(importOperation.Identifier.AssetId);
         }
 
-        void ProcessImports(IList<ImportOperation> imports)
+        async Task ProcessImports(IList<ImportOperation> imports)
         {
             bool hasErrors = false;
             foreach (var import in imports)
@@ -493,7 +568,9 @@ namespace Unity.AssetManager.Core.Editor
             {
                 tasks.Add(m_ImportedAssetsTracker.TrackAssets(kvp.Value, kvp.Key.AssetData));
             }
-            TaskUtils.TrackException(Task.WhenAll(tasks));
+
+            // Will report for errors but won't throw. To be redone better
+            await TaskUtils.WaitForTasksWithHandleExceptions(tasks);
 
             // If there weren't any error, we can clear the import operations
             if (!hasErrors)
@@ -562,7 +639,7 @@ namespace Unity.AssetManager.Core.Editor
             return filesToTrack;
         }
 
-        void SendImportAnalytics(IEnumerable<BaseAssetData> allAssetData)
+        static void SendImportAnalytics(ImportTrigger trigger, IEnumerable<BaseAssetData> allAssetData)
         {
             foreach (var assetData in allAssetData)
             {
@@ -586,7 +663,7 @@ namespace Unity.AssetManager.Core.Editor
                         .SelectMany(d => d.SystemTags)
                         .Where(t => !string.IsNullOrEmpty(t));
 
-                    AnalyticsSender.SendEvent(new ImportEvent(assetData.Identifier.AssetId, fileCount, fileExtension, systemTags));
+                    AnalyticsSender.SendEvent(new ImportEvent(trigger, assetData.Identifier.AssetId, fileCount, fileExtension, systemTags));
                 }
             }
         }
@@ -676,7 +753,7 @@ namespace Unity.AssetManager.Core.Editor
 
             var filePaths = new Dictionary<string, string>();
 
-            // If the user haven't forced the destination using "Import To", we try to find the imported paths
+            // If the user hasn't forced the destination using "Import To", we try to find the imported paths
             if (!forceDestination)
             {
                 var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(assetData.Identifier);
@@ -711,7 +788,7 @@ namespace Unity.AssetManager.Core.Editor
                 m_IOProxy.CreateDirectory(importOperation.TempDownloadPath);
                 await importOperation.ImportAsync(token);
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException)
             {
                 importOperation.Finish(OperationStatus.Cancelled);
                 throw;
@@ -730,7 +807,7 @@ namespace Unity.AssetManager.Core.Editor
             {
                 await importOperation.StartDownloadRequests();
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException)
             {
                 importOperation.Finish(OperationStatus.Cancelled);
                 throw;
@@ -760,21 +837,11 @@ namespace Unity.AssetManager.Core.Editor
             return request.SendWebRequest();
         }
 
-        async Task<bool> Import(IEnumerable<BaseAssetData> assetDataList, string importDestination, CancellationToken token)
+        async Task<bool> Import(ImportTrigger importTrigger, IEnumerable<BaseAssetData> assetDataList, ImportSettingsInternal importSettings, CancellationToken token)
         {
             if (!assetDataList.Any())
             {
                 return false;
-            }
-
-            var forceDestination = false;
-            if (importDestination == null)
-            {
-                importDestination = m_SettingsManager.DefaultImportLocation;
-            }
-            else
-            {
-                forceDestination = true;
             }
 
             var importOperations = new List<ImportOperation>();
@@ -787,22 +854,26 @@ namespace Unity.AssetManager.Core.Editor
                     continue; // Dupes, I'm not sure why distinct is not working properly
                 }
 
-                var path = GetDefaultDestinationPath(assetData, importDestination, out var cancelImport);
+                var path = GetDefaultDestinationPath(assetData, importSettings.ImportPath, out var cancelImport);
 
                 if (cancelImport)
                 {
                     return false;
                 }
 
-                var importOperation = CreateImportOperation(assetData, path, forceDestination);
+                var importOperation = CreateImportOperation(assetData, path, !importSettings.IsUsingDefaultImportPath);
                 importOperations.Add(importOperation);
             }
 
+            var processImportTask = new TaskCompletionSource<bool>();
+
             m_BulkImportOperation?.Remove();
-            m_BulkImportOperation = new BulkImportOperation(importOperations);
-            m_BulkImportOperation.Finished += _ =>
+            m_BulkImportOperation = new BulkImportOperation(importOperations, importTrigger);
+            m_BulkImportOperation.Finished += async status =>
             {
-                ProcessImports(importOperations);
+                Utilities.DevLog($"Bulk import finished with status: {status}");
+                await TaskUtils.WaitForTaskWithHandleExceptions(ProcessImports(importOperations));
+                processImportTask.TrySetResult(status != OperationStatus.Success);
             };
 
             m_BulkImportOperation.Start();
@@ -810,6 +881,7 @@ namespace Unity.AssetManager.Core.Editor
             await TaskUtils.RunAllTasksBatched(importOperations, importOperation => StartImport(importOperation, token));
             await TaskUtils.RunAllTasksBatched(importOperations, importOperation => StartDownloads(importOperation));
 
+            await processImportTask.Task; // Wait for the imports to be processed before returning
             return true;
         }
 

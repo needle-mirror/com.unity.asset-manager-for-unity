@@ -26,12 +26,14 @@ namespace Unity.AssetManager.UI.Editor
         public VisualElement ButtonsContainer { get; }
 
         public event Action CancelOperation;
-        public event Action<string, IEnumerable<BaseAssetData>> ImportAsset;
+        public event Action<ImportTrigger, string, IEnumerable<BaseAssetData>> ImportAsset;
         public event Action HighlightAsset;
         public event Func<bool> RemoveAsset;
         public event Func<bool> RemoveOnlySelectedAsset;
         public event Func<bool> StopTracking;
         public event Func<bool> StopTrackingOnlySelected;
+        
+        AssetPreview.IStatus m_ImportStatus;
 
         public AssetDetailsFooter(VisualElement visualElement, IDialogManager dialogManager)
         {
@@ -74,12 +76,11 @@ namespace Unity.AssetManager.UI.Editor
             m_RemoveButton.StopTrackingOnlySelected += OnStopTrackingOnlySelected;
         }
 
-        public void OnSelection(BaseAssetData assetData)
-        {
-        }
+        public void OnSelection(BaseAssetData assetData) { }
 
         public void RefreshUI(BaseAssetData assetData, bool isLoading = false)
         {
+            m_ImportStatus = null;
             UIElementsUtils.SetDisplay(m_FooterVisualElement, ((BasePage)m_PageManager.ActivePage).DisplayFooter);
         }
 
@@ -87,7 +88,9 @@ namespace Unity.AssetManager.UI.Editor
         {
             var isEnabled = enabled.IsImportAvailable();
 
-            m_ImportButton.text = AssetDetailsPageExtensions.GetImportButtonLabel(operationInProgress, AssetDataStatus.GetIStatusFromImportAttributes(assetData?.AssetDataAttributeCollection));
+            m_ImportStatus = assetData?.AssetDataAttributeCollection.GetStatusOfImport();
+            
+            m_ImportButton.text = AssetDetailsPageExtensions.GetImportButtonLabel(operationInProgress, m_ImportStatus);
             m_ImportButton.tooltip = AssetDetailsPageExtensions.GetImportButtonTooltip(operationInProgress, enabled);
             m_ImportButton.SetEnabled(isEnabled);
 
@@ -138,11 +141,23 @@ namespace Unity.AssetManager.UI.Editor
         void BeginImport(string importLocation)
         {
             m_ImportButton.SetEnabled(false);
+            
+            ImportTrigger trigger;
+            DetailsButtonClickedEvent.ButtonType buttonType;
+            if (m_ImportStatus == null || string.IsNullOrEmpty(m_ImportStatus.ActionText) || m_ImportStatus.ActionText == Constants.ImportActionText)
+            {
+                trigger = ImportTrigger.Import;
+                buttonType = DetailsButtonClickedEvent.ButtonType.Import;
+            }
+            else
+            {
+                trigger = m_ImportStatus.ActionText == Constants.ReimportActionText ? ImportTrigger.Reimport : ImportTrigger.UpdateToLatest;
+                buttonType = DetailsButtonClickedEvent.ButtonType.Reimport;
+            }
 
-            var buttonType = m_ImportButton.text == Constants.ImportActionText ? DetailsButtonClickedEvent.ButtonType.Import : DetailsButtonClickedEvent.ButtonType.Reimport;
             AnalyticsSender.SendEvent(new DetailsButtonClickedEvent(buttonType));
 
-            ImportAsset?.Invoke(importLocation, null);
+            ImportAsset?.Invoke(trigger, importLocation, null);
         }
 
         void ShowInProjectBrowser()

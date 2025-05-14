@@ -4,4 +4,5 @@
   * [Upload assets to Asset Manager](upload-assets.md)
   * [Import assets from Asset Manager](import-assets.md)
   * [User Preferences](preferences.md)
+  * [Public API](public-api.md)
 * [More Help](more-help.md)

@@ -15,8 +15,17 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeField]
         string m_Version = string.Empty;
 
+        [SerializeField]
+        string m_VersionLabel = string.Empty;
+
         public string AssetId => m_AssetId;
         public string Version => m_Version;
+        public string VersionLabel
+        {
+            get => m_VersionLabel;
+            internal set => m_VersionLabel = value;
+        }
+
         public string OrganizationId => m_ProjectIdentifier.OrganizationId;
         public string ProjectId => m_ProjectIdentifier.ProjectId;
         public ProjectIdentifier ProjectIdentifier => m_ProjectIdentifier;
@@ -37,6 +46,12 @@ namespace Unity.AssetManager.Core.Editor
             m_ProjectIdentifier = new ProjectIdentifier(organizationId, projectId);
             m_AssetId = assetId ?? string.Empty;
             m_Version = version ?? string.Empty;
+        }
+
+        public AssetIdentifier(string organizationId, string projectId, string assetId, string version, string versionLabel)
+            : this(organizationId, projectId, assetId, version)
+        {
+            m_VersionLabel = versionLabel ?? string.Empty;
         }
 
         public override string ToString()

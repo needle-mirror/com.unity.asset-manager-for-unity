@@ -234,6 +234,13 @@ namespace Unity.AssetManager.UI.Editor
         {
             if (!HasValidDataAndBindings())
                 return;
+            var rowCountForSource = Mathf.CeilToInt(ItemsSource.Count / (float)ColumnCount);
+            var maxOffset = rowCountForSource * ResolvedItemHeight + k_FooterHeight - m_ScrollView.contentViewport.resolvedStyle.height;
+            if (offset >= maxOffset )
+            {
+                GridViewLastItemVisible?.Invoke();
+                return;
+            }
             var pixelAlignedItemHeight = ResolvedItemHeight;
             var firstVisibleIndex = Mathf.FloorToInt(offset / pixelAlignedItemHeight) * ColumnCount;
 

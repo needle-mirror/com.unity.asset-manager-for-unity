@@ -32,8 +32,7 @@ namespace Unity.AssetManager.UI.Editor
             public static readonly string StatusError = k_Status + "-error";
         }
 
-        internal static IEnumerable<AssetPreview.IStatus> GetIStatusFromAssetDataAttributes(
-            AssetDataAttributeCollection assetDataAttributeCollection)
+        internal static IEnumerable<AssetPreview.IStatus> GetOverallStatus(this AssetDataAttributeCollection assetDataAttributeCollection)
         {
             var assetPreviewStatusList = new List<AssetPreview.IStatus>();
 
@@ -42,8 +41,8 @@ namespace Unity.AssetManager.UI.Editor
                 return assetPreviewStatusList;
             }
 
-            assetPreviewStatusList.Add(GetIStatusFromImportAttributes(assetDataAttributeCollection));
-            assetPreviewStatusList.Add(GetIStatusFromUploadAttributes(assetDataAttributeCollection));
+            assetPreviewStatusList.Add(assetDataAttributeCollection.GetStatusOfImport());
+            assetPreviewStatusList.Add(assetDataAttributeCollection.GetStatusOfUpload());
             if (assetDataAttributeCollection.GetAttribute<LinkedDependencyAttribute>()?.IsLinked == true)
             {
                 assetPreviewStatusList.Add(Linked);
@@ -52,7 +51,7 @@ namespace Unity.AssetManager.UI.Editor
             return assetPreviewStatusList;
         }
 
-        internal static AssetPreview.IStatus GetIStatusFromImportAttributes(AssetDataAttributeCollection attributeCollection)
+        internal static AssetPreview.IStatus GetStatusOfImport(this AssetDataAttributeCollection attributeCollection)
         {
             if (attributeCollection == null || !attributeCollection.HasAttribute<ImportAttribute>())
                 return null;
@@ -67,7 +66,7 @@ namespace Unity.AssetManager.UI.Editor
             };
         }
 
-        static AssetPreview.IStatus GetIStatusFromUploadAttributes(AssetDataAttributeCollection attributeCollection)
+        static AssetPreview.IStatus GetStatusOfUpload(this AssetDataAttributeCollection attributeCollection)
         {
             if (attributeCollection == null || !attributeCollection.HasAttribute<UploadAttribute>())
                 return null;
@@ -79,12 +78,12 @@ namespace Unity.AssetManager.UI.Editor
                 return null;
             }
 
-            var templateStatus = GetIStatusTemplateFromUploadAttributes(attribute.Status);
+            var templateStatus = attribute.Status.GetStatusOfUpload();
 
             return templateStatus == null ? null : new PreviewStatus(templateStatus, attribute.Details);
         }
 
-        static AssetPreview.IStatus GetIStatusTemplateFromUploadAttributes(UploadAttribute.UploadStatus status)
+        static AssetPreview.IStatus GetStatusOfUpload(this UploadAttribute.UploadStatus status)
         {
             return status switch
             {

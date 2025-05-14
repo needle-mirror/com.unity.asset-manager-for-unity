@@ -3,27 +3,58 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
+using UnityEngine;
 #if UNITY_STANDALONE_OSX
 using UnityEditor;
 #endif
 
 namespace Unity.AssetManager.UI.Editor
 {
+    [Serializable]
     class AssetImportDecisionMaker : IAssetImportDecisionMaker
     {
-        readonly ISettingsManager m_SettingsManager;
+        [SerializeReference]
+        ISettingsManager m_SettingsManager;
 
         public AssetImportDecisionMaker(ISettingsManager settingsManager)
         {
             m_SettingsManager = settingsManager;
         }
 
-        public Task<IEnumerable<ResolutionData>> ResolveConflicts(UpdatedAssetData data)
+        public Task<IEnumerable<ResolutionData>> ResolveConflicts(UpdatedAssetData data, ImportSettingsInternal importSettings)
         {
-            if (m_SettingsManager.IsReimportModalDisabled)
+            if (importSettings.SkipImportModal)
             {
-                var allAssets = data.Assets.Union(data.Dependants);
-                var resolutions = allAssets.Select(asset => new ResolutionData() { AssetData = asset.AssetData, ResolutionSelection = ResolutionSelection.Replace }).ToList();
+                List<ResolutionData> resolutions = new List<ResolutionData>();
+
+                foreach (var assetDataResolutionInfo in data.Assets)
+                {
+                     resolutions.Add(new ResolutionData()
+                    {
+                        AssetData = assetDataResolutionInfo.AssetData,
+                        ResolutionSelection = ResolutionSelection.Replace
+                    });
+                }
+
+                foreach (var assetDataResolutionInfo in data.Dependants)
+                {
+                    var resolutionSelection = ResolutionSelection.Replace;
+                    if (m_SettingsManager.IsKeepHigherVersionEnabled)
+                    {
+                        // If the user has the setting to avoid rolling back version of dependencies
+                        // to a lower version and we would be rolling back, skip
+                        if (assetDataResolutionInfo.CurrentVersion > assetDataResolutionInfo.AssetData.SequenceNumber)
+                        {
+                            resolutionSelection = ResolutionSelection.Ignore;
+                        }
+                    }
+
+                    resolutions.Add(new ResolutionData()
+                    {
+                        AssetData = assetDataResolutionInfo.AssetData,
+                        ResolutionSelection = resolutionSelection
+                    });
+                }
                 return Task.FromResult<IEnumerable<ResolutionData>>(resolutions);
             }
 
@@ -37,7 +68,7 @@ namespace Unity.AssetManager.UI.Editor
             application.DelayCall += () =>
             {
 #endif
-            ReimportWindow.CreateModalWindow(data, resolutions =>
+            ReimportWindow.CreateModalWindow(data, importSettings, resolutions =>
                 {
                     assetOperationManager.ResumeAllOperations();
                     tcs.SetResult(resolutions);

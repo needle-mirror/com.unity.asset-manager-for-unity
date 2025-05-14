@@ -1,6 +1,6 @@
 {
   "name": "com.unity.cloud.assets",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "displayName": "Unity Cloud Assets",
   "description": "Unity Cloud Assets makes it easy to discover, create, update, delete, and manage Unity assets through the Assets service interface.",
   "unity": "2022.3",
@@ -8,19 +8,19 @@
     "com.unity.cloud.common": "1.1.0"
   },
   "relatedPackages": {
-    "com.unity.cloud.assets.tests": "1.7.0"
+    "com.unity.cloud.assets.tests": "1.8.0"
   },
   "_upm": {
-    "changelog": "### Added\n- Added `TransformationStatus.Queued`.\n- Added `DatasetProperties.Type` and `DatasetProperties.WorkflowName`.\n- Added `DatasetSearchCriteria.Type` and `DatasetSearchCriteria.WorkflowName`.\n\n### Changed\n- Exposed new values for `AssetType`.\n\n### Fixed\n- Fixed file caching when configuring the dataset to `CacheFileList`."
+    "changelog": "### Added\n- Added `IAssetProject.DeleteUnfrozenAssetVersionAsync`.\n\n### Fixed\n- Improved WebGL support."
   },
   "upmCi": {
-    "footprint": "7a543da06c7722a2e9544391cae04609b8093791"
+    "footprint": "99a8a67c8ae39c775e4df2c58b38aee257c8f101"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.cloud.assets@1.7/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.cloud.assets@1.8/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/digital-twins-sdk.git",
     "type": "git",
-    "revision": "b394296c8a4a2db2f1229036576fcf76684a0c3d"
+    "revision": "7b5392cf30282bc6daa0146519971dabeaabb00e"
   },
   "samples": [
     {

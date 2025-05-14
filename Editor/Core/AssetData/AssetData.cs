@@ -499,6 +499,10 @@ namespace Unity.AssetManager.Core.Editor
                 // Ignore unreachable host
                 Utilities.DevLogError("Failed to refresh dependencies");
             }
+            catch (TaskCanceledException)
+            {
+                Utilities.DevLog("Refresh dependencies cancelled");
+            }
             catch (Exception e)
             {
                 Debug.LogException(e);

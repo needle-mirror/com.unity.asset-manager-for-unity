@@ -194,8 +194,8 @@ namespace Unity.AssetManager.Core.Editor
 
             var results = new List<ComparisonDetails>();
 
-            var localFiles = GetFiles(datasetsToComparePredicate).Select(f => f.Path).ToHashSet();
-            var otherFiles = other.GetFiles(datasetsToComparePredicate).Select(f => f.Path).ToHashSet();
+            var localFiles = GetFiles(datasetsToComparePredicate).Select(f => f.Path).Select(Utilities.NormalizePathSeparators).ToHashSet();
+            var otherFiles = other.GetFiles(datasetsToComparePredicate).Select(f => f.Path).Select(Utilities.NormalizePathSeparators).ToHashSet();
 
             // Check for added files
             var filesAdded = localFiles.Except(otherFiles);

@@ -43,14 +43,21 @@ namespace Unity.AssetManager.UI.Editor
             container.Add(entry);
         }
 
-        protected static void AddText(VisualElement container, string title, string details, string name = null)
+        protected static void AddSpace(VisualElement container, int height = 10)
+        {
+            var space = new VisualElement();
+            space.style.height = height;
+            container.Add(space);
+        }
+
+        protected static void AddText(VisualElement container, string title, string details, bool isSelectable = false, string name = null)
         {
             if (string.IsNullOrEmpty(details))
             {
                 return;
             }
 
-            var entry = new DetailsPageEntry(title, details)
+            var entry = new DetailsPageEntry(title, details, isSelectable)
             {
                 name = name
             };
@@ -83,7 +90,7 @@ namespace Unity.AssetManager.UI.Editor
             if (identifier.IsLocal())
                 return;
 
-            AddText(entriesContainer, title, identifier.AssetId);
+            AddText(entriesContainer, title, identifier.AssetId, isSelectable:true);
         }
 
         protected void AddUser(VisualElement container, string title, string details, Type searchFilterType, string name = null)
@@ -154,10 +161,10 @@ namespace Unity.AssetManager.UI.Editor
             }, name);
         }
 
-        protected void AddSelectionChips(VisualElement container, string title, IEnumerable<string> chips,
+        protected void AddSelectionChips(VisualElement container, string title, IEnumerable<string> chips, bool isSelectable = false,
             string name = null)
         {
-            AddChips(container, title,chips, chipText => new Chip(chipText), name);
+            AddChips(container, title,chips, chipText => new Chip(chipText, isSelectable),  name);
         }
 
         protected void AddToggle(VisualElement container, string title, bool toggleValue, string name = null)

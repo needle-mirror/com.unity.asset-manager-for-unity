@@ -33,6 +33,9 @@ namespace Unity.AssetManager.UI.Editor
             m_Icon = iconParent.Q<Image>();
             m_Label = m_Toggle.Q<Label>();
             m_TextField = new TextField();
+            m_TextField.selectAllOnFocus = false;
+            m_TextField.selectAllOnMouseUp = false;
+            m_TextField.AddToClassList("sidebar-text-field");
             m_Label.parent.Add(m_TextField);
             UIElementsUtils.Hide(m_TextField);
 
@@ -51,6 +54,7 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.Show(m_TextField);
             m_TextField.value = m_Label.text;
             m_TextField.Focus();
+            m_TextField.SelectAll();
 
             m_TextField.RegisterCallback<FocusOutEvent>(Rename);
         }
@@ -61,6 +65,7 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.Show(m_TextField);
             m_TextField.value = m_Label.text;
             m_TextField.Focus();
+            m_TextField.SelectAll();
 
             m_TextField.RegisterCallback<FocusOutEvent>(OnNameSet);
         }
@@ -223,20 +228,22 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.Show(m_Label);
             m_TextField.UnregisterCallback<FocusOutEvent>(OnNameSet);
 
-            if(string.IsNullOrEmpty(m_TextField.value))
+            if (string.IsNullOrWhiteSpace(m_TextField.value))
                 return;
 
-            m_Label.text = m_TextField.value;
+            var collectionName = m_TextField.value.Trim();
+
+            m_Label.text = collectionName;
 
             var collectionInfo = new CollectionInfo
             {
                 OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id,
-                ProjectId =  m_ProjectId,
+                ProjectId = m_ProjectId,
                 ParentPath = m_CollectionPath,
-                Name = m_TextField.value
+                Name = collectionName
             };
 
-            m_CollectionPath += $"/{m_TextField.value}";
+            m_CollectionPath += $"/{collectionName}";
             name = GetCollectionId(m_ProjectId, m_CollectionPath);
 
             try
@@ -268,17 +275,22 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.Show(m_Label);
             m_TextField.UnregisterCallback<FocusOutEvent>(Rename);
 
-            if(m_Label.text == m_TextField.value)
+            var collectionName = m_TextField.value.Trim();
+
+            if (m_Label.text == collectionName)
                 return;
 
-            m_Label.text = m_TextField.value;
+            if (string.IsNullOrWhiteSpace(m_TextField.value))
+                return;
+
+            m_Label.text = collectionName;
             var collectionInfo = CollectionInfo.CreateFromFullPath(m_CollectionPath);
             collectionInfo.ProjectId = m_ProjectId;
             collectionInfo.OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id;
 
             try
             {
-                await m_ProjectOrganizationProvider.RenameCollection(collectionInfo, m_TextField.value);
+                await m_ProjectOrganizationProvider.RenameCollection(collectionInfo, collectionName);
 
                 AnalyticsSender.SendEvent(new ManageCollectionEvent(ManageCollectionEvent.CollectionOperationType.Rename));
             }

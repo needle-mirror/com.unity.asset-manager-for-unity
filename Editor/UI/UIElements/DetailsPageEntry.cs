@@ -34,12 +34,13 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        public DetailsPageEntry(string title, string details)
+        public DetailsPageEntry(string title, string details, bool allowSelection = false)
             : this(title)
         {
             m_Text = new Label(L10n.Tr(details))
             {
-                name = "entry-value"
+                name = "entry-value",
+                selection = { isSelectable = allowSelection }
             };
             m_Text.AddToClassList(UssStyle.DetailsPageEntryValue);
             if (string.IsNullOrEmpty(title))

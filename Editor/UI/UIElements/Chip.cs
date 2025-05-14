@@ -6,13 +6,18 @@ namespace Unity.AssetManager.UI.Editor
     {
         protected Label m_Label;
 
-        public Chip(string text)
+        public Chip(string text, bool isSelectable = false)
         {
 
             m_Label = new Label(text)
             {
-                pickingMode = PickingMode.Ignore
+                pickingMode = !isSelectable ? PickingMode.Ignore : PickingMode.Position,
+                selection =
+                {
+                    isSelectable = isSelectable
+                }
             };
+
 
             Add(m_Label);
         }

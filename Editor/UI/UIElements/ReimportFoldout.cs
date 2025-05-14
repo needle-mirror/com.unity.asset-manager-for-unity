@@ -34,7 +34,7 @@ namespace Unity.AssetManager.UI.Editor
         internal BaseAssetData AssetData => m_AssetData;
         internal AssetDataResolutionInfo AssetDataResolutionInfo => m_AssetDataResolutionInfo;
 
-        internal ReimportFoldout(AssetDataResolutionInfo assetDataResolutionInfo)
+        internal ReimportFoldout(AssetDataResolutionInfo assetDataResolutionInfo, bool avoidRollingBackAssetVersion)
         {
             m_AssetDataResolutionInfo = assetDataResolutionInfo;
             m_AssetData = assetDataResolutionInfo.AssetData;
@@ -75,10 +75,8 @@ namespace Unity.AssetManager.UI.Editor
                 headerTextContainer.Add(conflictCount);
             }
 
-            var settingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
-
             var isSkippedByDefault = selections == k_ReImportAssetSelections ||
-                (settingsManager.IsKeepHigherVersionEnabled && selections == k_UpdatedAssetSelections && assetDataResolutionInfo.CurrentVersion > assetDataResolutionInfo.AssetData.SequenceNumber);
+                (avoidRollingBackAssetVersion && assetDataResolutionInfo.CurrentVersion > assetDataResolutionInfo.AssetData.SequenceNumber);
             var resolveDropDown = new DropdownField()
             {
                 choices = selections,

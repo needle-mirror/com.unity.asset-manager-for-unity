@@ -74,6 +74,9 @@ namespace Unity.AssetManager.Core.Editor
 
             [SerializeField]
             public string versionId;
+
+            [SerializeField]
+            public string versionLabel;
         }
 
         [Serializable]
@@ -109,7 +112,7 @@ namespace Unity.AssetManager.Core.Editor
         {
             [SerializeField]
             public string datasetId;
-            
+
             [SerializeField]
             public string path; // key
 
@@ -149,7 +152,7 @@ namespace Unity.AssetManager.Core.Editor
         {
             [SerializeField]
             public string id;
-            
+
             [SerializeField]
             public string name;
 
@@ -272,7 +275,7 @@ namespace Unity.AssetManager.Core.Editor
                 trackedAsset.tags,
                 datasets,
                 trackedAsset.dependencyAssets
-                    .Select(x => new AssetIdentifier(x.organizationId, x.projectId, x.assetId, x.versionId)),
+                    .Select(x => new AssetIdentifier(x.organizationId, x.projectId, x.assetId, x.versionId, x.versionLabel)),
                 trackedAsset.metadata);
 
             return new ImportedAssetInfo(
@@ -289,7 +292,8 @@ namespace Unity.AssetManager.Core.Editor
                 organizationId = identifier.OrganizationId,
                 projectId = identifier.ProjectId,
                 assetId = identifier.AssetId,
-                versionId = identifier.Version
+                versionId = identifier.Version,
+                versionLabel = identifier.VersionLabel
             };
         }
 

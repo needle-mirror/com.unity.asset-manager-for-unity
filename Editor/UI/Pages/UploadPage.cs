@@ -442,7 +442,7 @@ namespace Unity.AssetManager.UI.Editor
                 mode =>
                 {
                     m_UploadStaging.UploadMode = mode;
-                    RefreshStagingStatus();
+                    Reload();
                 }, UploadSettings.GetUploadModeTooltip);
 
             foldout.Add(uploadModeDropdown);

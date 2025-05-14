@@ -127,7 +127,7 @@ namespace Unity.AssetManager.UI.Editor
                     m_AssetPreview.SetThumbnail(obj.Thumbnail);
                     break;
                 case AssetDataEventType.AssetDataAttributesChanged:
-                    m_AssetPreview.SetStatuses(AssetDataStatus.GetIStatusFromAssetDataAttributes(obj.AssetDataAttributeCollection));
+                    m_AssetPreview.SetStatuses(AssetDataStatus.GetOverallStatus(obj.AssetDataAttributeCollection));
                     break;
                 case AssetDataEventType.PrimaryFileChanged:
                     m_AssetPreview.SetAssetType(obj.PrimaryExtension);
@@ -163,7 +163,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_OperationProgressBar.Refresh(m_OperationManager.GetAssetOperation(m_AssetData.Identifier));
 
-            m_AssetPreview.SetStatuses(AssetDataStatus.GetIStatusFromAssetDataAttributes(m_AssetData.AssetDataAttributeCollection));
+            m_AssetPreview.SetStatuses(AssetDataStatus.GetOverallStatus(m_AssetData.AssetDataAttributeCollection));
             m_AssetPreview.SetThumbnail(m_AssetData.Thumbnail);
             m_AssetPreview.SetAssetType(m_AssetData.PrimaryExtension);
 

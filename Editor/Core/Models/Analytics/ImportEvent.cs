@@ -16,6 +16,11 @@ namespace Unity.AssetManager.Core.Editor
 #endif
         {
             /// <summary>
+            /// The location from which the event was triggered.
+            /// </summary>
+            public string Trigger;
+
+            /// <summary>
             /// The ID of the asset being imported
             /// </summary>
             public string AssetId;
@@ -31,6 +36,13 @@ namespace Unity.AssetManager.Core.Editor
             public string FileExtension;
 
             public string[] DatasetSystemTags;
+
+            public ImportEventData(ImportTrigger trigger)
+            {
+                Utilities.DevAssert(trigger != null);
+
+                Trigger = trigger?.ToString();
+            }
         }
 
         internal const string k_EventName = AnalyticsSender.EventPrefix + "Import";
@@ -41,9 +53,9 @@ namespace Unity.AssetManager.Core.Editor
 
         ImportEventData m_Data;
 
-        internal ImportEvent(string assetId, int fileCount = 0, string fileExtension = "", IEnumerable<string> datasetSystemTags = null)
+        internal ImportEvent(ImportTrigger trigger, string assetId, int fileCount = 0, string fileExtension = "", IEnumerable<string> datasetSystemTags = null)
         {
-            m_Data = new ImportEventData
+            m_Data = new ImportEventData(trigger)
             {
                 AssetId = assetId,
                 FileCount = fileCount,

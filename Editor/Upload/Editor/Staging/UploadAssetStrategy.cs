@@ -123,8 +123,10 @@ namespace Unity.AssetManager.Upload.Editor
                 }
             }
 
-            var projectIdentifier = new ProjectIdentifier(settings.OrganizationId, settings.ProjectId);
-            var existingAssetData = AssetDataDependencyHelper.GetAssetAssociatedWithGuid(guid, projectIdentifier.OrganizationId, projectIdentifier.ProjectId);
+            var projectId = settings.UploadMode == UploadAssetMode.ForceNewAsset ? settings.ProjectId : null;
+            var existingAssetData = AssetDataDependencyHelper.GetAssetAssociatedWithGuid(guid, settings.OrganizationId, projectId);
+            var projectIdentifier = existingAssetData?.Identifier.ProjectIdentifier ??
+                                    new ProjectIdentifier(settings.OrganizationId, settings.ProjectId);
 
             var assetUploadEntry = new UploadAssetData(new AssetIdentifier(guid), guid, mainFileGuids, additionalFileGuids, deps, existingAssetData, projectIdentifier, settings.FilePathMode);
 

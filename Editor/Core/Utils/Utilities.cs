@@ -192,6 +192,16 @@ namespace Unity.AssetManager.Core.Editor
                 StringComparison.OrdinalIgnoreCase);
         }
 
+        public static bool IsSubdirectoryOrSame(string subdirectoryPath, string directoryPath)
+        {
+            if (string.IsNullOrEmpty(subdirectoryPath))
+                return false;
+
+            var directory = new DirectoryInfo(directoryPath);
+            var subdirectory = new DirectoryInfo(subdirectoryPath);
+
+            return subdirectory.FullName.StartsWith(directory.FullName);
+        }
         public static string NormalizePathSeparators(string path)
         {
             if (string.IsNullOrEmpty(path))

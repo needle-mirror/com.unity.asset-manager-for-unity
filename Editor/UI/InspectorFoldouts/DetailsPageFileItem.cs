@@ -15,7 +15,6 @@ namespace Unity.AssetManager.UI.Editor
         const string k_DetailsPageFileIconItemUssStyle = "details-page-file-item-icon";
         const string k_DetailsPageFileLabelItemUssStyle = "details-page-file-item-label";
         const string k_DetailsPageThreeDotsItemUssStyle = "details-page-three-dots-item";
-        const string k_DetailsPageInProjectItemUssStyle = "details-page-in-project-item";
         const string k_IncompleteFileIcon = "incomplete-file-icon";
 
         readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
@@ -24,7 +23,6 @@ namespace Unity.AssetManager.UI.Editor
         readonly VisualElement m_Icon;
         readonly VisualElement m_ErrorIcon;
         readonly Button m_ThreeDots;
-        readonly VisualElement m_InProjectIcon;
 
         string m_Guid;
         GenericMenu m_ThreeDotsMenu;
@@ -40,7 +38,6 @@ namespace Unity.AssetManager.UI.Editor
             m_Icon = new VisualElement();
             m_ErrorIcon = new VisualElement();
             m_ThreeDots = new Button();
-            m_InProjectIcon = new VisualElement();
             m_ThreeDots.ClearClassList();
             m_ThreeDots.focusable = false;
 
@@ -53,8 +50,6 @@ namespace Unity.AssetManager.UI.Editor
 
             m_FileName.AddToClassList(k_DetailsPageFileLabelItemUssStyle);
             m_ThreeDots.AddToClassList(k_DetailsPageThreeDotsItemUssStyle);
-            m_InProjectIcon.AddToClassList(k_DetailsPageInProjectItemUssStyle);
-            m_InProjectIcon.tooltip = L10n.Tr("Imported");
 
             InitializeThreeDotsMenu(false);
             m_ThreeDots.clicked += () => m_ThreeDotsMenu.ShowAsContext();
@@ -62,7 +57,6 @@ namespace Unity.AssetManager.UI.Editor
             Add(m_Icon);
             Add(m_ErrorIcon);
             Add(m_FileName);
-            Add(m_InProjectIcon);
             Add(m_ThreeDots);
         }
 
@@ -89,7 +83,6 @@ namespace Unity.AssetManager.UI.Editor
 
             InitializeThreeDotsMenu(removable);
 
-            m_InProjectIcon.visible = IsShowInProjectEnabled();
             m_ThreeDots.visible = !MetafilesHelper.IsMetafile(fileName) && IsAnyMenuItemEnabled();
 
             SetEnabled(enabled);

@@ -23,11 +23,13 @@ namespace Unity.AssetManager.Core.Editor
         public List<string> CreatedBy;
         public List<string> UpdatedBy;
         public List<string> Status;
-        public string Collection;
+        public List<string> Collection;
 
-        [SerializeReference]
-        public List<UnityAssetType> UnityTypes;
+        public List<AssetType> AssetTypes;
+        public List<string> Tags;
+        public List<string> Labels;
 
+        public bool IsExactMatchSearch;
         [SerializeReference]
         public List<IMetadata> CustomMetadata;
     }
@@ -81,6 +83,7 @@ namespace Unity.AssetManager.Core.Editor
 
         Task<AssetData> CreateAssetAsync(ProjectIdentifier projectIdentifier, AssetCreation assetCreation, CancellationToken token);
         Task<AssetData> CreateUnfrozenVersionAsync(AssetData assetData, CancellationToken token);
+        Task RemoveUnfrozenAssetVersion(AssetIdentifier assetIdentifier, CancellationToken token);
         Task RemoveAsset(AssetIdentifier assetIdentifier, CancellationToken token);
         Task UpdateAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token);
         Task UpdateStatusAsync(AssetData assetData, string statusName, CancellationToken token);
@@ -267,6 +270,16 @@ namespace Unity.AssetManager.Core.Editor
             return await AssetRepository.GetAssetAsync(Map(assetIdentifier), token);
         }
 
+        public async Task RemoveUnfrozenAssetVersion(AssetIdentifier assetIdentifier, CancellationToken token)
+        {
+            if (assetIdentifier == null)
+            {
+                return;
+            }
+
+            var project = await AssetRepository.GetAssetProjectAsync(Map(assetIdentifier.ProjectIdentifier), token);
+            await project.DeleteUnfrozenAssetVersionAsync(new AssetId(assetIdentifier.AssetId), new AssetVersion(assetIdentifier.Version), token);
+        }
         public async Task RemoveAsset(AssetIdentifier assetIdentifier, CancellationToken token)
         {
             if (assetIdentifier == null)
@@ -305,7 +318,14 @@ namespace Unity.AssetManager.Core.Editor
 
             if (metadataToAddOrUpdate.Count > 0)
             {
-                await asset.Metadata.AddOrUpdateAsync(metadataToAddOrUpdate, token);
+                try
+                {
+                    await asset.Metadata.AddOrUpdateAsync(metadataToAddOrUpdate, token);
+                }
+                catch (InvalidArgumentException ex)
+                {
+                    Utilities.DevLogError("Metadata update failed. Please make sure every metadata value is valid. Error: " + ex.Message);
+                }
             }
         }
 
@@ -567,7 +587,9 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     // Try to fetch the asset from the current project
                     var asset = await project.GetAssetAsync(reference.TargetAssetId, reference.TargetLabel, token);
-                    return Map(asset.Descriptor);
+                    var identifier = Map(asset.Descriptor);
+                    identifier.VersionLabel = reference.TargetLabel;
+                    return identifier;
                 }
                 catch (NotFoundException)
                 {
@@ -579,7 +601,11 @@ namespace Unity.AssetManager.Core.Editor
                 filter.Include().Labels.WithValue(reference.TargetLabel);
 
                 var result = await FindAssetAsync(project.Descriptor.OrganizationId, filter, AssetCacheConfiguration.NoCaching, token);
-                return result != null ? Map(result.Descriptor) : null;
+                if (result == null) return null;
+
+                var resultIdentifier = Map(result.Descriptor);
+                resultIdentifier.VersionLabel = reference.TargetLabel;
+                return resultIdentifier;
             }
 
             return null;
@@ -796,6 +822,10 @@ namespace Unity.AssetManager.Core.Editor
             {
                 // Ignore if the preview is not found
             }
+            catch (InvalidArgumentException)
+            {
+                // Ignore if the preview doesn't support resizing
+            }
 
             return null;
         }
@@ -840,7 +870,7 @@ namespace Unity.AssetManager.Core.Editor
                     {
                         await GenerateAndAssignTags(file, token);
                     }
-                    
+
                     await LinkToPreviewAsync(assetData, file.Descriptor, token);
 
                     return await DataMapper.From(file, token);
@@ -858,7 +888,7 @@ namespace Unity.AssetManager.Core.Editor
                 // Datasets must be in a 'commit' status before referencing files from them.
                 var sourceDataset = await AssetRepository.GetDatasetAsync(fileDescriptor.DatasetDescriptor, token);
                 await DataMapper.WaitForDatasetCommitAsync(sourceDataset, token);
-                
+
                 var dataset = await GetDatasetAsync(assetData, k_PreviewDatasetTag, default, token);
                 if (dataset != null)
                 {
@@ -1295,7 +1325,6 @@ namespace Unity.AssetManager.Core.Editor
             {
                 throw new ArgumentNullException(nameof(assetIdentifier));
             }
-            
             return new AssetDescriptor(
                 new ProjectDescriptor(
                     new OrganizationId(assetIdentifier.OrganizationId),
@@ -1310,7 +1339,7 @@ namespace Unity.AssetManager.Core.Editor
             {
                 throw new ArgumentNullException(nameof(projectIdentifier));
             }
-            
+
             return new ProjectDescriptor(
                 new OrganizationId(projectIdentifier.OrganizationId),
                 new ProjectId(projectIdentifier.ProjectId));
@@ -1324,6 +1353,7 @@ namespace Unity.AssetManager.Core.Editor
         static IAssetSearchFilter Map(AssetSearchFilter assetSearchFilter)
         {
             var cloudAssetSearchFilter = new Cloud.AssetsEmbedded.AssetSearchFilter();
+            var minimumAnyRequirement = 0;
 
             if (assetSearchFilter.CreatedBy != null && assetSearchFilter.CreatedBy.Any())
             {
@@ -1340,14 +1370,41 @@ namespace Unity.AssetManager.Core.Editor
                 cloudAssetSearchFilter.Include().AuthoringInfo.UpdatedBy.WithValue(string.Join(" ", assetSearchFilter.UpdatedBy));
             }
 
-            if (assetSearchFilter.UnityTypes != null && assetSearchFilter.UnityTypes.Any())
+            // Search both AssetType and by file extension
+            if (assetSearchFilter.AssetTypes != null && assetSearchFilter.AssetTypes.Any())
             {
-                var regex = AssetDataTypeHelper.GetRegexForExtensions(assetSearchFilter.UnityTypes);
-                cloudAssetSearchFilter.Include().Files.Path.WithValue(regex);
+                var assetTypes = assetSearchFilter.AssetTypes
+                    .Select(Map)
+                    .ToArray();
+
+                if (assetTypes.Length > 0)
+                {
+                    cloudAssetSearchFilter.Any().Type.WithValue(assetTypes);
+                }
+                
+                var regex = AssetDataTypeHelper.GetRegexForExtensions(assetSearchFilter.AssetTypes);
+                if (regex != null)
+                {
+                    cloudAssetSearchFilter.Any().Files.Path.WithValue(regex);
+                }
+
+                ++minimumAnyRequirement;
+            }
+            
+            if (assetSearchFilter.Tags != null && assetSearchFilter.Tags.Any())
+            {
+                cloudAssetSearchFilter.Include().Tags.WithValue(string.Join(" ", assetSearchFilter.Tags));
+            }
+            
+            if (assetSearchFilter.Labels != null && assetSearchFilter.Labels.Any())
+            {
+                cloudAssetSearchFilter.Include().Labels.WithValue(assetSearchFilter.Labels);
             }
 
             if (assetSearchFilter.CustomMetadata != null)
             {
+                var stringSearchOption = assetSearchFilter.IsExactMatchSearch ? StringSearchOption.ExactMatch : StringSearchOption.Prefix;
+                
                 foreach (var metadataGroup in assetSearchFilter.CustomMetadata.GroupBy(m => m.FieldKey))
                 {
                     var metadataList = metadataGroup.ToList();
@@ -1366,12 +1423,12 @@ namespace Unity.AssetManager.Core.Editor
                         }
                         else if (metadata.Type == MetadataFieldType.Text)
                         {
-                            var stringOp = new StringPredicate( ((TextMetadata)metadata).Value, StringSearchOption.Prefix);
+                            var stringOp = new StringPredicate( ((TextMetadata)metadata).Value, stringSearchOption);
                             cloudAssetSearchFilter.Include().Metadata.WithTextValue(metadataGroup.Key, stringOp);
                         }
                         else if (metadata.Type == MetadataFieldType.Url)
                         {
-                            var stringOp = new StringPredicate( $"[{((UrlMetadata)metadata).Value.Label}]", StringSearchOption.Prefix);
+                            var stringOp = new StringPredicate( $"[{((UrlMetadata)metadata).Value.Label}]", stringSearchOption);
                             cloudAssetSearchFilter.Include().Metadata.WithTextValue(metadataGroup.Key, stringOp);
                         }
                         else
@@ -1383,9 +1440,12 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
 
-            if (!string.IsNullOrEmpty(assetSearchFilter.Collection))
+            if (assetSearchFilter.Collection != null)
             {
-                cloudAssetSearchFilter.Collections.WhereContains(new CollectionPath(assetSearchFilter.Collection));
+                var collectionPaths = assetSearchFilter.Collection
+                    .Where(x => !string.IsNullOrEmpty(x))
+                    .Select(x => new CollectionPath(x));
+                cloudAssetSearchFilter.Collections.WhereContains(collectionPaths);
             }
 
             if (assetSearchFilter.Searches is {Count: > 0})
@@ -1394,12 +1454,13 @@ namespace Unity.AssetManager.Core.Editor
                 cloudAssetSearchFilter.Any().Name.WithValue(searchString);
                 cloudAssetSearchFilter.Any().Description.WithValue(searchString);
                 cloudAssetSearchFilter.Any().Tags.WithValue(searchString);
+                ++minimumAnyRequirement; // We need to search to match in at least one field
             }
 
             if (assetSearchFilter.AssetIds is {Count: > 0})
             {
                 var searchString = string.Join(' ', assetSearchFilter.AssetIds);
-                cloudAssetSearchFilter.Any().Id.WithValue(searchString);
+                cloudAssetSearchFilter.Include().Id.WithValue(searchString);
             }
 
             if (assetSearchFilter.AssetVersions is {Count: > 0})
@@ -1407,7 +1468,10 @@ namespace Unity.AssetManager.Core.Editor
                 var searchString = string.Join(' ', assetSearchFilter.AssetVersions.Select(OptimizeVersionForSearch));
                 cloudAssetSearchFilter.Any().Version.WithValue(searchString);
                 cloudAssetSearchFilter.Any().Labels.WithValue("*");
+                ++minimumAnyRequirement;
             }
+
+            cloudAssetSearchFilter.Any().WhereMinimumMatchEquals(minimumAnyRequirement);
 
             return cloudAssetSearchFilter;
         }
@@ -1454,10 +1518,10 @@ namespace Unity.AssetManager.Core.Editor
         static MetadataValue Map(IMetadata metadata) => metadata.Type switch
         {
             MetadataFieldType.Boolean => new Cloud.AssetsEmbedded.BooleanMetadata(((BooleanMetadata)metadata).Value),
-            MetadataFieldType.Text => new StringMetadata(((TextMetadata)metadata).Value),
+            MetadataFieldType.Text => new Cloud.AssetsEmbedded.StringMetadata(((TextMetadata)metadata).Value),
             MetadataFieldType.Number => new Cloud.AssetsEmbedded.NumberMetadata(((NumberMetadata)metadata).Value),
             MetadataFieldType.Url => new Cloud.AssetsEmbedded.UrlMetadata(((UrlMetadata)metadata).Value.Uri, ((UrlMetadata)metadata).Value.Label),
-            MetadataFieldType.Timestamp => new DateTimeMetadata(((TimestampMetadata)metadata).Value.DateTime),
+            MetadataFieldType.Timestamp => new Cloud.AssetsEmbedded.DateTimeMetadata(((TimestampMetadata)metadata).Value.DateTime),
             MetadataFieldType.User => new Cloud.AssetsEmbedded.UserMetadata(new UserId(((UserMetadata)metadata).Value)),
             MetadataFieldType.SingleSelection => new Cloud.AssetsEmbedded.SingleSelectionMetadata(((SingleSelectionMetadata)metadata).Value),
             MetadataFieldType.MultiSelection => new Cloud.AssetsEmbedded.MultiSelectionMetadata(((MultiSelectionMetadata)metadata).Value.ToArray()),
@@ -1533,23 +1597,23 @@ namespace Unity.AssetManager.Core.Editor
             {
                 const int waitTime = 100;
                 var timeout = 10000;
-                
+
                 var properties = await dataset.GetPropertiesAsync(token);
                 while (timeout > 0 && properties.StatusName != "Committed")
                 {
                     await Task.Delay(waitTime, token);
-                    
+
                     timeout -= waitTime;
-                    
+
                     properties = await dataset.GetPropertiesAsync(token);
                 }
-                
+
                 if (properties.StatusName != "Committed")
                 {
                     Utilities.DevLogError($"Dataset {dataset.Descriptor.DatasetId} did not commit within the timeout period.");
                 }
             }
-            
+
             [ExcludeFromCoverage]
             async Task<string> GetPreviewFilePath(IAsset asset, CancellationToken token)
             {
@@ -1716,7 +1780,7 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     systemTags.Add(properties.WorkflowName);
                 }
-                
+
                 return new AssetDataset(
                     dataset.Descriptor.DatasetId.ToString(),
                     properties.Name,

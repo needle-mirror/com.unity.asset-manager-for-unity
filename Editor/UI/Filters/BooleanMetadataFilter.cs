@@ -8,14 +8,14 @@ namespace Unity.AssetManager.UI.Editor
     class BooleanMetadataFilter : CustomMetadataFilter
     {
         [SerializeReference]
-        BooleanMetadata m_BooleanMetadata;
+        Core.Editor.BooleanMetadata m_BooleanMetadata;
 
         public override FilterSelectionType SelectionType => FilterSelectionType.SingleSelection;
 
         public BooleanMetadataFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider, IMetadata metadata)
             : base(page, projectOrganizationProvider, assetsProvider, metadata)
         {
-            m_BooleanMetadata = metadata as BooleanMetadata;
+            m_BooleanMetadata = metadata as Core.Editor.BooleanMetadata;
         }
 
         protected override void IncludeFilter(List<string> selectedFilters)

@@ -26,10 +26,13 @@ namespace Unity.AssetManager.Core.Editor
         public override bool ShowInBackgroundTasks => true;
 
         List<ImportOperation> m_ImportOperations;
+        ImportTrigger m_ImportTrigger;
 
-        public BulkImportOperation(List<ImportOperation> importOperations)
+        public BulkImportOperation(List<ImportOperation> importOperations, ImportTrigger importTrigger)
         {
             m_ImportOperations = importOperations;
+            m_ImportTrigger = importTrigger;
+
             foreach (var importOperation in m_ImportOperations)
             {
                 importOperation.Finished += OnImportCompleted;
@@ -104,7 +107,8 @@ namespace Unity.AssetManager.Core.Editor
                     break;
             }
 
-            AnalyticsSender.SendEvent(new ImportEndEvent(status,
+            AnalyticsSender.SendEvent(new ImportEndEvent(m_ImportTrigger,
+                status,
                 m_ImportOperations.Select(io => io.Identifier.AssetId).ToList(),
                 m_ImportOperations.Min(io => io.StartTime),
                 DateTime.Now,
