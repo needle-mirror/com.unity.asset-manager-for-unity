@@ -20,7 +20,9 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
         const string k_TimeoutErrorMessage = "Request timeout";
 
         readonly IMainThreadIODispatcher m_Dispatcher;
-        readonly TaskScheduler m_Scheduler;
+
+        TaskScheduler m_Scheduler;
+        TaskScheduler Scheduler => m_Scheduler ??= UnitySynchronizationContextGrabber.s_UnityMainThreadScheduler;
 
         public TimeSpan Timeout { get; set; }
 
@@ -50,7 +52,7 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
                 async () => await RequestInternalAsync(httpRequestMessage, uploadHandler, completionOption, progress, cancellationToken),
                 cancellationToken,
                 TaskCreationOptions.DenyChildAttach,
-                m_Scheduler);
+                Scheduler);
 
             return await factoryTask;
         }

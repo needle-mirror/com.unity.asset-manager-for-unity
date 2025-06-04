@@ -30,11 +30,13 @@ namespace Unity.AssetManager.UI.Editor
             set => m_RemoveButton.text = value;
         }
 
+#pragma warning disable CS0108 // 'RemoveButton.tooltip' hides inherited member 'VisualElement.tooltip'
         public string tooltip
         {
             get => m_RemoveButton.tooltip;
             set => m_RemoveButton.tooltip = value;
         }
+#pragma warning restore CS0108 // 'RemoveButton.tooltip' hides inherited member 'VisualElement.tooltip'
 
         public RemoveButton(bool isPlural)
         {

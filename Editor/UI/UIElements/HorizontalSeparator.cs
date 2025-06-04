@@ -9,7 +9,9 @@ namespace Unity.AssetManager.UI.Editor
         {
             AddToClassList("horizontal-separator");
         }
-
+#pragma warning disable CS0618 // Type or member is obsolete
         public new class UxmlFactory : UxmlFactory<HorizontalSeparator> { }
+#pragma warning restore CS0618 // Type or member is obsolete
+
     }
 }

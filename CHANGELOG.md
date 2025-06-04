@@ -4,6 +4,10 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2025-06-04
+[Fixed]
+- Fix `ArgumentNullException` on Unity 2022 that prevents opening Asset Manager for Unity. 
+
 ## [1.5.0] - 2025-05-14
 [Added]
 - An overlay icon showing the Asset Manager import status can now be viewed on assets in the Project Window

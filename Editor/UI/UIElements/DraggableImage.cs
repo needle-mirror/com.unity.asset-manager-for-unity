@@ -11,9 +11,9 @@ namespace Unity.AssetManager.UI.Editor
     class DraggableImage : Image
     {
         readonly ClickOrDragStartManipulator m_DragManipulator;
-
+#pragma warning disable CS0618 // Type or member is obsolete
         public new class UxmlFactory : UxmlFactory<DraggableImage> { }
-
+#pragma warning restore CS0618 // Type or member is obsolete
         public DraggableImage()
         {
             m_DragManipulator = new ClickOrDragStartManipulator(this, null, null, null);

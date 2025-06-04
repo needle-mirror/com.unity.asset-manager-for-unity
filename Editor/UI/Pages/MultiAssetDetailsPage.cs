@@ -16,8 +16,6 @@ namespace Unity.AssetManager.UI.Editor
         static readonly string k_InspectorScrollviewContainerClassName = "inspector-page-content-container";
 
         static readonly string k_MultiSelectionFoldoutExpandedClassName = "multi-selection-foldout-expanded";
-
-        static readonly string k_BigButtonClassName = "big-button";
         static readonly string k_MultiSelectionRemoveName = "multi-selection-remove-button";
         static readonly string k_InspectorFooterContainerName = "footer-container";
 

@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "unity": "2022.3",
   "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.",
   "keywords": [
@@ -20,18 +20,18 @@
     "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.5.0"
+    "com.unity.asset-manager-for-unity.tests": "1.5.1"
   },
   "_upm": {
-    "changelog": "[Added]\n- An overlay icon showing the Asset Manager import status can now be viewed on assets in the Project Window\n- Public API for triggering import operations programmatically\n- Added capacity to select and copy important values in asset details page\n- Added support to erase unfrozen version when the user cancel an upload\n- Add validation to the import path location to prevent user from setting it outside the project\n\n[Changed]\n- Allow assets to have dependencies on assets from other projects when not using the upload mode `Force new asset`\n- User and URL metadata field now have a default value to prevent errors\n- Show version label for an asset dependencies\n\n[Fixed]\n- Fix an issue where deleting an asset in the cloud and re-uploading it would make \"Skip Identical\" never work thereafter\n- Fix to import dependencies at the specified version instead of always latest\n- Fix asset details page sometime not showing the dependencies correctly\n- Fix an issue where upload mode `Skip identical` would wrongly see dependencies as changed\n- Fix metadata fields shrinking inconsistently in upload tab when adjusting tab size\n- Metadata update that fails because of bad values have a clearer log\n- Fix dropdowns not showing mixed value dash when editing multiple assets with different metadata single-select values\n- Fix select all on rename field first click\n- Fix filter display for selected filters count"
+    "changelog": "[Fixed]\n- Fix `ArgumentNullException` on Unity 2022 that prevents opening Asset Manager for Unity."
   },
   "upmCi": {
-    "footprint": "126711d86ce72f6a2f85dad6fc96d979e37ae65e"
+    "footprint": "bd6e51b03cda5d522b0f89e82316dfde3cede7cb"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.5/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "01a3bacc4d9477bbd3410c61d529c236609adddf"
+    "revision": "244e6545f54d2d8291746b4d7f2ea128f8514d00"
   }
 }

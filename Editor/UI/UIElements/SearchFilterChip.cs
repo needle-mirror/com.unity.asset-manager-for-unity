@@ -18,7 +18,9 @@ namespace Unity.AssetManager.UI.Editor
 
         internal string SearchFilter { get; private set; }
 
+#pragma warning disable CS0618 // Type or member is obsolete
         public new class UxmlFactory : UxmlFactory<SearchFilterChip> { }
+#pragma warning restore CS0618 // Type or member is obsolete
 
         public SearchFilterChip() { }
 
