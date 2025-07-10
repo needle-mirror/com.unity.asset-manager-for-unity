@@ -52,6 +52,8 @@ namespace Unity.AssetManager.Core.Editor
         Task<bool> CheckPermissionAsync(string organizationId, string projectId, string permission);
 
         void Reset();
+
+        Task AuthenticationStateMoveNextAsync();
     }
 
     [Serializable]
@@ -142,10 +144,12 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeField]
         int[] m_SerializableRoles;
 
+        readonly Dictionary<string, IOrganization> m_Organizations = new();
         readonly Dictionary<string, Permission[]> m_OrganizationPermissions = new();
+        readonly Dictionary<OrganizationProjectPair, (Task, CancellationTokenSource)> m_PopulateRolesTasks = new();
+        readonly Dictionary<OrganizationProjectPair, (Task, CancellationTokenSource)> m_PopulatePermissionsTasks = new();
         readonly Dictionary<OrganizationProjectPair, Role> m_CachedRoles = new();
         readonly Dictionary<OrganizationProjectPair, Permission[]> m_CachedPermissions = new();
-        readonly Dictionary<string, IOrganization> m_Organizations = new();
 
         static readonly string k_AssetManagerAdmin = "asset manager admin";
         static readonly string k_Manager = Unity.Cloud.CommonEmbedded.Role.Manager.ToString();
@@ -201,7 +205,24 @@ namespace Unity.AssetManager.Core.Editor
                 return role;
             }
 
-            return await FetchRoleAsync(key);
+            if (!m_PopulateRolesTasks.TryGetValue(key, out (Task task, CancellationTokenSource _) pair))
+            {
+                var cancellationSrc = new CancellationTokenSource();
+                pair.task = FetchRoleAsync(key, cancellationSrc.Token);
+                m_PopulateRolesTasks[key] = (pair.task, cancellationSrc);
+            }
+
+            try
+            {
+                await pair.task;
+            }
+            catch (OperationCanceledException)
+            {
+                // Operation was cancelled, return None
+                return Role.None;
+            }
+
+            return m_CachedRoles.TryGetValue(key, out role) ? role : Role.None;
         }
 
         public async Task<bool> CheckPermissionAsync(string organizationId, string projectId, string permission)
@@ -213,11 +234,30 @@ namespace Unity.AssetManager.Core.Editor
                 return CheckPermission(permissions, permission);
             }
 
-            return CheckPermission(await FetchPermissionsAsync(key), permission);
+            if (!m_PopulatePermissionsTasks.TryGetValue(key, out (Task task, CancellationTokenSource _) pair))
+            {
+                var cancellationSrc = new CancellationTokenSource();
+                pair.task = FetchPermissionsAsync(key, cancellationSrc.Token);
+                m_PopulatePermissionsTasks[key] = (pair.task, cancellationSrc);
+            }
+
+            try
+            {
+                await pair.task;
+            }
+            catch (OperationCanceledException)
+            {
+                // Operation was cancelled, return false
+                return false;
+            }
+
+            return CheckPermission(m_CachedPermissions.TryGetValue(key, out permissions) ? permissions : Array.Empty<Permission>(), permission);
         }
 
         public void Reset()
         {
+            CancelPermissionsTasks();
+            CancelRolesTasks();
             m_Organizations.Clear();
             m_CachedPermissions.Clear();
             m_CachedRoles.Clear();
@@ -229,53 +269,42 @@ namespace Unity.AssetManager.Core.Editor
             return permissions != null && Array.Exists(permissions, p => p.ToString() == permission);
         }
 
-        async Task<Role> FetchRoleAsync(OrganizationProjectPair key)
+        async Task FetchRoleAsync(OrganizationProjectPair key, CancellationToken cancellationToken)
         {
-            var role = await FetchRoleAsyncInternal(key);
-            m_CachedRoles[key] = role;
-            return role;
+            m_CachedRoles[key] = await FetchRoleAsyncInternal(key, cancellationToken);
         }
 
-        async Task<Role> FetchRoleAsyncInternal(OrganizationProjectPair key)
+        async Task<Role> FetchRoleAsyncInternal(OrganizationProjectPair key, CancellationToken cancellationToken)
         {
-            var organization = await GetOrganizationAsync(key.OrganizationId);
+            var organization = await GetOrganizationAsync(key.OrganizationId, cancellationToken);
             if (organization == null)
             {
                 return Role.None;
             }
 
-            var organizationKey = new OrganizationProjectPair(key.OrganizationId, string.Empty);
-            if (!m_CachedRoles.TryGetValue(organizationKey, out var orgRole))
-            {
-                orgRole = Role.Viewer;
-
-                var results = await organization.ListRolesAsync();
-                var orgRoles = results.Select(r => r.ToString().ToLower()).ToHashSet();
-
-                // Asset Manager Admin, Manager, and Owner roles have by default all the permissions
-                if (orgRoles.Contains(k_AssetManagerAdmin) || orgRoles.Contains(k_Manager) || orgRoles.Contains(k_Owner))
-                {
-                    orgRole = Role.Contributor;
-                }
-
-                m_CachedRoles[organizationKey] = orgRole;
-            }
-
+            var orgRole = await GetOrganizationRoleAsync(key, organization, cancellationToken);
             if (orgRole == Role.Contributor || string.IsNullOrEmpty(key.ProjectId))
             {
                 return orgRole;
             }
 
-            await foreach (var project in organization.ListProjectsAsync(Range.All))
+            await foreach (var project in organization.ListProjectsAsync(Range.All, cancellationToken))
             {
                 if (project.Descriptor.ProjectId.ToString() != key.ProjectId)
                     continue;
 
-                var res = await project.ListRolesAsync();
-                var projectRoles = res.Select(r => r.ToString().ToLower()).ToHashSet();
+                var projectRoleResults = await project.ListRolesAsync();
 
-                if (projectRoles.Contains(k_AssetManagerContributor) || projectRoles.Contains(k_Manager) ||
-                    projectRoles.Contains(k_Owner))
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (projectRoleResults == null || !projectRoleResults.Any())
+                {
+                    return orgRole;
+                }
+
+                var projectRoles = projectRoleResults.Select(r => r.ToString().ToLower()).ToHashSet();
+
+                if (projectRoles.Contains(k_AssetManagerContributor) || projectRoles.Contains(k_Manager) || projectRoles.Contains(k_Owner))
                 {
                     return Role.Contributor;
                 }
@@ -285,13 +314,13 @@ namespace Unity.AssetManager.Core.Editor
                     return Role.Consumer;
                 }
 
-                return Role.Viewer;
+                break;
             }
 
             return Role.Viewer;
         }
 
-        async Task<IOrganization> GetOrganizationAsync(string organizationId)
+        async Task<IOrganization> GetOrganizationAsync(string organizationId, CancellationToken cancellationToken)
         {
             if (string.IsNullOrEmpty(organizationId))
             {
@@ -303,7 +332,7 @@ namespace Unity.AssetManager.Core.Editor
                 return org;
             }
 
-            var organization = await GetOrganizationAsync_Internal(organizationId);
+            var organization = await GetOrganizationAsync_Internal(organizationId, cancellationToken);
 
             m_Organizations[organizationId] = organization;
 
@@ -312,16 +341,18 @@ namespace Unity.AssetManager.Core.Editor
             {
                 orgPermissions = await organization.ListPermissionsAsync();
             }
-            m_OrganizationPermissions[organizationId] = orgPermissions?.ToArray() ?? Array.Empty<Permission>();
 
+            cancellationToken.ThrowIfCancellationRequested();
+
+            m_OrganizationPermissions[organizationId] = orgPermissions?.ToArray() ?? Array.Empty<Permission>();
             return organization;
         }
 
-        async Task<IOrganization> GetOrganizationAsync_Internal(string organizationId)
+        async Task<IOrganization> GetOrganizationAsync_Internal(string organizationId, CancellationToken cancellationToken)
         {
             try
             {
-                var organizations = OrganizationRepository.ListOrganizationsAsync(Range.All, CancellationToken.None);
+                var organizations = OrganizationRepository.ListOrganizationsAsync(Range.All, cancellationToken);
                 await foreach (var organization in organizations)
                 {
                     if (organization.Id.ToString() == organizationId)
@@ -340,38 +371,83 @@ namespace Unity.AssetManager.Core.Editor
             return null;
         }
 
-        async Task<Permission[]> FetchPermissionsAsync(OrganizationProjectPair key)
+        async Task<Role> GetOrganizationRoleAsync(OrganizationProjectPair key, IOrganization organization, CancellationToken cancellationToken)
         {
-            var organization = await GetOrganizationAsync(key.OrganizationId);
+            var organizationKey = new OrganizationProjectPair(key.OrganizationId, string.Empty);
+            if (!m_CachedRoles.TryGetValue(organizationKey, out var orgRole))
+            {
+                orgRole = Role.Viewer;
+
+                var orgRoleResults = await organization.ListRolesAsync();
+                var orgRoles = orgRoleResults?.Select(r => r.ToString().ToLower()).ToHashSet() ?? new HashSet<string>();
+
+                // Asset Manager Admin, Manager, and Owner roles have by default all the permissions
+                if (orgRoles.Contains(k_AssetManagerAdmin) || orgRoles.Contains(k_Manager) || orgRoles.Contains(k_Owner))
+                {
+                    orgRole = Role.Contributor;
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                m_CachedRoles[organizationKey] = orgRole;
+            }
+
+            return orgRole;
+        }
+
+        async Task FetchPermissionsAsync(OrganizationProjectPair key, CancellationToken cancellationToken)
+        {
+            var organization = await GetOrganizationAsync(key.OrganizationId, cancellationToken);
             if (organization == null)
             {
-                return null;
+                return;
             }
 
-            if (string.IsNullOrEmpty(key.ProjectId))
-            {
-                m_CachedPermissions[new OrganizationProjectPair(key.OrganizationId, string.Empty)] =
-                    m_OrganizationPermissions[key.OrganizationId];
-                return m_OrganizationPermissions[key.OrganizationId];
-            }
+            IEnumerable<Permission> projectPermissions = Array.Empty<Permission>();
 
-            var projectsAsync = organization.ListProjectsAsync(Range.All);
-            if (projectsAsync != null)
+            if (!string.IsNullOrEmpty(key.ProjectId))
             {
-                await foreach (var project in projectsAsync)
+                await foreach (var project in organization.ListProjectsAsync(Range.All, cancellationToken))
                 {
                     if (project.Descriptor.ProjectId.ToString() == key.ProjectId)
                     {
-                        var projectPermissions = await project.ListPermissionsAsync();
-                        m_CachedPermissions[key] = m_OrganizationPermissions[key.OrganizationId]
-                            .Concat(projectPermissions).ToArray();
-                        return m_CachedPermissions[key];
+                        try
+                        {
+                            projectPermissions = await project.ListPermissionsAsync();
+                        }
+                        catch (NotFoundException e)
+                        {
+                            Utilities.DevLog(e.Detail);
+                        }
+
+                        break;
                     }
                 }
             }
 
-            m_CachedPermissions[key] = m_OrganizationPermissions[key.OrganizationId];
-            return m_OrganizationPermissions[key.OrganizationId];
+            m_CachedPermissions[key] = m_OrganizationPermissions[key.OrganizationId].Concat(projectPermissions).ToArray();
+        }
+
+        void CancelPermissionsTasks()
+        {
+            foreach (var cancellationTokenSource in m_PopulatePermissionsTasks.Values.Select(tuple => tuple.Item2))
+            {
+                cancellationTokenSource?.Cancel();
+                cancellationTokenSource?.Dispose();
+            }
+
+            m_PopulatePermissionsTasks.Clear();
+        }
+
+        void CancelRolesTasks()
+        {
+            foreach (var cancellationTokenSource in m_PopulateRolesTasks.Values.Select(tuple => tuple.Item2))
+            {
+                cancellationTokenSource?.Cancel();
+                cancellationTokenSource?.Dispose();
+            }
+
+            m_PopulateRolesTasks.Clear();
         }
 
         static AuthenticationState Map(Unity.Cloud.IdentityEmbedded.AuthenticationState authenticationState) =>
@@ -432,6 +508,7 @@ namespace Unity.AssetManager.Core.Editor
 
         void UnSerializePermissions()
         {
+            CancelPermissionsTasks();
             m_CachedPermissions.Clear();
             int rangeIndex = 0;
             for (var i = 0; i < m_SerializablePermissionKeys?.Length; i++)
@@ -451,6 +528,7 @@ namespace Unity.AssetManager.Core.Editor
 
         void UnSerializeRoles()
         {
+            CancelRolesTasks();
             m_CachedRoles.Clear();
             for (var i = 0; i < m_SerializableRoleKeys?.Length; i++)
             {

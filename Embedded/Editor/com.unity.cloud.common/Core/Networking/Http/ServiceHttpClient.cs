@@ -53,38 +53,47 @@ namespace Unity.Cloud.CommonEmbedded
             SkipDefaultHeaders = skipDefaultHeaders;
             SkipErrorProcessing = skipErrorProcessing;
             UseBaseHttpClientOnly = useBaseHttpClientOnly;
-            m_RetryPolicy = retryPolicy ?? new ExponentialBackoffRetryPolicy();
+            m_RetryPolicy = retryPolicy ?? CreateDefaultRetryPolicy();
+        }
+
+        static IRetryPolicy CreateDefaultRetryPolicy()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            return new ExponentialBackoffRetryPolicy(TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(2), TimeSpan.FromMilliseconds(100));
+#else
+            return new ExponentialBackoffRetryPolicy();
+#endif
         }
 
         /// <summary>
         /// Initializes and returns an instance of <see cref="ServiceHttpClientOptions"/> with default settings.
         /// </summary>
         /// <returns>The specific client options.</returns>
-        public static ServiceHttpClientOptions Default() => new ServiceHttpClientOptions(false, false, false, false);
+        public static ServiceHttpClientOptions Default() => new ServiceHttpClientOptions(false, false, false, false, CreateDefaultRetryPolicy());
 
         /// <summary>
         /// Initializes and returns an instance of <see cref="ServiceHttpClientOptions"/> which skips default authentication.
         /// </summary>
         /// <returns>The specific client options.</returns>
-        public static ServiceHttpClientOptions SkipDefaultAuthenticationOption() => new ServiceHttpClientOptions(true, false, false, false);
+        public static ServiceHttpClientOptions SkipDefaultAuthenticationOption() => new ServiceHttpClientOptions(true, false, false, false, CreateDefaultRetryPolicy());
 
         /// <summary>
         /// Initializes and returns an instance of <see cref="ServiceHttpClientOptions"/> which skips adding default headers.
         /// </summary>
         /// <returns>The specific client options.</returns>
-        public static ServiceHttpClientOptions SkipDefaultHeadersOption() => new ServiceHttpClientOptions(false, true, false, false);
+        public static ServiceHttpClientOptions SkipDefaultHeadersOption() => new ServiceHttpClientOptions(false, true, false, false, CreateDefaultRetryPolicy());
 
         /// <summary>
         /// Initializes and returns an instance of <see cref="ServiceHttpClientOptions"/> which skips error processing.
         /// </summary>
         /// <returns>The specific client options.</returns>
-        public static ServiceHttpClientOptions SkipErrorProcessingOption() => new ServiceHttpClientOptions(false, false, true, false);
+        public static ServiceHttpClientOptions SkipErrorProcessingOption() => new ServiceHttpClientOptions(false, false, true, false, CreateDefaultRetryPolicy());
 
         /// <summary>
         /// Initializes and returns an instance of <see cref="ServiceHttpClientOptions"/> which uses the base <see cref="IHttpClient"/>.
         /// </summary>
         /// <returns>The specific client options.</returns>
-        public static ServiceHttpClientOptions UseBaseHttpClientOnlyOption() => new ServiceHttpClientOptions(false, false, false, true);
+        public static ServiceHttpClientOptions UseBaseHttpClientOnlyOption() => new ServiceHttpClientOptions(false, false, false, true, CreateDefaultRetryPolicy());
 
         /// <summary>
         /// Initializes and returns an instance of <see cref="ServiceHttpClientOptions"/> with no retry policy.
@@ -98,6 +107,8 @@ namespace Unity.Cloud.CommonEmbedded
     /// </summary>
     class ServiceHttpClient : IServiceHttpClient
     {
+        static readonly UCLogger s_Logger = LoggerProvider.GetLogger<ServiceHttpClient>();
+
         readonly IHttpClient m_BaseHttpClient;
         readonly IServiceAuthorizer m_ServiceAuthorizer;
         readonly IAppIdProvider m_AppIdProvider;
@@ -148,18 +159,14 @@ namespace Unity.Cloud.CommonEmbedded
                 return await SendBaseHttpClientAsync(request, completionOption, options, ResponseValidatorNoErrorProcessing, progress, cancellationToken);
             }
 
-            // Only add custom headers if the request URI points to internal unity.com APIs
-            if (ServiceHeaderUtils.IsUnityApi(request.RequestUri))
+            if (!options.SkipDefaultHeaders)
             {
-                if (!options.SkipDefaultHeaders)
-                {
-                    request.Headers.AddAppIdAndClientTrace(m_AppIdProvider?.GetAppId() ?? AppId.None, ClientTrace);
-                }
+                request.Headers.AddAppIdAndClientTrace(m_AppIdProvider?.GetAppId() ?? AppId.None, ClientTrace);
+            }
 
-                if (!options.SkipDefaultAuthentication)
-                {
-                    await m_ServiceAuthorizer.AddAuthorization(request.Headers);
-                }
+            if (!options.SkipDefaultAuthentication)
+            {
+                await m_ServiceAuthorizer.AddAuthorization(request.Headers);
             }
 
             if (options.SkipErrorProcessing)
@@ -236,7 +243,7 @@ namespace Unity.Cloud.CommonEmbedded
 
         Task<bool> ResponseValidatorNoErrorProcessing(HttpResponseMessage response)
         {
-            return Task.FromResult(response.StatusCode == HttpStatusCode.RequestTimeout || (int)response.StatusCode >= 500);
+            return Task.FromResult(response.StatusCode == HttpStatusCode.RequestTimeout || (int)response.StatusCode == 503 || (int)response.StatusCode == 504);
         }
 
         async Task<HttpResponseMessage> SendWithErrorProcessingAsync(HttpRequestMessage request, HttpCompletionOption completionOption, ServiceHttpClientOptions options,
@@ -264,8 +271,10 @@ namespace Unity.Cloud.CommonEmbedded
             ServiceError serviceError;
             try
             {
-                var content = await response.Content.ReadAsStringAsync();
-                serviceError = JsonSerialization.Deserialize<ServiceError>(content);
+                s_Logger.LogDebug($"Unsuccessful StatusCode {response.StatusCode } on {response.RequestMessage.Method} request: {response.RequestMessage.RequestUri}");
+                var content = await response.GetContentAsStringAsync();
+                serviceError = string.IsNullOrEmpty(content) ? new ServiceError { Status = response.StatusCode } : JsonSerialization.Deserialize<ServiceError>(content);
+                serviceError ??= new ServiceError { Status = response.StatusCode };
             }
             catch (Exception)
             {

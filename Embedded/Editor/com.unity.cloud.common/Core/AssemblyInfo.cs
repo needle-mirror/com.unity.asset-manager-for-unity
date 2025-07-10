@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Cloud.CommonEmbedded;
 
-[assembly: ApiSourceVersion("com.unity.cloud.common", "1.1.0")]
+[assembly: ApiSourceVersion("com.unity.cloud.common", "1.2.0")]
 #if !(UC_NUGET)
 [assembly: InternalsVisibleTo("Unity.Cloud.Common.Tests")]
 [assembly: InternalsVisibleTo("Unity.Cloud.Common.Tests.Editor")]
@@ -10,8 +10,11 @@ using Unity.Cloud.CommonEmbedded;
 [assembly: InternalsVisibleTo("Unity.Cloud.Common.Tests.NoApiSource")]
 [assembly: InternalsVisibleTo("Unity.Cloud.Common.Runtime")]
 [assembly: InternalsVisibleTo("Unity.Cloud.DataStreaming.Tests.Runtime")]
+[assembly: InternalsVisibleTo("Unity.Cloud.TestingTools")]
+[assembly: InternalsVisibleTo("Unity.Cloud.TestingTools.Editor")]
 [assembly: InternalsVisibleTo("Unity.Cloud.Debugging.Runtime")]
 [assembly: InternalsVisibleTo("Unity.Cloud.Debugging.Editor")]
+[assembly: InternalsVisibleTo("Unity.Cloud.Debugging.Editor.Networking")]
 [assembly: InternalsVisibleTo("Unity.Cloud.Identity.Tests.Editor")]
 [assembly: InternalsVisibleTo("Unity.Cloud.AppLinking.Tests.Editor")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]

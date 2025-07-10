@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using System.Threading;
+using System.Linq;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
@@ -13,10 +13,39 @@ namespace Unity.AssetManager.UI.Editor
 
         public override FilterSelectionType SelectionType => FilterSelectionType.SingleSelection;
 
-        public UserMetadataFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider, IMetadata metadata)
-            : base(page, projectOrganizationProvider, assetsProvider, metadata)
+        public UserMetadataFilter(IPageFilterStrategy pageFilterStrategy, IMetadata metadata)
+            : base(pageFilterStrategy, metadata)
         {
             m_UserMetadata = metadata as UserMetadata;
+        }
+
+        public override bool ApplyFromAssetSearchFilter(AssetSearchFilter searchFilter)
+        {
+            ClearFilter();
+
+            if (searchFilter.CustomMetadata == null || searchFilter.CustomMetadata.Count == 0)
+                return false;
+
+            var result = false;
+
+            foreach (var metadata in searchFilter.CustomMetadata)
+            {
+                if (metadata is UserMetadata userMetadata && userMetadata.FieldKey == m_UserMetadata.FieldKey)
+                {
+                    TaskUtils.TrackException(ApplyFilterAsync(new List<string> { userMetadata.Value }));
+                    result = true;
+                }
+            }
+
+            return result;
+        }
+
+        async Task ApplyFilterAsync(List<string> userIds)
+        {
+            var selectionNames = await m_PageFilterStrategy.GetUserNamesAsync(userIds);
+            selectionNames.Sort();
+
+            ApplyFilter(selectionNames.Select(s => s.Text).ToList());
         }
 
         protected override void IncludeFilter(List<string> selectedFilters)
@@ -31,13 +60,10 @@ namespace Unity.AssetManager.UI.Editor
             TaskUtils.TrackException(IncludeFilterAsync(selectedFilters));
         }
 
-        protected override async Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds, CancellationToken token)
+        protected override async Task<List<FilterSelection>> GetFilterSelectionsAsync()
         {
-            var selections = await base.GetFilterSelectionsAsync(organizationId, projectIds, token);
-            var selectionNames = await m_ProjectOrganizationProvider.SelectedOrganization.GetUserNamesAsync(selections);
-            selectionNames.Sort();
-
-            return selectionNames;
+            var selections = await base.GetFilterSelectionsAsync();
+            return await m_PageFilterStrategy.GetUserNamesAsync(selections);
         }
 
         async Task IncludeFilterAsync(List<string> selectedFilters)
@@ -47,7 +73,7 @@ namespace Unity.AssetManager.UI.Editor
             var userIds = new List<string>();
             foreach (var selectedFilter in selectedFilters)
             {
-                userIds.Add(await m_ProjectOrganizationProvider.SelectedOrganization.GetUserIdAsync(selectedFilter));
+                userIds.Add(await m_PageFilterStrategy.GetUserIdAsync(selectedFilter));
             }
 
             m_UserMetadata.Value = userIds[0];

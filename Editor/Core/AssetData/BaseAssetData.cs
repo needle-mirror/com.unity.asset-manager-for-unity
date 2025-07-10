@@ -41,14 +41,14 @@ namespace Unity.AssetManager.Core.Editor
         public abstract string CreatedBy { get; }
         public abstract string UpdatedBy { get; }
 
-        public abstract IEnumerable<AssetIdentifier> Dependencies { get; }
+        public abstract IEnumerable<AssetIdentifier> Dependencies { get; internal set; }
         public abstract IEnumerable<BaseAssetData> Versions { get; }
         public abstract IEnumerable<AssetLabel> Labels { get; }
 
         public abstract Task GetThumbnailAsync(CancellationToken token = default);
-        public abstract Task GetAssetDataAttributesAsync(CancellationToken token = default);
         public abstract Task ResolveDatasetsAsync(CancellationToken token = default);
 
+        public abstract Task RefreshAssetDataAttributesAsync(CancellationToken token = default);
         public abstract Task RefreshPropertiesAsync(CancellationToken token = default);
         public abstract Task RefreshVersionsAsync(CancellationToken token = default);
         public abstract Task RefreshDependenciesAsync(CancellationToken token = default);
@@ -99,6 +99,11 @@ namespace Unity.AssetManager.Core.Editor
 
         public IMetadataContainer Metadata => m_Metadata;
 
+        internal IEnumerable<IMetadata> MetadataList
+        {
+            get => m_Metadata;
+            set => SetMetadata(value);
+        }
         public void SetMetadata(IEnumerable<IMetadata> metadata)
         {
             m_Metadata.Set(metadata);

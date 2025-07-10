@@ -95,7 +95,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly Label m_UrlLabel;
 
         public UrlMetadataField(List<Core.Editor.UrlMetadata> representedMetadata)
-            :base(representedMetadata)
+            : base(representedMetadata)
         {
             m_UrlTextField = new MultiValueTextField(representedMetadata.Select(x =>
                 x?.Value.Uri == null ? string.Empty : x.Value.Uri.ToString()).ToList());
@@ -193,9 +193,21 @@ namespace Unity.AssetManager.UI.Editor
 
             Add(m_MultiValueDropdownField);
 
-            if (m_MultiValueDropdownField.choices.Count > 0)
+            var userName = string.Empty;
+
+            if (m_RepresentedMetadata.Count > 0)
             {
-                m_MultiValueDropdownField.SetValueWithoutNotify(m_MultiValueDropdownField.choices[0]);
+                userName = m_UserInfos.FirstOrDefault(x => x.UserId == m_RepresentedMetadata[0].Value)?.Name;
+            }
+
+            if (string.IsNullOrEmpty(userName) && m_MultiValueDropdownField.choices.Count > 0)
+            {
+                userName = m_MultiValueDropdownField.choices[0];
+            }
+
+            if (!string.IsNullOrEmpty(userName))
+            {
+                m_MultiValueDropdownField.SetValueWithoutNotify(userName);
             }
         }
 
@@ -231,7 +243,7 @@ namespace Unity.AssetManager.UI.Editor
     {
         public MultiSelectionMetadataField(string displayName,
             List<MultiSelectionMetadata> representedMetadata, List<string> choices)
-            :base(representedMetadata)
+            : base(representedMetadata)
         {
             var multiSelectionPicker = new MultiValueMultiSelectionPicker(displayName, representedMetadata
                 .Select(x => x.Value).ToList(), choices);
@@ -248,7 +260,7 @@ namespace Unity.AssetManager.UI.Editor
                 {
                     x.Value.Add(option);
                 }
-                else if(x.Value.Contains(option))
+                else if (x.Value.Contains(option))
                 {
                     x.Value.Remove(option);
                 }

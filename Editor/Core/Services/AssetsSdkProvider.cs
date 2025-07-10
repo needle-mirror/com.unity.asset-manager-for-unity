@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.AssetsEmbedded;
@@ -14,32 +16,13 @@ using Task = System.Threading.Tasks.Task;
 
 namespace Unity.AssetManager.Core.Editor
 {
-    [Serializable]
-    class AssetSearchFilter
-    {
-        public List<string> Searches;
-        public List<string> AssetIds;
-        public List<string> AssetVersions;
-        public List<string> CreatedBy;
-        public List<string> UpdatedBy;
-        public List<string> Status;
-        public List<string> Collection;
-
-        public List<AssetType> AssetTypes;
-        public List<string> Tags;
-        public List<string> Labels;
-
-        public bool IsExactMatchSearch;
-        [SerializeReference]
-        public List<IMetadata> CustomMetadata;
-    }
-
     enum AssetSearchGroupBy
     {
         Name,
         Status,
         CreatedBy,
         UpdatedBy,
+        Type
     }
 
     enum SortField
@@ -110,6 +93,11 @@ namespace Unity.AssetManager.Core.Editor
 
         Task<AssetDataset> GetDatasetAsync(AssetData assetData, IEnumerable<string> systemTags, CancellationToken token);
         Task<IReadOnlyDictionary<string, Uri>> GetDatasetDownloadUrlsAsync(AssetIdentifier assetIdentifier, AssetDataset assetDataset, IProgress<FetchDownloadUrlsProgress> progress, CancellationToken token);
+        
+        // Utilities
+
+        string GetValueAsString(AssetType assetType);
+        bool TryParse(string assetTypeString, out AssetType assetType);
     }
 
     [Serializable]
@@ -453,8 +441,19 @@ namespace Unity.AssetManager.Core.Editor
                 startIndex += DefaultSearchPageSize;
             }
 
-            var results = await Task.WhenAll(tasks);
-            return new ImportStatuses(results);
+            try
+            {
+                var results = await Task.WhenAll(tasks);
+                return new ImportStatuses(results);
+            }
+            catch (ForbiddenException)
+            {
+                Utilities.DevLog($"Organization {organizationId} cannot be accessed at this time.");
+
+                var errorStatuses = new ImportStatuses();
+                assetDatas.ForEach(kvp => errorStatuses[kvp.Identifier] = ImportAttribute.ImportStatus.ErrorSync);
+                return errorStatuses;
+            }
         }
 
         async Task<ImportStatuses> GatherImportStatusesAsync(OrganizationId organizationId, List<BaseAssetData> assetDatas, CancellationToken token)
@@ -503,6 +502,10 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
             catch (ForbiddenException e)
+            {
+                Utilities.DevLogException(e);
+            }
+            catch (NotFoundException e)
             {
                 Utilities.DevLogException(e);
             }
@@ -621,14 +624,37 @@ namespace Unity.AssetManager.Core.Editor
                 .SelectWhereMatchesFilter(filter)
                 .LimitTo(range);
 
-            await foreach(var reference in DataMapper.ListAssetReferencessAsync(query, token))
+            var enumerator = DataMapper.ListAssetReferencessAsync(query, token).GetAsyncEnumerator(token);
+
+            while (await MoveNextAsync())
             {
-                if (!reference.IsValid)
+                var reference = enumerator.Current;
+                if (reference is not {IsValid: true})
                 {
                     continue;
                 }
 
                 yield return reference;
+            }
+
+            yield break;
+
+            async Task<bool> MoveNextAsync()
+            {
+                try
+                {
+                    return await enumerator.MoveNextAsync();
+                }
+                catch (TaskCanceledException)
+                {
+                    // Ignore
+                }
+                catch (NotFoundException e)
+                {
+                    Utilities.DevLogError($"Asset {assetDescriptor.AssetId} not found; reference list could not be returned.\n{e.Message}");
+                }
+
+                return false;
             }
         }
 
@@ -698,6 +724,11 @@ namespace Unity.AssetManager.Core.Editor
             try
             {
                 return await DataMapper.GetLinkedProjectsAsync(asset, token);
+            }
+            catch (ForbiddenException e)
+            {
+                Utilities.DevLog(e.Detail);
+                return Array.Empty<ProjectIdentifier>();
             }
             catch (NotFoundException e)
             {
@@ -826,6 +857,15 @@ namespace Unity.AssetManager.Core.Editor
             {
                 // Ignore if the preview doesn't support resizing
             }
+            catch (ServiceException e)
+            {
+                // Private Cloud services throw 500 error for unsupported preview resizing.
+                // If the status code is anything other than InternalServerError, we rethrow the exception.
+                if (e.StatusCode != HttpStatusCode.InternalServerError)
+                {
+                    throw;
+                }
+            }
 
             return null;
         }
@@ -883,7 +923,7 @@ namespace Unity.AssetManager.Core.Editor
         async Task LinkToPreviewAsync(BaseAssetData assetData, FileDescriptor fileDescriptor, CancellationToken token)
         {
             var unityAssetType = AssetDataTypeHelper.GetUnityAssetType(Path.GetExtension(fileDescriptor.Path));
-            if (unityAssetType == UnityAssetType.AudioClip)
+            if (unityAssetType == AssetType.Audio)
             {
                 // Datasets must be in a 'commit' status before referencing files from them.
                 var sourceDataset = await AssetRepository.GetDatasetAsync(fileDescriptor.DatasetDescriptor, token);
@@ -910,7 +950,6 @@ namespace Unity.AssetManager.Core.Editor
                 DatasetCacheConfiguration = new DatasetCacheConfiguration
                 {
                     CacheProperties = true,
-                    CacheFileList = true
                 }
             };
             asset = await asset.WithCacheConfigurationAsync(cacheConfiguration, token);
@@ -936,7 +975,26 @@ namespace Unity.AssetManager.Core.Editor
                     filesToWipe.Add(dataset.RemoveFileAsync(file.Descriptor.Path, token));
                 }
 
-                await Task.WhenAll(filesToWipe);
+                try
+                {
+                    await Task.WhenAll(filesToWipe);
+                }
+                catch (Exception)
+                {
+                    var remainingFileCount = 0;
+                    await foreach (var _ in dataset.ListFilesAsync(Range.All, token))
+                    {
+                        ++remainingFileCount;
+                    }
+
+                    if (remainingFileCount > 0)
+                    {
+                        Utilities.DevLogError($"Failed to remove all files from dataset. {remainingFileCount} files remain of {filesToWipe.Count}.");
+                        throw new AggregateException(filesToWipe.Where(x => x.IsFaulted).Select(x => x.Exception));
+                    }
+
+                    Utilities.DevLogWarning("Exception occurred while removing files from dataset, but all files were successfully removed.");
+                }
             }
         }
 
@@ -1020,7 +1078,23 @@ namespace Unity.AssetManager.Core.Editor
             if (!m_SettingsManager.IsTagsCreationUploadEnabled)
                 return;
 
-            var generatedTags = await file.GenerateSuggestedTagsAsync(token);
+            IEnumerable<GeneratedTag> generatedTags;
+
+            try
+            {
+                generatedTags = await file.GenerateSuggestedTagsAsync(token);
+            }
+            catch (ServiceException e)
+            {
+                // Private Cloud services can throw 500 error for tag generation as they generally don't support the AI service that creates the tags.
+                // Ideally, it should be returning an empty list.
+                if (e.StatusCode == HttpStatusCode.InternalServerError)
+                {
+                    Utilities.DevLog("Service does not support tag generation.");
+                    return;
+                }
+                throw;
+            }
 
             var tags = new List<string>();
             foreach (var tag in generatedTags)
@@ -1098,6 +1172,11 @@ namespace Unity.AssetManager.Core.Editor
         {
             var result = new Dictionary<string, Uri>();
 
+            if (dataset == null)
+            {
+                return result;
+            }
+
             var files = new List<IFile>();
             await foreach (var file in dataset.ListFilesAsync(Range.All, token))
             {
@@ -1161,7 +1240,16 @@ namespace Unity.AssetManager.Core.Editor
             var datasetDescriptor = new DatasetDescriptor(assetDescriptor, new DatasetId(assetDataset.Id));
 
             var dataset = await AssetRepository.GetDatasetAsync(datasetDescriptor, token);
-            return await dataset.WithCacheConfigurationAsync(cacheConfiguration, token);
+
+            try
+            {
+                return await dataset.WithCacheConfigurationAsync(cacheConfiguration, token);
+            }
+            catch (NotFoundException e)
+            {
+                Utilities.DevLogError($"Asset {assetDescriptor.AssetId} not found; dataset {datasetDescriptor.DatasetId} could not be returned.\n{e.Message}");
+                return null;
+            }
         }
 
         async Task<IDataset> GetDatasetAsync(AssetIdentifier assetIdentifier, IEnumerable<string> systemTags, DatasetCacheConfiguration cacheConfiguration, CancellationToken token)
@@ -1195,6 +1283,20 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return null;
+        }
+
+        public string GetValueAsString(AssetType assetType) => Map(assetType).GetValueAsString();
+
+        public bool TryParse(string assetTypeString, out AssetType assetType)
+        {
+            if (assetTypeString.TryGetAssetTypeFromString(out var sdkAssetType))
+            {
+                assetType = Map(sdkAssetType);
+                return true;
+            }
+
+            assetType = AssetType.Other;
+            return false;
         }
 
         [Obsolete("IAsset serialization is not supported")]
@@ -1251,6 +1353,45 @@ namespace Unity.AssetManager.Core.Editor
             // Because of how elastic search tokenizes strings, we need to manipulate the version to minimize false positive results
             // We will therefore keep only that last component of the version string
             return version.Split('-')[^1];
+        }
+
+        static void ParseFileExtensions(List<string> fileExtensions, Cloud.AssetsEmbedded.AssetSearchFilter cloudAssetSearchFilter)
+        {
+            if (fileExtensions == null || !fileExtensions.Any())
+            {
+                return;
+            }
+
+            var pattern = new StringBuilder(fileExtensions[0]);
+            for (var i = 1; i < fileExtensions.Count; ++i)
+            {
+                pattern.Append($"|{fileExtensions[i]}");
+            }
+
+            cloudAssetSearchFilter.Include().Files.Path.WithValue(new Regex($".*({pattern})", RegexOptions.IgnoreCase));
+        }
+
+        static bool TryParseSearchTerms(List<string> searchTerms, Cloud.AssetsEmbedded.AssetSearchFilter cloudAssetSearchFilter)
+        {
+            if (searchTerms == null || !searchTerms.Any())
+            {
+                return false;
+            }
+
+            // Search Name and Description by predicate, any term in the list
+            var stringPredicate = new StringPredicate(searchTerms[0], StringSearchOption.Wildcard);
+            for (var i = 1; i < searchTerms.Count; ++i)
+            {
+                stringPredicate = stringPredicate.Or(searchTerms[i], StringSearchOption.Wildcard);
+            }
+
+            cloudAssetSearchFilter.Any().Name.WithValue(stringPredicate);
+            cloudAssetSearchFilter.Any().Description.WithValue(stringPredicate);
+
+            // Search Tags by list
+            cloudAssetSearchFilter.Any().Tags.WithValue(searchTerms);
+
+            return true;
         }
 
         async Task<AssetData> Map(AssetDescriptor assetDescriptor, CancellationToken token)
@@ -1360,17 +1501,16 @@ namespace Unity.AssetManager.Core.Editor
                 cloudAssetSearchFilter.Include().AuthoringInfo.CreatedBy.WithValue(string.Join(" ", assetSearchFilter.CreatedBy));
             }
 
-            if (assetSearchFilter.Status != null && assetSearchFilter.Status.Any())
-            {
-                cloudAssetSearchFilter.Include().Status.WithValue(string.Join(" ", assetSearchFilter.Status));
-            }
-
             if (assetSearchFilter.UpdatedBy != null && assetSearchFilter.UpdatedBy.Any())
             {
                 cloudAssetSearchFilter.Include().AuthoringInfo.UpdatedBy.WithValue(string.Join(" ", assetSearchFilter.UpdatedBy));
             }
 
-            // Search both AssetType and by file extension
+            if (assetSearchFilter.Status != null && assetSearchFilter.Status.Any())
+            {
+                cloudAssetSearchFilter.Include().Status.WithValue(string.Join(" ", assetSearchFilter.Status));
+            }
+
             if (assetSearchFilter.AssetTypes != null && assetSearchFilter.AssetTypes.Any())
             {
                 var assetTypes = assetSearchFilter.AssetTypes
@@ -1379,23 +1519,31 @@ namespace Unity.AssetManager.Core.Editor
 
                 if (assetTypes.Length > 0)
                 {
-                    cloudAssetSearchFilter.Any().Type.WithValue(assetTypes);
+                    cloudAssetSearchFilter.Include().Type.WithValue(assetTypes);
                 }
-                
-                var regex = AssetDataTypeHelper.GetRegexForExtensions(assetSearchFilter.AssetTypes);
-                if (regex != null)
+            }
+            else if (assetSearchFilter.AssetTypeStrings != null && assetSearchFilter.AssetTypeStrings.Any())
+            {
+                var assetTypes = new List<Cloud.AssetsEmbedded.AssetType>();
+                foreach (var typeString in assetSearchFilter.AssetTypeStrings)
                 {
-                    cloudAssetSearchFilter.Any().Files.Path.WithValue(regex);
+                    if (typeString.TryGetAssetTypeFromString(out var assetType))
+                    {
+                        assetTypes.Add(assetType);
+                    }
                 }
 
-                ++minimumAnyRequirement;
+                if (assetTypes.Count > 0)
+                {
+                    cloudAssetSearchFilter.Include().Type.WithValue(assetTypes.ToArray());
+                }
             }
-            
+
             if (assetSearchFilter.Tags != null && assetSearchFilter.Tags.Any())
             {
                 cloudAssetSearchFilter.Include().Tags.WithValue(string.Join(" ", assetSearchFilter.Tags));
             }
-            
+
             if (assetSearchFilter.Labels != null && assetSearchFilter.Labels.Any())
             {
                 cloudAssetSearchFilter.Include().Labels.WithValue(assetSearchFilter.Labels);
@@ -1403,38 +1551,58 @@ namespace Unity.AssetManager.Core.Editor
 
             if (assetSearchFilter.CustomMetadata != null)
             {
-                var stringSearchOption = assetSearchFilter.IsExactMatchSearch ? StringSearchOption.ExactMatch : StringSearchOption.Prefix;
-                
                 foreach (var metadataGroup in assetSearchFilter.CustomMetadata.GroupBy(m => m.FieldKey))
                 {
                     var metadataList = metadataGroup.ToList();
-                    if (metadataList.Any())
+                    if (!metadataList.Any())
+                        continue;
+
+                    if (metadataList[0].Type == MetadataFieldType.Timestamp)
                     {
-                        var metadata = metadataList[0];
-                        if(metadata.Type == MetadataFieldType.Number)
+                        var minValue = metadataList.Min(m => ((TimestampMetadata) m).Value.DateTime);
+                        var maxValue = metadataList.Max(m => ((TimestampMetadata) m).Value.DateTime);
+                        cloudAssetSearchFilter.Include().Metadata.WithTimestampValue(metadataGroup.Key, minValue, true, maxValue);
+                    }
+                    else
+                    {
+                        var metadataValue = metadataList.Select(Map).FirstOrDefault(x => x != null);
+                        if (metadataValue == null)
+                            continue;
+
+                        // Strings should be searched by predicate
+                        if (metadataValue is Cloud.AssetsEmbedded.StringMetadata stringMetadata)
                         {
-                            cloudAssetSearchFilter.Include().Metadata.WithValue(metadataGroup.Key, Map(metadataList[0]));
+                            var stringPredicate = new StringPredicate(stringMetadata.Value, assetSearchFilter.IsExactMatchSearch
+                                ? StringSearchOption.ExactMatch
+                                : StringSearchOption.Prefix);
+                            cloudAssetSearchFilter.Include().Metadata.WithTextValue(metadataGroup.Key, stringPredicate);
                         }
-                        else if(metadata.Type == MetadataFieldType.Timestamp)
+
+                        // Urls should be searched by label or, when no label defined, by the URL itself
+                        else if (metadataValue is Cloud.AssetsEmbedded.UrlMetadata urlMetadata)
                         {
-                            var minValue = metadataList.Min(m => ((TimestampMetadata)m).Value.DateTime);
-                            var maxValue = metadataList.Max(m => ((TimestampMetadata)m).Value.DateTime);
-                            cloudAssetSearchFilter.Include().Metadata.WithTimestampValue(metadataGroup.Key, minValue, true, maxValue);
+                            if (!string.IsNullOrEmpty(urlMetadata.Label))
+                            {
+                                var stringPredicate = new StringPredicate($"[{urlMetadata.Label}]", StringSearchOption.Prefix);
+                                cloudAssetSearchFilter.Include().Metadata.WithTextValue(metadataGroup.Key, stringPredicate);
+                            }
+                            else if (urlMetadata.Uri != null)
+                            {
+                                cloudAssetSearchFilter.Include().Metadata.WithValue(metadataGroup.Key, urlMetadata);
+                            }
                         }
-                        else if (metadata.Type == MetadataFieldType.Text)
+
+                        // Multiselection values need to be searched by Any() to perform OR logical search between values
+                        else if (metadataValue is Cloud.AssetsEmbedded.MultiSelectionMetadata multiSelectionMetadata)
                         {
-                            var stringOp = new StringPredicate( ((TextMetadata)metadata).Value, stringSearchOption);
-                            cloudAssetSearchFilter.Include().Metadata.WithTextValue(metadataGroup.Key, stringOp);
+                            cloudAssetSearchFilter.Any().Metadata.WithValue(metadataGroup.Key, multiSelectionMetadata);
+                            ++minimumAnyRequirement;
                         }
-                        else if (metadata.Type == MetadataFieldType.Url)
-                        {
-                            var stringOp = new StringPredicate( $"[{((UrlMetadata)metadata).Value.Label}]", stringSearchOption);
-                            cloudAssetSearchFilter.Include().Metadata.WithTextValue(metadataGroup.Key, stringOp);
-                        }
+
+                        // All other metadata are by exact match.
                         else
                         {
-                            var metadataValue = Map(metadata);
-                            cloudAssetSearchFilter.Include().Metadata.WithValue(metadata.FieldKey, metadataValue);
+                            cloudAssetSearchFilter.Include().Metadata.WithValue(metadataGroup.Key, metadataValue);
                         }
                     }
                 }
@@ -1450,11 +1618,14 @@ namespace Unity.AssetManager.Core.Editor
 
             if (assetSearchFilter.Searches is {Count: > 0})
             {
-                var searchString = string.Concat("*", string.Join('*', assetSearchFilter.Searches), "*");
-                cloudAssetSearchFilter.Any().Name.WithValue(searchString);
-                cloudAssetSearchFilter.Any().Description.WithValue(searchString);
-                cloudAssetSearchFilter.Any().Tags.WithValue(searchString);
-                ++minimumAnyRequirement; // We need to search to match in at least one field
+                var fileExtensions = assetSearchFilter.Searches.Where(x => x.StartsWith('.')).ToList();
+                ParseFileExtensions(fileExtensions, cloudAssetSearchFilter);
+
+                var searches = assetSearchFilter.Searches.Where(x => !fileExtensions.Contains(x)).ToList();
+                if (TryParseSearchTerms(searches, cloudAssetSearchFilter))
+                {
+                    ++minimumAnyRequirement; // We need to search to match in at least one field
+                }
             }
 
             if (assetSearchFilter.AssetIds is {Count: > 0})
@@ -1471,7 +1642,7 @@ namespace Unity.AssetManager.Core.Editor
                 ++minimumAnyRequirement;
             }
 
-            cloudAssetSearchFilter.Any().WhereMinimumMatchEquals(minimumAnyRequirement);
+            cloudAssetSearchFilter.Any().WhereMinimumMatchEquals(Math.Max(1, minimumAnyRequirement));
 
             return cloudAssetSearchFilter;
         }
@@ -1484,6 +1655,7 @@ namespace Unity.AssetManager.Core.Editor
                 AssetSearchGroupBy.Status => GroupableField.Status,
                 AssetSearchGroupBy.CreatedBy => GroupableField.CreatedBy,
                 AssetSearchGroupBy.UpdatedBy => GroupableField.UpdateBy,
+                AssetSearchGroupBy.Type => GroupableField.Type,
                 _ => throw new ArgumentOutOfRangeException(nameof(groupBy), groupBy, null)
             };
         }
@@ -1517,14 +1689,14 @@ namespace Unity.AssetManager.Core.Editor
 
         static MetadataValue Map(IMetadata metadata) => metadata.Type switch
         {
-            MetadataFieldType.Boolean => new Cloud.AssetsEmbedded.BooleanMetadata(((BooleanMetadata)metadata).Value),
-            MetadataFieldType.Text => new Cloud.AssetsEmbedded.StringMetadata(((TextMetadata)metadata).Value),
-            MetadataFieldType.Number => new Cloud.AssetsEmbedded.NumberMetadata(((NumberMetadata)metadata).Value),
-            MetadataFieldType.Url => new Cloud.AssetsEmbedded.UrlMetadata(((UrlMetadata)metadata).Value.Uri, ((UrlMetadata)metadata).Value.Label),
-            MetadataFieldType.Timestamp => new Cloud.AssetsEmbedded.DateTimeMetadata(((TimestampMetadata)metadata).Value.DateTime),
-            MetadataFieldType.User => new Cloud.AssetsEmbedded.UserMetadata(new UserId(((UserMetadata)metadata).Value)),
-            MetadataFieldType.SingleSelection => new Cloud.AssetsEmbedded.SingleSelectionMetadata(((SingleSelectionMetadata)metadata).Value),
-            MetadataFieldType.MultiSelection => new Cloud.AssetsEmbedded.MultiSelectionMetadata(((MultiSelectionMetadata)metadata).Value.ToArray()),
+            MetadataFieldType.Boolean => new Cloud.AssetsEmbedded.BooleanMetadata(((BooleanMetadata) metadata).Value),
+            MetadataFieldType.Text => new Cloud.AssetsEmbedded.StringMetadata(((TextMetadata) metadata).Value),
+            MetadataFieldType.Number => new Cloud.AssetsEmbedded.NumberMetadata(((NumberMetadata) metadata).Value),
+            MetadataFieldType.Url => new Cloud.AssetsEmbedded.UrlMetadata(((UrlMetadata) metadata).Value.Uri, ((UrlMetadata) metadata).Value.Label),
+            MetadataFieldType.Timestamp => new Cloud.AssetsEmbedded.DateTimeMetadata(((TimestampMetadata) metadata).Value.DateTime),
+            MetadataFieldType.User => new Cloud.AssetsEmbedded.UserMetadata(new UserId(((UserMetadata) metadata).Value)),
+            MetadataFieldType.SingleSelection => new Cloud.AssetsEmbedded.SingleSelectionMetadata(((SingleSelectionMetadata) metadata).Value),
+            MetadataFieldType.MultiSelection => new Cloud.AssetsEmbedded.MultiSelectionMetadata(((MultiSelectionMetadata) metadata).Value?.ToArray()),
             _ => throw new InvalidOperationException("Unexpected metadata field type was encountered.")
         };
 

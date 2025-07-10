@@ -9,7 +9,9 @@
     "Unity.Cloud.Common.Runtime.Embedded",
     "Unity.Cloud.Identity.Embedded",
     "Unity.Cloud.Identity.Runtime.Embedded",
-    "Unity.Cloud.Identity.Editor.Embedded"
+    "Unity.Cloud.Identity.Editor.Embedded",
+    "Unity.Cloud.AppLinking.Embedded",
+    "Unity.Cloud.AppLinking.Runtime.Embedded"
   ],
   "includePlatforms": [
     "Editor"

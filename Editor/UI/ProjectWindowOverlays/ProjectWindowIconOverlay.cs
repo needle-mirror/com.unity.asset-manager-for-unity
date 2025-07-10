@@ -193,7 +193,7 @@ namespace Unity.AssetManager.UI.Editor
             if (assetData.AssetDataAttributeCollection == null && m_PendingAssetData.Add(assetData))
             {
                 assetData.AssetDataChanged += OnAssetDataChanged;
-                assetData.GetAssetDataAttributesAsync();
+                assetData.RefreshAssetDataAttributesAsync();
                 return s_ConnectedStatus;
             }
 

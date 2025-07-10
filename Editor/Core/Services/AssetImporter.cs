@@ -351,7 +351,7 @@ namespace Unity.AssetManager.Core.Editor
 
                 if (importedInfo != null)
                 {
-                    // Order is from least useable to most useable
+                    // Order is from least usable to most usable
                     var files = importedInfo.AssetData?
                         .GetFiles(d => d.CanBeImported)?
                         .FilterUsableFilesAsPrimaryExtensions()
@@ -458,8 +458,7 @@ namespace Unity.AssetManager.Core.Editor
 
                     if (files.Length == 0)
                     {
-                        Debug.LogWarning(
-                            $"Asset with Id '{identifier.AssetId}' was removed, but no files were deleted because they weren't found in the project.");
+                        Utilities.DevLog($"Asset '{identifier.AssetId}' had no files to remove.");
                         continue;
                     }
 
@@ -593,6 +592,12 @@ namespace Unity.AssetManager.Core.Editor
             {
                 var cleanedUpAssets = new HashSet<AssetIdentifier>();
 
+                // In case there are no download requests, we should do a direct clean-up the operation assets
+                if (importOperation.DownloadRequests.Count == 0)
+                {
+                    CleanupAssetsAndLeftoverFolders(importOperation);
+                }
+
                 foreach (var downloadRequest in importOperation.DownloadRequests)
                 {
                     var downloadPath = downloadRequest.DownloadPath;
@@ -604,12 +609,7 @@ namespace Unity.AssetManager.Core.Editor
                         // If multiple requests are targeting the same asset, we should only clean it up once, otherwise we run the risk of deleting newly downloaded files
                         if (cleanedUpAssets.Add(importOperation.Identifier))
                         {
-                            var assetsAndFolders = FindAssetsAndLeftoverFolders(importOperation.Identifier);
-                            foreach (var path in assetsAndFolders)
-                            {
-                                m_IOProxy.DeleteFile(path, true);
-                                m_IOProxy.DeleteFile(path + MetafilesHelper.MetaFileExtension, true);
-                            }
+                            CleanupAssetsAndLeftoverFolders(importOperation);
                         }
 
                         m_IOProxy.DeleteFile(finalPath);
@@ -637,6 +637,16 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return filesToTrack;
+        }
+
+        void CleanupAssetsAndLeftoverFolders(ImportOperation importOperation)
+        {
+            var assetsAndFolders = FindAssetsAndLeftoverFolders(importOperation.Identifier);
+            foreach (var path in assetsAndFolders)
+            {
+                m_IOProxy.DeleteFile(path, true);
+                m_IOProxy.DeleteFile(path + MetafilesHelper.MetaFileExtension, true);
+            }
         }
 
         static void SendImportAnalytics(ImportTrigger trigger, IEnumerable<BaseAssetData> allAssetData)
@@ -888,10 +898,7 @@ namespace Unity.AssetManager.Core.Editor
         string[] FindAssetsAndLeftoverFolders(AssetIdentifier identifier)
         {
             var fileInfos = m_AssetDataManager.GetImportedAssetInfo(identifier)?.FileInfos;
-            if (fileInfos == null || fileInfos.Count == 0)
-            {
-                return Array.Empty<string>();
-            }
+            fileInfos ??= new List<ImportedFileInfo>();
 
             try
             {

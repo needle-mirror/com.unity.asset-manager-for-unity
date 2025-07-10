@@ -200,6 +200,20 @@ SearchBar {
 }
 
 /************************************************
+* Saved View Controls
+************************************************/
+
+.unity-save-view-dropdown-button {
+    border-color: #B2B2B2;
+    border-bottom-color: #939393;
+    background-color: #E4E4E4;
+}
+
+.unity-save-view-dropdown-button:hover:enabled {
+    background-color: #EFEFEF;
+}
+
+/************************************************
 * Sort
 ************************************************/
 .unity-sort-order{

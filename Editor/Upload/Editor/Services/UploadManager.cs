@@ -429,7 +429,16 @@ namespace Unity.AssetManager.Upload.Editor
                 tasks.Add(m_AssetsProvider.RemoveAllFiles(asset, token));
             }
 
-            await Task.WhenAll(tasks);
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception)
+            {
+                // If any of the tasks fail, we need to remove the asset version that was created before throwing the exception.
+                await m_AssetsProvider.RemoveUnfrozenAssetVersion(asset.Identifier, token);
+                throw;
+            }
 
             return asset;
         }

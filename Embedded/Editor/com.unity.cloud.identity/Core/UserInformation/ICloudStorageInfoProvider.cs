@@ -14,7 +14,7 @@ namespace Unity.Cloud.IdentityEmbedded
         /// A Task that returns an <see cref="ICloudStorageUsage"/> once completed.
         /// </summary>
         /// <param name="cancellationToken">The cancellation token.</param>
-        /// <exception cref="ForbiddenException">This exception will be thrown if the role of the user in the <see cref="Organization"/> is Project guest.</exception>
+        /// <exception cref="ForbiddenException">Thrown if the role of the user in the <see cref="Organization"/> is Project guest.</exception>
         /// <returns>An <see cref="ICloudStorageUsage"/>.</returns>
         public Task<ICloudStorageUsage> GetCloudStorageUsageAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
@@ -22,7 +22,7 @@ namespace Unity.Cloud.IdentityEmbedded
         /// A Task that returns a <see cref="bool"/> about an <see cref="Organization"/> metered billing status once completed.
         /// </summary>
         /// <param name="cancellationToken"></param>
-        /// <exception cref="ForbiddenException">This exception will be thrown if the role of the user in the <see cref="Organization"/> is Project guest.</exception>
+        /// <exception cref="ForbiddenException">Thrown if the role of the user in the <see cref="Organization"/> is Project guest.</exception>
         /// <returns>A <see cref="bool"/> about an <see cref="Organization"/> metered billing status.</returns>
         public Task<bool> HasMeteredBillingActivatedAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }

@@ -10,6 +10,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly IApplicationProxy m_ApplicationProxy;
         readonly IPageManager m_PageManager;
+        readonly ISettingsManager m_SettingsManager;
 
         readonly MessageActionButton m_MessageActionButton;
 
@@ -17,15 +18,17 @@ namespace Unity.AssetManager.UI.Editor
 
         static readonly string k_NoConnectionMessage = L10n.Tr("You are offline.");
         static readonly string k_ServiceNotReachableMessage = L10n.Tr("Cannot reach Unity Cloud Services.");
+        static readonly string k_VPCServiceNotReachableMessage = L10n.Tr("Cannot reach Private Cloud Services.");
         static readonly string k_NoConnectionUploadPageMessage = L10n.Tr("Connect to the internet to upload your assets.");
 
         public ActionHelpBox(IUnityConnectProxy unityConnectProxy, IApplicationProxy applicationProxy,
             IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            IMessageManager messageManager, ILinksProxy linksProxy)
+            IMessageManager messageManager, ILinksProxy linksProxy, ISettingsManager settingsManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_ApplicationProxy = applicationProxy;
             m_PageManager = pageManager;
+            m_SettingsManager = settingsManager;
 
             m_MessageActionButton = new MessageActionButton(pageManager, projectOrganizationProvider,
                 linksProxy);
@@ -47,7 +50,7 @@ namespace Unity.AssetManager.UI.Editor
                 messageType = HelpBoxMessageType.Warning;
                 if (m_ApplicationProxy.InternetReachable)
                 {
-                    text = k_ServiceNotReachableMessage;
+                    text = m_SettingsManager.PrivateCloudSettings.ServicesEnabled ? k_VPCServiceNotReachableMessage : k_ServiceNotReachableMessage;
                 }
                 else
                 {

@@ -33,6 +33,8 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            Refresh();
+
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
@@ -43,6 +45,11 @@ namespace Unity.AssetManager.UI.Editor
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
+        }
+
+        void OnActivePageChanged(IPage page)
+        {
+            Refresh();
         }
 
         void OrganizationChanged(OrganizationInfo _)
@@ -58,7 +65,7 @@ namespace Unity.AssetManager.UI.Editor
         void Refresh()
         {
             var page = m_PageManager.ActivePage;
-            if (!ShowOrHideBreadCrumbs(page, m_ProjectOrganizationProvider.SelectedOrganization))
+            if (!TryShowBreadCrumbs(page, m_ProjectOrganizationProvider.SelectedOrganization))
                 return;
 
             Clear();
@@ -101,13 +108,8 @@ namespace Unity.AssetManager.UI.Editor
             Add(new BreadcrumbItem(clickEvent) { text = label });
         }
 
-        void OnActivePageChanged(IPage page)
-        {
-            Refresh();
-        }
-
         // Returns true if the breadcrumbs is visible
-        bool ShowOrHideBreadCrumbs(IPage page, OrganizationInfo currentOrganization)
+        bool TryShowBreadCrumbs(IPage page, OrganizationInfo currentOrganization)
         {
             if (page == null || !((BasePage)page).DisplayBreadcrumbs || currentOrganization?.ProjectInfos.Any() != true)
             {

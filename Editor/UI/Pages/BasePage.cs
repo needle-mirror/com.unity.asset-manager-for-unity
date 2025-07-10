@@ -25,8 +25,8 @@ namespace Unity.AssetManager.UI.Editor
         [SerializeField]
         protected int m_NextStartIndex;
 
-        [SerializeField]
-        PageFilters m_PageFilters;
+        [SerializeReference]
+        protected IPageFilterStrategy m_PageFilterStrategy;
 
         [SerializeField]
         List<AssetIdentifier> m_SelectedAssets = new();
@@ -63,18 +63,30 @@ namespace Unity.AssetManager.UI.Editor
         protected IAsyncEnumerator<AssetData> m_SearchRequest;
 
         public UIComponents EnabledUIComponents => m_EnabledUIComponents;
+        public virtual bool SupportsUpdateAll => false;
 
         public virtual bool DisplaySearchBar => true;
         public virtual bool DisplayBreadcrumbs => false;
         public virtual bool DisplaySideBar => true;
         public virtual bool DisplayFilters => true;
         public virtual bool DisplayFooter => true;
+        public virtual bool DisplaySavedViewControls => true;
         public virtual bool DisplaySort => true;
         public virtual bool DisplayUploadMetadata => false;
         public virtual bool DisplayUpdateAllButton => true;
         public virtual bool DisplayTitle => false;
         public virtual string DefaultProjectName => L10n.Tr(Constants.AllAssetsFolderName);
         public virtual string Title => GetPageName();
+
+        internal static readonly Dictionary<SortField, string> s_SortFieldsLabelMap = new()
+        {
+            {SortField.Name, "Name"},
+            {SortField.Updated, "Last Modified"},
+            {SortField.Created, "Upload Date"},
+            {SortField.Description, "Description"},
+            {SortField.Status, "Status"},
+            {SortField.ImportStatus, "Import Status"}
+        };
 
         public Dictionary<string, SortField> SortOptions
         {
@@ -108,7 +120,6 @@ namespace Unity.AssetManager.UI.Editor
 
         public bool IsLoading => m_LoadMoreAssetsOperations.Exists(op => op.IsLoading);
         public bool CanLoadMoreItems => m_CanLoadMoreItems;
-        public PageFilters PageFilters => m_PageFilters;
         public IReadOnlyCollection<AssetIdentifier> SelectedAssets => m_SelectedAssets;
         public bool IsAssetSelected(AssetIdentifier asset) => m_SelectedAssets.Contains(asset);
         public AssetIdentifier LastSelectedAssetId => m_SelectedAssets.LastOrDefault();
@@ -117,7 +128,7 @@ namespace Unity.AssetManager.UI.Editor
         public static readonly Message MissingSelectedProjectMessage = new(L10n.Tr("Select the destination cloud project for the upload."));
 
         public static readonly Message ErrorRetrievingAssetsMessage =
-            new (L10n.Tr("It seems there was an error while trying to retrieve assets."),
+            new(L10n.Tr("It seems there was an error while trying to retrieve assets."),
                 RecommendedAction.Retry);
 
         protected BasePage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
@@ -133,27 +144,39 @@ namespace Unity.AssetManager.UI.Editor
 
             m_CanLoadMoreItems = true;
             m_EnabledUIComponents = UIComponents.All;
+        }
 
-            m_PageFilters = new PageFilters(this);
+        public void SetFilterStrategy(IPageFilterStrategy pageFilterStrategy)
+        {
+            ClearFilterStrategy();
+
+            m_PageFilterStrategy = pageFilterStrategy;
+            m_PageFilterStrategy.SearchFiltersChanged += OnSearchFiltersChanged;
+            m_PageFilterStrategy.EnableFilters(false);
+        }
+
+        public void ClearFilterStrategy()
+        {
+            if (m_PageFilterStrategy == null)
+                return;
+
+            m_PageFilterStrategy.SearchFiltersChanged -= OnSearchFiltersChanged;
+            m_PageFilterStrategy = null;
         }
 
         public virtual void OnActivated()
         {
-            m_PageFilters.Initialize(InitFilters(), InitCustomMetadataFilters());
-            m_PageFilters.EnableFilters(false);
             AnalyticsSender.SendEvent(new PageSelectedEvent(GetPageName()));
             Clear(true);
         }
 
         public virtual void OnDeactivated()
         {
-            m_PageFilters.ClearSearchFilters();
             Clear(false);
         }
 
         public virtual void OnEnable()
         {
-            m_PageFilters.SearchFiltersChanged += OnSearchFiltersChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
@@ -165,12 +188,11 @@ namespace Unity.AssetManager.UI.Editor
                 LoadMore();
             }
 
-            ResetAssetDataAttributes();
+            TaskUtils.TrackException(RefreshAssetDataAttributesAsync());
         }
 
         public virtual void OnDisable()
         {
-            m_PageFilters.SearchFiltersChanged -= OnSearchFiltersChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= OnProjectSelectionChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
@@ -181,15 +203,15 @@ namespace Unity.AssetManager.UI.Editor
             m_ReTriggerSearchAfterDomainReload = true;
         }
 
-        protected virtual Dictionary<string,SortField> CreateSortField()
+        protected virtual Dictionary<string, SortField> CreateSortField()
         {
             return new()
             {
-                { "Name", SortField.Name },
-                { "Last Modified", SortField.Updated },
-                { "Upload Date", SortField.Created },
-                { "Description", SortField.Description },
-                { "Status", SortField.Status }
+                {s_SortFieldsLabelMap[SortField.Name], SortField.Name},
+                {s_SortFieldsLabelMap[SortField.Updated], SortField.Updated},
+                {s_SortFieldsLabelMap[SortField.Created], SortField.Created},
+                {s_SortFieldsLabelMap[SortField.Description], SortField.Description},
+                {s_SortFieldsLabelMap[SortField.Status], SortField.Status}
             };
         }
 
@@ -213,11 +235,8 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             // Refresh the asset status
-            var importedAssetInfo =  m_AssetDataManager.GetImportedAssetInfo(asset);
-            if(importedAssetInfo != null)
-            {
-                importedAssetInfo.AssetData.ResetAssetDataAttributes();
-            }
+            var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(asset);
+            importedAssetInfo?.AssetData.RefreshAssetDataAttributesAsync();
 
             SelectedAssetsChanged?.Invoke(m_SelectedAssets);
         }
@@ -311,22 +330,6 @@ namespace Unity.AssetManager.UI.Editor
             return m_CustomUISection ??= CreateCustomUISection();
         }
 
-        protected virtual List<BaseFilter> InitFilters()
-        {
-            return new List<BaseFilter>
-            {
-                new StatusFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider),
-                new UnityTypeFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider),
-                new CreatedByFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider),
-                new UpdatedByFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider)
-            }.OrderBy(f => f.DisplayName).ToList();
-        }
-
-        protected virtual List<CustomMetadataFilter> InitCustomMetadataFilters()
-        {
-            return new List<CustomMetadataFilter>();
-        }
-
         protected internal abstract IAsyncEnumerable<BaseAssetData> LoadMoreAssets(CancellationToken token);
         protected abstract void OnLoadMoreSuccessCallBack();
 
@@ -342,7 +345,7 @@ namespace Unity.AssetManager.UI.Editor
             [EnumeratorCancellation] CancellationToken token)
         {
             await foreach (var assetData in LoadMoreAssets(collectionInfo.OrganizationId,
-                               new List<string> { collectionInfo.ProjectId }, collectionInfo.GetFullPath(), token))
+                               new List<string> {collectionInfo.ProjectId}, collectionInfo.GetFullPath(), token))
             {
                 yield return assetData;
             }
@@ -351,8 +354,7 @@ namespace Unity.AssetManager.UI.Editor
         protected async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(OrganizationInfo organizationInfo,
             [EnumeratorCancellation] CancellationToken token)
         {
-            await foreach (var assetData in LoadMoreAssets(organizationInfo.Id,
-                               organizationInfo.ProjectInfos.Select(p => p.Id), null, token))
+            await foreach (var assetData in LoadMoreAssets(organizationInfo.Id, null, null, token))
             {
                 yield return assetData;
             }
@@ -369,6 +371,14 @@ namespace Unity.AssetManager.UI.Editor
             {
                 assetData.ResetAssetDataAttributes();
             }
+        }
+
+        protected async Task RefreshAssetDataAttributesAsync()
+        {
+            var tasks = m_AssetDataManager.ImportedAssetInfos
+                .Select(i => i.AssetData.RefreshAssetDataAttributesAsync()).ToList();
+
+            await TaskUtils.WaitForTasksWithHandleExceptions(tasks);
         }
 
         void OnOrganizationChanged(OrganizationInfo obj)
@@ -397,10 +407,10 @@ namespace Unity.AssetManager.UI.Editor
                 var cloudAssetData = m_SearchRequest.Current;
 
                 // If an asset was imported, we need to display it's state and not the one from the cloud
-                var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(cloudAssetData.Identifier);
+                var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(cloudAssetData?.Identifier);
                 var assetData = importedAssetInfo != null ? importedAssetInfo.AssetData : cloudAssetData;
 
-                if (await IsDiscardedByLocalFilter(assetData, token))
+                if (await FilteringUtils.IsDiscardedByLocalFilter(assetData, m_PageFilterStrategy.SelectedLocalFilters, token))
                     continue;
 
                 yield return assetData;
@@ -420,6 +430,10 @@ namespace Unity.AssetManager.UI.Editor
 
             async Task<bool> MoveNextAsync()
             {
+                // If the request was cleared, exit the loop
+                if (m_SearchRequest == null)
+                    return false;
+
                 try
                 {
                     return await m_SearchRequest.MoveNextAsync();
@@ -448,9 +462,15 @@ namespace Unity.AssetManager.UI.Editor
                     ? $"Reviving search request at index {m_NextStartIndex}."
                     : "Initiating new search request.");
 
-                var assetSearchFilter = m_PageFilters.AssetSearchFilter;
+                var assetSearchFilter = m_PageFilterStrategy?.AssetSearchFilter;
+                if (assetSearchFilter == null)
+                {
+                    Utilities.DevLogError("AssetSearchFilter is null. Ensure that PageFilterStrategy is initialized before calling LoadMoreAssets.");
+                    return;
+                }
+
                 assetSearchFilter.Collection = new List<string> {collectionPath};
-                assetSearchFilter.Searches = m_PageFilters.SearchFilters?.ToList();
+                assetSearchFilter.Searches = m_PageFilterStrategy.SearchFilters?.ToList();
 
                 m_SearchRequest = m_AssetsProvider.SearchAsync(organizationId, projectIds, assetSearchFilter,
                         m_PageManager.SortField, m_PageManager.SortingOrder, m_NextStartIndex, 0, token)
@@ -467,22 +487,8 @@ namespace Unity.AssetManager.UI.Editor
         protected bool HasFilter<T>() where T : LocalFilter
         {
             var type = typeof(T);
-            return m_PageFilters.SelectedFilters.Any(x => type.IsInstanceOfType(x));
+            return m_PageFilterStrategy?.SelectedFilters.Any(x => type.IsInstanceOfType(x)) ?? false;
         }
-
-        protected async Task<bool> IsDiscardedByLocalFilter(BaseAssetData assetData, CancellationToken token)
-        {
-            var tasks = new List<Task<bool>>();
-            foreach (var filter in m_PageFilters.SelectedLocalFilters)
-            {
-                tasks.Add(filter.Contains(assetData, token));
-            }
-
-            await Task.WhenAll(tasks);
-
-            return tasks.Exists(t => !t.Result);
-        }
-
         protected virtual VisualElement CreateCustomUISection()
         {
             return null;
@@ -504,52 +510,31 @@ namespace Unity.AssetManager.UI.Editor
             m_LoadMoreAssetsOperations.Clear();
         }
 
-        protected List<CustomMetadataFilter> GetOrganizationCustomMetadataFilter()
+        protected bool TrySetNoResultsPageMessage()
         {
-            var metadataFilters = new List<CustomMetadataFilter>();
+            // If there are search filters, show a message indicating no results found.
+            // This is different from the empty state message which is shown when there are no assets at all.
+            var hasSearchFilters = m_PageFilterStrategy.SearchFilters.Any();
+            var hasSelectedFilters = m_PageFilterStrategy.SelectedFilters.Any();
 
-            var organizationInfo = m_ProjectOrganizationProvider.SelectedOrganization;
-            if (organizationInfo == null)
+            if (!hasSearchFilters && !hasSelectedFilters)
             {
-                return metadataFilters;
+                return false;
             }
 
-            foreach (var metadataField in organizationInfo.MetadataFieldDefinitions)
+            var message = L10n.Tr(Constants.NoResultsText);
+            if (hasSearchFilters)
             {
-                CustomMetadataFilter metadataFilter = null;
-
-                switch (metadataField.Type)
-                {
-                    case MetadataFieldType.Text:
-                        metadataFilter = new TextMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.TextMetadata(metadataField.Key, metadataField.DisplayName, string.Empty));
-                        break;
-                    case MetadataFieldType.Boolean:
-                        metadataFilter = new BooleanMetadataFilter(this, m_ProjectOrganizationProvider,m_AssetsProvider, new Core.Editor.BooleanMetadata(metadataField.Key, metadataField.DisplayName, false));
-                        break;
-                    case MetadataFieldType.Number:
-                        metadataFilter = new NumberMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.NumberMetadata(metadataField.Key, metadataField.DisplayName, 0));
-                        break;
-                    case MetadataFieldType.Url:
-                        metadataFilter = new UrlMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.UrlMetadata(metadataField.Key, metadataField.DisplayName, new UriEntry(default, string.Empty)));
-                        break;
-                    case MetadataFieldType.Timestamp:
-                        metadataFilter = new TimestampMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.TimestampMetadata(metadataField.Key, metadataField.DisplayName, new DateTimeEntry(DateTime.Today)));
-                        break;
-                    case MetadataFieldType.User:
-                        metadataFilter = new UserMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.UserMetadata(metadataField.Key, metadataField.DisplayName, string.Empty));
-                        break;
-                    case MetadataFieldType.SingleSelection:
-                        metadataFilter = new SingleSelectionMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.SingleSelectionMetadata(metadataField.Key, metadataField.DisplayName, string.Empty));
-                        break;
-                    case MetadataFieldType.MultiSelection:
-                        metadataFilter = new MultiSelectionMetadataFilter(this, m_ProjectOrganizationProvider, m_AssetsProvider, new Core.Editor.MultiSelectionMetadata(metadataField.Key, metadataField.DisplayName, null));
-                        break;
-                }
-
-                metadataFilters.Add(metadataFilter);
+                message += $"{L10n.Tr(Constants.NoResultsForSearchText)}{string.Join(" or ", m_PageFilterStrategy.SearchFilters.Select(f => $"\'{f}\'"))}";
             }
 
-            return metadataFilters.OrderBy(f => f.DisplayName).ToList();
+            if (hasSelectedFilters)
+            {
+                message += $"{L10n.Tr(Constants.NoResultsForFiltersText)}{string.Join(" and ", m_PageFilterStrategy.SelectedFilters.Select(f => f.DisplayName))}";
+            }
+
+            SetPageMessage(new Message(message));
+            return true;
         }
     }
 }

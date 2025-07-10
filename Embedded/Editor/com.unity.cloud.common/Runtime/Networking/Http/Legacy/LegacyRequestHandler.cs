@@ -8,30 +8,14 @@ using UnityEngine.Networking;
 
 namespace Unity.Cloud.CommonEmbedded.Runtime
 {
-    interface IMainThreadIODispatcher
-    {
-        Task<T> RunAsync<T>(Action<Action<T>> action) where T : class;
-    }
-
     class LegacyRequestHandler
     {
+        const string k_ContentEncodingHeaderKey = "Content-Encoding";
         const string k_ContentLengthHeaderKey = "Content-Length";
         const string k_ContentTypeHeaderKey = "Content-Type";
         const string k_TimeoutErrorMessage = "Request timeout";
 
-        readonly IMainThreadIODispatcher m_Dispatcher;
-
-        TaskScheduler m_Scheduler;
-        TaskScheduler Scheduler => m_Scheduler ??= UnitySynchronizationContextGrabber.s_UnityMainThreadScheduler;
-
         public TimeSpan Timeout { get; set; }
-
-        public LegacyRequestHandler(IMainThreadIODispatcher dispatcher = null)
-        {
-            // UnityWebRequest must run on the main unity thread
-            m_Scheduler = dispatcher != null ? TaskScheduler.Default : UnitySynchronizationContextGrabber.s_UnityMainThreadScheduler;
-            m_Dispatcher = dispatcher;
-        }
 
         /// <summary>
         /// Send an asynchronous HTTP request or file download request.
@@ -52,7 +36,7 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
                 async () => await RequestInternalAsync(httpRequestMessage, uploadHandler, completionOption, progress, cancellationToken),
                 cancellationToken,
                 TaskCreationOptions.DenyChildAttach,
-                Scheduler);
+                UnityMainThreadSchedulerGrabber.s_UnityMainThreadScheduler);
 
             return await factoryTask;
         }
@@ -60,30 +44,16 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
         async Task<HttpResponseMessage> RequestInternalAsync(HttpRequestMessage httpRequestMessage, UploadHandler uploadHandler, HttpCompletionOption completionOption,
             IProgress<HttpProgress> progress = default, CancellationToken cancellationToken = default)
         {
-            var state = await BuildRequestState(httpRequestMessage);
+            var state = new RequestState(httpRequestMessage, null, null, Timeout);
 
-            if (m_Dispatcher != null)
-            {
-                async void HandleRequestWithRedirectionAction(Action<object> onCompleted)
-                {
-                    await HandleRequestWithRedirection(state, uploadHandler, completionOption, progress, cancellationToken);
-                }
-
-                await m_Dispatcher.RunAsync<object>(HandleRequestWithRedirectionAction).ConfigureAwait(false);
-                if(completionOption == HttpCompletionOption.ResponseContentRead)
-                    await m_Dispatcher.RunAsync<object>(action => CompleteRequest(state)).ConfigureAwait(false);
-            }
-            else
-            {
-                await HandleRequestWithRedirection(state, uploadHandler, completionOption, progress, cancellationToken);
-                if(completionOption == HttpCompletionOption.ResponseContentRead)
-                    CompleteRequest(state);
-            }
+            await HandleRequestWithRedirection(state, uploadHandler, completionOption, progress, cancellationToken);
+            if(completionOption == HttpCompletionOption.ResponseContentRead)
+                CompleteRequest(state);
 
             return state.Response;
         }
 
-        async Task HandleRequestWithRedirection(RequestState state, UploadHandler uploadHandler,  HttpCompletionOption completionOption,
+        static async Task HandleRequestWithRedirection(RequestState state, UploadHandler uploadHandler,  HttpCompletionOption completionOption,
             IProgress<HttpProgress> progress, CancellationToken cancellationToken)
         {
             /*
@@ -91,13 +61,13 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             This limitation makes some requests fail because they contain unsupported headers.
             Here, we set the redirectLimit to 0 in order to handle this use case, and properly handle headers on redirected requests.
             */
-            long responseStatusCode = 302;
+            var responseStatusCode = HttpStatusCode.Redirect;
             // Matching UnityWebRequest redirectLimit default value of 32
             var maxHttpRedirection = 32;
             var httpRedirectionCount = 0;
             // Memorize original request scheme and host
 
-            while (responseStatusCode.Equals((long)HttpStatusCode.Redirect) && httpRedirectionCount < maxHttpRedirection)
+            while (responseStatusCode == HttpStatusCode.Redirect && httpRedirectionCount < maxHttpRedirection)
             {
                 // After first redirection
                 if (httpRedirectionCount >= 1 && !TryHandleRedirection(state))
@@ -114,29 +84,11 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
                 if (cancellationToken.IsCancellationRequested)
                     throw new TaskCanceledException();
 
-                responseStatusCode = state.Request.responseCode;
+                responseStatusCode = state.Response.StatusCode;
 
-                if (responseStatusCode.Equals((long)HttpStatusCode.Redirect))
+                if (responseStatusCode == HttpStatusCode.Redirect)
                     httpRedirectionCount++;
             }
-        }
-
-        async Task<RequestState> BuildRequestState(HttpRequestMessage httpRequestMessage)
-        {
-            string stringContent = null;
-            byte[] bytesContent = null;
-            switch (httpRequestMessage.Content)
-            {
-                case StringContent _:
-                    stringContent = await httpRequestMessage.Content.ReadAsStringAsync();
-                    break;
-                case ByteArrayContent _:
-                case StreamContent _:
-                case ReadOnlyMemoryContent _:
-                    bytesContent = await httpRequestMessage.Content.ReadAsByteArrayAsync();
-                    break;
-            }
-            return  new RequestState(httpRequestMessage, stringContent, bytesContent, null, null, Timeout);
         }
 
         static bool TryHandleRedirection(RequestState state)
@@ -173,7 +125,7 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             state.HttpRequestMessage.Method = state.OriginalHttpRequestMessage.Method;
         }
 
-        async Task ProcessRequestWithResponseContentReadOption(RequestState state, UploadHandler uploadHandler,
+        static async Task ProcessRequestWithResponseContentReadOption(RequestState state, UploadHandler uploadHandler,
             IProgress<HttpProgress> progress = default, CancellationToken cancellationToken = default)
         {
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -182,15 +134,15 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             await tcs.Task;
         }
 
-        async Task ProcessRequestWithResponseHeadersReadOption(RequestState state, UploadHandler uploadHandler,
+        static async Task ProcessRequestWithResponseHeadersReadOption(RequestState state, UploadHandler uploadHandler,
             IProgress<HttpProgress> progress = default, CancellationToken cancellationToken = default)
         {
             void TryCompleteRequest(RequestState state, TaskCompletionSource<bool> tcs)
             {
-                if (state.Request.responseCode.Equals((long)HttpStatusCode.Redirect))
-                    tcs.TrySetResult(true);
-                else
+                if (state.Response.StatusCode != HttpStatusCode.Redirect)
                     CompleteRequest(state);
+
+                tcs.TrySetResult(true);
             }
 
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -225,8 +177,13 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
                 }
             }
 
-            var memoryStreamDownloadHandler = new MemoryStreamDownloadHandler();
-            memoryStreamDownloadHandler.HeadersReceived += onHeadersReceived;
+            var queueStream = new QueueStream();
+            var memoryStreamDownloadHandler = new MemoryStreamDownloadHandler(queueStream.Writer);
+            memoryStreamDownloadHandler.HeadersReceived += () =>
+            {
+                SetHeaders(state);
+                onHeadersReceived();
+            };
 
             request.downloadHandler = memoryStreamDownloadHandler;
             if (uploadHandler != null)
@@ -242,6 +199,7 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             state.CancellationTokenRegistration = cancellationToken.Register(() =>
             {
                 request.Abort();
+                state.RequestDisposed = true;
                 request.Dispose();
             });
 
@@ -250,18 +208,25 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
                 request.timeout = state.Timeout.Seconds;
             }
 
-            var response = new HttpResponseMessage();
+            var response = new SafeHttpResponseMessageAccessor();
             response.RequestMessage = httpRequestMessage;
-            response.Content = new StreamContent(memoryStreamDownloadHandler.OutputStream);
+            response.Content = new StreamContent(queueStream.Reader);
+            response.StatusCode = 0;
             state.Response = response;
 
-            await HandleRequestAndProgress(request, onCompleted, memoryStreamDownloadHandler, progress);
+            await HandleRequestAndProgress(state, onCompleted, memoryStreamDownloadHandler, progress);
         }
 
-        static async Task HandleRequestAndProgress(UnityWebRequest request, Action onCompleted, MemoryStreamDownloadHandler memoryStreamDownloadHandler, IProgress<HttpProgress> progress)
+        static async Task HandleRequestAndProgress(RequestState state, Action onCompleted, MemoryStreamDownloadHandler memoryStreamDownloadHandler, IProgress<HttpProgress> progress)
         {
+            var request = state.Request;
             var asyncOp = request.SendWebRequest();
-            asyncOp.completed += asyncop => { onCompleted(); };
+            asyncOp.completed += _ =>
+            {
+                if (!state.RequestDisposed)
+                    state.Response.StatusCode = (HttpStatusCode)state.Request.responseCode;
+                onCompleted();
+            };
 
             if (progress == null)
                 return;
@@ -288,14 +253,21 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
             var request = state.Request;
 
+            if (state.RequestDisposed)
+                return;
+
             if (request.result != UnityWebRequest.Result.Success)
             {
                 if (request.downloadHandler is MemoryStreamDownloadHandler memoryStreamDownloadHandler)
+                {
                     memoryStreamDownloadHandler.ForceCompleteContent();
+                    memoryStreamDownloadHandler.EffectiveDispose();
+                }
 
                 if (request.result == UnityWebRequest.Result.ConnectionError)
                 {
                     var errorMessage = request.error;
+                    state.RequestDisposed = true;
                     request.Dispose();
 
                     if (errorMessage == k_TimeoutErrorMessage)
@@ -305,15 +277,35 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
                 }
             }
 
-            state.Response.StatusCode = (HttpStatusCode) request.responseCode;
-            var headers = request.GetResponseHeaders();
-            if (headers.ContainsKey(k_ContentTypeHeaderKey))
+            SetHeaders(state);
+
+            state.RequestDisposed = true;
+            request.Dispose();
+        }
+
+        static void SetHeaders(RequestState state)
+        {
+            state.Response.StatusCode = (HttpStatusCode)state.Request.responseCode;
+
+            var headers = state.Request.GetResponseHeaders();
+            if (headers?.ContainsKey(k_ContentTypeHeaderKey) ?? false)
             {
                 var substrings = headers[k_ContentTypeHeaderKey].Split(";");
                 state.Response.Content.Headers.ContentType = new MediaTypeHeaderValue(substrings[0]);
             }
 
-            request.Dispose();
+            if (headers?.ContainsKey(k_ContentLengthHeaderKey) ?? false)
+            {
+                if (long.TryParse(headers[k_ContentLengthHeaderKey], out var contentLength))
+                    state.Response.Content.Headers.ContentLength = contentLength;
+            }
+
+            if (headers?.ContainsKey(k_ContentEncodingHeaderKey) ?? false)
+            {
+                var encodings = headers[k_ContentEncodingHeaderKey].Split(",", StringSplitOptions.RemoveEmptyEntries);
+                foreach (var encoding in encodings)
+                    state.Response.Content.Headers.ContentEncoding.Add(encoding);
+            }
         }
 
         class RequestState
@@ -321,18 +313,77 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             public HttpRequestMessage HttpRequestMessage;
             public HttpRequestMessage OriginalHttpRequestMessage;
             public UnityWebRequest Request;
-            public HttpResponseMessage Response;
+            public SafeHttpResponseMessageAccessor Response;
             public IDisposable CancellationTokenRegistration;
             public TimeSpan Timeout;
+            public bool RequestDisposed;
 
-            public RequestState(HttpRequestMessage httpRequestMessage, string stringContent, byte[] bytesContent, UnityWebRequest request,
-                HttpResponseMessage response, TimeSpan timeout)
+            public RequestState(
+                HttpRequestMessage httpRequestMessage,
+                UnityWebRequest request,
+                SafeHttpResponseMessageAccessor response,
+                TimeSpan timeout)
             {
                 HttpRequestMessage = httpRequestMessage;
                 OriginalHttpRequestMessage = httpRequestMessage;
                 Request = request;
                 Response = response;
                 Timeout = timeout;
+            }
+        }
+
+        class SafeHttpResponseMessageAccessor
+        {
+            SafeHttpResponseMessage m_Response = new();
+
+            public HttpRequestMessage RequestMessage
+            {
+                set
+                {
+                    if (m_Response.IsDisposed)
+                        return;
+
+                    m_Response.RequestMessage = value;
+                }
+            }
+
+            public HttpContent Content
+            {
+                get => m_Response.Content;
+                set
+                {
+                    if (m_Response.IsDisposed)
+                        return;
+
+                    m_Response.Content = value;
+                }
+            }
+
+            public HttpStatusCode StatusCode
+            {
+                get => m_Response.StatusCode;
+                set
+                {
+                    if (m_Response.IsDisposed)
+                        return;
+
+                    m_Response.StatusCode = value;
+                }
+            }
+
+            public static implicit operator HttpResponseMessage(SafeHttpResponseMessageAccessor obj) => obj.m_Response;
+
+            class SafeHttpResponseMessage : HttpResponseMessage
+            {
+                protected override void Dispose(bool disposing)
+                {
+                    if (!IsDisposed)
+                        IsDisposed = true;
+
+                    base.Dispose(disposing);
+                }
+
+                public bool IsDisposed { get; private set; }
             }
         }
     }

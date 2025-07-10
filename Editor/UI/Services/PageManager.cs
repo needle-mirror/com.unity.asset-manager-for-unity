@@ -1,14 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
+using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.UI.Editor
 {
     interface IPageManager : IService
     {
         IPage ActivePage { get; }
+        IPageFilterStrategy PageFilterStrategy { get; }
         SortField SortField { get; }
         SortingOrder SortingOrder { get; }
         bool IsActivePage(IPage page);
@@ -44,26 +48,47 @@ namespace Unity.AssetManager.UI.Editor
         IDialogManager m_DialogManager;
 
         [SerializeReference]
+        ISettingsManager m_SettingsManager;
+
+        [SerializeReference]
         IAssetOperationManager m_AssetOperationManager;
 
         [SerializeReference]
         IPage m_ActivePage;
+
+        [SerializeReference]
+        IPageFilterStrategy m_PageFilterStrategy;
+
+        Dictionary<string, PageFilters> m_PageFiltersByType = new ();
+
+        [SerializeField]
+        List<string> m_SerializedPageFiltersByTypeKeys = new ();
+
+        [SerializeReference]
+        List<PageFilters> m_SerializedPageFiltersByTypeValues = new();
+
+        [SerializeReference]
+        ISavedAssetSearchFilterManager m_SavedSearchFilterManager;
 
         const string k_SortFieldPrefKey = "com.unity.asset-manager-for-unity.sortField";
         const string k_SortingOrderKey = "com.unity.asset-manager-for-unity.sortingOrder";
 
         public bool IsActivePage(IPage page) => m_ActivePage == page;
 
+        string ActivePageTitle => m_ActivePage?.Title ?? string.Empty;
+        string ActivePageSortFieldKey => $"{k_SortFieldPrefKey}_{ActivePageTitle}";
+        string ActivePageSortingOrderKey => $"{k_SortingOrderKey}_{ActivePageTitle}";
+
         public SortField SortField
         {
-            get => (SortField)EditorPrefs.GetInt(k_SortFieldPrefKey, (int)SortField.Name);
-            set => EditorPrefs.SetInt(k_SortFieldPrefKey, (int)value);
+            get => (SortField)EditorPrefs.GetInt(ActivePageSortFieldKey, (int)SortField.Name);
+            set => EditorPrefs.SetInt(ActivePageSortFieldKey, (int)value);
         }
 
         public SortingOrder SortingOrder
         {
-            get => (SortingOrder)EditorPrefs.GetInt(k_SortingOrderKey, (int)SortingOrder.Ascending);
-            set => EditorPrefs.SetInt(k_SortingOrderKey, (int)value);
+            get => (SortingOrder)EditorPrefs.GetInt(ActivePageSortingOrderKey, (int)SortingOrder.Ascending);
+            set => EditorPrefs.SetInt(ActivePageSortingOrderKey, (int)value);
         }
 
         public event Action<IPage> ActivePageChanged;
@@ -74,10 +99,22 @@ namespace Unity.AssetManager.UI.Editor
 
         public IPage ActivePage => m_ActivePage;
 
+        public IPageFilterStrategy PageFilterStrategy
+        {
+            get
+            {
+                if (m_PageFilterStrategy == null)
+                    InitializePageFiltering();
+
+                return m_PageFilterStrategy;
+            }
+        }
+
         [ServiceInjection]
         public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider,
             IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider,
-            IAssetOperationManager assetOperationManager, IMessageManager messageManager, IDialogManager dialogManager)
+            IAssetOperationManager assetOperationManager, IMessageManager messageManager,
+            IDialogManager dialogManager, ISettingsManager settingsManager, ISavedAssetSearchFilterManager savedSearchFilterManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_AssetsProvider = assetsProvider;
@@ -86,13 +123,18 @@ namespace Unity.AssetManager.UI.Editor
             m_AssetOperationManager = assetOperationManager;
             m_MessageManager = messageManager;
             m_DialogManager = dialogManager;
+            m_SettingsManager = settingsManager;
+            m_SavedSearchFilterManager = savedSearchFilterManager;
         }
 
         public override void OnEnable()
         {
             m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
+            m_SavedSearchFilterManager.FilterSelected += OnFilterSelected;
 
             m_ActivePage?.OnEnable();
+            InitializePageFiltering();
         }
 
         protected override void ValidateServiceDependencies()
@@ -100,11 +142,15 @@ namespace Unity.AssetManager.UI.Editor
             base.ValidateServiceDependencies();
 
             m_DialogManager = ServicesContainer.instance.Get<IDialogManager>();
+            m_SettingsManager = ServicesContainer.instance.Get<ISettingsManager>();
+            m_SavedSearchFilterManager = ServicesContainer.instance.Get<ISavedAssetSearchFilterManager>();
         }
 
         public override void OnDisable()
         {
             m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+            m_SavedSearchFilterManager.FilterSelected -= OnFilterSelected;
 
             m_ActivePage?.OnDisable();
         }
@@ -115,7 +161,10 @@ namespace Unity.AssetManager.UI.Editor
                 return;
 
             m_ActivePage?.OnDeactivated();
+            m_ActivePage?.ClearFilterStrategy();
             m_ActivePage?.OnDisable();
+
+            PageFilterStrategy.ClearPageFiltersObject();
 
             if (typeof(T) == typeof(CollectionPage) &&
                 string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProject?.Id))
@@ -127,7 +176,10 @@ namespace Unity.AssetManager.UI.Editor
                 m_ActivePage = CreatePage<T>();
             }
 
+            PageFilterStrategy.SetPageFiltersObject(m_PageFiltersByType[m_ActivePage.GetType().Name]);
+
             m_ActivePage?.OnEnable();
+            m_ActivePage?.SetFilterStrategy(PageFilterStrategy);
             m_ActivePage?.OnActivated();
 
             m_AssetOperationManager.ClearFinishedOperations();
@@ -170,17 +222,91 @@ namespace Unity.AssetManager.UI.Editor
             return page;
         }
 
+        void InitializePageFiltering()
+        {
+            if (m_PageFilterStrategy != null)
+                return;
+
+            m_PageFilterStrategy = new PageFilterStrategy(this, m_ProjectOrganizationProvider, m_AssetsProvider);
+            CreatePageFiltersByType();
+        }
+
+        void CreatePageFiltersByType()
+        {
+            var pageFiltersFactory = new PageFiltersFactory(PageFilterStrategy, m_ProjectOrganizationProvider, m_AssetDataManager);
+
+            var collectionPageFilters = pageFiltersFactory.CreateCollectionPageFilters();
+            var inProjectPageFilters = pageFiltersFactory.CreateInProjectPageFilters();
+            var uploadPageFilters = pageFiltersFactory.CreateUploadPageFilters();
+
+            m_PageFiltersByType[nameof(CollectionPage)] = collectionPageFilters;
+            m_PageFiltersByType[nameof(AllAssetsPage)] = collectionPageFilters;
+            m_PageFiltersByType[nameof(InProjectPage)] = inProjectPageFilters;
+            m_PageFiltersByType[nameof(UploadPage)] = uploadPageFilters;
+        }
+
         public void OnBeforeSerialize()
         {
-            // Nothing
+            m_SerializedPageFiltersByTypeKeys.Clear();
+            m_SerializedPageFiltersByTypeValues.Clear();
+
+            if (m_PageFiltersByType == null)
+                return;
+
+            foreach (var kvp in m_PageFiltersByType)
+            {
+                m_SerializedPageFiltersByTypeKeys.Add(kvp.Key);
+                m_SerializedPageFiltersByTypeValues.Add(kvp.Value);
+            }
         }
 
         public void OnAfterDeserialize()
         {
+            try
+            {
+                m_PageFiltersByType.Clear();
+                for (var i = 0; i < m_SerializedPageFiltersByTypeKeys.Count; i++)
+                {
+                    m_PageFiltersByType[m_SerializedPageFiltersByTypeKeys[i]] = m_SerializedPageFiltersByTypeValues[i];
+                }
+            }
+            catch (Exception e)
+            {
+                Utilities.DevLogException(e);
+            }
+
             if (m_ActivePage != null)
             {
                 RegisterPageEvents(m_ActivePage);
+
+                PageFilterStrategy.SetPageFiltersObject(m_PageFiltersByType[m_ActivePage.GetType().Name]);
+                m_ActivePage.SetFilterStrategy(PageFilterStrategy);
+                PageFilterStrategy.EnableFilters();
             }
+        }
+
+        void OnOrganizationChanged(OrganizationInfo _)
+        {
+            CreatePageFiltersByType();
+
+            if (m_ActivePage != null)
+            {
+                PageFilterStrategy.SetPageFiltersObject(m_PageFiltersByType[m_ActivePage.GetType().Name]);
+            }
+        }
+
+        public void OnFilterSelected(SavedAssetSearchFilter savedAssetSearchFilter, bool applyFilter)
+        {
+            if (savedAssetSearchFilter == null)
+            {
+                m_PageFilterStrategy.ClearFilters();
+                return;
+            }
+
+            // In the case where we're first saving a filter, it will already be applied so we don't need to apply it again.
+            // It causes a short loading sequence when re-applied.
+            if (applyFilter)
+                m_PageFilterStrategy.ApplyFilterFromAssetSearchFilter(savedAssetSearchFilter.AssetSearchFilter.Clone());
         }
     }
 }

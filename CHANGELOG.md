@@ -4,9 +4,27 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2025-07-10
+[Added]
+- Added support for saving search filters as views in the Asset Manager window
+- Search by file extension
+- Support for Virtual Private Cloud
+
+[Changed]
+- Asset Type search aligns with AM service dashboard Asset Type search
+- Assets with no files can now be imported for tracking
+- Search filters now persist across project and collections in the Assets tab.
+
+[Fixed]
+- Appropriate messaging when user account is switched with different Organizational access.
+- Re-upload failing when embedding multiple files.
+- The "Update All" button will correctly display its status based on all assets in a selected project, not only the assets visible in the scroller
+- Fixed the import status resetting whenever the Asset Manager window is closed or refreshed.
+- Ensure the task scheduler is never null upon making an HTTP request
+
 ## [1.5.1] - 2025-06-04
 [Fixed]
-- Fix `ArgumentNullException` on Unity 2022 that prevents opening Asset Manager for Unity. 
+- Fix `ArgumentNullException` on Unity 2022 that prevents opening Asset Manager for Unity.
 
 ## [1.5.0] - 2025-05-14
 [Added]

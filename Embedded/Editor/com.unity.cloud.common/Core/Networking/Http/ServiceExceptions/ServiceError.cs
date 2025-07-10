@@ -47,7 +47,10 @@ namespace Unity.Cloud.CommonEmbedded
         /// <inheritdoc/>
         public override string ToString()
         {
-            var stringBuilder = new System.Text.StringBuilder("ServiceError { ");
+            var stringBuilder = new System.Text.StringBuilder("ServiceError");
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine("{");
 
             var prependComma = false;
             prependComma = AppendField(nameof(Title), Title);
@@ -56,7 +59,18 @@ namespace Unity.Cloud.CommonEmbedded
             prependComma = AppendField(nameof(Status), Status.ToString());
             AppendField(nameof(Type), Type);
 
-            stringBuilder.Append(" }");
+            if (Details != null)
+            {
+                stringBuilder.AppendLine();
+                stringBuilder.AppendLine("Details:");
+                foreach (var item in Details)
+                {
+                    stringBuilder.Append("- ");
+                    stringBuilder.AppendLine(item.ToString());
+                }
+            }
+
+            stringBuilder.Append("}");
 
             return stringBuilder.ToString();
 

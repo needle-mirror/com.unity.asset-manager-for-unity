@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
@@ -8,67 +9,35 @@ using UnityEngine;
 namespace Unity.AssetManager.UI.Editor
 {
     [Serializable]
-    class LocalUnityTypeFilter : LocalFilter, ISerializationCallbackReceiver
+    class LocalUnityTypeFilter : LocalFilter
     {
+        [SerializeReference]
+        IAssetDataManager m_AssetDataManager;
+
         public override string DisplayName => "Type";
 
-        Dictionary<string, UnityAssetType> m_AssetTypeMap;
-        List<string> m_Selections = new();
+        List<FilterSelection> m_CachedSelections;
 
-        public LocalUnityTypeFilter(IPage page)
-            : base(page)
+        public LocalUnityTypeFilter(IPageFilterStrategy pageFilterStrategy, IAssetDataManager assetDataManager)
+            : base(pageFilterStrategy)
         {
-           ResetSelections();
+            m_AssetDataManager = assetDataManager;
         }
 
-        public void OnBeforeSerialize()
+        public override Task<List<FilterSelection>> GetSelections(bool _ = false)
         {
-            // Do nothing
-        }
-
-        public void OnAfterDeserialize()
-        {
-           ResetSelections();
-        }
-
-        public override Task<List<string>> GetSelections()
-        {
-            return Task.FromResult(m_Selections);
-        }
-
-        public override async Task<bool> Contains(BaseAssetData assetData, CancellationToken token = default)
-        {
-            if (m_AssetTypeMap == null || SelectedFilters == null)
+            if (m_CachedSelections == null)
             {
-                return true;
+                var values = m_AssetDataManager.ImportedAssetInfos.Select(i => i.AssetData.AssetType).Distinct();
+                m_CachedSelections = values.Select(x => new FilterSelection(m_PageFilterStrategy.ToString(x), x.GetToolTip())).ToList();
             }
 
-            await assetData.ResolveDatasetsAsync(token: token);
-            var type = AssetDataTypeHelper.GetUnityAssetType(assetData.PrimaryExtension);
-
-            foreach (var selectedFilter in SelectedFilters)
-            {
-                if (m_AssetTypeMap.TryGetValue(selectedFilter, out var assetType) && type == assetType)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return Task.FromResult(m_CachedSelections);
         }
 
-        void ResetSelections()
+        public override Task<bool> Contains(BaseAssetData assetData, CancellationToken token = default)
         {
-            m_Selections = new List<string>();
-            m_AssetTypeMap = new Dictionary<string, UnityAssetType>();
-
-            var types = (UnityAssetType[])Enum.GetValues(typeof(UnityAssetType));
-            foreach (var type in types)
-            {
-                var text = type.ToString().PascalCaseToSentence();
-                m_AssetTypeMap.Add(text, type);
-                m_Selections.Add(text);
-            }
+            return Task.FromResult(SelectedFilters == null || SelectedFilters.Any(selectedFilter => m_PageFilterStrategy.ToString(assetData.AssetType) == selectedFilter));
         }
     }
 }

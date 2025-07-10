@@ -1,8 +1,8 @@
 using System;
 using System.IO;
 using UnityEditor;
-using UnityEditor.SettingsManagement;
 using UnityEngine;
+using UnityEngine.Analytics;
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -23,6 +23,9 @@ namespace Unity.AssetManager.Core.Editor
         bool IsProjectWindowIconOverlayEnabled { get; }
         int ProjectWindowIconOverlayPosition { get; }
         bool DisplayDetailedProjectWindowIconOverlay { get; }
+        PrivateCloudSettings PrivateCloudSettings { get; }
+        SavedAssetSearchFilterSettings SavedAssetSearchFilterSettings { get; }
+
         void SetIsSubfolderCreationEnabled(bool value);
         void SetIsKeepHigherVersionEnabled(bool value);
         void SetCacheLocation(string cacheLocation);
@@ -72,15 +75,15 @@ namespace Unity.AssetManager.Core.Editor
             BottomRight = 3,
         }
 
-        Settings m_Settings;
+        UnityEditor.SettingsManagement.Settings m_Settings;
 
-        Settings Instance
+        UnityEditor.SettingsManagement.Settings Instance
         {
             get
             {
                 if (m_Settings == null)
                 {
-                    m_Settings = new Settings(AssetManagerCoreConstants.PackageName);
+                    m_Settings = new UnityEditor.SettingsManagement.Settings(AssetManagerCoreConstants.PackageName);
                 }
 
                 return m_Settings;
@@ -116,6 +119,9 @@ namespace Unity.AssetManager.Core.Editor
         public bool IsProjectWindowIconOverlayEnabled => Instance.Get(k_ProjectWindowIconOverlayEnabled, SettingsScope.User, true);
         public int ProjectWindowIconOverlayPosition => Instance.Get(k_ProjectWindowIconOverlayPosition, SettingsScope.User, (int)ProjectIconOverlayPosition.TopRight);
         public bool DisplayDetailedProjectWindowIconOverlay => Instance.Get(k_ProjectWindowIconOverlayType, SettingsScope.User, true);
+
+        public PrivateCloudSettings PrivateCloudSettings => PrivateCloudSettings.Load(Instance);
+        public SavedAssetSearchFilterSettings SavedAssetSearchFilterSettings => SavedAssetSearchFilterSettings.Load(Instance);
 
         public string BaseCacheLocation
         {
@@ -248,11 +254,13 @@ namespace Unity.AssetManager.Core.Editor
         public void SetDisableReimportModal(bool value)
         {
             Instance.Set(k_ReimportModalDisabled, value, SettingsScope.User);
+            AnalyticsSender.SendEvent(new DisableImportModalToggleEvent(value));
         }
 
         public void SetProjectWindowIconOverlayEnabled(bool value)
         {
             Instance.Set(k_ProjectWindowIconOverlayEnabled, value, SettingsScope.User);
+            AnalyticsSender.SendEvent(new ProjectIconOverlayToggleEvent(value));
         }
 
         public void SetProjectWindowIconOverlayPosition(int value)

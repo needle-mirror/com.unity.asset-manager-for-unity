@@ -12,10 +12,32 @@ namespace Unity.AssetManager.UI.Editor
 
         public override FilterSelectionType SelectionType => FilterSelectionType.SingleSelection;
 
-        public SingleSelectionMetadataFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider, IMetadata metadata)
-            : base(page, projectOrganizationProvider, assetsProvider, metadata)
+        public SingleSelectionMetadataFilter(IPageFilterStrategy pageFilterStrategy, IMetadata metadata)
+            : base(pageFilterStrategy, metadata)
         {
             m_SingleSelectionMetadata = metadata as SingleSelectionMetadata;
+        }
+
+        public override bool ApplyFromAssetSearchFilter(AssetSearchFilter searchFilter)
+        {
+            ClearFilter();
+
+            if (searchFilter.CustomMetadata == null || searchFilter.CustomMetadata.Count == 0)
+                return false;
+
+            var result = false;
+
+            foreach (var metadata in searchFilter.CustomMetadata)
+            {
+                if (metadata is SingleSelectionMetadata singleSelectionMetadata &&
+                    singleSelectionMetadata.FieldKey == m_SingleSelectionMetadata.FieldKey)
+                {
+                    ApplyFilter(new List<string> { singleSelectionMetadata.Value });
+                    result = true;
+                }
+            }
+
+            return result;
         }
 
         protected override void IncludeFilter(List<string> selectedFilters)

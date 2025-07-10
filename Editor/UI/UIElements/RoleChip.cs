@@ -37,7 +37,15 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            RegisterCallback<ClickEvent>(OnClicked);
+            if (m_LinksProxy.CanOpenAssetManagerDocumentation)
+            {
+                RegisterCallback<ClickEvent>(OnClicked);
+                pickingMode = PickingMode.Position;
+            }
+            else
+            {
+                pickingMode = PickingMode.Ignore;
+            }
 
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;

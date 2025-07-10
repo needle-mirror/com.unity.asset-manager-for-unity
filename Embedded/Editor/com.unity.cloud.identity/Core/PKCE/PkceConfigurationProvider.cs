@@ -10,12 +10,13 @@ namespace Unity.Cloud.IdentityEmbedded
     /// </summary>
     class PkceConfigurationProvider : IPkceConfigurationProvider
     {
-        IServiceHostResolver m_ServiceHostResolver;
+        readonly IServiceHostResolver m_ServiceHostResolver;
 
         /// <summary>
         /// Builds a `PkceConfigurationProvider` handles the access to a <see cref="PkceConfiguration"/>.
         /// </summary>
         /// <param name="serviceHostResolver">The service host resolver for the service Url.</param>
+        [Obsolete("Use the PkceConfigurationProviderFactory instead.")]
         public PkceConfigurationProvider(IServiceHostResolver serviceHostResolver)
         {
             m_ServiceHostResolver = serviceHostResolver;
@@ -52,7 +53,6 @@ namespace Unity.Cloud.IdentityEmbedded
 
             return new PkceConfiguration
             {
-                AllowAnonymous = false,
                 CacheRefreshToken = true,
                 ClientId = new ClientId("unity_cloud"),
                 ProxyLoginRedirectRoute = $"{serviceDomainHost}/app-linking/v1/login/redirect/",

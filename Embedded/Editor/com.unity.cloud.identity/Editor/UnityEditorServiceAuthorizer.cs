@@ -13,7 +13,7 @@ using UnityEngine;
 namespace Unity.Cloud.IdentityEmbedded.Editor
 {
     /// <summary>
-    /// An <see cref="IServiceAuthorizer"/> implementation that supports domain reload in the Unity Editor.
+    /// An <see cref="Unity.Cloud.CommonEmbedded.IServiceAuthorizer"/> implementation that supports domain reload in the Unity Editor.
     /// </summary>
     class UnityEditorServiceAuthorizer : ScriptableSingleton<UnityEditorServiceAuthorizer>, IServiceAuthorizer,
         IAuthenticationStateProvider, IUserInfoProvider, IOrganizationRepository, ISerializationCallbackReceiver
@@ -75,7 +75,7 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
         Task<string> m_GetAccessTokenTask;
 
         DateTime? m_TokenExpiry;
-        bool m_AwaitingExchangeOperation;
+        [NonSerialized] bool m_AwaitingExchangeOperation;
 
         internal void OverrideUnityEditorServiceAuthorizer(
             IAccessTokenExchanger<TargetClientIdToken, UnityServicesToken> accessTokenExchanger,
@@ -176,7 +176,6 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
             }
         }
 
-
         async Task RefreshUnityTokenFromAccessTokenAsync()
         {
             // Throttle request to retry token exchange until connectivity is restored
@@ -258,7 +257,7 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
                 if (!m_UseOverride)
                 {
                     var httpClient = new UnityHttpClient();
-                    var serviceHostResolver = UnityRuntimeServiceHostResolverFactory.Create();
+                    var serviceHostResolver = ServiceHostResolverFactory.Create();
                     m_TargetClientIdTokenToUnityServicesTokenExchanger = new TargetClientIdTokenToUnityServicesTokenExchanger(httpClient, serviceHostResolver);
                 }
                 InitAuthenticatedUserSession();
@@ -270,7 +269,7 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
             UnityServicesToken = exchangedToken.AccessToken;
         }
 
-        /// <inheritdoc cref="IServiceAuthorizer.AddAuthorization"/>
+        /// <inheritdoc cref="Unity.Cloud.CommonEmbedded.IServiceAuthorizer.AddAuthorization"/>
         public async Task AddAuthorization(HttpHeaders headers)
         {
 #if UNITY_EDITOR

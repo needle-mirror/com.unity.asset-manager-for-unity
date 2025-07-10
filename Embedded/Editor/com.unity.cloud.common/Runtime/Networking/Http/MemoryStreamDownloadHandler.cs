@@ -1,16 +1,17 @@
 using System;
+using System.IO;
 using UnityEngine;
 using UnityEngine.Networking;
 
 namespace Unity.Cloud.CommonEmbedded.Runtime
 {
-    internal class MemoryStreamDownloadHandler : DownloadHandlerScript
+    class MemoryStreamDownloadHandler : DownloadHandlerScript
     {
         public int ContentLength => m_BytesReceived > m_ContentLength ? m_BytesReceived : m_ContentLength;
 
         public event Action HeadersReceived;
 
-        public TwoWayMemoryStream OutputStream { get; private set; }
+        Stream m_Writer;
 
         public bool DataReceived { get; private set; }
 
@@ -18,14 +19,18 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
         int m_BytesReceived;
         bool m_HeadersReceivedInvoked;
 
-        public MemoryStreamDownloadHandler(int bufferSize = 4096) : base(new byte[bufferSize])
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="writer">Takes ownership of the writer. This class will call Dispose on it</param>
+        /// <param name="bufferSize"></param>
+        public MemoryStreamDownloadHandler(Stream writer, int bufferSize = 4096) : base(new byte[bufferSize])
         {
             m_ContentLength = -1;
             m_BytesReceived = 0;
             m_HeadersReceivedInvoked = false;
             DataReceived = false;
-
-            OutputStream = new TwoWayMemoryStream();
+            m_Writer = writer;
         }
 
         protected override float GetProgress()
@@ -46,8 +51,8 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             TryInvokeHeadersReceived();
 
             m_BytesReceived += dataLength;
-            OutputStream.Write(data, 0, dataLength);
-            
+            m_Writer.Write(data, 0, dataLength);
+
             DataReceived = true;
             return true;
         }
@@ -56,13 +61,25 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
         {
             TryInvokeHeadersReceived();
 
-            OutputStream.SetCompleted();
+            CloseStream();
         }
 
-        public override void Dispose()
+        /// <summary>
+        /// Act as the real/effective Dispose method. To be used instead of Dispose.
+        ///
+        /// Sadly, the parent class DownloadHandler does not properly
+        /// implement the Dispose pattern and does not distinguish between a user call to Dispose from the Finalizer
+        /// running. The result is that from a overriden Dispose, we cannot know if it's safe to Dispose other internal
+        /// objects.
+        /// </summary>
+        public void EffectiveDispose()
         {
             CloseStream();
-            base.Dispose();
+
+            Dispose();
+#pragma warning disable S3971 // "GC.SuppressFinalize" should not be called
+            GC.SuppressFinalize(this);
+#pragma warning restore S3971
         }
 
         /// <summary>
@@ -84,10 +101,10 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
         void CloseStream()
         {
-            if (OutputStream != null)
+            if (m_Writer != null)
             {
-                OutputStream.Dispose();
-                OutputStream = null;
+                m_Writer.Dispose();
+                m_Writer = null;
             }
         }
     }

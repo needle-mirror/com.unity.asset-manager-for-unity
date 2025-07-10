@@ -12,6 +12,12 @@ namespace Unity.AssetManager.UI.Editor
 
         public const int DefaultPageSize = 50;
 
+        // Sidebar
+        public const string SidebarProjectsText = "Projects";
+        public const string SidebarSavedViewsText = "Saved Views";
+        public const string SidebarRenameSavedView = "Rename saved view";
+        public const string SidebarDeleteSavedView = "Delete saved view";
+
         // Filter
         public const string NoSelectionsText = "Empty";
         public const string UpToDate = "Up to date";
@@ -26,6 +32,16 @@ namespace Unity.AssetManager.UI.Editor
         public const string EnterText = "Enter text :";
         public const string EnterNumberText = "Enter number :";
         public const string EnterUrlText = "Enter hyperlink label :";
+
+        // Saved View Controls
+        public const string ClearFilter = "Clear";
+        public const string ClearFilterTooltip = "Clear the current saved view and all applied search filters";
+        public const string SaveFilter = "Save";
+        public const string SaveCurrentFilterTooltip = "Save the current view and all currently applied search filters";
+        public const string SaveFilterDropdownTooltip = "More save options";
+        public const string SaveFilterAsNew = "Save as new view";
+        public const string SaveCurrentFilter = "Save current view";
+
 
         // Sort
         public const string Sort = "Sort by:";
@@ -91,7 +107,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string UploadMetadata = "Upload Metadata";
         public const string AddCustomField = "Add custom field";
         public const string MetadataPartialEditing = "Metadata that are only on some of the selected assets cannot be multi-edited.";
-        public const string NoMatchingFields = "No field exists. To add custom fields, go to the <a>dashboard</a> and create a new metadata field.";
+        public const string NoMatchingFields = "No matching metadata field. To add custom fields, go to the <a>dashboard</a> and create a new metadata field.";
+        public const string NoMatchingFields_WithoutLink = "No matching metadata field.";
 
         // Preview Status
         public const string ImportedText = "Asset is imported from Asset Manager";
@@ -190,7 +207,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string EmptyProjectText = "The selected project is empty. To add assets, right click on any asset in project window and select upload to asset manager.";
         public const string EmptyAllAssetsText = "The selected organization is empty. To add assets, right click on any asset in project window and select upload to asset manager.";
         public const string NoResultsText = "No results found";
-        public const string NoResultsForText = "No results found for";
+        public const string NoResultsForSearchText = " for search: ";
+        public const string NoResultsForFiltersText = " with filters: ";
 
         public const string UpdateAllText = "Update All";
         public const string UpdateAllToLatestActionText = "Update All To Latest";

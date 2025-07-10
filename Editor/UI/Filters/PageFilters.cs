@@ -25,9 +25,6 @@ namespace Unity.AssetManager.UI.Editor
         [SerializeReference]
         bool m_IsEnabled;
 
-        [SerializeReference]
-        IPage m_Page;
-
         public List<string> SearchFilters => m_SearchFilters;
         public List<BaseFilter> SelectedFilters => m_SelectedFilters;
         public IEnumerable<LocalFilter> SelectedLocalFilters => m_SelectedFilters.OfType<LocalFilter>();
@@ -40,12 +37,9 @@ namespace Unity.AssetManager.UI.Editor
         public event Action<BaseFilter, bool> FilterAdded;
         public event Action<BaseFilter> FilterApplied;
 
-        AssetSearchFilter m_AssetSearchFilter;
+        public event Action<bool> ClearPageFilters;
 
-        public PageFilters(IPage page)
-        {
-            m_Page = page;
-        }
+        AssetSearchFilter m_AssetSearchFilter;
 
         public void Initialize(List<BaseFilter> primaryMetadataFilters, List<CustomMetadataFilter> customMetadataFilters)
         {
@@ -55,6 +49,9 @@ namespace Unity.AssetManager.UI.Editor
 
         public void AddSearchFilter(IEnumerable<string> searchFiltersArg)
         {
+            if (searchFiltersArg == null || !searchFiltersArg.Any())
+                return;
+
             var searchFilterAdded = false;
             foreach (var searchFilter in searchFiltersArg)
             {
@@ -108,6 +105,9 @@ namespace Unity.AssetManager.UI.Editor
 
         public void AddFilter(BaseFilter filter, bool showSelection)
         {
+            if (filter == null)
+                return;
+
             m_SelectedFilters.Add(filter);
             filter.IsDirty = true;
             FilterAdded?.Invoke(filter, showSelection);
@@ -156,14 +156,38 @@ namespace Unity.AssetManager.UI.Editor
 
             if (reload)
             {
-                m_Page?.Clear(true);
+                ClearPageFilters?.Invoke(true);
             }
         }
 
-        public void EnableFilters(bool value = true)
+        public void EnableFilters(bool enable = true)
         {
-            m_IsEnabled = value;
+            m_IsEnabled = enable;
             EnableStatusChanged?.Invoke(IsAvailableFilters());
+        }
+
+        public void ApplyFiltersFromAssetSearchFilter(AssetSearchFilter assetSearchFilter)
+        {
+            m_SelectedFilters.Clear();
+            foreach (var filter in m_PrimaryMetadataFilters)
+            {
+                if (filter is CloudFilter cloudFilter)
+                {
+                    cloudFilter.Clear();
+                    if (cloudFilter.ApplyFromAssetSearchFilter(assetSearchFilter))
+                        AddFilter(cloudFilter, false);
+                }
+            }
+
+            foreach (var filter in m_CustomMetadataFilters)
+            {
+                filter.Clear();
+                if (filter.ApplyFromAssetSearchFilter(assetSearchFilter))
+                    AddFilter(filter, false);
+            }
+
+            m_SearchFilters.Clear();
+            AddSearchFilter(assetSearchFilter.Searches);
         }
 
         public bool IsAvailableFilters()
@@ -183,7 +207,9 @@ namespace Unity.AssetManager.UI.Editor
 
         public void ClearFilters()
         {
-            foreach (var filter in SelectedFilters)
+            var requiresReload = m_SelectedFilters.Count > 0 || m_SearchFilters.Count > 0;
+            var filtersToClear = m_SelectedFilters.ToList();
+            foreach (var filter in filtersToClear)
             {
                 filter.ApplyFilter(null);
                 filter.Clear();
@@ -192,7 +218,20 @@ namespace Unity.AssetManager.UI.Editor
 
             m_SearchFilters.Clear();
 
-            m_Page?.Clear(true);
+            ClearPageFilters?.Invoke(requiresReload);
+        }
+
+        public void SetDirty()
+        {
+            foreach (var filter in m_PrimaryMetadataFilters)
+            {
+                filter.IsDirty = true;
+            }
+
+            foreach (var filter in m_CustomMetadataFilters)
+            {
+                filter.IsDirty = true;
+            }
         }
 
         AssetSearchFilter InitializeAssetSearchFilter()

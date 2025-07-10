@@ -93,6 +93,13 @@ namespace Unity.Cloud.IdentityEmbedded
 
         public AuthenticatorRoleProvider(string userId, IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver, IEntityJsonProvider entityJsonProvider = null)
         {
+            // If service host is the public unity services gateway
+            if (serviceHostResolver is ServiceHostResolver unityServiceHostResolver && unityServiceHostResolver.GetResolvedHost().EndsWith("services.api.unity.com"))
+            {
+                // Switch to using the internal unity services gateway host
+                serviceHostResolver = unityServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
+            }
+
             m_ServiceHostResolver = serviceHostResolver;
             m_ServiceHttpClient = serviceHttpClient;
             m_EntityJsonProvider = entityJsonProvider;
@@ -107,9 +114,7 @@ namespace Unity.Cloud.IdentityEmbedded
             {
                 return m_EntityJsonProvider.GetEntityJsonAsync(entityId, entityType);
             }
-
-            var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
-            var url = internalServiceHostResolver.GetResolvedRequestUri($"/api/access/legacy/v1/users/{m_UserId}/entities?entityType={entityType}&entityId={entityId}&filterByEntityType[]={entityType}");
+            var url = m_ServiceHostResolver.GetResolvedRequestUri($"/api/access/legacy/v1/users/{m_UserId}/entities?entityType={entityType}&entityId={entityId}&filterByEntityType[]={entityType}");
             if (m_GetRequestResponseCache.TryGetRequestResponseFromCache(url, out IEnumerable<EntityJson> value))
             {
                 return value;
@@ -117,10 +122,8 @@ namespace Unity.Cloud.IdentityEmbedded
 
             // First time, or time to refresh if cached result has expired
             var response = await m_ServiceHttpClient.GetAsync(url);
-            var responseContent = await response.Content.ReadAsStringAsync();
-            var returnValue = JsonSerialization.Deserialize<IEnumerable<EntityJson>>(responseContent);
-
-            return m_GetRequestResponseCache.AddGetRequestResponseToCache(url, returnValue);
+            var entityJsons = await response.JsonDeserializeAsync<IEnumerable<EntityJson>>();
+            return m_GetRequestResponseCache.AddGetRequestResponseToCache(url, entityJsons);
         }
 
         public async Task<IEnumerable<Role>> ListEntityRolesAsync(string entityId, string entityType)

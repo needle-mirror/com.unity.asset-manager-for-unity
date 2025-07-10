@@ -8,7 +8,7 @@ namespace Unity.AssetManager.UI.Editor
     [Serializable]
     abstract class LocalFilter : BaseFilter
     {
-        internal LocalFilter(IPage page) : base(page) { }
+        internal LocalFilter(IPageFilterStrategy pageFilterStrategy) : base(pageFilterStrategy) { }
 
         public abstract Task<bool> Contains(BaseAssetData assetData, CancellationToken token = default);
     }

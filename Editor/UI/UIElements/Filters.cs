@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEditor.UIElements;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
@@ -49,9 +51,12 @@ namespace Unity.AssetManager.UI.Editor
         VisualElement m_ChipContainer;
         VisualElement m_CurrentChip;
 
-        PageFilters PageFilters => m_PageManager?.ActivePage?.PageFilters;
-        List<BaseFilter> SelectedFilters => PageFilters?.SelectedFilters ?? new List<BaseFilter>();
+        IPageFilterStrategy PageFilterStrategy => m_PageManager?.PageFilterStrategy;
+        List<BaseFilter> SelectedFilters => PageFilterStrategy?.SelectedFilters ?? new List<BaseFilter>();
         protected override VisualElement Container => m_FilterButton;
+
+        Task m_AddSelectionTask;
+        CancellationTokenSource m_CancellationTokenSource;
 
         public Filters(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
             IApplicationProxy applicationProxy, IPopupManager popupManager)
@@ -69,11 +74,13 @@ namespace Unity.AssetManager.UI.Editor
         {
             base.OnAttachToPanel(evt);
 
-            if (PageFilters != null)
+            if (PageFilterStrategy != null)
             {
-                PageFilters.EnableStatusChanged += OnEnableStatusChanged;
-                PageFilters.FilterApplied += OnFilterApplied;
-                PageFilters.FilterAdded += OnFilterAdded;
+                PageFilterStrategy.SavedFilterApplied += Refresh;
+                PageFilterStrategy.EnableStatusChanged += OnEnableStatusChanged;
+                PageFilterStrategy.FilterApplied += OnFilterApplied;
+                PageFilterStrategy.FilterAdded += OnFilterAdded;
+                PageFilterStrategy.FiltersCleared += Refresh;
             }
 
             m_PopupManager.Container.RegisterCallback<FocusOutEvent>(DeleteEmptyChip);
@@ -83,11 +90,13 @@ namespace Unity.AssetManager.UI.Editor
         {
             base.OnDetachFromPanel(evt);
 
-            if (PageFilters != null)
+            if (PageFilterStrategy != null)
             {
-                PageFilters.EnableStatusChanged -= OnEnableStatusChanged;
-                PageFilters.FilterApplied -= OnFilterApplied;
-                PageFilters.FilterAdded -= OnFilterAdded;
+                PageFilterStrategy.SavedFilterApplied -= Refresh;
+                PageFilterStrategy.EnableStatusChanged -= OnEnableStatusChanged;
+                PageFilterStrategy.FilterApplied -= OnFilterApplied;
+                PageFilterStrategy.FilterAdded -= OnFilterAdded;
+                PageFilterStrategy.FiltersCleared -= Refresh;
             }
 
             m_PopupManager.Container.UnregisterCallback<FocusOutEvent>(DeleteEmptyChip);
@@ -95,17 +104,13 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void OnActivePageChanged(IPage page)
         {
-            PageFilters.EnableStatusChanged += OnEnableStatusChanged;
-            PageFilters.FilterApplied += OnFilterApplied;
-            PageFilters.FilterAdded += OnFilterAdded;
             Refresh();
-
             base.OnActivePageChanged(page);
         }
 
         protected override void InitDisplay(IPage page)
         {
-            UIElementsUtils.SetDisplay(Container, SelectedFilters.Any() || (page?.AssetList?.Any() ?? false));
+            UIElementsUtils.SetDisplay(Container, true);
         }
 
         protected override bool IsDisplayed(IPage page)
@@ -121,8 +126,11 @@ namespace Unity.AssetManager.UI.Editor
         void Refresh()
         {
             Clear();
-            PageFilters?.ClearFilters();
-            m_FilterPerChip?.Clear();
+            m_FilterPerChip.Clear();
+
+            m_CancellationTokenSource?.Cancel();
+            m_CancellationTokenSource?.Dispose();
+            m_CancellationTokenSource = null;
 
             // The first call of InitializeUI is made into the constructor
             InitializeUI();
@@ -153,7 +161,7 @@ namespace Unity.AssetManager.UI.Editor
                 m_ChipContainer.Add(CreateChipButton(filter));
             }
 
-            m_FilterButton.SetEnabled(PageFilters?.IsAvailableFilters() ?? false);
+            m_FilterButton.SetEnabled(PageFilterStrategy?.IsAvailableFilters() ?? false);
             m_FilterButton.clicked += OnFilterButtonClicked;
 
             InitDisplay(m_PageManager.ActivePage);
@@ -161,15 +169,12 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnFilterButtonClicked()
         {
-            foreach (var selectedFilter in SelectedFilters)
-            {
-                selectedFilter.Cancel();
-            }
+            PageFilterStrategy.Cancel();
 
             var availablePrimaryMetadataFilters =
-                PageFilters.GetAvailablePrimaryMetadataFilters() ?? new List<BaseFilter>();
+                PageFilterStrategy.GetAvailablePrimaryMetadataFilters() ?? new List<BaseFilter>();
             var availableCustomMetadataFilters =
-                PageFilters.GetAvailableCustomMetadataFilters() ?? new List<CustomMetadataFilter>();
+                PageFilterStrategy.GetAvailableCustomMetadataFilters() ?? new List<CustomMetadataFilter>();
 
             var filterSelections = new ScrollView();
 
@@ -209,7 +214,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void BuildSelections(List<BaseFilter> availablePrimaryMetadataFilters, List<CustomMetadataFilter> availableCustomMetadataFilters, ScrollView filterSelections)
         {
-            var showTitle = PageFilters.CustomMetadataFilters.Any();
+            var showTitle = PageFilterStrategy.HasCustomMetadataFilters;
 
             if (showTitle && availablePrimaryMetadataFilters.Any())
             {
@@ -282,8 +287,8 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_PopupManager.Hide();
 
-            PageFilters.AddFilter(filter, true);
-            m_FilterButton.SetEnabled(PageFilters.IsAvailableFilters());
+            PageFilterStrategy.AddFilter(filter, true);
+            m_FilterButton.SetEnabled(PageFilterStrategy.IsAvailableFilters());
         }
 
         void WaitUntilChipIsPositioned(Button chip, BaseFilter filter)
@@ -308,30 +313,40 @@ namespace Unity.AssetManager.UI.Editor
             loadingLabel.AddToClassList(k_SelfCenter);
             m_PopupManager.Container.Add(loadingLabel);
 
-            TaskUtils.TrackException(AddFilterSelectionItems(chip, filter));
+            m_CancellationTokenSource?.Cancel();
+            m_CancellationTokenSource?.Dispose();
+            m_CancellationTokenSource = new CancellationTokenSource();
+            m_AddSelectionTask = AddFilterSelectionItems(chip, filter, m_CancellationTokenSource.Token);
+
+            TaskUtils.TrackException(m_AddSelectionTask);
         }
 
         void OnChipDeleteClicked(Button chip, BaseFilter filter)
         {
             m_FilterPerChip.Remove(chip);
             chip.RemoveFromHierarchy();
-            PageFilters.RemoveFilter(filter);
-            m_FilterButton.SetEnabled(PageFilters.IsAvailableFilters());
+            PageFilterStrategy.RemoveFilter(filter);
+            m_FilterButton.SetEnabled(PageFilterStrategy.IsAvailableFilters());
 
             ApplyFilter(filter, null);
 
             m_PopupManager.Hide();
         }
 
-        async Task AddFilterSelectionItems(Button chip, BaseFilter filter)
+        async Task AddFilterSelectionItems(Button chip, BaseFilter filter, CancellationToken cancellationToken)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             switch (filter.SelectionType)
             {
                 case FilterSelectionType.SingleSelection:
-                    await AddSingleSelectionItems(chip, filter);
+                    await AddSingleSelectionItems(chip, filter, cancellationToken);
                     break;
                 case FilterSelectionType.MultiSelection:
-                    await AddMultiSelectionItems(chip, filter);
+                    await AddMultiSelectionItems(chip, filter, cancellationToken);
                     break;
                 case FilterSelectionType.Number:
                     AddNumberSelection(chip, filter);
@@ -346,7 +361,7 @@ namespace Unity.AssetManager.UI.Editor
                     AddTextSelection(chip, filter);
                     break;
                 case FilterSelectionType.Url:
-                   AddUrlSelection(chip, filter);
+                    AddUrlSelection(chip, filter);
                     break;
                 default:
                     Utilities.DevLogError($"{filter.SelectionType} is not supported");
@@ -354,10 +369,13 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        async Task AddSingleSelectionItems(Button chip, BaseFilter filter)
+        async Task AddSingleSelectionItems(Button chip, BaseFilter filter, CancellationToken cancellationToken)
         {
-            var selections = await filter.GetSelections();
+            var selections = await filter.GetSelections(true);
             if (selections == null)
+                return;
+
+            if (cancellationToken.IsCancellationRequested)
                 return;
 
             m_PopupManager.Clear();
@@ -382,10 +400,11 @@ namespace Unity.AssetManager.UI.Editor
                     filterSelection.Add(checkmark);
 
                     var label = new TextElement();
-                    label.text = selection;
+                    label.text = selection.Text;
+                    label.tooltip = selection.Tooltip;
                     filterSelection.Add(label);
 
-                    checkmark.visible = filter.SelectedFilters?.Exists(s => s == selection) ?? false;
+                    checkmark.visible = filter.SelectedFilters?.Any(s => s == selection.Text) ?? false;
 
                     filterSelection.RegisterCallback<ClickEvent>(evt =>
                     {
@@ -394,7 +413,7 @@ namespace Unity.AssetManager.UI.Editor
                         chip.AddToClassList(UssStyle.k_FilterItemChipSet);
                         m_PopupManager.Hide();
 
-                        ApplyFilter(filter, new List<string>{selection});
+                        ApplyFilter(filter, new List<string> {selection.Text});
                     });
 
                     scrollView.Add(filterSelection);
@@ -446,10 +465,13 @@ namespace Unity.AssetManager.UI.Editor
             return applyButton;
         }
 
-        async Task AddMultiSelectionItems(Button chip, BaseFilter filter)
+        async Task AddMultiSelectionItems(Button chip, BaseFilter filter, CancellationToken cancellationToken)
         {
-            var selections = await filter.GetSelections();
+            var selections = await filter.GetSelections(true);
             if (selections == null)
+                return;
+
+            if (cancellationToken.IsCancellationRequested)
                 return;
 
             m_PopupManager.Clear();
@@ -491,27 +513,28 @@ namespace Unity.AssetManager.UI.Editor
                     filterSelection.Add(checkmark);
 
                     var label = new TextElement();
-                    label.text = selection;
+                    label.text = selection.Text;
+                    label.tooltip = selection.Tooltip;
                     filterSelection.Add(label);
 
-                    checkmark.visible = filter.SelectedFilters?.Exists(s => s == selection) ?? false;
+                    checkmark.visible = filter.SelectedFilters?.Any(s => s == selection.Text) ?? false;
 
                     filterSelection.RegisterCallback<ClickEvent>(evt =>
                     {
                         evt.StopPropagation();
 
-                        if (selectedFilters.Contains(selection))
+                        if (selectedFilters.Contains(selection.Text))
                         {
-                            selectedFilters.Remove(selection);
+                            selectedFilters.Remove(selection.Text);
                             applyButton.SetEnabled(selectedFilters.Any());
                         }
                         else
                         {
-                            selectedFilters.Add(selection);
+                            selectedFilters.Add(selection.Text);
                             applyButton.SetEnabled(true);
                         }
 
-                        checkmark.visible = selectedFilters.Contains(selection);
+                        checkmark.visible = selectedFilters.Contains(selection.Text);
                     });
 
                     scrollView.Add(filterSelection);
@@ -708,7 +731,7 @@ namespace Unity.AssetManager.UI.Editor
                 m_PageManager.ActivePage.LoadingStatusChanged += OnActivePageLoadingStatusChanged;
             }
 
-            PageFilters.ApplyFilter(filter, selectedFilters);
+            PageFilterStrategy.ApplyFilter(filter, selectedFilters);
         }
 
         void DeleteEmptyChip(FocusOutEvent evt)
@@ -719,13 +742,17 @@ namespace Unity.AssetManager.UI.Editor
 
             if (m_CurrentChip != null)
             {
+                m_CancellationTokenSource?.Cancel();
+                m_CancellationTokenSource?.Dispose();
+                m_CancellationTokenSource = null;
+
                 if (m_FilterPerChip.TryGetValue(m_CurrentChip, out var filter) &&
                     (filter.SelectedFilters == null || !filter.SelectedFilters.Any()))
                 {
                     m_FilterPerChip.Remove(m_CurrentChip);
                     m_CurrentChip.RemoveFromHierarchy();
-                    PageFilters.RemoveFilter(filter);
-                    m_FilterButton.SetEnabled(PageFilters.IsAvailableFilters());
+                    PageFilterStrategy.RemoveFilter(filter);
+                    m_FilterButton.SetEnabled(PageFilterStrategy.IsAvailableFilters());
                 }
 
                 m_CurrentChip = null;

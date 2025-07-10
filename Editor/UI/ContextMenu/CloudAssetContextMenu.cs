@@ -227,14 +227,17 @@ namespace Unity.AssetManager.UI.Editor
             if (!m_UnityConnectProxy.AreCloudServicesReachable)
                 return;
 
-            AddMenuEntry(evt, Constants.ShowInDashboardActionText, true,
-                _ =>
-                {
-                    var identifier = TargetAssetData.Identifier;
-                    m_LinksProxy.OpenAssetManagerDashboard(identifier);
-                    AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
-                        .ContextMenuItemType.ShowInDashboard));
-                });
+            if (m_LinksProxy.CanOpenAssetManagerDashboard)
+            {
+                AddMenuEntry(evt, Constants.ShowInDashboardActionText, true,
+                    _ =>
+                    {
+                        var identifier = TargetAssetData.Identifier;
+                        m_LinksProxy.OpenAssetManagerDashboard(identifier);
+                        AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
+                            .ContextMenuItemType.ShowInDashboard));
+                    });
+            }
         }
 
         void UpdateAllToLatest(ContextualMenuPopulateEvent evt)

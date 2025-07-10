@@ -80,6 +80,7 @@ namespace Unity.AssetManager.UI.Editor
 
             var header = new AssetDetailsHeader(this);
             header.OpenDashboard += LinkToDashboard;
+            header.CanOpenDashboard += () => m_LinksProxy.CanOpenAssetManagerDashboard;
 
             var footer = new AssetDetailsFooter(this, m_DialogManager);
             footer.CancelOperation += CancelOrClearImport;
@@ -227,12 +228,12 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnFilterModified(Type filterType, List<string> filterValues)
         {
-            TaskUtils.TrackException(m_PageManager.ActivePage.PageFilters.ApplyFilter(filterType, filterValues));
+            TaskUtils.TrackException(m_PageManager.PageFilterStrategy.ApplyFilter(filterType, filterValues));
         }
 
         void OnFilterModified(IEnumerable<string> filterValue)
         {
-            m_PageManager.ActivePage.PageFilters.AddSearchFilter(filterValue);
+            m_PageManager.PageFilterStrategy.AddSearchFilter(filterValue);
         }
 
         void LinkToDashboard()
@@ -457,7 +458,7 @@ namespace Unity.AssetManager.UI.Editor
             var tasks = new List<Task>
             {
                 SelectedAssetData.GetThumbnailAsync(),
-                SelectedAssetData.GetAssetDataAttributesAsync(),
+                SelectedAssetData.RefreshAssetDataAttributesAsync(),
                 SelectedAssetData.RefreshLinkedProjectsAsync()
             };
             if (requiresLoading)
@@ -657,16 +658,17 @@ namespace Unity.AssetManager.UI.Editor
             enabled |= UIEnabledStates.HasPermissions.GetFlag(false);
 
             var files = assetData?.GetFiles()?.ToList();
-            if (files != null
-                && files.Any() // has files
-                && !HasCaseInsensitiveMatch(files.Select(f => f.Path)) // files have unique names
-                && files.All(file => file.Available)) // files are all available
+            if (files != null && files.Any()) // has files
             {
-                enabled |= UIEnabledStates.CanImport;
-            }
-            else
-            {
-                enabled &= ~UIEnabledStates.CanImport;
+                if (!HasCaseInsensitiveMatch(files.Select(f => f.Path)) // files have unique names
+                    && files.All(file => file.Available)) // files are all available
+                {
+                    enabled |= UIEnabledStates.CanImport;
+                }
+                else
+                {
+                    enabled &= ~UIEnabledStates.CanImport;
+                }
             }
 
             foreach (var component in m_PageComponents)
@@ -699,8 +701,8 @@ namespace Unity.AssetManager.UI.Editor
 
         bool IsAnyFilterActive()
         {
-            var pageFilters = m_PageManager?.ActivePage?.PageFilters;
-            return pageFilters?.SelectedFilters?.Count > 0 || pageFilters?.SearchFilters?.Count > 0;
+            var pageFiltersStrategy = m_PageManager?.PageFilterStrategy;
+            return pageFiltersStrategy?.SelectedFilters?.Count > 0 || pageFiltersStrategy?.SearchFilters?.Count > 0;
         }
     }
 }

@@ -6,18 +6,26 @@ using UnityEngine;
 namespace Unity.Cloud.CommonEmbedded.Runtime
 {
     /// <summary>
-    /// A factory class used to create a <see cref="ServiceHostResolver"/>.
+    /// A factory class used to create a <see cref="IServiceHostResolver"/>.
     /// </summary>
-    static class UnityRuntimeServiceHostResolverFactory
+    [Obsolete("Use Unity.Cloud.Common.ServiceHostResolverFactory instead.")]
+static class UnityRuntimeServiceHostResolverFactory
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
         /// <summary>
-        /// Create a <see cref="ServiceHostResolver"/> with default values.
+        /// Create a <see cref="IServiceHostResolver"/> with default values.
         /// Any system-level overrides set via environment variables will take priority.
         /// </summary>
-        /// <returns>The created configuration.</returns>
-        public static ServiceHostResolver Create()
+        /// <returns>The created <see cref="IServiceHostResolver"/></returns>
+        public static IServiceHostResolver Create()
         {
+            var fullyQualifiedDomaineNameOverride = ReadLocalCacheForFullyQualifiedDomainNameOverride();
+            var fullyQualifiedDomaineNamePathPrefixOverride = ReadLocalCacheForFullyQualifiedDomainNamePathPrefixOverride();
+            if (!string.IsNullOrEmpty(fullyQualifiedDomaineNameOverride))
+            {
+                ServiceHostResolverFactory.CreateForFullyQualifiedDomainName(fullyQualifiedDomaineNameOverride, fullyQualifiedDomaineNamePathPrefixOverride);
+            }
+
             var systemEnvironmentOverrideValue = ReadLocalCacheForSystemEnvironmentOverride();
             var systemProviderOverrideValue = ReadLocalCacheForSystemProviderOverride();
 
@@ -38,7 +46,7 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
         /// Any system-level overrides set via environment variables will take priority.
         /// </summary>
         /// <param name="applicationOverride">An application-level override value for for service host options.</param>
-        /// <returns>The created configuration.</returns>
+        /// <returns>The created <see cref="ServiceHostResolver"/></returns>
         public static ServiceHostResolver CreateWithOverride(ServiceHost applicationOverride)
         {
             var systemEnvironmentOverrideValue = ReadLocalCacheForSystemEnvironmentOverride();
@@ -60,7 +68,7 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
         /// Create a <see cref="IServiceHostResolver"/> with default values.
         /// Any system-level overrides set via environment variables will take priority.
         /// </summary>
-        /// <returns>The created configuration.</returns>
+        /// <returns>The created <see cref="IServiceHostResolver"/></returns>
         public static IServiceHostResolver Create()
         {
             return ServiceHostResolverFactory.Create();
@@ -69,8 +77,8 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
         /// <summary>
         /// Create a <see cref="IServiceHostResolver"/> with an optional application-level for service host options.
         /// </summary>
-        /// <param name="applicationOverride">An application-level override value for for service host options.</param>
-        /// <returns>The created configuration.</returns>
+        /// <param name="applicationOverride">An application-level override value for service host options.</param>
+        /// <returns>The created <see cref="IServiceHostResolver"/>.</returns>
         internal static IServiceHostResolver CreateWithOverride(ServiceHost applicationOverride)
         {
             return ServiceHostResolverFactory.CreateWithOverride(applicationOverride);
@@ -128,6 +136,32 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             return null;
         }
 
+        internal static string ReadLocalCacheForFullyQualifiedDomainNameOverride()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            foreach (var environmentVariableName in FullyQualifiedDomainNameVariableNames())
+            {
+                var cacheValue = CommonBrowserInterop.RetrieveCachedValue(environmentVariableName);
+                if (!string.IsNullOrEmpty(cacheValue))
+                    return cacheValue;
+            }
+#endif
+            return null;
+        }
+
+        internal static string ReadLocalCacheForFullyQualifiedDomainNamePathPrefixOverride()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            foreach (var environmentVariableName in FullyQualifiedDomainNamePathPrefixVariableNames())
+            {
+                var cacheValue = CommonBrowserInterop.RetrieveCachedValue(environmentVariableName);
+                if (!string.IsNullOrEmpty(cacheValue))
+                    return cacheValue;
+            }
+#endif
+            return null;
+        }
+
         internal static IEnumerable<string> EnvironmentVariableNames()
         {
             yield return ServiceHostResolver.SystemOverrideEnvironmentVariableName;
@@ -138,6 +172,18 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
         {
             yield return ServiceHostResolver.SystemOverrideDomainProviderVariableName;
             yield return ServiceHostResolver.SystemOverrideDomainProviderVariableName.ToLower();
+        }
+
+        internal static IEnumerable<string> FullyQualifiedDomainNameVariableNames()
+        {
+            yield return ServiceHostResolverFactory.SystemOverrideFullyQualifiedDomainNameVariableName;
+            yield return ServiceHostResolverFactory.SystemOverrideFullyQualifiedDomainNameVariableName.ToLower();
+        }
+
+        internal static IEnumerable<string> FullyQualifiedDomainNamePathPrefixVariableNames()
+        {
+            yield return ServiceHostResolverFactory.SystemOverrideFullyQualifiedDomainNamePathPrefixVariableName;
+            yield return ServiceHostResolverFactory.SystemOverrideFullyQualifiedDomainNamePathPrefixVariableName.ToLower();
         }
     }
 }

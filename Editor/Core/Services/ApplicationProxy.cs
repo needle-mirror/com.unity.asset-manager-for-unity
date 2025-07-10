@@ -11,6 +11,7 @@ namespace Unity.AssetManager.Core.Editor
         string DataPath { get; }
         bool InternetReachable { get; }
         double TimeSinceStartup { get; }
+        bool IsBatchMode { get; }
 
         event EditorApplication.CallbackFunction Update;
         event EditorApplication.CallbackFunction DelayCall;
@@ -26,6 +27,7 @@ namespace Unity.AssetManager.Core.Editor
         public string DataPath => Application.dataPath;
         public bool InternetReachable => Application.internetReachability != NetworkReachability.NotReachable;
         public double TimeSinceStartup => EditorApplication.timeSinceStartup;
+        public bool IsBatchMode => Application.isBatchMode;
 
         public event EditorApplication.CallbackFunction Update
         {

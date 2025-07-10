@@ -106,11 +106,8 @@ namespace Unity.AssetManager.Core.Editor
                 fileInfos.Add(fileInfo);
             }
 
-            if (fileInfos.Count > 0)
-            {
-                WriteToDisk(assetData, fileInfos);
-                m_AssetDataManager.AddOrUpdateGuidsToImportedAssetInfo(assetData, fileInfos);
-            }
+            WriteToDisk(assetData, fileInfos);
+            m_AssetDataManager.AddOrUpdateGuidsToImportedAssetInfo(assetData, fileInfos);
         }
 
         async Task<(long, string)> ExtractTimestampAndChecksum(string assetPath)

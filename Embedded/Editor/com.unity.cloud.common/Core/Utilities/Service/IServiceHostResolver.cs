@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Unity.Cloud.CommonEmbedded
 {
     /// <summary>
-    /// Resolves the service environment and domain provider for the application.
+    /// Resolves the service host address and service requests URI.
     /// </summary>
     interface IServiceHostResolver
     {
@@ -12,16 +12,18 @@ namespace Unity.Cloud.CommonEmbedded
         /// Gets the resolved <see cref="ServiceEnvironment"/>.
         /// </summary>
         /// <returns>The resolved environment.</returns>
+        [Obsolete("ServiceEnvironment is available only when connecting to Unity Cloud Services. Use ServiceHostResolver.GetResolvedEnvironment().")]
         ServiceEnvironment GetResolvedEnvironment();
 
         /// <summary>
         /// Gets the resolved the <see cref="ServiceDomainProvider"/>.
         /// </summary>
         /// <returns>The resolved service domain provider.</returns>
+        [Obsolete("ServiceDomainProvider is available only when connecting to Unity Cloud Services. Use ServiceHostResolver.GetResolvedDomainProvider().")]
         ServiceDomainProvider GetResolvedDomainProvider();
 
         /// <summary>
-        /// Returns the service address for the specified inputs.
+        /// Returns the service address for the specified protocol.
         /// </summary>
         /// <param name="protocol">The web protocol.</param>
         /// <returns>The service address.</returns>

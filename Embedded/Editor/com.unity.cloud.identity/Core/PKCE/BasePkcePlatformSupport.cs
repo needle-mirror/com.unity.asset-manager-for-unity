@@ -14,16 +14,16 @@ namespace Unity.Cloud.IdentityEmbedded
         static readonly UCLogger s_Logger = LoggerProvider.GetLogger<BasePkcePlatformSupport>();
 
         /// <inheritdoc/>
-        virtual public IUrlRedirectionInterceptor UrlRedirectionInterceptor { get; internal set; }
+        public virtual IUrlRedirectionInterceptor UrlRedirectionInterceptor { get; internal set; }
 
-        /// <inheritdoc/>
-        virtual public string HostUrl { get; protected set; }
+        /// <inheritdoc cref="Unity.Cloud.AppLinkingEmbedded.IActivatePlatformSupport"/>
+        public virtual string HostUrl { get; protected set; }
 
-        /// <inheritdoc/>
-        virtual public string ActivationUrl { get; protected set; }
+        /// <inheritdoc cref="Unity.Cloud.AppLinkingEmbedded.IActivatePlatformSupport"/>
+        public virtual string ActivationUrl { get; protected set; }
 
-        /// <inheritdoc/>
-        virtual public Dictionary<string, string> ActivationKeyValue { get; protected set; }
+        /// <inheritdoc cref="Unity.Cloud.AppLinkingEmbedded.IActivatePlatformSupport"/>
+        public virtual Dictionary<string, string> ActivationKeyValue { get; protected set; }
 
         string m_CacheStorePath { get; }
 

@@ -1,5 +1,4 @@
 using System.Threading;
-using System.Threading.Tasks;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -10,22 +9,20 @@ namespace Unity.Cloud.AppLinkingEmbedded.Runtime
     static class UnitySynchronizationContextGrabber
     {
         static SynchronizationContext s_UnitySynchronizationContextValue;
+
+        /// <summary>
+        /// Return the UnitySynchronizationContext.
+        /// Important: do not cache this value unless you ensure you do this after it has been set.
+        /// </summary>
         public static SynchronizationContext s_UnitySynchronizationContext
         {
             get => s_UnitySynchronizationContextValue;
-        }
-
-        static TaskScheduler s_UnityMainThreadSchedulerValue;
-        internal static TaskScheduler s_UnityMainThreadScheduler
-        {
-            get => s_UnityMainThreadSchedulerValue;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void RuntimeGrab()
         {
             s_UnitySynchronizationContextValue = SynchronizationContext.Current;
-            s_UnityMainThreadSchedulerValue = TaskScheduler.FromCurrentSynchronizationContext();
         }
 
 #if UNITY_EDITOR
@@ -35,6 +32,5 @@ namespace Unity.Cloud.AppLinkingEmbedded.Runtime
             RuntimeGrab();
         }
 #endif
-
     }
 }

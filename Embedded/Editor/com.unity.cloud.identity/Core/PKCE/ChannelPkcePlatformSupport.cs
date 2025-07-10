@@ -6,7 +6,7 @@ using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.IdentityEmbedded
 {
-    /// <inheritdoc/>
+    /// <inheritdoc cref="BasePkcePlatformSupport"/>
     class ChannelPkcePlatformSupport : BasePkcePlatformSupport
     {
         static readonly UCLogger s_Logger = LoggerProvider.GetLogger<ChannelPkcePlatformSupport>();

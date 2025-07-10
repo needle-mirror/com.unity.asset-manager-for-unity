@@ -4,7 +4,8 @@
   "references": [
     "Unity.Settings.Editor",
     "Unity.AssetManager.Core.Editor",
-    "Unity.AssetManager.Upload.Editor"
+    "Unity.AssetManager.Upload.Editor",
+    "Unity.AssetManager.Settings.Runtime"
   ],
   "includePlatforms": [
     "Editor"

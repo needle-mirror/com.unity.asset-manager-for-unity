@@ -125,7 +125,9 @@ namespace Unity.AssetManager.Core.Editor
             // Maps the types persisted in the files to newly created data-identical types
             return jsonString
                 .Replace("\"class\": \"AssetData\"", "\"class\": \"AssetDataPersistenceLegacy\"")
-                .Replace("\"class\": \"AssetDataFile\"", "\"class\": \"AssetDataFilePersistenceLegacy\"");
+                .Replace("\"class\": \"AssetDataFile\"", "\"class\": \"AssetDataFilePersistenceLegacy\"")
+                .Replace("\"ns\": \"Unity.AssetManager.Editor\"", "\"ns\": \"Unity.AssetManager.Core.Editor\"")
+                .Replace("\"asm\": \"Unity.AssetManager.Editor\"", "\"asm\": \"Unity.AssetManager.Core.Editor\"");
         }
 
         static ImportedAssetInfoPersistenceLegacy Parse(string jsonString)
@@ -175,8 +177,9 @@ namespace Unity.AssetManager.Core.Editor
 
             // Since AssetData can reference itself in the m_Versions member (not sure why), we need to create
             // the object and put it in cache before de-serializing it. Otherwise, we get stack overflow
-            var assetsProvider = ServicesContainer.instance.Resolve<AssetsSdkProvider>();
-            assetData = assetsProvider.DeserializeAssetData(persistedLegacy.m_JsonAssetSerialized);
+            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+
+            assetData = ((AssetsSdkProvider)assetsProvider).DeserializeAssetData(persistedLegacy.m_JsonAssetSerialized);
 #pragma warning restore 618
 
             m_AssetDatas[persistedLegacy] = assetData;

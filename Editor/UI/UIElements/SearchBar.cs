@@ -31,6 +31,8 @@ namespace Unity.AssetManager.UI.Editor
         TextField m_SearchTextField;
         ToolbarSearchField m_ToolbarSearchField;
 
+        IPageFilterStrategy PageFilterStrategy => m_PageManager?.PageFilterStrategy;
+
         public SearchBar(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
             IMessageManager messageManager)
         {
@@ -164,16 +166,9 @@ namespace Unity.AssetManager.UI.Editor
 
         void InitDisplay(IPage page)
         {
-            var isAssetListEmpty = !(page != null && page.AssetList != null && page.AssetList.Any());
-            var isSearchBarFilled = page != null && page.PageFilters.SearchFilters.Any();
-            var isFilterSelected = page != null && page.PageFilters.SelectedFilters != null && page.PageFilters.SelectedFilters.Any();
-            var display = m_ProjectOrganizationProvider.SelectedOrganization != null && (!isAssetListEmpty || isSearchBarFilled || isFilterSelected);
+            var display = m_ProjectOrganizationProvider.SelectedOrganization != null;
             UIElementsUtils.SetDisplay(m_RefreshButton,  display);
             UIElementsUtils.SetDisplay(m_ToolbarSearchField, display);
-
-            var isFiltersSelectedWithoutResult = isAssetListEmpty && isFilterSelected && !isSearchBarFilled;
-            m_RefreshButton?.SetEnabled(!isFiltersSelectedWithoutResult);
-            m_ToolbarSearchField?.SetEnabled(!isFiltersSelectedWithoutResult);
         }
 
         void Refresh(IPage page)
@@ -183,18 +178,18 @@ namespace Unity.AssetManager.UI.Editor
 
             m_SearchChipsContainer.Clear();
             m_ToolbarSearchField.SetValueWithoutNotify(string.Empty);
-            foreach (var filter in page.PageFilters.SearchFilters)
+            foreach (var filter in PageFilterStrategy.SearchFilters)
             {
                 m_SearchChipsContainer.Add(new SearchFilterChip(filter, DismissSearchFilter));
             }
 
             ShowSearchTermsTextIfNeeded();
-            m_ClearAllButton.visible = page.PageFilters.SearchFilters.Any();
+            m_ClearAllButton.visible = PageFilterStrategy.SearchFilters.Any();
         }
 
         void OnSearchCancelClick()
         {
-            m_PageManager.ActivePage.PageFilters.ClearSearchFilters();
+            PageFilterStrategy.ClearSearchFilters();
             ShowSearchTermsTextIfNeeded();
         }
 
@@ -207,7 +202,7 @@ namespace Unity.AssetManager.UI.Editor
             if (searchFilters.Any())
             {
                 AnalyticsSender.SendEvent(new SearchAttemptEvent(searchFilters.Count()));
-                m_PageManager.ActivePage.PageFilters.AddSearchFilter(searchFilters);
+                PageFilterStrategy.AddSearchFilter(searchFilters);
             }
 
             if (m_Focused)
@@ -222,7 +217,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 case KeyCode.Escape:
                     m_ToolbarSearchField.value = "";
-                    m_PageManager.ActivePage.PageFilters.ClearSearchFilters();
+                    PageFilterStrategy.ClearSearchFilters();
                     SetKeyboardFocusOnSearchField();
                     return;
                 case KeyCode.Backspace when string.IsNullOrWhiteSpace(m_SearchTextField.text):
@@ -239,13 +234,11 @@ namespace Unity.AssetManager.UI.Editor
 
         void PopSearchChip()
         {
-            var pageFilters = m_PageManager.ActivePage.PageFilters;
-
-            if (!m_PageManager.ActivePage.PageFilters.SearchFilters.Any())
+            if (!PageFilterStrategy.SearchFilters.Any())
                 return;
 
-            pageFilters.RemoveSearchFilter(pageFilters.SearchFilters.Last());
-            if (!pageFilters.SearchFilters.Any())
+            PageFilterStrategy.RemoveSearchFilter(PageFilterStrategy.SearchFilters.Last());
+            if (!PageFilterStrategy.SearchFilters.Any())
             {
                 ShowSearchTermsTextIfNeeded();
             }
@@ -253,12 +246,10 @@ namespace Unity.AssetManager.UI.Editor
 
         void DismissSearchFilter(string searchFilter)
         {
-            var pageFilters = m_PageManager.ActivePage.PageFilters;
-
-            if (!pageFilters.SearchFilters.Contains(searchFilter))
+            if (!PageFilterStrategy.SearchFilters.Contains(searchFilter))
                 return;
 
-            pageFilters.RemoveSearchFilter(searchFilter);
+            PageFilterStrategy.RemoveSearchFilter(searchFilter);
             SetKeyboardFocusOnSearchField();
         }
 

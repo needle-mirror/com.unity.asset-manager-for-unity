@@ -135,6 +135,12 @@ namespace Unity.AssetManager.Core.Editor
 
                 foreach (var (filePath, url) in downloadUrls)
                 {
+                    if (url == null)
+                    {
+                        Utilities.DevLogWarning($"Skipping downloading null url for file '{filePath}'.");
+                        continue;
+                    }
+                    
                     // If the file is already in the project, use the existing path in case it was moved
                     if (!m_DestinationPathPerFile.TryGetValue(filePath, out var destinationPath))
                     {

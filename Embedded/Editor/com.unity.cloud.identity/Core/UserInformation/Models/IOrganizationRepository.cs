@@ -18,7 +18,7 @@ namespace Unity.Cloud.IdentityEmbedded
         /// </summary>
         /// <param name="range">A range of <see cref="IOrganization"/> to request.</param>
         /// <param name="cancellationToken">The cancellation token. </param>
-        /// <returns>An <see cref="IAsyncEnumerable{T}"/> of Type <see cref="IOrganization"/>.</returns>
+        /// <returns>An <see cref="System.Collections.Generic.IAsyncEnumerable{T}"/> of Type <see cref="IOrganization"/>.</returns>
         IAsyncEnumerable<IOrganization> ListOrganizationsAsync(Range range, CancellationToken cancellationToken = default);
 
         /// <summary>

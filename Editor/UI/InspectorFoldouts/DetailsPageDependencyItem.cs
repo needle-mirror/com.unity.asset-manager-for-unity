@@ -129,7 +129,7 @@ namespace Unity.AssetManager.UI.Editor
 
             var tasks = new[]
             {
-                assetData.GetAssetDataAttributesAsync(token),
+                assetData.RefreshAssetDataAttributesAsync(token),
                 assetData.ResolveDatasetsAsync(token)
             };
 

@@ -28,17 +28,6 @@ namespace Unity.AssetManager.Core.Editor
         List<UserInfo> m_UserInfos;
         Task<List<UserInfo>> m_UserInfosTask;
 
-        public async Task<List<string>> GetUserNamesAsync(List<string> userIds)
-        {
-            if (userIds == null || userIds.Count == 0)
-            {
-                return new List<string>();
-            }
-            
-            var userInfos = await GetUserInfosAsync();
-            return userInfos.Where(u => userIds.Contains(u.UserId)).Select(u => u.Name).Distinct().ToList();
-        }
-
         public async Task<string> GetUserNameAsync(string userId)
         {
             var userInfos = await GetUserInfosAsync();
@@ -285,16 +274,29 @@ namespace Unity.AssetManager.Core.Editor
 
         public override void OnEnable()
         {
-            RegisterOnAuthenticationStateChanged(TryLoadConnectedOrganization);
+            RegisterOnAuthenticationStateChanged(OnAuthenticationStateChanged);
             m_UnityConnectProxy.OrganizationIdChanged += TryLoadConnectedOrganization;
+            m_UnityConnectProxy.ProjectIdChanged += SetSelectedProject;
             m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
         }
 
         public override void OnDisable()
         {
-            RegisterOnAuthenticationStateChanged(TryLoadConnectedOrganization);
+            UnregisterOnAuthenticationStateChanged(OnAuthenticationStateChanged);
             m_UnityConnectProxy.OrganizationIdChanged -= TryLoadConnectedOrganization;
+            m_UnityConnectProxy.ProjectIdChanged -= SetSelectedProject;
             m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+        }
+
+        void OnAuthenticationStateChanged()
+        {
+            // Cancel the current operation if the user is logged out
+            if (IsLoading && GetAuthenticationState() == Unity.Cloud.IdentityEmbedded.AuthenticationState.LoggedOut)
+            {
+                m_LoadOrganizationOperation?.Cancel();
+            }
+
+            TryLoadConnectedOrganization();
         }
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
@@ -328,6 +330,14 @@ namespace Unity.AssetManager.Core.Editor
             return Map(cloudStorageUsage);
         }
 
+        void SetSelectedProject()
+        {
+            if (!IsLoading && m_UnityConnectProxy.HasValidProjectId)
+            {
+                SelectProject(m_UnityConnectProxy.ProjectId);
+            }
+        }
+
         public void SelectProject(string projectId, string collectionPath = null, bool updateProject = false)
         {
             var currentProjectId = SelectedProject?.Id;
@@ -335,9 +345,9 @@ namespace Unity.AssetManager.Core.Editor
             if (string.IsNullOrEmpty(projectId) && string.IsNullOrEmpty(currentProjectId))
                 return;
 
-            if (!string.IsNullOrEmpty(projectId) && !m_OrganizationInfo.ProjectInfos.Exists(p => p.Id == projectId))
+            if (!string.IsNullOrEmpty(projectId) && m_OrganizationInfo?.ProjectInfos?.Exists(p => p.Id == projectId) == false)
             {
-                Debug.LogError($"Project '{projectId}' is not part of the organization '{m_OrganizationInfo.Id}'");
+                Debug.LogWarning($"Project {projectId} is not part of the organization {m_OrganizationInfo.Name} '{m_OrganizationInfo.Id}'");
                 return;
             }
 
@@ -478,15 +488,31 @@ namespace Unity.AssetManager.Core.Editor
 
         async Task<IOrganization> GetOrganizationAsync(string organizationId)
         {
+            // Try the direct way as this is the preferred way to get an organization and avoids listing all organizations.
+            // However, it may not be available for all services (e.g. private cloud).
             try
             {
                 return await OrganizationRepository.GetOrganizationAsync(new OrganizationId(organizationId));
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                // Patch for fixing UnityEditorCloudServiceAuthorizer not serializing properly.
-                // This case only shows up in 2021 because organization is fetched earlier than other versions
-                // Delete this code once Identity get bumped beyond 1.2.0-exp.1
+                Utilities.DevLogWarning($"Direct request of organization with ID '{organizationId}' returned error. {e.Message}");
+            }
+
+            // Fallback to listing organizations and selecting the organization by id
+            try
+            {
+                await foreach (var organization in OrganizationRepository.ListOrganizationsAsync(Range.All))
+                {
+                    if (organization.Id.ToString() == organizationId)
+                    {
+                        return organization;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Utilities.DevLogWarning($"Failed to list organizations. {e.Message}");
             }
 
             return null;
@@ -556,7 +582,7 @@ namespace Unity.AssetManager.Core.Editor
                     }
                     else
                     {
-                        SelectProject(RestoreSelectedProject().Id, RestoreSelectedCollection());
+                        SelectProject(RestoreSelectedProjectId(), RestoreSelectedCollection());
                     }
 
                     InvokeOrganizationChanged();
@@ -676,17 +702,19 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        ProjectInfo RestoreSelectedProject()
+        string RestoreSelectedProjectId()
         {
-            var savedProjectId = SavedProjectId;
-
-            if (string.IsNullOrEmpty(savedProjectId))
+            if (!string.IsNullOrEmpty(SavedProjectId) && m_OrganizationInfo?.ProjectInfos.Any(x => x.Id == SavedProjectId) == true)
             {
-                return SelectedProject ?? m_OrganizationInfo.ProjectInfos.FirstOrDefault();
+                return SavedProjectId;
             }
 
-            var saveProjectInfo = m_OrganizationInfo.ProjectInfos.Find(p => p.Id == savedProjectId);
-            return saveProjectInfo ?? m_OrganizationInfo.ProjectInfos.FirstOrDefault();
+            if (m_UnityConnectProxy.HasValidProjectId)
+            {
+                return m_UnityConnectProxy.ProjectId;
+            }
+
+            return m_OrganizationInfo?.ProjectInfos.FirstOrDefault()?.Id;
         }
 
         string RestoreSelectedCollection()

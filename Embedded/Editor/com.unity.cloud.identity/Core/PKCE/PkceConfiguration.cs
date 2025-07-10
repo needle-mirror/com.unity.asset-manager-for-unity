@@ -68,6 +68,7 @@ class PkceConfiguration
         /// <summary>
         /// Boolean value holding the capabilities of the app to support guest user access.
         /// </summary>
+        [Obsolete("This property will be removed in a future version.")]
         public bool AllowAnonymous = true;
 #pragma warning restore S1104
 

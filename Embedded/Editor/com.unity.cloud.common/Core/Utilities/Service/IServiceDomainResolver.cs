@@ -1,3 +1,5 @@
+using System;
+
 namespace Unity.Cloud.CommonEmbedded
 {
     /// <summary>

@@ -68,9 +68,9 @@ namespace Unity.Cloud.IdentityEmbedded
         /// <summary>
         /// Returns an <see cref="IAuthenticator"/> implementation that expects an access token from a browser environment.
         /// </summary>
-        /// <remarks>The `BrowserAuthenticatedAccessTokenProvider` tries to match running host location with location provided in <see cref="localStorageKeyNames"/>. Use a single wildcard character (*) to match any host location.</remarks>
+        /// <remarks>The `BrowserAuthenticatedAccessTokenProvider` tries to match the running host location with the location provided in the `localStorageKeyNames` dictionary. Use a single wildcard character (*) to match any host location.</remarks>
         /// <param name="pkceAuthenticatorSettings">The <see cref="PkceAuthenticatorSettings"/> that contains all PKCE authentication classes</param>
-        /// <param name="localStorageKeyNames">A dictionary with browser locations as keys and local storage key name as values.</param>
+        /// <param name="localStorageKeyNames">A dictionary with browser locations as keys and local storage key names as values.</param>
         /// <param name="organizationRepository">An optional <see cref="IOrganizationRepository"/>.</param>
         /// <param name="userInfoProvider">An optional <see cref="IUserInfoProvider"/>.</param>
         public BrowserAuthenticatedAccessTokenProvider(PkceAuthenticatorSettings pkceAuthenticatorSettings, Dictionary<string, string> localStorageKeyNames = null, IOrganizationRepository organizationRepository = null, IUserInfoProvider userInfoProvider = null)
@@ -127,7 +127,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
         }
 
-        /// <inheritdoc cref="IServiceAuthorizer.AddAuthorization"/>
+        /// <inheritdoc cref="Unity.Cloud.CommonEmbedded.IServiceAuthorizer.AddAuthorization"/>
         public async Task AddAuthorization(HttpHeaders headers)
         {
             try

@@ -95,7 +95,7 @@ namespace Unity.AssetManager.UI.Editor
 
         public void BindWithItem(BaseAssetData assetData)
         {
-            if (m_AssetData != null && m_AssetData.Identifier.Equals(assetData.Identifier))
+            if (m_AssetData != null && m_AssetData.Identifier.Equals(assetData?.Identifier))
                 return;
 
             if (m_AssetData != null)
@@ -140,6 +140,9 @@ namespace Unity.AssetManager.UI.Editor
 
         void Refresh()
         {
+            if (m_AssetData == null)
+                return;
+            
             if (m_ContextMenu == null)
             {
                 InitContextMenu(m_AssetData);
@@ -173,7 +176,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 m_AssetData.ResolveDatasetsAsync(),
                 m_AssetData.GetThumbnailAsync(),
-                m_AssetData.GetAssetDataAttributesAsync()
+                m_AssetData.RefreshAssetDataAttributesAsync()
             };
 
             _ = WaitForResultsAsync(tasks);

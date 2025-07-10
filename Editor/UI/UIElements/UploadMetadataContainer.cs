@@ -227,8 +227,13 @@ namespace Unity.AssetManager.UI.Editor
 
             if (!matchingFields.Any())
             {
-                var labelText = L10n.Tr(Constants.NoMatchingFields);
-                labelText = labelText.Replace("<a>", $"<a href=\"{m_LinksProxy.GetAssetManagerDashboardUrl()}\">");
+                var labelText = L10n.Tr(Constants.NoMatchingFields_WithoutLink);
+                if (m_LinksProxy.TryGetAssetManagerDashboardUrl(out var url, true))
+                {
+                    labelText = L10n.Tr(Constants.NoMatchingFields);
+                    labelText = labelText.Replace("<a>", $"<a href=\"{url}\">");
+                }
+
                 var primaryLabel = new Label(labelText)
                 {
                     enableRichText = true

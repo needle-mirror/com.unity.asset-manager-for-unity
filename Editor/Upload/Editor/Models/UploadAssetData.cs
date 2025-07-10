@@ -122,7 +122,13 @@ namespace Unity.AssetManager.Upload.Editor
         public override string UpdatedBy => "";
         public override IEnumerable<AssetLabel> Labels => null;
         public override IEnumerable<ProjectIdentifier> LinkedProjects => Enumerable.Empty<ProjectIdentifier>();
-        public override IEnumerable<AssetIdentifier> Dependencies => m_Dependencies;
+
+        public override IEnumerable<AssetIdentifier> Dependencies
+        {
+            get => m_Dependencies;
+            internal set => m_Dependencies = value?.ToList() ?? new List<AssetIdentifier>();
+        }
+
         public override IEnumerable<BaseAssetData> Versions => Array.Empty<BaseAssetData>();
 
         public bool IsIgnored
@@ -350,7 +356,7 @@ namespace Unity.AssetManager.Upload.Editor
             AssetDataAttributeCollection = GetResolveStatusAttributes();
         }
 
-        public override Task GetAssetDataAttributesAsync(CancellationToken token = default) => Task.CompletedTask;
+        public override Task RefreshAssetDataAttributesAsync(CancellationToken token = default) => Task.CompletedTask;
 
         public override Task ResolveDatasetsAsync(CancellationToken token = default) => Task.CompletedTask;
 
@@ -574,9 +580,8 @@ namespace Unity.AssetManager.Upload.Editor
             // Update Asset Type since it might have changed
             var extensions = files.Select(e => Path.GetExtension(e.Path)).ToHashSet();
             var primaryExtension = AssetDataTypeHelper.GetAssetPrimaryExtension(extensions);
-            var unityAssetType = AssetDataTypeHelper.GetUnityAssetType(primaryExtension);
 
-            m_AssetType = unityAssetType.ConvertUnityAssetTypeToAssetType();
+            m_AssetType = AssetDataTypeHelper.GetUnityAssetType(primaryExtension);
 
             // Source Dataset
             m_Datasets = new List<AssetDataset>

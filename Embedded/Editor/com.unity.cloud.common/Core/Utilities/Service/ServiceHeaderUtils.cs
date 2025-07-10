@@ -17,6 +17,16 @@ namespace Unity.Cloud.CommonEmbedded
         public const string k_ApiSourceHeader = "X-Unity-Cloud-Api-Source";
 
         /// <summary>
+        /// Header for the client-id information.
+        /// </summary>
+        internal const string k_ClientIdHeader = "X-Client-Id";
+
+        /// <summary>
+        /// Header value for the client-id information.
+        /// </summary>
+        internal const string k_ClientIdHeaderValue = "unity-cloud-sdk";
+
+        /// <summary>
         /// A regex pattern matching Unity API URLs.
         /// </summary>
         public const string k_UnityApiPattern = @"https.*(?:[./])unity\.com/api/.*|localhost:.*\/api/.*|https.*(?:[./])services.api.unity.com";
@@ -109,6 +119,9 @@ namespace Unity.Cloud.CommonEmbedded
                 if (!headers.Contains(k_DeprecatedClientTraceHeader))
                     headers.Add(k_DeprecatedClientTraceHeader, clientTrace);
             }
+
+            // Service Gateway requires X-Client-Id for tracking purpose
+            headers.Add(k_ClientIdHeader, k_ClientIdHeaderValue);
 
             // Value of user's trace environment variable
             var envTraceId = Environment.GetEnvironmentVariable(k_TraceEnvVarName);

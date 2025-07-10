@@ -16,20 +16,12 @@ namespace Unity.AssetManager.UI.Editor
     {
         public override bool DisplaySearchBar => false;
         public override bool DisplayTitle => true;
+        public override bool DisplaySavedViewControls => false;
         public override string Title => L10n.Tr(Constants.InProjectTitle);
+        public override bool SupportsUpdateAll => true;
 
         Task m_UpdateImportStatusTask;
         Task<IEnumerable<ImportedAssetInfo>> m_GetFilteredImportedAssetsTask;
-
-        protected override List<BaseFilter> InitFilters()
-        {
-            return new List<BaseFilter>
-            {
-                new LocalImportStatusFilter(this),
-                new LocalStatusFilter(this, m_AssetDataManager),
-                new LocalUnityTypeFilter(this)
-            };
-        }
 
         public InProjectPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
             IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
@@ -97,7 +89,7 @@ namespace Unity.AssetManager.UI.Editor
             if (m_GetFilteredImportedAssetsTask == null)
             {
                 Utilities.DevLog($"Initializing retrieval of import data for {importedAssetCount} asset(s)...");
-                m_GetFilteredImportedAssetsTask = GetFilteredImportedAssets(token);
+                m_GetFilteredImportedAssetsTask = FilteringUtils.GetFilteredImportedAssets(m_AssetDataManager.ImportedAssetInfos, m_PageFilterStrategy.SelectedLocalFilters, token);
             }
 
             var filteredImportedAssets = await m_GetFilteredImportedAssetsTask;
@@ -120,35 +112,9 @@ namespace Unity.AssetManager.UI.Editor
             m_CanLoadMoreItems = m_NextStartIndex < sortedImportedAssets.Length;
         }
 
-        async Task<IEnumerable<ImportedAssetInfo>> GetFilteredImportedAssets(CancellationToken token)
-        {
-            var tasks = new List<Task<ImportedAssetInfo>>();
-            foreach (var assetInfo in m_AssetDataManager.ImportedAssetInfos)
-            {
-                if (assetInfo.AssetData == null) // Can happen with corrupted serialization
-                    continue;
-
-                tasks.Add(IsKeepedByLocalFilterAsync(assetInfo, token));
-            }
-
-            await Task.WhenAll(tasks);
-
-            return tasks.Select(t => t.Result).Where(a => a != null);
-        }
-
-        async Task<ImportedAssetInfo> IsKeepedByLocalFilterAsync(ImportedAssetInfo assetInfo, CancellationToken token)
-        {
-            if (await IsDiscardedByLocalFilter(assetInfo.AssetData, token))
-            {
-                return null;
-            }
-
-            return assetInfo;
-        }
-
         protected override void OnLoadMoreSuccessCallBack()
         {
-            PageFilters.EnableFilters(AssetList.Any());
+            m_PageFilterStrategy.EnableFilters(AssetList.Any());
 
             if (!AssetList.Any())
             {
@@ -164,12 +130,12 @@ namespace Unity.AssetManager.UI.Editor
         {
             return new Dictionary<string, SortField>
             {
-                {"Name", SortField.Name},
-                {"Last Modified", SortField.Updated},
-                {"Upload Date", SortField.Created},
-                {"Description", SortField.Description},
-                {"Status", SortField.Status},
-                {"Import Status", SortField.ImportStatus}
+                {s_SortFieldsLabelMap[SortField.Name], SortField.Name},
+                {s_SortFieldsLabelMap[SortField.Updated], SortField.Updated},
+                {s_SortFieldsLabelMap[SortField.Created], SortField.Created},
+                {s_SortFieldsLabelMap[SortField.Description], SortField.Description},
+                {s_SortFieldsLabelMap[SortField.Status], SortField.Status},
+                {s_SortFieldsLabelMap[SortField.ImportStatus], SortField.ImportStatus}
             };
         }
 

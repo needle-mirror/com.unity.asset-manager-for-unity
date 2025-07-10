@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
@@ -10,8 +11,29 @@ namespace Unity.AssetManager.UI.Editor
         public override string DisplayName => L10n.Tr(Constants.LastEditByText);
         protected override AssetSearchGroupBy GroupBy => AssetSearchGroupBy.UpdatedBy;
 
-        public UpdatedByFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
-            : base(page, projectOrganizationProvider, assetsProvider) { }
+        public UpdatedByFilter(IPageFilterStrategy pageFilterStrategy)
+            : base(pageFilterStrategy) { }
+
+        public override bool ApplyFromAssetSearchFilter(AssetSearchFilter searchFilter)
+        {
+            ClearFilter();
+
+            if (searchFilter.UpdatedBy == null || searchFilter.UpdatedBy.Count == 0)
+                return false;
+
+            TaskUtils.TrackException(ApplyFilterAsync(searchFilter.UpdatedBy));
+            return true;
+        }
+
+        async Task ApplyFilterAsync(List<string> userIds)
+        {
+            // Create filterSelections from userIds
+
+            var selectionNames = await m_PageFilterStrategy.GetUserNamesAsync(userIds);
+            selectionNames.Sort();
+
+            ApplyFilter(selectionNames.Select(s => s.Text).ToList());
+        }
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
@@ -25,41 +47,13 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void ClearFilter()
         {
-            m_Page.PageFilters.AssetSearchFilter.UpdatedBy = null;
+            m_PageFilterStrategy.AssetSearchFilter.UpdatedBy = null;
         }
 
-        protected override async Task<List<string>> GetSelectionsAsync()
+        protected override async Task<List<FilterSelection>> GetSelectionsAsync()
         {
             var selections = await base.GetSelectionsAsync();
-
-            var selectionNames = await GetSelectionNamesAsync(selections);
-
-            return selectionNames;
-        }
-
-        async Task<List<string>> GetSelectionNamesAsync(List<string> selections)
-        {
-            var selectionNames = new List<string>();
-
-            var userName = await m_ProjectOrganizationProvider.SelectedOrganization.GetUserNamesAsync(selections);
-
-            for(var i=0; i<selections.Count; i++)
-            {
-                var selectionName = selections[i] == "System" ? L10n.Tr("Service Account") : userName[i];
-                if (!string.IsNullOrEmpty(selectionName))
-                {
-                    selectionNames.Add(selectionName);
-                }
-            }
-
-            selectionNames.Sort();
-            return selectionNames;
-        }
-
-        async Task<string> GetSelectionId(string selection)
-        {
-            var userId = await m_ProjectOrganizationProvider.SelectedOrganization.GetUserIdAsync(selection);
-            return  userId ?? (selection == L10n.Tr("Service Account") ? "System" : selection);
+            return await m_PageFilterStrategy.GetUserNamesAsync(selections);
         }
 
         async Task ResetSelectedFilterAsync(AssetSearchFilter assetSearchFilter)
@@ -69,7 +63,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 foreach (var selectedFilter in SelectedFilters)
                 {
-                    userIds.Add(await GetSelectionId(selectedFilter));
+                    userIds.Add(await m_PageFilterStrategy.GetUserIdAsync(selectedFilter));
                 }
             }
 
@@ -78,18 +72,19 @@ namespace Unity.AssetManager.UI.Editor
 
         async Task IncludeFilterAsync(List<string> selection)
         {
-            if(selection == null)
+            if (selection == null)
             {
-                m_Page.PageFilters.AssetSearchFilter.UpdatedBy = null;
+                m_PageFilterStrategy.AssetSearchFilter.UpdatedBy = null;
                 return;
             }
+
 
             var userIds = new List<string>();
             foreach (var selectedFilter in selection)
             {
-                userIds.Add(await GetSelectionId(selectedFilter));
+                userIds.Add(await m_PageFilterStrategy.GetUserIdAsync(selectedFilter));
             }
-            m_Page.PageFilters.AssetSearchFilter.UpdatedBy = userIds;
+            m_PageFilterStrategy.AssetSearchFilter.UpdatedBy = userIds;
         }
     }
 }

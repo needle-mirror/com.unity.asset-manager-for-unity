@@ -6,6 +6,9 @@ namespace Unity.AssetManager.Core.Editor
     {
         public ImportStatuses(IEnumerable<ImportStatuses> importStatuses)
         {
+            if (importStatuses == null)
+                return;
+            
             foreach (var importStatus in importStatuses)
             {
                 AddRange(importStatus);

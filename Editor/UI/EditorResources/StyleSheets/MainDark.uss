@@ -171,7 +171,6 @@ SearchBar {
 .unity-filters-button {
     background-color: #515151;
     color: #D2D2D2;
-    border-radius: 3px;
 }
 
 .unity-filters-button:enabled:hover {
@@ -202,6 +201,20 @@ SearchBar {
 {
     background-color: #2D2D2D;
     border-color: rgba(0,0,0,0);
+}
+
+/************************************************
+* Saved View Controls
+************************************************/
+
+.unity-save-view-dropdown-button {
+    border-color: #303030;
+    border-bottom-color: #242424;
+    background-color: #585858;
+}
+
+.unity-save-view-dropdown-button:hover:enabled {
+    background-color: #676767;
 }
 
 /************************************************

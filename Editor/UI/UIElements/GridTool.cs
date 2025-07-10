@@ -7,7 +7,7 @@ namespace Unity.AssetManager.UI.Editor
     class GridTool : VisualElement
     {
         protected readonly IPageManager m_PageManager;
-        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
         protected virtual VisualElement Container => this;
 
@@ -43,7 +43,7 @@ namespace Unity.AssetManager.UI.Editor
 
         protected virtual void InitDisplay(IPage page)
         {
-            UIElementsUtils.SetDisplay(Container, IsDisplayed(page) && m_ProjectOrganizationProvider.SelectedOrganization != null && (page?.AssetList?.Any() ?? false));
+            UIElementsUtils.SetDisplay(Container, IsDisplayed(page) && m_ProjectOrganizationProvider.SelectedOrganization != null);
         }
 
         void OnPageManagerLoadingStatusChanged(IPage page, bool isLoading)

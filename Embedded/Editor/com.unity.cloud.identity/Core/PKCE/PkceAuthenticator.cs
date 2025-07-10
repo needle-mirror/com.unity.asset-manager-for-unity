@@ -118,15 +118,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
         static string BuildDeviceTokenFileNameFromHostConfiguration(IServiceHostResolver serviceHostResolver)
         {
-            var environment = serviceHostResolver?.GetResolvedEnvironment();
-            var provider = serviceHostResolver?.GetResolvedDomainProvider();
-            var environmentBaseFileName = environment switch
-            {
-                ServiceEnvironment.Staging => string.Concat("stg.", s_BaseDeviceTokenFileName),
-                ServiceEnvironment.Test => string.Concat("test.", s_BaseDeviceTokenFileName),
-                _ => s_BaseDeviceTokenFileName
-            };
-            return string.Concat($"{provider}.", environmentBaseFileName);
+            return string.Concat($"{serviceHostResolver?.GetResolvedHost()}.", s_BaseDeviceTokenFileName);
         }
 
 
@@ -532,7 +524,7 @@ namespace Unity.Cloud.IdentityEmbedded
             await m_PkceRequestHandler.RevokeRefreshTokenAsync(PkceHelper.CreateRevokeRefreshTokenUrlRequestStringContent(refreshToken, pkceConfiguration));
         }
 
-        /// <inheritdoc cref="IServiceAuthorizer.AddAuthorization"/>
+        /// <inheritdoc cref="Unity.Cloud.CommonEmbedded.IServiceAuthorizer.AddAuthorization"/>
         public async Task AddAuthorization(HttpHeaders headers)
         {
             if (m_AccessTokenRefresher != null && await m_AccessTokenRefresher.ShouldRefreshAccessToken())

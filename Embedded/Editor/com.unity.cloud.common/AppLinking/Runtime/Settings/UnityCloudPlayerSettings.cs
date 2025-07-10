@@ -1,3 +1,4 @@
+using System;
 using Unity.Cloud.CommonEmbedded;
 using Unity.Cloud.CommonEmbedded.Runtime;
 using UnityEngine;
@@ -72,6 +73,18 @@ namespace Unity.Cloud.AppLinkingEmbedded.Runtime
         {
             get
             {
+#if UNITY_EDITOR
+                if (s_Instance == null)
+                {
+                    s_Instance = Resources.Load<UnityCloudPlayerSettings>(k_AssetName);
+
+                    if (s_Instance == null)
+                    {
+                        s_Instance = CreateInstance<UnityCloudPlayerSettings>();
+                    }
+                }
+                return s_Instance;
+#else
                 UnitySynchronizationContextGrabber.s_UnitySynchronizationContext.Send(_ =>
                 {
                     if (s_Instance == null)
@@ -86,6 +99,7 @@ namespace Unity.Cloud.AppLinkingEmbedded.Runtime
                 }, null);
 
                 return s_Instance;
+#endif
             }
         }
 
@@ -108,7 +122,7 @@ namespace Unity.Cloud.AppLinkingEmbedded.Runtime
         }
 
         /// <summary>
-        /// Gets the app name namespace.
+        /// Gets the app namespace.
         /// </summary>
         /// <returns>The app namespace.</returns>
         public string GetAppNamespace()

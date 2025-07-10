@@ -21,6 +21,13 @@ namespace Unity.Cloud.IdentityEmbedded
 
         public UnityUserInfoJsonProvider(string userId, IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver)
         {
+            // If service host is the public unity services gateway
+            if (serviceHostResolver is ServiceHostResolver unityServiceHostResolver && unityServiceHostResolver.GetResolvedHost().EndsWith("services.api.unity.com"))
+            {
+                // Switch to using the internal unity services gateway host
+                serviceHostResolver = unityServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
+            }
+
             m_UserId = userId;
             m_ServiceHostResolver = serviceHostResolver;
             m_ServiceHttpClient = serviceHttpClient;
@@ -30,8 +37,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
         public async Task<UnityUserInfoJson> GetUnityUserInfoJsonAsync()
         {
-            var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
-            var url = internalServiceHostResolver.GetResolvedRequestUri($"/api/unity/legacy/v1/users/{m_UserId}/organizations");
+            var url = m_ServiceHostResolver.GetResolvedRequestUri($"/api/unity/legacy/v1/users/{m_UserId}/organizations");
             UnityUserInfoJson userInfoJson;
             if (m_GetUnityUserOrganizationRequestResponseCache.TryGetRequestResponseFromCache(url, out UnityUserInfoJson value))
             {
@@ -40,18 +46,10 @@ namespace Unity.Cloud.IdentityEmbedded
             else
             {
                 var response = await m_ServiceHttpClient.GetAsync(url);
-                var deserializedResponse = await response.JsonDeserializeAsync<UnityUserInfoJson>();
-                userInfoJson = m_GetUnityUserOrganizationRequestResponseCache.AddGetRequestResponseToCache(url, deserializedResponse);
+                var deserializedUnityUserInfoResponse = await response.JsonDeserializeAsync<UnityUserInfoJson>();
+                userInfoJson = m_GetUnityUserOrganizationRequestResponseCache.AddGetRequestResponseToCache(url, deserializedUnityUserInfoResponse);
             }
             return userInfoJson;
         }
     }
-
-    class CoreApiRequestParams
-    {
-        public string Path { get; set; }
-        public string Body { get; set; }
-        public string Method { get; set; }
-    }
-
 }

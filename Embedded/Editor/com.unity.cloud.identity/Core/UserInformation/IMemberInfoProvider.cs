@@ -6,6 +6,9 @@ using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.IdentityEmbedded
 {
+    /// <summary>
+    /// An interface that provides <see cref="IMemberInfo"/>.
+    /// </summary>
     interface IMemberInfoProvider
     {
         /// <summary>

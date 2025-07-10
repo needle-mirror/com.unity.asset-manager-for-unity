@@ -5,6 +5,49 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-06-26
+
+### Changed
+- Documentation to reference WebGL support
+- `PkceConfigurationProviderFactory`, `ServiceAccountAuthenticator`, `ServiceAccountAuthenticatorSettings`, `ServiceAccountAuthenticatorSettingsBuilder`, `ServiceConnector` and `ServiceConnectorFactory` classes are no longer experimental.
+- Experimental `ServiceAccountBase64EncodedCredentials` struct is no longer experimental, is renamed to `ServiceAccountCredentials` and is not `readonly` anymore.
+- `ServiceAccountAuthenticatorSettingsBuilder` ctor requires `IHttpClient`, `IServiceHostResolver`, and `IAuthenticationPlatformSupport` parameters.
+- `ServiceAccountAuthenticatorSettingsBuilder.AddAppIdProvider` renamed to `ServiceAccountAuthenticatorSettingsBuilder.SetAppIdProvider`.
+- `ServiceAccountAuthenticatorSettingsBuilder.AddServiceAccountCredentialsExchanger` renamed to `ServiceAccountAuthenticatorSettingsBuilder.SetServiceAccountCredentialsExchanger`.
+- `ServiceAccountAuthenticatorSettingsBuilder.AddDefaultServiceAccountCredentialsExchanger` renamed to `ServiceAccountAuthenticatorSettingsBuilder.SetServiceAccountCredentialsExchanger`.
+
+### Removed
+- Experimental `ServiceConnectorFactory.CreateForUnityServicesGateway` method.
+- Experimental `PkceConfigurationProviderFactory.CreateForUnityServicesGateway` method.
+- Experimental `ServiceAccountAuthenticatorSettingsBuilder.AddAuthenticationPlatformSupport` method.
+- Experimental `ServiceAccountAuthenticatorSettingsBuilder.AddHttpClient` method.
+- Experimental `ServiceAccountAuthenticatorSettingsBuilder.AddServiceHostResolver` method.
+
+## [1.4.0-exp.2] - 2025-05-12
+
+### Changed
+- Introducing documentation for VPC support
+- Cleaned up documentation
+- Rename FQDN path prefix env var name
+
+### Fixed
+- WebGL plaform missing method in ServiceHostResolverFactory
+- Prevent UnityEditorAuthorizerSample to run when using Private Services config
+
+## [1.4.0-exp.1] - 2024-12-12
+
+### Added
+- `PkceConfigurationProviderFactory`, `ServiceAccountAuthenticator`, `ServiceAccountAuthenticatorSettings`, `ServiceAccountAuthenticatorSettingsBuilder`, `ServiceAccountBase64EncodedCredentials`, `ServiceConnector`, `ServiceConnectorFactory` classes. 
+
+### Changed
+- Improve the package directory structure to regroup related classes in `Core`.
+
+### Fixed
+- Improve the UnityEditorServiceAuthorizer resilience to domain reloads.
+
+### Deprecated
+- `PkceConfiguration`, `PkceConfigurationProvider` and `ServiceAccountAuthorizer` classes.
+
 ## [1.3.1] - 2024-10-18
 
 ### Changed

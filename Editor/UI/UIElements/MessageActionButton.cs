@@ -35,7 +35,7 @@ namespace Unity.AssetManager.UI.Editor
                 {
                     RemoveFromClassList(k_LinkClassName);
                     AddToClassList(k_ButtonClassName);
-                    clicked += m_LinksProxy.OpenProjectSettingsServices;
+                    clicked += () => m_LinksProxy.OpenProjectSettings(ProjectSettingsMenu.Services);
 
                     tooltip = L10n.Tr("Open Project Settings");
                     text = tooltip;
@@ -53,6 +53,11 @@ namespace Unity.AssetManager.UI.Editor
                     break;
                 case RecommendedAction.OpenAssetManagerDashboardLink:
                 {
+                    if (!m_LinksProxy.CanOpenAssetManagerDashboard)
+                    {
+                        UIElementsUtils.Hide(this);
+                        break;
+                    }
                     RemoveFromClassList(k_ButtonClassName);
                     AddToClassList(k_LinkClassName);
                     clicked += m_LinksProxy.OpenAssetManagerDashboard;
@@ -63,6 +68,12 @@ namespace Unity.AssetManager.UI.Editor
                     break;
                 case RecommendedAction.OpenAssetManagerDocumentationPage:
                 {
+                    if (!m_LinksProxy.CanOpenAssetManagerDocumentation)
+                    {
+                        UIElementsUtils.Hide(this);
+                        break;
+                    }
+                    
                     RemoveFromClassList(k_LinkClassName);
                     AddToClassList(k_ButtonClassName);
                     clicked += () => m_LinksProxy.OpenAssetManagerDocumentationPage("unity-editor/upload-editor-assets-to-cloud");

@@ -19,6 +19,13 @@ namespace Unity.Cloud.IdentityEmbedded
 
         public OrganizationProjectsJsonProvider(IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver)
         {
+            // If service host is the public unity services gateway
+            if (serviceHostResolver is ServiceHostResolver unityServiceHostResolver && unityServiceHostResolver.GetResolvedHost().EndsWith("services.api.unity.com"))
+            {
+                // Switch to using the internal unity services gateway host
+                serviceHostResolver = unityServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
+            }
+
             m_ServiceHostResolver = serviceHostResolver;
             m_ServiceHttpClient = serviceHttpClient;
 
@@ -29,7 +36,7 @@ namespace Unity.Cloud.IdentityEmbedded
             Range range, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var rangeRequest = new RangeRequest<ProjectJson>(GetOrganizationProjects, 1000);
-            var requestBasePath = $"api/unity/legacy/v1/organizations/{organizationId}/projects";
+            var requestBasePath = $"/api/unity/legacy/v1/organizations/{organizationId}/projects";
             var results = rangeRequest.Execute(requestBasePath, range, cancellationToken);
             await foreach (var projectJson in results)
             {
@@ -39,8 +46,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
         async Task<RangeResultsJson<ProjectJson>> GetOrganizationProjects(string rangeRequestPath, CancellationToken cancellationToken)
         {
-            var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
-            var url = internalServiceHostResolver.GetResolvedRequestUri($"/{rangeRequestPath}");
+            var url = m_ServiceHostResolver.GetResolvedRequestUri(rangeRequestPath);
             if (m_GetRequestResponseCache.TryGetRequestResponseFromCache(url, out RangeResultsJson<ProjectJson> value))
             {
                 return value;

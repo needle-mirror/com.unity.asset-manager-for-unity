@@ -19,6 +19,7 @@ namespace Unity.AssetManager.UI.Editor
 
         readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly IPageManager m_PageManager;
+        readonly ISettingsManager m_SettingsManager;
 
         StorageUsage m_CloudStorageUsage;
         OrganizationInfo m_OrganizationInfo;
@@ -39,11 +40,12 @@ namespace Unity.AssetManager.UI.Editor
         static List<string> m_DismissedOrganizationInfoLevelMessage = new();
 
         public StorageInfoHelpBox(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy)
+            ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, ISettingsManager settingsManager)
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_UnityConnectProxy = unityConnectProxy;
+            m_SettingsManager = settingsManager;
 
             messageType = HelpBoxMessageType.Info;
 
@@ -97,6 +99,11 @@ namespace Unity.AssetManager.UI.Editor
 
         async Task<StorageUsage> GetCloudStorageUsageAsync()
         {
+            if (m_SettingsManager.PrivateCloudSettings.ServicesEnabled)
+            {
+                return await Task.FromResult(new StorageUsage(1, 10));
+            }
+
             if (m_OrganizationInfo == null || !m_UnityConnectProxy.AreCloudServicesReachable || string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedOrganization?.Id))
                 return null;
 

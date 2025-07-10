@@ -43,6 +43,7 @@ namespace Unity.AssetManager.UI.Editor
         SearchBar m_SearchBar;
         Breadcrumbs m_Breadcrumbs;
         Filters m_Filters;
+        SavedViewControls m_SavedViewControls;
         Sort m_Sort;
         TwoPaneSplitView m_CategoriesSplit;
         TwoPaneSplitView m_InspectorSplit;
@@ -73,6 +74,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IApplicationProxy m_ApplicationProxy;
         readonly IDialogManager m_DialogManager;
         readonly ISettingsManager m_SettingsManager;
+        readonly ISavedAssetSearchFilterManager m_SavedSearchFilterManager;
 
         static int InspectorPanelLastWidth
         {
@@ -97,7 +99,8 @@ namespace Unity.AssetManager.UI.Editor
             IMessageManager messageManager,
             IApplicationProxy applicationProxy,
             IDialogManager dialogManager,
-            ISettingsManager settingsManager)
+            ISettingsManager settingsManager,
+            ISavedAssetSearchFilterManager savedSearchFilterManager)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -117,6 +120,7 @@ namespace Unity.AssetManager.UI.Editor
             m_ApplicationProxy = applicationProxy;
             m_DialogManager = dialogManager;
             m_SettingsManager = settingsManager;
+            m_SavedSearchFilterManager = savedSearchFilterManager;
         }
 
         public void OnEnable()
@@ -140,12 +144,12 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.LoadCustomStyleSheet(this,
                 EditorGUIUtility.isProSkin ? k_MainDarkUssName : k_MainLightUssName);
 
-            m_AwaitingLoginPage  = new AwaitingLoginPage();
+            m_AwaitingLoginPage  = new AwaitingLoginPage(m_SettingsManager);
             m_AwaitingLoginPage.AddToClassList("SignInPage");
             m_AwaitingLoginPage.StretchToParentSize();
             Add(m_AwaitingLoginPage);
 
-            m_LoginPage = new LoginPage();
+            m_LoginPage = new LoginPage(m_LinksProxy);
             m_LoginPage.AddToClassList("SignInPage");
             m_LoginPage.StretchToParentSize();
             Add(m_LoginPage);
@@ -167,7 +171,7 @@ namespace Unity.AssetManager.UI.Editor
             m_CategoriesSplit = new TwoPaneSplitView(0, k_SidebarMinWidth, TwoPaneSplitViewOrientation.Horizontal);
 
             m_SideBar = new SideBar(m_UnityConnect, m_StateManager, m_PageManager,
-                m_MessageManager, m_ProjectOrganizationProvider, m_CategoriesSplit);
+                m_MessageManager, m_ProjectOrganizationProvider, m_SavedSearchFilterManager, m_CategoriesSplit);
             m_SideBar.AddToClassList("SideBarContainer");
             m_CategoriesSplit.Add(m_SideBar);
 
@@ -186,13 +190,13 @@ namespace Unity.AssetManager.UI.Editor
             var actionHelpBoxContainer = new VisualElement();
             actionHelpBoxContainer.AddToClassList("HelpBoxContainer");
             m_ActionHelpBox = new ActionHelpBox(m_UnityConnect, m_ApplicationProxy, m_PageManager,
-                m_ProjectOrganizationProvider, m_MessageManager, m_LinksProxy);
+                m_ProjectOrganizationProvider, m_MessageManager, m_LinksProxy, m_SettingsManager);
             actionHelpBoxContainer.Add(m_ActionHelpBox);
             m_SearchContentSplitViewContainer.Add(actionHelpBoxContainer);
 
             var storageInfoHelpBoxContainer = new VisualElement();
             storageInfoHelpBoxContainer.AddToClassList("HelpBoxContainer");
-            var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect);
+            var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect, m_SettingsManager);
             storageInfoHelpBoxContainer.Add(storageInfoHelpBox);
             m_SearchContentSplitViewContainer.Add(storageInfoHelpBoxContainer);
 
@@ -236,8 +240,16 @@ namespace Unity.AssetManager.UI.Editor
             m_Filters = new Filters(m_PageManager, m_ProjectOrganizationProvider, m_ApplicationProxy, m_PopupManager);
             filtersSortContainer.Add(m_Filters);
 
-            m_Sort = new Sort(m_PageManager, m_ProjectOrganizationProvider);
-            filtersSortContainer.Add(m_Sort);
+            var savedViewSortContainer = new VisualElement();
+            savedViewSortContainer.AddToClassList("unity-saved-view-sort-container");
+
+            m_SavedViewControls = new SavedViewControls(m_PageManager, m_ProjectOrganizationProvider,
+                m_SavedSearchFilterManager);
+            savedViewSortContainer.Add(m_SavedViewControls);
+
+            m_Sort = new Sort(m_PageManager, m_ProjectOrganizationProvider, m_SavedSearchFilterManager);
+            savedViewSortContainer.Add(m_Sort);
+            filtersSortContainer.Add(savedViewSortContainer);
 
             var content = new VisualElement();
             content.AddToClassList("AssetManagerContentView");
@@ -400,6 +412,7 @@ namespace Unity.AssetManager.UI.Editor
 
             UIElementsUtils.SetDisplay(m_SearchBar, basePage.DisplaySearchBar);
             UIElementsUtils.SetDisplay(m_Filters, basePage.DisplayFilters);
+            UIElementsUtils.SetDisplay(m_SavedViewControls, basePage.DisplaySavedViewControls);
             UIElementsUtils.SetDisplay(m_Sort, basePage.DisplaySort);
 
             if (basePage.DisplaySideBar)
@@ -441,6 +454,8 @@ namespace Unity.AssetManager.UI.Editor
 
         void Refresh()
         {
+            m_LoginPage.Refresh();
+
             if (!m_UnityConnect.AreCloudServicesReachable)
             {
                 UIElementsUtils.Hide(m_LoginPage);
@@ -490,14 +505,14 @@ namespace Unity.AssetManager.UI.Editor
 
         public void AddItemsToMenu(GenericMenu menu)
         {
-            if (m_UnityConnect.AreCloudServicesReachable)
+            if (m_UnityConnect.AreCloudServicesReachable && m_LinksProxy.CanOpenAssetManagerDashboard)
             {
                 var goToDashboard = new GUIContent(L10n.Tr("Go to Dashboard"));
                 menu.AddItem(goToDashboard, false, m_LinksProxy.OpenAssetManagerDashboard);
             }
 
             var projectSettings = new GUIContent(L10n.Tr("Project Settings"));
-            menu.AddItem(projectSettings, false, m_LinksProxy.OpenProjectSettingsServices);
+            menu.AddItem(projectSettings, false, () => m_LinksProxy.OpenProjectSettings(ProjectSettingsMenu.Services));
 
             var preferences = new GUIContent(L10n.Tr("Preferences"));
             menu.AddItem(preferences, false, m_LinksProxy.OpenPreferences);

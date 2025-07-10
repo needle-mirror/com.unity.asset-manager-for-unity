@@ -25,6 +25,13 @@ namespace Unity.Cloud.IdentityEmbedded
 
         public GuestProjectJsonProvider(string userId, IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver)
         {
+            // If service host is the public unity services gateway
+            if (serviceHostResolver is ServiceHostResolver unityServiceHostResolver && unityServiceHostResolver.GetResolvedHost().EndsWith("services.api.unity.com"))
+            {
+                // Switch to using the internal unity services gateway host
+                serviceHostResolver = unityServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
+            }
+
             m_UserId = userId;
             m_ServiceHostResolver = serviceHostResolver;
             m_ServiceHttpClient = serviceHttpClient;
@@ -36,7 +43,7 @@ namespace Unity.Cloud.IdentityEmbedded
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var rangeRequest = new RangeRequest<ProjectJson>(GetGuestProjects, 1000);
-            var requestBasePath = $"api/unity/legacy/v1/users/{m_UserId}/guest-projects";
+            var requestBasePath = $"/api/unity/legacy/v1/users/{m_UserId}/guest-projects";
             var results = rangeRequest.Execute(requestBasePath, range, cancellationToken);
             await foreach (var projectJson in results)
             {
@@ -46,12 +53,12 @@ namespace Unity.Cloud.IdentityEmbedded
 
         async Task<RangeResultsJson<ProjectJson>> GetGuestProjects(string rangeRequestPath, CancellationToken cancellationToken)
         {
-            var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
-            var url = internalServiceHostResolver.GetResolvedRequestUri($"/{rangeRequestPath}");
+            var url = m_ServiceHostResolver.GetResolvedRequestUri(rangeRequestPath);
             if (m_GetGuestProjectRequestResponseCache.TryGetRequestResponseFromCache(url, out RangeResultsJson<ProjectJson> value))
             {
                 return value;
             }
+
             var response = await m_ServiceHttpClient.GetAsync(url, cancellationToken: cancellationToken);
             var deserializedResponse = await response.JsonDeserializeAsync<RangeResultsJson<ProjectJson>>();
             return m_GetGuestProjectRequestResponseCache.AddGetRequestResponseToCache(url, deserializedResponse);

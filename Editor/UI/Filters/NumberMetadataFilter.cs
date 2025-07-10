@@ -13,15 +13,38 @@ namespace Unity.AssetManager.UI.Editor
 
         public override FilterSelectionType SelectionType => FilterSelectionType.Number;
 
-        public NumberMetadataFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider, IMetadata metadata)
-            : base(page, projectOrganizationProvider, assetsProvider, metadata)
+        public NumberMetadataFilter(IPageFilterStrategy pageFilterStrategy, IMetadata metadata)
+            : base(pageFilterStrategy, metadata)
         {
             m_NumberMetadata = metadata as Core.Editor.NumberMetadata;
+        }
+
+        public override bool ApplyFromAssetSearchFilter(AssetSearchFilter searchFilter)
+        {
+            ClearFilter();
+
+            if (searchFilter.CustomMetadata == null || searchFilter.CustomMetadata.Count == 0)
+                return false;
+
+            var result = false;
+
+            foreach (var metadata in searchFilter.CustomMetadata)
+            {
+                if (metadata is NumberMetadata numberMetadata && numberMetadata.FieldKey == m_NumberMetadata.FieldKey)
+                {
+                    ApplyFilter(new List<string> { numberMetadata.Value.ToString() });
+                    result = true;
+                }
+            }
+
+            return result;
         }
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
             assetSearchFilter.CustomMetadata ??= new List<IMetadata>();
+
+            assetSearchFilter.CustomMetadata.RemoveAll(m => m.FieldKey == m_NumberMetadata.FieldKey);
             assetSearchFilter.CustomMetadata.Add(m_NumberMetadata);
         }
 

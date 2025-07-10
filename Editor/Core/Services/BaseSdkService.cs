@@ -1,5 +1,7 @@
 using System;
 using System.Reflection;
+using System.Threading.Tasks;
+using Unity.Cloud.AppLinkingEmbedded;
 using Unity.Cloud.AssetsEmbedded;
 using Unity.Cloud.CommonEmbedded;
 using Unity.Cloud.CommonEmbedded.Runtime;
@@ -23,6 +25,7 @@ namespace Unity.AssetManager.Core.Editor
         {
             public IAssetRepository AssetRepository { get; set; }
             public IOrganizationRepository OrganizationRepository { get; set; }
+            public IWebAppUrlComposer WebAppUrlComposer { get; set; }
 
             public Unity.Cloud.IdentityEmbedded.AuthenticationState AuthenticationState { get; set; }
 
@@ -34,6 +37,7 @@ namespace Unity.AssetManager.Core.Editor
 
         protected IOrganizationRepository OrganizationRepository => m_ServiceOverride?.OrganizationRepository ?? Services.OrganizationRepository;
         protected IAssetRepository AssetRepository => m_ServiceOverride?.AssetRepository ?? Services.AssetRepository;
+        protected IWebAppUrlComposer WebAppUrlComposer => m_ServiceOverride?.WebAppUrlComposer ?? Services.WebAppUrlComposer;
 
         protected BaseSdkService() { }
 
@@ -44,6 +48,14 @@ namespace Unity.AssetManager.Core.Editor
         protected BaseSdkService(SdkServiceOverride sdkServiceOverride)
         {
             m_ServiceOverride = sdkServiceOverride;
+        }
+        
+        public async Task AuthenticationStateMoveNextAsync()
+        {
+            if (m_ServiceOverride == null)
+            {
+                await Services.PrivateCloudAuthenticatorStateMoveNextAsync();
+            }
         }
 
         protected void InitAuthenticatedServices()
@@ -83,6 +95,8 @@ namespace Unity.AssetManager.Core.Editor
         static class Services
         {
             static IAssetRepository s_AssetRepository;
+            static PrivateCloudAuthenticator s_PrivateCloudAuthenticator;
+            static IWebAppUrlComposer s_WebAppUrlComposer;
 
             public static IAssetRepository AssetRepository
             {
@@ -93,12 +107,39 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
 
-            public static IOrganizationRepository OrganizationRepository => UnityEditorServiceAuthorizer.instance;
+            public static IOrganizationRepository OrganizationRepository => s_PrivateCloudAuthenticator == null ? UnityEditorServiceAuthorizer.instance : s_PrivateCloudAuthenticator;
 
-            public static Unity.Cloud.IdentityEmbedded.AuthenticationState AuthenticationState =>
-                UnityEditorServiceAuthorizer.instance.AuthenticationState;
+            public static IWebAppUrlComposer WebAppUrlComposer
+            {
+                get
+                {
+                    InitAuthenticatedServices();
+                    return s_WebAppUrlComposer;
+                }
+            }
+
+            public static Unity.Cloud.IdentityEmbedded.AuthenticationState AuthenticationState => s_PrivateCloudAuthenticator?.AuthenticationState ?? UnityEditorServiceAuthorizer.instance.AuthenticationState;
 
             public static event Action AuthenticationStateChanged;
+
+            public static async Task PrivateCloudAuthenticatorStateMoveNextAsync()
+            {
+                if (s_PrivateCloudAuthenticator == null)
+                    return;
+
+                switch (AuthenticationState)
+                {
+                    case Unity.Cloud.IdentityEmbedded.AuthenticationState.LoggedIn:
+                        await s_PrivateCloudAuthenticator.LogoutAsync();
+                        break;
+                    case Unity.Cloud.IdentityEmbedded.AuthenticationState.AwaitingLogin:
+                        s_PrivateCloudAuthenticator.CancelLogin();
+                        break;
+                    default:
+                        await s_PrivateCloudAuthenticator.LoginAsync();
+                        break;
+                }
+            }
 
             public static void InitAuthenticatedServices()
             {
@@ -112,16 +153,47 @@ namespace Unity.AssetManager.Core.Editor
             {
                 var pkgInfo = PackageInfo.FindForAssembly(Assembly.GetAssembly(typeof(Services)));
                 var httpClient = new UnityHttpClient();
-                var serviceHostResolver = UnityRuntimeServiceHostResolverFactory.Create();
+                IServiceHostResolver serviceHostResolver;
+                IServiceHttpClient serviceHttpClient;
 
-                UnityEditorServiceAuthorizer.instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
+                PrivateCloudSettings.SettingsUpdated -= OnPrivateCloudServicesAvailable;
+                PrivateCloudSettings.SettingsUpdated += OnPrivateCloudServicesAvailable;
 
-                var serviceHttpClient =
-                    new ServiceHttpClient(httpClient, UnityEditorServiceAuthorizer.instance, new AppIdProvider())
-                        .WithApiSourceHeaders(pkgInfo.name, pkgInfo.version);
+                var privateCloudSettings = PrivateCloudSettings.Load();
+                if (privateCloudSettings.ServicesEnabled)
+                {
+                    serviceHostResolver = ServiceHostResolverFactory.CreateForFullyQualifiedDomainName(privateCloudSettings.FullyQualifiedDomainName, privateCloudSettings.PathPrefix);
+                    s_PrivateCloudAuthenticator = new PrivateCloudAuthenticator();
+                    serviceHttpClient =
+                        new ServiceHttpClient(httpClient, s_PrivateCloudAuthenticator, new AppIdProvider())
+                            .WithApiSourceHeaders(pkgInfo.name, pkgInfo.version);
 
-                s_AssetRepository = AssetRepositoryFactory.Create(serviceHttpClient, serviceHostResolver,
-                    AssetRepositoryCacheConfiguration.NoCaching);
+                    UnityEditorServiceAuthorizer.instance.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+                    s_PrivateCloudAuthenticator.AuthenticationStateChanged += OnAuthenticationStateChanged;
+                }
+                else
+                {
+                    serviceHostResolver = ServiceHostResolverFactory.Create();
+                    serviceHttpClient =
+                        new ServiceHttpClient(httpClient, UnityEditorServiceAuthorizer.instance, new AppIdProvider())
+                            .WithApiSourceHeaders(pkgInfo.name, pkgInfo.version);
+
+                    UnityEditorServiceAuthorizer.instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
+                }
+
+                s_AssetRepository = AssetRepositoryFactory.Create(serviceHttpClient, serviceHostResolver, AssetRepositoryCacheConfiguration.NoCaching);
+                s_WebAppUrlComposer = new WebAppUrlComposer(serviceHostResolver, serviceHttpClient);
+
+                // When services are initialized, we need to invoke the authentication state changed event
+                AuthenticationStateChanged?.Invoke();
+            }
+
+            static void OnPrivateCloudServicesAvailable()
+            {
+                s_AssetRepository = null;
+                s_PrivateCloudAuthenticator = null;
+                s_WebAppUrlComposer = null;
+                InitAuthenticatedServices();
             }
 
             static void OnAuthenticationStateChanged(Unity.Cloud.IdentityEmbedded.AuthenticationState state)

@@ -13,6 +13,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly TwoPaneSplitView m_CategoriesSplitView;
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly ISavedAssetSearchFilterManager m_SavedSearchFilterManager;
         readonly VisualElement m_DraglineAnchor;
         readonly IStateManager m_StateManager;
         readonly IMessageManager m_MessageManager;
@@ -33,7 +34,7 @@ namespace Unity.AssetManager.UI.Editor
 
         public SideBar(IUnityConnectProxy unityConnectProxy, IStateManager stateManager,
             IPageManager pageManager, IMessageManager messageManager,
-            IProjectOrganizationProvider projectOrganizationProvider,
+            IProjectOrganizationProvider projectOrganizationProvider, ISavedAssetSearchFilterManager savedAssetSavedSearchFilterManager,
             TwoPaneSplitView categoriesSplitView)
         {
             m_UnityConnectProxy = unityConnectProxy;
@@ -41,6 +42,7 @@ namespace Unity.AssetManager.UI.Editor
             m_PageManager = pageManager;
             m_MessageManager = messageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_SavedSearchFilterManager = savedAssetSavedSearchFilterManager;
 
             // We need this to hide/show the draggable line between the panes.
             m_DraglineAnchor = categoriesSplitView.Q("unity-dragline-anchor");
@@ -110,7 +112,7 @@ namespace Unity.AssetManager.UI.Editor
             sidebar.Add(new HorizontalSeparator());
 
             m_SidebarContent = new SidebarContent(m_UnityConnectProxy, m_ProjectOrganizationProvider,
-                m_PageManager, m_StateManager, m_MessageManager);
+                m_PageManager, m_StateManager, m_MessageManager, m_SavedSearchFilterManager);
 
             sidebar.Add(m_SidebarContent);
 

@@ -22,7 +22,7 @@ namespace Unity.AssetManager.Core.Editor
                 RegexOptions.None,
                 TimeSpan.FromMilliseconds(100));
 
-        static readonly string s_TrackedFolder =
+        static readonly string s_DefaultTrackedFolder =
             Path.Combine(
                 Application.dataPath,
                 "..",
@@ -30,12 +30,30 @@ namespace Unity.AssetManager.Core.Editor
                 "Packages",
                 AssetManagerCoreConstants.PackageName,
                 "ImportedAssetInfo");
+        static string s_OverrideTrackedFolder = null; // for testing purposes
+        internal static void OverrideTrackedFolder(string trackedFolder) => s_OverrideTrackedFolder = trackedFolder;
+
+        static string TrackedFolder
+        {
+            get
+            {
+                var trackedFolder = s_DefaultTrackedFolder;
+
+                if (!string.IsNullOrEmpty(s_OverrideTrackedFolder))
+                {
+                    trackedFolder = s_OverrideTrackedFolder;
+                }
+
+                return trackedFolder;
+            }
+        }
 
         static IPersistenceVersion[] s_PersistenceVersions =
         {
             new PersistenceLegacy(),
             new PersistenceV1(),
-            new PersistenceV2()
+            new PersistenceV2(),
+            new PersistenceV3()
         };
 
         internal class ReadCache
@@ -61,7 +79,7 @@ namespace Unity.AssetManager.Core.Editor
                 return Array.Empty<ImportedAssetInfo>();
             }
 
-            if (!ioProxy.DirectoryExists(s_TrackedFolder))
+            if (!ioProxy.DirectoryExists(TrackedFolder))
             {
                 return Array.Empty<ImportedAssetInfo>();
             }
@@ -69,7 +87,7 @@ namespace Unity.AssetManager.Core.Editor
             // Read data as-is into persistence structure data
 
             List<ImportedAssetInfo> importedAssetInfos = new();
-            foreach (var assetPath in ioProxy.EnumerateFiles(s_TrackedFolder, "*", SearchOption.TopDirectoryOnly))
+            foreach (var assetPath in ioProxy.EnumerateFiles(TrackedFolder, "*", SearchOption.TopDirectoryOnly))
             {
                 try
                 {
@@ -152,7 +170,7 @@ namespace Unity.AssetManager.Core.Editor
 
         static string GetFilenameFor(string assetId)
         {
-            return Path.Combine(s_TrackedFolder, assetId);
+            return Path.Combine(TrackedFolder, assetId);
         }
 
         static (int major, int minor) ExtractSerializationVersion(string content)

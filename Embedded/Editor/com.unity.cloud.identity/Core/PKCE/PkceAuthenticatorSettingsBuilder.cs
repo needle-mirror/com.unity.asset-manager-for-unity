@@ -177,6 +177,9 @@ namespace Unity.Cloud.IdentityEmbedded
         {
             // Backward compatibility
             m_JwtDecoder ??= new JwtDecoder();
+            // Use the NoOpAccessTokenExchanger if the access token exchanger is null and service host resolver targets non-unity service
+            m_AccessTokenExchanger ??= m_ServiceHostResolver is not ServiceHostResolver ?  new NoOpAccessTokenExchanger() : new AccessTokenToUnityServicesTokenExchanger(m_HttpClient, m_ServiceHostResolver);
+            m_PkceRequestHandler ??= new HttpPkceRequestHandler(m_HttpClient, m_PkceConfigurationProvider);
 
             ValidateRequiredSettings();
 
@@ -205,10 +208,6 @@ namespace Unity.Cloud.IdentityEmbedded
             ValidateRequiredSetting(m_AuthenticationPlatformSupport, ref missingSettingsMessage, ref settingsAreMissing);
             ValidateRequiredSetting(m_PkceConfigurationProvider, ref missingSettingsMessage, ref settingsAreMissing);
             ValidateRequiredSetting(m_ServiceHostResolver, ref missingSettingsMessage, ref settingsAreMissing);
-            ValidateRequiredSetting(m_AccessTokenExchanger, ref missingSettingsMessage, ref settingsAreMissing);
-            ValidateRequiredSetting(m_PkceRequestHandler, ref missingSettingsMessage, ref settingsAreMissing);
-            ValidateRequiredSetting(m_AppNamespaceProvider, ref missingSettingsMessage, ref settingsAreMissing);
-            ValidateRequiredSetting(m_JwtDecoder, ref missingSettingsMessage, ref settingsAreMissing);
 
             // If any settings are missing, throw an exception.
             if (settingsAreMissing)

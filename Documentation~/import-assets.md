@@ -24,6 +24,9 @@ After you import an asset, you can move the files to another destination folder.
 If the asset has optimized and converted files, they're imported along with the source files. For more information, see [Optimize and Convert](https://docs.unity.com/cloud/en-us/asset-manager/optimize-and-convert).
 After import, you can upload the transformed files only as new assets. You can't re-upload them to the original asset.
 
+> **Note**:
+Asset Manager for Unity will persist the tracking information of the imported and uploaded assets under `{Project Folder}/ProjectSettings/Packages/com.unity.asset-manager-for-unity/`. If the project is under source control, it is recommended to have the content of this folder also under source control. This will ensure anyone getting the project will also have the same Asset Manager for Unity tracking information. 
+
 ## Browse imported assets
 
 To browse imported asset, select the **In Project** tab at the top of the Asset Manager for Unity window.

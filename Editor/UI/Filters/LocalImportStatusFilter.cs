@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,15 +9,21 @@ namespace Unity.AssetManager.UI.Editor
 {
     class LocalImportStatusFilter : LocalFilter
     {
+        static readonly FilterSelection[] k_Selections =
+        {
+            new(Constants.UpToDate),
+            new(Constants.Outdated),
+            new(Constants.Deleted)
+        };
+
         public override string DisplayName => "Import Status";
 
-        readonly List<string> m_Selections = new () { Constants.UpToDate, Constants.Outdated, Constants.Deleted};
+        public LocalImportStatusFilter(IPageFilterStrategy pageFilterStrategy)
+            : base(pageFilterStrategy) { }
 
-        public LocalImportStatusFilter(IPage page) : base(page) { }
-
-        public override Task<List<string>> GetSelections()
+        public override Task<List<FilterSelection>> GetSelections(bool _ = false)
         {
-            return Task.FromResult(m_Selections);
+            return Task.FromResult(k_Selections.ToList());
         }
 
         public override async Task<bool> Contains(BaseAssetData assetData, CancellationToken token = default)

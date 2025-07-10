@@ -21,15 +21,54 @@ namespace Unity.AssetManager.UI.Editor
 
         public override FilterSelectionType SelectionType => FilterSelectionType.NumberRange;
 
-        public NumberRangeMetadataFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider, IMetadata metadata)
-            : base(page, projectOrganizationProvider, assetsProvider, metadata)
+        public NumberRangeMetadataFilter(IPageFilterStrategy pageFilterStrategy, IMetadata metadata)
+            : base(pageFilterStrategy, metadata)
         {
             m_NumberMetadata = metadata as Core.Editor.NumberMetadata;
+        }
+
+        public override bool ApplyFromAssetSearchFilter(AssetSearchFilter searchFilter)
+        {
+            ClearFilter();
+
+            if (searchFilter.CustomMetadata == null || searchFilter.CustomMetadata.Count == 0)
+                return false;
+
+            // Because the number metadata range is stored as two separate entries in the search filter,
+            // we need to check if both entries exist in the search filter, and if so, set the FromValue and ToValue accordingly.
+
+            var numberMetadatas = new List<Core.Editor.NumberMetadata>();
+            foreach (var metadata in searchFilter.CustomMetadata)
+            {
+                if (metadata is Core.Editor.NumberMetadata numberMetadata && numberMetadata.FieldKey == m_NumberMetadata.FieldKey)
+                {
+                    numberMetadatas.Add(numberMetadata);
+                }
+            }
+
+            if (numberMetadatas.Count != 2)
+                return false;
+
+            var firstEntry = numberMetadatas[0].Value;
+            var secondEntry = numberMetadatas[1].Value;
+
+            m_FromValue = firstEntry < secondEntry ? firstEntry : secondEntry;
+            m_ToValue = firstEntry > secondEntry ? firstEntry : secondEntry;
+
+            var orderedSelections = new List<string>();
+            orderedSelections.Add(m_FromValue.ToString());
+            orderedSelections.Add(m_ToValue.ToString());
+
+            ApplyFilter(orderedSelections);
+
+            return true;
         }
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
             assetSearchFilter.CustomMetadata ??= new List<IMetadata>();
+
+            assetSearchFilter.CustomMetadata.RemoveAll(m => m.FieldKey == m_NumberMetadata.FieldKey);
             assetSearchFilter.CustomMetadata.Add(new Core.Editor.NumberMetadata(m_NumberMetadata.FieldKey, m_NumberMetadata.Name, m_FromValue));
             assetSearchFilter.CustomMetadata.Add(new Core.Editor.NumberMetadata(m_NumberMetadata.FieldKey, m_NumberMetadata.Name, m_ToValue));
         }

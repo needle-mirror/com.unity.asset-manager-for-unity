@@ -16,7 +16,8 @@ namespace Unity.AssetManager.UI.Editor
             // For backwards compatibility, register services that did not previously exist.
             ServicesContainer.instance.TryInitializeServices(
                 new DialogManager(),
-                new FileUtility());
+                new FileUtility(),
+                new SavedAssetSearchFilterManager());
         }
 
         public static void ResetServices()
@@ -54,10 +55,12 @@ namespace Unity.AssetManager.UI.Editor
                 new AssetImporter(),
                 new AssetImportResolver(),
                 new PermissionsManager(),
+                new UrlProvider(),
                 new UIPreferences(),
                 new DragAndDropProjectBrowserProxy(),
                 new FileUtility(),
                 new MessageManager(),
+                new SavedAssetSearchFilterManager(),
 
                 // UI
                 new StateManager(),

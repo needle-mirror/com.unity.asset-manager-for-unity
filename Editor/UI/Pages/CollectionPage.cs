@@ -27,11 +27,6 @@ namespace Unity.AssetManager.UI.Editor
             m_CollectionInfo = m_ProjectOrganizationProvider.SelectedCollection;
         }
 
-        protected override List<CustomMetadataFilter> InitCustomMetadataFilters()
-        {
-            return GetOrganizationCustomMetadataFilter();
-        }
-
         protected internal override async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(
             [EnumeratorCancellation] CancellationToken token)
         {
@@ -50,28 +45,18 @@ namespace Unity.AssetManager.UI.Editor
         {
             if (!AssetList.Any())
             {
-                if (PageFilters.SelectedFilters.Any())
+                if (!TrySetNoResultsPageMessage())
                 {
-                    SetPageMessage(new Message(L10n.Tr(Constants.NoResultsText)));
-                }
-                else if (PageFilters.SearchFilters.Any())
-                {
-                    SetPageMessage(new Message($"{L10n.Tr(Constants.NoResultsForText)} \"{string.Join(", ", PageFilters.SearchFilters)}\""));
-                }
-                else if (string.IsNullOrEmpty(CollectionPath))
-                {
-                    SetPageMessage(new Message(L10n.Tr(Constants.EmptyProjectText),
-                        RecommendedAction.OpenAssetManagerDashboardLink));
-                }
-                else
-                {
-                    SetPageMessage(new Message(L10n.Tr(Constants.EmptyCollectionsText),
+                    var message = string.IsNullOrEmpty(CollectionPath)
+                        ? Constants.EmptyProjectText
+                        : Constants.EmptyCollectionsText;
+                    SetPageMessage(new Message(L10n.Tr(message),
                         RecommendedAction.OpenAssetManagerDashboardLink));
                 }
             }
             else
             {
-                PageFilters.EnableFilters();
+                m_PageFilterStrategy.EnableFilters();
 
                 m_MessageManager.ClearAllMessages();
             }
@@ -80,7 +65,7 @@ namespace Unity.AssetManager.UI.Editor
         protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
         {
             m_PageManager.SetActivePage<CollectionPage>(true);
-            ResetAssetDataAttributes();
+            TaskUtils.TrackException(RefreshAssetDataAttributesAsync());
         }
 
         protected override string GetPageName()

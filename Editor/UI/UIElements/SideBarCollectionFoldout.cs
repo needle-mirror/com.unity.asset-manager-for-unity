@@ -72,6 +72,12 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            if (m_ProjectOrganizationProvider.SelectedOrganization == null)
+            {
+                Utilities.DevLog("Organization is not selected, cannot create collection foldout.");
+                return;
+            }
+            
             RegisterEventForIconChange();
             RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
 

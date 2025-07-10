@@ -18,11 +18,18 @@ namespace Unity.Cloud.IdentityEmbedded
         readonly IServiceHttpClient m_ServiceHttpClient;
 
         readonly IEntityRoleProvider m_EntityRoleProvider;
+        readonly IMemberInfoJsonProvider m_MemberInfoJsonProvider;
 
         readonly GetRequestResponseCache<RangeResultsJson<MemberInfoJson>> m_GetRequestResponseCache;
 
-        internal Project(ProjectJson projectJson, IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver, IEntityRoleProvider entityRoleProvider)
+        internal Project(ProjectJson projectJson, IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver, IEntityRoleProvider entityRoleProvider, IMemberInfoJsonProvider memberInfoJsonProvider = null)
         {
+            // If service host is the public unity services gateway
+            if (serviceHostResolver is ServiceHostResolver unityServiceHostResolver && unityServiceHostResolver.GetResolvedHost().EndsWith("services.api.unity.com"))
+            {
+                // Switch to using the internal unity services gateway host
+                serviceHostResolver = unityServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
+            }
             m_ServiceHostResolver = serviceHostResolver;
             m_ServiceHttpClient = serviceHttpClient;
 
@@ -36,6 +43,7 @@ namespace Unity.Cloud.IdentityEmbedded
             EnabledInAssetManager = projectJson.EnabledInAssetManager;
 
             m_EntityRoleProvider = entityRoleProvider;
+            m_MemberInfoJsonProvider = memberInfoJsonProvider;
 
             m_GetRequestResponseCache = new GetRequestResponseCache<RangeResultsJson<MemberInfoJson>>(60);
         }
@@ -76,9 +84,18 @@ namespace Unity.Cloud.IdentityEmbedded
         /// <inheritdoc />
         public async IAsyncEnumerable<IMemberInfo> ListMembersAsync(Range range, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            if (m_MemberInfoJsonProvider != null)
+            {
+                var memberJsonAsyncEnumerable = m_MemberInfoJsonProvider.GetMemberInfoJsonAsync(range, cancellationToken);
+                await foreach (var memberJson in memberJsonAsyncEnumerable)
+                {
+                    yield return new MemberInfo(memberJson);
+                }
+                yield break;
+            }
+
             var rangeRequest = new RangeRequest<MemberInfoJson>(GetProjectMembers, 1000);
-            // JSON is different here from previous endpoint
-            var requestBasePath = $"api/access/legacy/v1/projects/{Descriptor.ProjectId}/members";
+            var requestBasePath = $"/api/access/legacy/v1/projects/{Descriptor.ProjectId}/members";
             var results = rangeRequest.Execute(requestBasePath, range, cancellationToken);
             await foreach (var member in results)
             {
@@ -88,14 +105,11 @@ namespace Unity.Cloud.IdentityEmbedded
 
         async Task<RangeResultsJson<MemberInfoJson>> GetProjectMembers(string rangeRequestPath, CancellationToken cancellationToken)
         {
-            var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
-            var url = internalServiceHostResolver.GetResolvedRequestUri($"/{rangeRequestPath}");
-
+            var url = m_ServiceHostResolver.GetResolvedRequestUri(rangeRequestPath);
             if (m_GetRequestResponseCache.TryGetRequestResponseFromCache(url, out RangeResultsJson<MemberInfoJson> value))
             {
                 return value;
             }
-
             var response = await m_ServiceHttpClient.GetAsync(url, cancellationToken: cancellationToken);
             var deserializedResponse = await response.JsonDeserializeAsync<RangeResultsJson<MemberInfoJson>>();
             return m_GetRequestResponseCache.AddGetRequestResponseToCache(url, deserializedResponse);

@@ -39,6 +39,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IPermissionsManager m_PermissionsManager;
         readonly IApplicationProxy m_ApplicationProxy;
 
+        IPage m_CurrentActivePage;
         bool m_IsClickedItemAlreadySelected;
         AssetIdentifier m_SelectedAssetIdentifier;
 
@@ -84,6 +85,18 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            // In case the active page has changed since the last time the grid was attached to the panel
+            if (m_PageManager.ActivePage != m_CurrentActivePage)
+            {
+                OnActivePageChanged(m_PageManager.ActivePage);
+            }
+            else
+            {
+                Refresh();
+                // Only reset the scroll position if the page hasn't changed.
+                TaskUtils.TrackException(WaitAFrameBeforeLoadingScrollDownReset());
+            }
+
             ServicesContainer.instance.Resolve<IDragAndDropProjectBrowserProxy>().RegisterProjectBrowserHandler(OnProjectBrowserDrop);
 
             m_PermissionsManager.AuthenticationStateChanged += OnAuthenticationStateChanged;
@@ -94,12 +107,10 @@ namespace Unity.AssetManager.UI.Editor
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_PageManager.LoadingStatusChanged += OnLoadingStatusChanged;
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
-
-            Refresh();
-            TaskUtils.TrackException(WaitAFrameBeforeLoadingScrollDownReset());
         }
 
-        async Task WaitAFrameBeforeLoadingScrollDownReset(){
+        async Task WaitAFrameBeforeLoadingScrollDownReset()
+        {
             await Task.Delay(1);
             m_Gridview.LoadScrollOffset();
         }
@@ -164,6 +175,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnActivePageChanged(IPage page)
         {
+            m_CurrentActivePage = page;
             ClearGrid();
             Refresh();
         }
@@ -251,7 +263,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             return e =>
             {
-                if(e.target is Toggle || e.button != (int)MouseButton.LeftMouse)
+                if (e.target is Toggle || e.button != (int) MouseButton.LeftMouse)
                     return;
 
                 m_IsClickedItemAlreadySelected =
@@ -259,14 +271,21 @@ namespace Unity.AssetManager.UI.Editor
 
                 if (IsContinuousSelection(e.modifiers) && m_PageManager.ActivePage.SelectedAssets.Any())
                 {
-                    var lastSelectedItemIndex = m_PageManager.ActivePage.AssetList.ToList()
-                        .FindIndex(x => x.Identifier.Equals(m_PageManager.ActivePage.LastSelectedAssetId));
-                    var newSelectedItemIndex = m_PageManager.ActivePage.AssetList.ToList().IndexOf(item.AssetData);
+                    var assetList = m_PageManager.ActivePage.AssetList.ToList();
 
-                    var selectedAssets =
-                        m_PageManager.ActivePage.AssetList.ToList()
-                            .GetRange(Mathf.Min(lastSelectedItemIndex, newSelectedItemIndex),
-                                Mathf.Abs(newSelectedItemIndex - lastSelectedItemIndex) + 1);
+                    // We should only consider the AssetId because certain operations like import can change the AssetVersion
+                    var lastSelectedItemIndex = assetList.FindIndex(x => x.Identifier.AssetId.Equals(m_PageManager.ActivePage.LastSelectedAssetId.AssetId));
+                    var newSelectedItemIndex = assetList.FindIndex(x => x.Identifier.AssetId.Equals(item.AssetData.Identifier.AssetId));
+
+                    if (lastSelectedItemIndex < 0 || newSelectedItemIndex < 0)
+                    {
+                        Utilities.DevLogWarning("Invalid selection indices for continuous selection.");
+                        return;
+                    }
+
+                    var selectedAssets = assetList.GetRange(
+                        Mathf.Min(lastSelectedItemIndex, newSelectedItemIndex),
+                        Mathf.Abs(newSelectedItemIndex - lastSelectedItemIndex) + 1);
 
                     m_PageManager.ActivePage.SelectAssets(selectedAssets.Select(x => x.Identifier).ToList());
                 }

@@ -103,7 +103,12 @@ namespace Unity.AssetManager.Core.Editor
         public string PreviewFilePath => m_PreviewFilePath;
         public bool IsFrozen => m_IsFrozen;
         public override IEnumerable<string> Tags => m_Tags;
-        public override IEnumerable<AssetIdentifier> Dependencies => m_Dependencies;
+
+        public override IEnumerable<AssetIdentifier> Dependencies
+        {
+            get => m_Dependencies;
+            internal set => m_Dependencies = value?.ToList() ?? new List<AssetIdentifier>();
+        }
 
         public override IEnumerable<BaseAssetData> Versions => m_Versions;
 
@@ -207,7 +212,7 @@ namespace Unity.AssetManager.Core.Editor
 #pragma warning restore S107
 
 #pragma warning disable S107 // Disabling the warning regarding too many parameters.
-        // Used when de-serialized from version 2.0
+        // Used when de-serialized from version 2.0 and 3.0
         public void FillFromPersistence(AssetIdentifier assetIdentifier,
             int sequenceNumber,
             int parentSequenceNumber,
@@ -349,20 +354,18 @@ namespace Unity.AssetManager.Core.Editor
             m_ThumbnailUrl = previewFileUrl?.ToString() ?? string.Empty;
         }
 
-        public override async Task GetAssetDataAttributesAsync(CancellationToken token = default)
+        public override async Task RefreshAssetDataAttributesAsync(CancellationToken token = default)
         {
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
             var isInProject = assetDataManager.IsInProject(Identifier);
 
             if (AssetDataAttributeCollection != null && AssetDataAttributeCollection.HasAttribute<ImportAttribute>())
             {
-                // Check if the the asset is still in the project anymore, if not clear the import status.
+                // Check if the asset is still in the project anymore, if not clear the import status.
                 if (!isInProject)
                 {
                     AssetDataAttributeCollection = null;
                 }
-
-                return;
             }
 
             var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
@@ -451,7 +454,7 @@ namespace Unity.AssetManager.Core.Editor
                 token.ThrowIfCancellationRequested();
 
                 ResolvePrimaryExtension();
-                
+
                 InvokeEvent(AssetDataEventType.FilesChanged);
             }
             catch (HttpRequestException)
@@ -481,6 +484,12 @@ namespace Unity.AssetManager.Core.Editor
         {
             var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
             var updatedAsset = await assetsSdkProvider.GetAssetAsync(Identifier, token);
+            
+            if (updatedAsset == null)
+            {
+                Utilities.DevLogError($"Asset {Identifier.AssetId} not found; properties could not be returned.");
+                return;
+            }
 
             FillFromOther(updatedAsset);
 

@@ -36,10 +36,15 @@ namespace Unity.AssetManager.Core.Editor
 #if AM4U_DEV
             return AnalyticsResult.AnalyticsDisabled;
 #else
-    #if UNITY_2023_2_OR_NEWER
+            if (PrivateCloudSettings.Load().ServicesEnabled)
+            {
+                return AnalyticsResult.AnalyticsDisabled;
+            }
+
+#if UNITY_2023_2_OR_NEWER
             var analytic = aEvent.GetAnalytic();
             return EditorAnalytics.SendAnalytic(analytic);
-    #else
+#else
             var register = EditorAnalytics.RegisterEventWithLimit(aEvent.EventName, k_MaxEventsPerHour,
                 k_MaxNumberOfElements, VendorKey, aEvent.EventVersion);
 
@@ -48,7 +53,7 @@ namespace Unity.AssetManager.Core.Editor
                 return register;
 
             return EditorAnalytics.SendEventWithLimit(aEvent.EventName, aEvent.EventData, aEvent.EventVersion);
-    #endif
+#endif
 #endif
         }
     }

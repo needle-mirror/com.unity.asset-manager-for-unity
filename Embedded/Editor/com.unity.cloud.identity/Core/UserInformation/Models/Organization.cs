@@ -19,6 +19,7 @@ namespace Unity.Cloud.IdentityEmbedded
         static readonly UCLogger s_Logger = LoggerProvider.GetLogger<Organization>();
 
         readonly IServiceHostResolver m_ServiceHostResolver;
+        readonly IServiceHostResolver m_InternalServiceHostResolver;
         readonly IServiceHttpClient m_ServiceHttpClient;
 
         readonly IOrganizationProjectsJsonProvider m_OrganizationProjectsJsonProvider;
@@ -36,9 +37,19 @@ namespace Unity.Cloud.IdentityEmbedded
         {
             Id = new OrganizationId(organizationJson.GenesisId);
 
+            // If service host is the public unity services gateway
+            if (serviceHostResolver is ServiceHostResolver unityServiceHostResolver && unityServiceHostResolver.GetResolvedHost().EndsWith("services.api.unity.com"))
+            {
+                // Create a copy for internal unity services gateway calls
+                m_InternalServiceHostResolver = unityServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
+            }
+            else
+            {
+                // Otherwise use injected host resolver
+                m_InternalServiceHostResolver = serviceHostResolver;
+            }
             m_ServiceHostResolver = serviceHostResolver;
             m_ServiceHttpClient = serviceHttpClient;
-
             m_GuestProjectJsonProvider = guestProjectJsonProvider;
             m_AssetProjectsJsonProvider = assetProjectsJsonProvider;
             m_MemberInfoJsonProvider = memberInfoJsonProvider;
@@ -93,7 +104,7 @@ namespace Unity.Cloud.IdentityEmbedded
                 {
                     if (guestProjectJson.OrganizationGenesisId.Equals(orgId))
                     {
-                        yield return new Project(guestProjectJson, m_ServiceHttpClient, m_ServiceHostResolver, m_EntityRoleProvider);
+                        yield return new Project(guestProjectJson, m_ServiceHttpClient, m_ServiceHostResolver, m_EntityRoleProvider, m_MemberInfoJsonProvider);
                     }
                 }
             }
@@ -106,7 +117,7 @@ namespace Unity.Cloud.IdentityEmbedded
                     {
                         projectJson.EnabledInAssetManager = true;
                     }
-                    yield return new Project(projectJson, m_ServiceHttpClient, m_ServiceHostResolver, m_EntityRoleProvider);
+                    yield return new Project(projectJson, m_ServiceHttpClient, m_ServiceHostResolver, m_EntityRoleProvider, m_MemberInfoJsonProvider);
                 }
             }
         }
@@ -145,7 +156,7 @@ namespace Unity.Cloud.IdentityEmbedded
             else
             {
                 var rangeRequest = new RangeRequest<MemberInfoJson>(GetOrganizationMembers, 1000);
-                var requestBasePath = $"api/access/legacy/v1/organizations/{Id}/members";
+                var requestBasePath = $"/api/access/legacy/v1/organizations/{Id}/members";
                 asyncEnumerableMemberInfoJson = rangeRequest.Execute(requestBasePath, range, cancellationToken);
             }
             await foreach (var memberInfoJson in asyncEnumerableMemberInfoJson.WithCancellation(cancellationToken))
@@ -156,9 +167,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
         async Task<RangeResultsJson<MemberInfoJson>> GetOrganizationMembers(string rangeRequestPath, CancellationToken cancellationToken)
         {
-            var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
-            var url = internalServiceHostResolver.GetResolvedRequestUri($"/{rangeRequestPath}");
-
+            var url = m_InternalServiceHostResolver.GetResolvedRequestUri(rangeRequestPath);
             if (m_GetRequestResponseCache.TryGetRequestResponseFromCache(url, out RangeResultsJson<MemberInfoJson> value))
             {
                 return value;
@@ -199,8 +208,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
         async Task<CloudStorageUsageJson> GetCloudStorageUsageJsonAsync(CancellationToken cancellationToken)
         {
-            var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
-            var url = internalServiceHostResolver.GetResolvedRequestUri($"/api/cloud-storage/v1/organizations/{Id}/usage");
+            var url = m_InternalServiceHostResolver.GetResolvedRequestUri($"/api/cloud-storage/v1/organizations/{Id}/usage");
             var response = await m_ServiceHttpClient.GetAsync(url, cancellationToken:cancellationToken);
             return await response.JsonDeserializeAsync<CloudStorageUsageJson>();
         }
@@ -229,8 +237,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
         async Task<CloudStorageEntitlementsJson> GetCloudStorageEntitlementsJsonAsync(CancellationToken cancellationToken)
         {
-            var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
-            var url = internalServiceHostResolver.GetResolvedRequestUri($"/api/cloud-storage/v1/organizations/{Id}/entitlements");
+            var url = m_InternalServiceHostResolver.GetResolvedRequestUri($"/api/cloud-storage/v1/organizations/{Id}/entitlements");
             var response = await m_ServiceHttpClient.GetAsync(url, cancellationToken:cancellationToken);
             return await response.JsonDeserializeAsync<CloudStorageEntitlementsJson>();
         }

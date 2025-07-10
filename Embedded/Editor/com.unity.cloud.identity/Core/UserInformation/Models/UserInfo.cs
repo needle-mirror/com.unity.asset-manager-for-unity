@@ -20,6 +20,10 @@ namespace Unity.Cloud.IdentityEmbedded
         /// </summary>
         public string Email { get; set; }
 
+        internal UserInfo()
+        {
+        }
+
         internal UserInfo(UnityUserInfoJson unityUserInfoJson)
         {
             UserId = new UserId(unityUserInfoJson.GenesisId);

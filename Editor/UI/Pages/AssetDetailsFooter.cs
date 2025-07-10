@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
@@ -94,8 +95,12 @@ namespace Unity.AssetManager.UI.Editor
             m_ImportButton.tooltip = AssetDetailsPageExtensions.GetImportButtonTooltip(operationInProgress, enabled);
             m_ImportButton.SetEnabled(isEnabled);
 
-            m_ShowInProjectBrowserButton.SetEnabled(enabled.HasFlag(UIEnabledStates.InProject));
-            m_ShowInProjectBrowserButton.tooltip = enabled.HasFlag(UIEnabledStates.InProject)
+            var hasFiles = assetData?.GetFiles()?.Where(f 
+                => !string.IsNullOrEmpty(f?.Path) && !AssetDataDependencyHelper.IsASystemFile(Path.GetExtension(f.Path)))
+                .Any() ?? false;
+            
+            m_ShowInProjectBrowserButton.SetEnabled(enabled.HasFlag(UIEnabledStates.InProject) && hasFiles);
+            m_ShowInProjectBrowserButton.tooltip = enabled.HasFlag(UIEnabledStates.InProject) && hasFiles
                 ? L10n.Tr(Constants.ShowInProjectButtonToolTip)
                 : L10n.Tr(Constants.ShowInProjectButtonDisabledToolTip);
 

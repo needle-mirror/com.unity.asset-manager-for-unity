@@ -45,27 +45,20 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void OnLoadMoreSuccessCallBack()
         {
-            if (!AssetList.Any() && !PageFilters.SearchFilters.Any())
+            if (!AssetList.Any())
             {
-                SetPageMessage(new Message(L10n.Tr(Constants.EmptyAllAssetsText),
-                    RecommendedAction.OpenAssetManagerDashboardLink));
-            }
-            else if (!AssetList.Any() && PageFilters.SearchFilters.Any())
-            {
-                SetPageMessage(new Message(L10n.Tr("No results found for \"" +
-                    string.Join(", ", PageFilters.SearchFilters) + "\"")));
+                if (!TrySetNoResultsPageMessage())
+                {
+                    SetPageMessage(new Message(L10n.Tr(Constants.EmptyAllAssetsText),
+                        RecommendedAction.OpenAssetManagerDashboardLink));
+                }
             }
             else
             {
-                PageFilters.EnableFilters();
+                m_PageFilterStrategy.EnableFilters();
 
                 m_MessageManager.ClearAllMessages();
             }
-        }
-
-        protected override List<CustomMetadataFilter> InitCustomMetadataFilters()
-        {
-            return GetOrganizationCustomMetadataFilter();
         }
     }
 }

@@ -109,7 +109,8 @@ namespace Unity.AssetManager.UI.Editor
             }
             AddAssetIdentifier(m_EntriesContainer, Constants.AssetIdText, identifier);
 
-            AddText(m_EntriesContainer, Constants.AssetTypeText, assetData.AssetType.DisplayValue(), isSelectable: true);
+            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            AddText(m_EntriesContainer, Constants.AssetTypeText, assetsProvider.GetValueAsString(assetData.AssetType), isSelectable: true);
 
             AddText(m_EntriesContainer, Constants.LastModifiedText, Utilities.DatetimeToString(assetData.Updated));
             AddUser(m_EntriesContainer, Constants.LastEditByText, assetData.UpdatedBy, typeof(UpdatedByFilter));

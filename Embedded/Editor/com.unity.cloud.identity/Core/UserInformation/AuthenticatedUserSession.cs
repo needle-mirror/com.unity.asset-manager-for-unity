@@ -16,6 +16,8 @@ namespace Unity.Cloud.IdentityEmbedded
     internal class AuthenticatedUserSession : IUserInfoProvider, IOrganizationRepository
     {
         readonly IServiceHostResolver m_ServiceHostResolver;
+        readonly IServiceHostResolver m_InternalServiceHostResolver;
+
         readonly IServiceHttpClient m_ServiceHttpClient;
 
         readonly IOrganizationProjectsJsonProvider m_OrganizationProjectsJsonProvider;
@@ -37,6 +39,17 @@ namespace Unity.Cloud.IdentityEmbedded
         /// <param name="organizationJsonProvider">An optional <see cref="IOrganizationJsonProvider"/> instance.</param>
         public AuthenticatedUserSession(string userId, IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver, IUnityUserInfoJsonProvider unityUserInfoJsonProvider = null, IGuestProjectJsonProvider guestProjectJsonProvider = null, IOrganizationJsonProvider organizationJsonProvider = null)
         {
+            // If service host is the public unity services gateway
+            if (serviceHostResolver is ServiceHostResolver unityServiceHostResolver && unityServiceHostResolver.GetResolvedHost().EndsWith("services.api.unity.com"))
+            {
+                // Switch to using the internal unity services gateway host
+                m_InternalServiceHostResolver = unityServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
+            }
+            else
+            {
+                // Otherwise use injected host resolver
+                m_InternalServiceHostResolver = serviceHostResolver;
+            }
             m_ServiceHostResolver = serviceHostResolver;
             m_ServiceHttpClient = serviceHttpClient;
             m_UnityUserInfoJsonProvider = unityUserInfoJsonProvider ?? new UnityUserInfoJsonProvider(userId, m_ServiceHttpClient, m_ServiceHostResolver);
@@ -90,8 +103,7 @@ namespace Unity.Cloud.IdentityEmbedded
                 return new Organization(await m_OrganizationJsonProvider.GetOrganizationJsonAsync(organizationId), m_ServiceHttpClient, m_ServiceHostResolver, m_OrganizationProjectsJsonProvider, m_EntityRoleProvider, m_GuestProjectJsonProvider);
             }
 
-            var internalServiceHostResolver = m_ServiceHostResolver.CreateCopyWithDomainResolverOverride(new UnityServicesDomainResolver(true));
-            var url = internalServiceHostResolver.GetResolvedRequestUri($"/api/unity/legacy/v1/organizations/{organizationId}");
+            var url = m_InternalServiceHostResolver.GetResolvedRequestUri($"/api/unity/legacy/v1/organizations/{organizationId}");
             if (m_GetOrganizationRequestResponseCache.TryGetRequestResponseFromCache(url, out OrganizationJson value))
             {
                 return new Organization(value, m_ServiceHttpClient, m_ServiceHostResolver, m_OrganizationProjectsJsonProvider, m_EntityRoleProvider, m_GuestProjectJsonProvider);

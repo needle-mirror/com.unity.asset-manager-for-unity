@@ -18,7 +18,7 @@ namespace Unity.Cloud.CommonEmbedded
         /// <returns></returns>
         public static async Task<T> JsonDeserializeAsync<T>(this HttpResponseMessage response)
         {
-            var content = await response.GetContentAsString();
+            var content = await response.GetContentAsStringAsync();
 
             return JsonSerialization.Deserialize<T>(content);
         }
@@ -28,7 +28,24 @@ namespace Unity.Cloud.CommonEmbedded
         /// </summary>
         /// <param name="response">The HTTP response message.</param>
         /// <returns></returns>
+        [Obsolete("Use GetContentAsStringAsync instead.")]
         public static async Task<string> GetContentAsString(this HttpResponseMessage response)
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            var stream = await response.Content.ReadAsStreamAsync();
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+#else
+            return await response.Content.ReadAsStringAsync();
+#endif
+        }
+
+        /// <summary>
+        /// Gets a string representing the content of an <see cref="HttpResponseMessage"/>.
+        /// </summary>
+        /// <param name="response">The HTTP response message.</param>
+        /// <returns></returns>
+        public static async Task<string> GetContentAsStringAsync(this HttpResponseMessage response)
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
             var stream = await response.Content.ReadAsStreamAsync();

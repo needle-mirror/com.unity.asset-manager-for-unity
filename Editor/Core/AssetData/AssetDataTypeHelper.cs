@@ -9,33 +9,6 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Core.Editor
 {
-    enum UnityAssetType
-    {
-        AnimationClip,
-        AudioClip,
-        AudioMixer,
-        Font,
-        Material,
-        Mesh,
-        PhysicsMaterial,
-        Prefab,
-        Scene,
-        Script,
-        Shader,
-        Texture,
-        VisualEffect,
-        Other,
-        AssemblyDefinition,
-        Asset,
-        Configuration,
-        Document,
-        Environment,
-        Image,
-        Playable,
-        ShaderGraph,
-        UnityPackage,
-    }
-
     enum IconSource
     {
         Default,
@@ -47,12 +20,12 @@ namespace Unity.AssetManager.Core.Editor
     class UnityTypeDescriptor
     {
         public readonly HashSet<string> Extensions;
-        public readonly UnityAssetType Type;
+        public readonly AssetType Type;
 
         readonly IconSource m_IconSource;
         readonly string m_IconStr;
 
-        public UnityTypeDescriptor(UnityAssetType type, params string[] ext)
+        public UnityTypeDescriptor(AssetType type, params string[] ext)
         {
             Type = type;
             Extensions = new HashSet<string>(ext);
@@ -60,7 +33,7 @@ namespace Unity.AssetManager.Core.Editor
             m_IconStr = string.Empty;
         }
 
-        public UnityTypeDescriptor(UnityAssetType type, IconSource iconSource, string iconStr, params string[] ext)
+        public UnityTypeDescriptor(AssetType type, IconSource iconSource, string iconStr, params string[] ext)
         {
             Type = type;
             Extensions = new HashSet<string>(ext);
@@ -89,46 +62,46 @@ namespace Unity.AssetManager.Core.Editor
         // Order and Case is important!
         static readonly List<UnityTypeDescriptor> k_UnityTypeDescriptors = new()
         {
-            new UnityTypeDescriptor(UnityAssetType.Scene, ".unity"),
-            new UnityTypeDescriptor(UnityAssetType.Prefab, ".prefab"),
-            new UnityTypeDescriptor(UnityAssetType.Other, IconSource.TextureName, "SpeedTreeImporter Icon", ".st"),
-            new UnityTypeDescriptor(UnityAssetType.Mesh, ".3df", ".3dm", ".3dmf", ".3ds", ".3dv", ".3dx",
+            new UnityTypeDescriptor(AssetType.UnityScene, ".unity"),
+            new UnityTypeDescriptor(AssetType.Prefab, ".prefab"),
+            new UnityTypeDescriptor(AssetType.Other, IconSource.TextureName, "SpeedTreeImporter Icon", ".st"),
+            new UnityTypeDescriptor(AssetType.Model3D, ".3df", ".3dm", ".3dmf", ".3ds", ".3dv", ".3dx",
                 ".blend", ".c4d", ".fbx", ".lwo", ".lws", ".ma", ".max", ".mb", ".mesh", ".obj", ".vrl", ".wrl",
                 ".wrz"),
-            new UnityTypeDescriptor(UnityAssetType.Mesh, IconSource.Resource,
+            new UnityTypeDescriptor(AssetType.Model3D, IconSource.Resource,
                 "Packages/com.unity.cloud.gltfast/Editor/UI/gltf-icon-bug.png", ".glb", ".gltf"),
-            new UnityTypeDescriptor(UnityAssetType.Material, ".mat"),
-            new UnityTypeDescriptor(UnityAssetType.AnimationClip, IconSource.TextureName, "d_AnimationClip Icon",
+            new UnityTypeDescriptor(AssetType.Material, ".mat"),
+            new UnityTypeDescriptor(AssetType.Animation, IconSource.TextureName, "d_AnimationClip Icon",
                 ".anim"),
-            new UnityTypeDescriptor(UnityAssetType.AnimationClip, IconSource.TextureName, "d_AnimatorController Icon",
+            new UnityTypeDescriptor(AssetType.Animation, IconSource.TextureName, "d_AnimatorController Icon",
                 ".controller", ".overridecontroller"),
-            new UnityTypeDescriptor(UnityAssetType.AudioClip, ".aac", ".aif", ".aiff", ".au", ".flac", ".mid",
+            new UnityTypeDescriptor(AssetType.Audio, ".aac", ".aif", ".aiff", ".au", ".flac", ".mid",
                 ".midi", ".mp3", ".mpa", ".ogg", ".ra", ".ram", ".wav", ".wave", ".wma"),
-            new UnityTypeDescriptor(UnityAssetType.AudioMixer, ".mixer"),
-            new UnityTypeDescriptor(UnityAssetType.Font, ".fnt", ".fon", ".otf", ".ttf", ".ttc"),
-            new UnityTypeDescriptor(UnityAssetType.PhysicsMaterial, ".physicMaterial", ".physicsMaterial2D"),
-            new UnityTypeDescriptor(UnityAssetType.Script, ".cs"),
-            new UnityTypeDescriptor(UnityAssetType.Shader, ".shader", ".shadervariants"),
-            new UnityTypeDescriptor(UnityAssetType.ShaderGraph, IconSource.Resource,
+            new UnityTypeDescriptor(AssetType.AudioMixer, ".mixer"),
+            new UnityTypeDescriptor(AssetType.Font, ".fnt", ".fon", ".otf", ".ttf", ".ttc"),
+            new UnityTypeDescriptor(AssetType.PhysicsMaterial, ".physicMaterial", ".physicsMaterial2D"),
+            new UnityTypeDescriptor(AssetType.Script, ".cs"),
+            new UnityTypeDescriptor(AssetType.Shader, ".shader", ".shadervariants"),
+            new UnityTypeDescriptor(AssetType.ShaderGraph, IconSource.Resource,
                 "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_graph_icon.png", ".shadergraph"),
-            new UnityTypeDescriptor(UnityAssetType.ShaderGraph, IconSource.Resource,
+            new UnityTypeDescriptor(AssetType.ShaderGraph, IconSource.Resource,
                 "Packages/com.unity.shadergraph/Editor/Resources/Icons/sg_subgraph_icon.png", ".shadersubgraph"),
-            new UnityTypeDescriptor(UnityAssetType.Texture, ".ai", ".apng", ".avif", ".bmp", ".cdr",
+            new UnityTypeDescriptor(AssetType.Asset2D, ".ai", ".apng", ".avif", ".bmp", ".cdr",
                 ".cur", ".dib", ".eps", ".exif", ".exr", ".gif", ".hdr", ".ico", ".icon", ".j", ".j2c", ".j2k",
                 ".jas", ".jiff", ".jfif", ".jng", ".jp2", ".jpc", ".jpe", ".jpeg", ".jpf", ".jpg", ".jpw", ".jpx",
                 ".jtf", ".mac", ".omf", ".pjp", ".pjpeg", ".png", ".psd", ".qif", ".qti", ".qtif", ".svg", ".tex",
                 ".tfw", ".tga", ".tif", ".tiff", ".webp", ".wmf"),
-            new UnityTypeDescriptor(UnityAssetType.VisualEffect, IconSource.Typename,
+            new UnityTypeDescriptor(AssetType.VisualEffect, IconSource.Typename,
                 "UnityEngine.VFX.VisualEffectAsset", ".vfx", ".vfxoperator", ".vfxblock"),
-            new UnityTypeDescriptor(UnityAssetType.AssemblyDefinition, ".asmdef"),
-            new UnityTypeDescriptor(UnityAssetType.AssemblyDefinition, ".asmref"),
-            new UnityTypeDescriptor(UnityAssetType.UnityPackage, IconSource.TextureName, "d_SceneAsset Icon", ".unitypackage"),
-            new UnityTypeDescriptor(UnityAssetType.Playable, IconSource.Typename, "UnityEngine.Timeline.TimelineAsset",
+            new UnityTypeDescriptor(AssetType.AssemblyDefinition, ".asmdef"),
+            new UnityTypeDescriptor(AssetType.AssemblyDefinition, ".asmref"),
+            new UnityTypeDescriptor(AssetType.UnityPackage, IconSource.TextureName, "d_SceneAsset Icon", ".unitypackage"),
+            new UnityTypeDescriptor(AssetType.Playable, IconSource.Typename, "UnityEngine.Timeline.TimelineAsset",
                 ".playable"),
-            new UnityTypeDescriptor(UnityAssetType.Asset, ".asset"),
-            new UnityTypeDescriptor(UnityAssetType.Configuration, ".config", ".cfg", ".conf", ".ini", ".toml"),
-            new UnityTypeDescriptor(UnityAssetType.Document, ".txt", ".json", ".xml", ".yaml", ".csv"),
-            new UnityTypeDescriptor(UnityAssetType.Environment, ".terrainlayer", ".lighting"),
+            new UnityTypeDescriptor(AssetType.Asset, ".asset"),
+            new UnityTypeDescriptor(AssetType.Configuration, ".config", ".cfg", ".conf", ".ini", ".toml"),
+            new UnityTypeDescriptor(AssetType.Document, ".txt", ".json", ".xml", ".yaml", ".csv"),
+            new UnityTypeDescriptor(AssetType.Environment, ".terrainlayer", ".lighting"),
 
         };
 
@@ -207,11 +180,11 @@ namespace Unity.AssetManager.Core.Editor
             return InternalEditorUtility.GetIconForFile(extension);
         }
 
-        public static UnityAssetType GetUnityAssetType(string extension)
+        public static AssetType GetUnityAssetType(string extension)
         {
             if (string.IsNullOrEmpty(extension))
             {
-                return UnityAssetType.Other;
+                return AssetType.Other;
             }
 
             InitializeExtensionToUnityTypeDescriptor();
@@ -221,7 +194,7 @@ namespace Unity.AssetManager.Core.Editor
                 return value.descriptor.Type;
             }
 
-            return UnityAssetType.Other;
+            return AssetType.Other;
         }
 
         public static int GetPriority(string extension)
@@ -239,31 +212,6 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return 0; // lowest priority
-        }
-
-        public static Regex GetRegexForExtensions(List<AssetType> types)
-        {
-            var pattern = string.Empty;
-
-            foreach (var extension in types
-                         .SelectMany(GetTypeExtensions)
-                         .Where(value => !string.IsNullOrEmpty(value)))
-            {
-                pattern += $"|{extension}";
-            }
-
-            pattern = pattern[1..];
-
-            return new Regex($".*({pattern})", RegexOptions.IgnoreCase);
-        }
-
-        static IEnumerable<string> GetTypeExtensions(AssetType type)
-        {
-            return k_UnityTypeDescriptors
-                    .FirstOrDefault(descriptor => descriptor.Type.ConvertUnityAssetTypeToAssetType() == type)
-                    ?.Extensions
-                    ?.ToArray()
-                ?? Array.Empty<string>();
         }
 
         public static bool IsSupportingPreviewGeneration(string extension)

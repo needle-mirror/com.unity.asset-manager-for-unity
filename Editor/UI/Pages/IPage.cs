@@ -11,12 +11,12 @@ namespace Unity.AssetManager.UI.Editor
         bool IsLoading { get; }
         string DefaultProjectName { get; }
         string Title { get; }
-        PageFilters PageFilters { get; }
         AssetIdentifier LastSelectedAssetId { get; }
         IReadOnlyCollection<BaseAssetData> AssetList { get; }
         IReadOnlyCollection<AssetIdentifier> SelectedAssets { get; }
         Dictionary<string, SortField> SortOptions { get; }
         UIComponents EnabledUIComponents { get; }
+        bool SupportsUpdateAll { get; }
 
         event Action<bool> LoadingStatusChanged;
         event Action<IReadOnlyCollection<AssetIdentifier>> SelectedAssetsChanged;
@@ -35,6 +35,12 @@ namespace Unity.AssetManager.UI.Editor
 
         // Called when the window is closed, and before a domain reload
         void OnDisable();
+
+        // Called before the page is activated
+        void SetFilterStrategy(IPageFilterStrategy pageFilterStrategy);
+
+        // Called after the page is deactivated
+        void ClearFilterStrategy();
 
         // Called when a page got activated (when it became the current visible page)
         // Not called after a domain reload

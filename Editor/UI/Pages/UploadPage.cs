@@ -81,6 +81,7 @@ namespace Unity.AssetManager.UI.Editor
         public override bool DisplayBreadcrumbs => true;
         public override bool DisplayFilters => false;
         public override bool DisplayFooter => false;
+        public override bool DisplaySavedViewControls => false;
         public override bool DisplaySort => false;
         public override bool DisplayUploadMetadata => true;
         public override bool DisplayUpdateAllButton => false;
@@ -131,11 +132,6 @@ namespace Unity.AssetManager.UI.Editor
 
             var uploadPage = pageManager.ActivePage as UploadPage;
             uploadPage?.AddAssets(Selection.assetGUIDs);
-        }
-
-        protected override List<BaseFilter> InitFilters()
-        {
-            return new List<BaseFilter>();
         }
 
         public override void OnActivated()

@@ -2,10 +2,11 @@ using System;
 using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
+using UnityEngine;
 using UnityEngine.UIElements;
 namespace Unity.AssetManager.UI.Editor
 {
-    class Sort:GridTool
+    class Sort : GridTool
     {
         const string k_UssClassName = "unity-sort";
         const string k_DropdownUssClassName = k_UssClassName + "-dropdown";
@@ -14,10 +15,15 @@ namespace Unity.AssetManager.UI.Editor
         const string k_DescendingUssClassName = k_OrderUssClassName + "--descending";
 
         readonly DropdownField m_DropdownField;
+        readonly Button m_OrderButton;
+        readonly ISavedAssetSearchFilterManager m_SavedAssetSearchFilterManager;
 
-        public Sort(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
+        public Sort(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider, ISavedAssetSearchFilterManager savedAssetSearchFilterManager)
             : base(pageManager, projectOrganizationProvider)
         {
+            m_SavedAssetSearchFilterManager = savedAssetSearchFilterManager;
+            m_SavedAssetSearchFilterManager.FilterSelected += OnFilterSelected;
+
             AddToClassList(k_UssClassName);
 
             m_DropdownField = new DropdownField(L10n.Tr(Constants.Sort));
@@ -33,17 +39,17 @@ namespace Unity.AssetManager.UI.Editor
             });
             Add(m_DropdownField);
 
-            var orderButton = new Button();
-            orderButton.AddToClassList(k_OrderUssClassName);
-            orderButton.AddToClassList(m_PageManager.SortingOrder == SortingOrder.Ascending ? k_AscendingUssClassName : k_DescendingUssClassName);
-            orderButton.clicked += () =>
+            m_OrderButton = new Button();
+            m_OrderButton.AddToClassList(k_OrderUssClassName);
+            SetupOrderButtonField();
+            m_OrderButton.clicked += () =>
             {
                 var sortingOrder = m_PageManager.SortingOrder == SortingOrder.Ascending ? SortingOrder.Descending : SortingOrder.Ascending;
-                orderButton.RemoveFromClassList(sortingOrder == SortingOrder.Ascending ? k_DescendingUssClassName : k_AscendingUssClassName);
-                orderButton.AddToClassList(sortingOrder == SortingOrder.Ascending ? k_AscendingUssClassName : k_DescendingUssClassName);
+                m_OrderButton.RemoveFromClassList(sortingOrder == SortingOrder.Ascending ? k_DescendingUssClassName : k_AscendingUssClassName);
+                m_OrderButton.AddToClassList(sortingOrder == SortingOrder.Ascending ? k_AscendingUssClassName : k_DescendingUssClassName);
                 OnValueChanged(m_PageManager.ActivePage.SortOptions[m_DropdownField.value], sortingOrder);
             };
-            Add(orderButton);
+            Add(m_OrderButton);
         }
 
         void OnValueChanged(SortField sortField, SortingOrder sortingOrder)
@@ -57,6 +63,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             base.OnActivePageChanged(page);
             SetupSortField(page);
+            SetupOrderButtonField();
         }
 
         protected override bool IsDisplayed(IPage page)
@@ -72,12 +79,39 @@ namespace Unity.AssetManager.UI.Editor
         void SetupSortField(IPage page)
         {
             m_DropdownField.choices = page.SortOptions.Keys.ToList();
-            var index = (int)m_PageManager.SortField;
-            if (index >= m_DropdownField.choices.Count)
+            var sortField = m_PageManager.SortField;
+            var sortFieldValue = BasePage.s_SortFieldsLabelMap[sortField];
+
+            m_DropdownField.SetValueWithoutNotify(sortFieldValue);
+        }
+
+        void SetupOrderButtonField()
+        {
+            var addToClass = m_PageManager.SortingOrder == SortingOrder.Ascending
+                ? k_AscendingUssClassName
+                : k_DescendingUssClassName;
+
+            m_OrderButton.RemoveFromClassList(k_AscendingUssClassName);
+            m_OrderButton.RemoveFromClassList(k_DescendingUssClassName);
+            m_OrderButton.AddToClassList(addToClass);
+        }
+
+        void OnFilterSelected(SavedAssetSearchFilter filter, bool applyFilter)
+        {
+            if (filter == null)
+                return;
+
+            if (applyFilter)
             {
-                index = 0;
+                var sortFieldLabel = BasePage.s_SortFieldsLabelMap[filter.SortingOptions.SortField];
+                m_DropdownField.SetValueWithoutNotify(sortFieldLabel);
+
+                m_OrderButton.RemoveFromClassList(k_AscendingUssClassName);
+                m_OrderButton.RemoveFromClassList(k_DescendingUssClassName);
+                m_OrderButton.AddToClassList(filter.SortingOptions.SortingOrder == SortingOrder.Ascending ? k_AscendingUssClassName : k_DescendingUssClassName);
+
+                OnValueChanged(filter.SortingOptions.SortField, filter.SortingOptions.SortingOrder);
             }
-            m_DropdownField.index = index;
         }
     }
 }

@@ -1,16 +1,37 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
+using UnityEditor;
 
 namespace Unity.AssetManager.UI.Editor
 {
     class CreatedByFilter : CloudFilter
     {
-        public override string DisplayName => "Created by";
+        public override string DisplayName => L10n.Tr(Constants.CreatedByText);
         protected override AssetSearchGroupBy GroupBy => AssetSearchGroupBy.CreatedBy;
 
-        public CreatedByFilter(IPage page, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
-            : base(page, projectOrganizationProvider, assetsProvider) { }
+        public CreatedByFilter(IPageFilterStrategy pageFilterStrategy)
+            : base(pageFilterStrategy) { }
+
+        public override bool ApplyFromAssetSearchFilter(AssetSearchFilter searchFilter)
+        {
+            ClearFilter();
+
+            if (searchFilter.CreatedBy == null || searchFilter.CreatedBy.Count == 0)
+                return false;
+
+            TaskUtils.TrackException(ApplyFilterAsync(searchFilter.CreatedBy));
+            return true;
+        }
+
+        async Task ApplyFilterAsync(List<string> userIds)
+        {
+            var selectionNames = await m_PageFilterStrategy.GetUserNamesAsync(userIds);
+            selectionNames.Sort();
+
+            ApplyFilter(selectionNames.Select(s => s.Text).ToList());
+        }
 
         public override void ResetSelectedFilter(AssetSearchFilter assetSearchFilter)
         {
@@ -24,16 +45,13 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void ClearFilter()
         {
-            m_Page.PageFilters.AssetSearchFilter.CreatedBy = null;
+            m_PageFilterStrategy.AssetSearchFilter.CreatedBy = null;
         }
 
-        protected override async Task<List<string>> GetSelectionsAsync()
+        protected override async Task<List<FilterSelection>> GetSelectionsAsync()
         {
             var selections = await base.GetSelectionsAsync();
-            var selectionNames = await m_ProjectOrganizationProvider.SelectedOrganization.GetUserNamesAsync(selections);
-            selectionNames.Sort();
-
-            return selectionNames;
+            return await m_PageFilterStrategy.GetUserNamesAsync(selections);
         }
 
         async Task ResetSelectedFilterAsync(AssetSearchFilter assetSearchFilter)
@@ -43,7 +61,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 foreach (var selectedFilter in SelectedFilters)
                 {
-                    userIds.Add(await m_ProjectOrganizationProvider.SelectedOrganization.GetUserIdAsync(selectedFilter));
+                    userIds.Add(await m_PageFilterStrategy.GetUserIdAsync(selectedFilter));
                 }
             }
 
@@ -52,19 +70,20 @@ namespace Unity.AssetManager.UI.Editor
 
         async Task IncludeFilterAsync(List<string> selectedFilters)
         {
-            if(selectedFilters == null)
+            if (selectedFilters == null)
             {
-                m_Page.PageFilters.AssetSearchFilter.CreatedBy = null;
+                m_PageFilterStrategy.AssetSearchFilter.CreatedBy = null;
                 return;
             }
+
 
             var userIds = new List<string>();
             foreach (var selectedFilter in selectedFilters)
             {
-                userIds.Add(await m_ProjectOrganizationProvider.SelectedOrganization.GetUserIdAsync(selectedFilter));
+                userIds.Add(await m_PageFilterStrategy.GetUserIdAsync(selectedFilter));
             }
 
-            m_Page.PageFilters.AssetSearchFilter.CreatedBy = userIds;
+            m_PageFilterStrategy.AssetSearchFilter.CreatedBy = userIds;
         }
     }
 }

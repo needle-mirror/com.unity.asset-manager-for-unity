@@ -38,12 +38,24 @@ namespace Unity.Cloud.IdentityEmbedded
         public bool IsOwner { get; set; }
     }
 
+    /// <summary>
+    /// An interface that holds member information.
+    /// </summary>
     interface IMemberInfo : IUserInfo
     {
+        /// <summary>
+        /// The member's role.
+        /// </summary>
         public string Role { get; set; }
 
+        /// <summary>
+        /// The member's <see cref="GroupId"/>.
+        /// </summary>
         public GroupId GroupId { get; set; }
 
+        /// <summary>
+        /// The name of the member's group.
+        /// </summary>
         public string GroupName { get; set; }
     }
 
