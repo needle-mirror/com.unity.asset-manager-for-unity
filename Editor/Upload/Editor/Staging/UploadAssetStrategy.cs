@@ -31,14 +31,20 @@ namespace Unity.AssetManager.Upload.Editor
             var cache = new Dictionary<string, UploadAssetData>();
             var cacheAllScriptsGuids = new AllScriptGuidSnapshot();
 
+            // Track circular dependencies that need to be resolved after all objects are created
+            var circularDependencies = new Dictionary<string, List<string>>();
+
             var total = allGuids.Count;
             var count = 0f;
 
             foreach (var guid in allGuids)
             {
                 progressCallback?.Invoke(guid, count++ / total);
-                GenerateUploadAssetRecursive(guid, uploadEdits, settings, cache, cacheAllScriptsGuids);
+                GenerateUploadAssetRecursive(guid, uploadEdits, settings, cache, cacheAllScriptsGuids, circularDependencies);
             }
+
+            // Second pass: resolve circular dependencies
+            ResolveCircularDependencies(cache, circularDependencies);
 
             // Set the dependencies for each asset
             foreach (var asset in cache.Values)
@@ -53,7 +59,8 @@ namespace Unity.AssetManager.Upload.Editor
             UploadEdits uploadEdits,
             UploadSettings settings,
             Dictionary<string, UploadAssetData> cache,
-            AllScriptGuidSnapshot cacheAllScriptGuids)
+            AllScriptGuidSnapshot cacheAllScriptGuids,
+            Dictionary<string, List<string>> circularDependencies)
         {
             if (cache.TryGetValue(guid, out var result))
             {
@@ -110,14 +117,21 @@ namespace Unity.AssetManager.Upload.Editor
                 {
                     if (cache.TryGetValue(dependencyGuid, out var dep))
                     {
+                        if (dep == null)
+                        {
+                            // Circular dependency detected - track it for later resolution
+                            if (!circularDependencies.ContainsKey(guid))
+                                circularDependencies[guid] = new List<string>();
+                            circularDependencies[guid].Add(dependencyGuid);
+                            continue;
+                        }
                         deps.Add(dep);
                         continue;
                     }
 
-                    dep = GenerateUploadAssetRecursive(dependencyGuid, uploadEdits, settings, cache, cacheAllScriptGuids);
+                    dep = GenerateUploadAssetRecursive(dependencyGuid, uploadEdits, settings, cache, cacheAllScriptGuids, circularDependencies);
                     if (dep != null)
                     {
-                        // A null result means the asset is being processed in a recursive call
                         deps.Add(dep);
                     }
                 }
@@ -134,6 +148,31 @@ namespace Unity.AssetManager.Upload.Editor
             cache[guid] = assetUploadEntry;
 
             return assetUploadEntry;
+        }
+
+        static void ResolveCircularDependencies(Dictionary<string, UploadAssetData> cache, Dictionary<string, List<string>> circularDependencies)
+        {
+            foreach (var (assetGuid, circularDeps) in circularDependencies)
+            {
+                if (!cache.TryGetValue(assetGuid, out var asset)) continue;
+
+                // Get current dependencies and add the circular ones
+                var currentDeps = asset.Dependencies.ToList();
+
+                foreach (var circularDepGuid in circularDeps)
+                {
+                    if (!cache.TryGetValue(circularDepGuid, out var circularDepAsset)) continue;
+
+                    // Add the circular dependency if it's not already present
+                    if (currentDeps.All(dep => dep.AssetId != circularDepAsset.Identifier.AssetId))
+                    {
+                        currentDeps.Add(circularDepAsset.Identifier);
+                    }
+                }
+
+                // Update the dependencies using the internal setter
+                asset.Dependencies = currentDeps;
+            }
         }
 
         public static ISet<string> ResolveMainSelection(params string[] guids)

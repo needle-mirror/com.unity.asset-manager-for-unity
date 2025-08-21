@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
@@ -42,7 +43,9 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void IncludeFilter(List<string> selectedFilters)
         {
-            m_SingleSelectionMetadata.Value = selectedFilters?[0];
+            if (selectedFilters?.Count > 0)
+                m_SingleSelectionMetadata.Value = selectedFilters[0];
+
             base.IncludeFilter(selectedFilters);
         }
     }

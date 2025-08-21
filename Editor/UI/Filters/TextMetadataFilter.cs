@@ -40,7 +40,9 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void IncludeFilter(List<string> selectedFilters)
         {
-            m_TextMetadata.Value = selectedFilters?[0];
+            if (selectedFilters?.Count > 0)
+                m_TextMetadata.Value = selectedFilters[0];
+
             base.IncludeFilter(selectedFilters);
         }
     }

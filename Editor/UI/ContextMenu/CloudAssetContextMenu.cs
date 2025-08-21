@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -208,6 +209,12 @@ namespace Unity.AssetManager.UI.Editor
                 return;
 
             if (!IsInProject || IsImporting)
+                return;
+
+            var hasFiles = TargetAssetData?.GetFiles()?.Where(f
+                    => !string.IsNullOrEmpty(f?.Path) && !AssetDataDependencyHelper.IsASystemFile(Path.GetExtension(f.Path)))
+                .Any() ?? false;
+            if (!hasFiles)
                 return;
 
             AddMenuEntry(evt, Constants.ShowInProjectActionText, true,

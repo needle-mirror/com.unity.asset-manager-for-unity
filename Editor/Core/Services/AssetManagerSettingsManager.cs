@@ -23,6 +23,7 @@ namespace Unity.AssetManager.Core.Editor
         bool IsProjectWindowIconOverlayEnabled { get; }
         int ProjectWindowIconOverlayPosition { get; }
         bool DisplayDetailedProjectWindowIconOverlay { get; }
+        bool IsDebugLogsEnabled { get; }
         PrivateCloudSettings PrivateCloudSettings { get; }
         SavedAssetSearchFilterSettings SavedAssetSearchFilterSettings { get; }
 
@@ -42,6 +43,8 @@ namespace Unity.AssetManager.Core.Editor
         void SetProjectWindowIconOverlayEnabled(bool value);
         void SetProjectWindowIconOverlayPosition(int value);
         void SetProjectWindowIconOverlayDisplayType(bool value);
+
+        void SetDebugLogsEnabled(bool value);
     }
 
     [Serializable]
@@ -66,6 +69,7 @@ namespace Unity.AssetManager.Core.Editor
         const string k_ProjectWindowIconOverlayEnabled = "AM4U.projectWindowIconOverlayEnabled";
         const string k_ProjectWindowIconOverlayPosition = "AM4U.projectWindowIconOverlayPosition";
         const string k_ProjectWindowIconOverlayType = "AM4U.projectWindowIconOverlayType";
+        const string k_DebugLogsEnabled = "AM4U.debugLogsEnabled";
 
         enum ProjectIconOverlayPosition
         {
@@ -120,6 +124,8 @@ namespace Unity.AssetManager.Core.Editor
         public int ProjectWindowIconOverlayPosition => Instance.Get(k_ProjectWindowIconOverlayPosition, SettingsScope.User, (int)ProjectIconOverlayPosition.TopRight);
         public bool DisplayDetailedProjectWindowIconOverlay => Instance.Get(k_ProjectWindowIconOverlayType, SettingsScope.User, true);
 
+        public bool IsDebugLogsEnabled => Instance.Get(k_DebugLogsEnabled, SettingsScope.User, false);
+
         public PrivateCloudSettings PrivateCloudSettings => PrivateCloudSettings.Load(Instance);
         public SavedAssetSearchFilterSettings SavedAssetSearchFilterSettings => SavedAssetSearchFilterSettings.Load(Instance);
 
@@ -156,6 +162,8 @@ namespace Unity.AssetManager.Core.Editor
                 return AssetManagerCoreConstants.DefaultCacheSizeGb;
             }
         }
+
+
 
         public int MaxCacheSizeMb => MaxCacheSizeGb * 1024;
 
@@ -271,6 +279,11 @@ namespace Unity.AssetManager.Core.Editor
         public void SetProjectWindowIconOverlayDisplayType(bool value)
         {
             Instance.Set(k_ProjectWindowIconOverlayType, value, SettingsScope.User);
+        }
+
+        public void SetDebugLogsEnabled(bool value)
+        {
+            Instance.Set(k_DebugLogsEnabled, value, SettingsScope.User);
         }
     }
 }

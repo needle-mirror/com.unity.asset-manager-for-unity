@@ -11,6 +11,8 @@ namespace Unity.AssetManager.UI.Editor
     [Serializable]
     class TimestampMetadataFilter : CustomMetadataFilter
     {
+        internal const string k_DisplayFormat = "yyyy-MM-dd hh:mm:ss tt";
+
         [SerializeReference]
         TimestampMetadata m_TimestampMetadata;
 
@@ -61,13 +63,13 @@ namespace Unity.AssetManager.UI.Editor
             var orderedSelections = new List<string>();
             if (firstEntry.DateTime < secondEntry.DateTime)
             {
-                orderedSelections.Add(firstEntry.DateTime.ToString(CultureInfo.InvariantCulture));
-                orderedSelections.Add(secondEntry.DateTime.ToString(CultureInfo.InvariantCulture));
+                orderedSelections.Add(firstEntry.DateTime.ToString(k_DisplayFormat));
+                orderedSelections.Add(secondEntry.DateTime.ToString(k_DisplayFormat));
             }
             else
             {
-                orderedSelections.Add(secondEntry.DateTime.ToString(CultureInfo.InvariantCulture));
-                orderedSelections.Add(firstEntry.DateTime.ToString(CultureInfo.InvariantCulture));
+                orderedSelections.Add(secondEntry.DateTime.ToString(k_DisplayFormat));
+                orderedSelections.Add(firstEntry.DateTime.ToString(k_DisplayFormat));
             }
 
             ApplyFilter(orderedSelections);
@@ -93,18 +95,11 @@ namespace Unity.AssetManager.UI.Editor
             base.IncludeFilter(selectedFilters);
         }
 
-        protected override void ClearFilter()
-        {
-            base.ClearFilter();
-            m_FromValue = DateTime.MinValue;
-            m_ToValue = DateTime.MinValue;
-        }
-
         public override string DisplaySelectedFilters()
         {
-            if(SelectedFilters is { Count: 2 })
+            if (SelectedFilters is { Count: 2 })
             {
-                return $"{DisplayName} : {L10n.Tr(Constants.FromText)} {m_FromValue} {L10n.Tr(Constants.ToText)} {m_ToValue}";
+                return $"{DisplayName} : {L10n.Tr(Constants.FromText)} {m_FromValue.ToString(k_DisplayFormat)} {L10n.Tr(Constants.ToText)} {m_ToValue.ToString(k_DisplayFormat)}";
             }
 
             return base.DisplaySelectedFilters();

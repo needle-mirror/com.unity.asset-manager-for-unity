@@ -4,6 +4,16 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2025-08-21
+
+[Added]
+- Added debugging logs in the import process. Can be enabled using the "Enable debug logs" in the Preferences.
+- Add the ability to retrieve programmatically the Unity GUIDs associated to an imported asset via the new `AssetManagerClient.GetImportedAssetGUIDs` method.
+- Added a new organization selector in the Asset Manager window.
+
+[Fixed]
+- Fix error when uploading assets with circular dependencies.
+
 ## [1.6.0] - 2025-07-10
 [Added]
 - Added support for saving search filters as views in the Asset Manager window

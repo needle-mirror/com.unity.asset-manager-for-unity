@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine.UIElements;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 
 namespace Unity.AssetManager.UI.Editor
@@ -20,10 +21,11 @@ namespace Unity.AssetManager.UI.Editor
         private readonly VisualElement m_Icon;
         private readonly IAssetDataManager m_AssetDataManager;
         private readonly HashSet<BaseAssetData> m_TrackedAssets = new();
+        private readonly IApplicationProxy m_ApplicationProxy;
 
         bool IsAvailable => m_PageManager.ActivePage?.SupportsUpdateAll ?? false;
 
-        public UpdateAllButton(IAssetImporter assetImporter, IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider)
+        public UpdateAllButton(IAssetImporter assetImporter, IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider, IApplicationProxy applicationProxy)
         :base(pageManager, projectOrganizationProvider)
         {
             m_UpdateAllButton = new Button(() =>
@@ -52,6 +54,10 @@ namespace Unity.AssetManager.UI.Editor
             EnableButton(false);
 
             container.Add(m_Icon);
+
+            m_ApplicationProxy = applicationProxy;
+
+            tooltip = L10n.Tr(Constants.UpdateAllButtonTooltip);
         }
 
         protected override void InitDisplay(IPage page)
@@ -60,10 +66,15 @@ namespace Unity.AssetManager.UI.Editor
             _ = UpdateButtonStatus();
         }
 
+        public void Refresh()
+        {
+            _ = UpdateButtonStatus();
+        }
+
         async Task UpdateButtonStatus()
         {
-            // Only update the button status if the button is available for the current page
-            if (!IsAvailable)
+            // Only update the button status if the button is available for the current page and the application is reachable
+            if (!IsAvailable || !m_ApplicationProxy.InternetReachable)
             {
                 EnableButton(false);
                 return;

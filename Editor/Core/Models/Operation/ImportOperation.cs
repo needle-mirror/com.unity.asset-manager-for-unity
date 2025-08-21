@@ -47,6 +47,8 @@ namespace Unity.AssetManager.Core.Editor
 
         [SerializeReference]
         BaseAssetData m_AssetData;
+        [SerializeReference]
+        ISettingsManager m_SettingsManager;
 
         readonly DateTime m_StartTime;
         readonly string m_TempDownloadPath;
@@ -92,19 +94,25 @@ namespace Unity.AssetManager.Core.Editor
 
         float m_LastReportedProgress = 0f;
 
-        public ImportOperation(BaseAssetData assetData, string tempDownloadPath, Dictionary<string, string> destinationPathPerFile, string defaultDestinationPath)
+        public ImportOperation(BaseAssetData assetData, string tempDownloadPath, Dictionary<string, string> destinationPathPerFile, string defaultDestinationPath, ISettingsManager settingsManager)
         {
             m_AssetData = assetData;
             m_TempDownloadPath = tempDownloadPath;
             m_DestinationPathPerFile = destinationPathPerFile;
             m_StartTime = DateTime.Now;
             m_DefaultDestinationPath = defaultDestinationPath;
+            m_SettingsManager = settingsManager;
         }
 
         public async Task ImportAsync(CancellationToken token = default)
         {
             if (m_AssetData == null)
                 return;
+
+            if (IsDebugLogsEnabled())
+            {
+                Debug.Log($"Retrieving download URLs for asset: {m_AssetData.Identifier.ToString()}");
+            }
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
 
@@ -128,6 +136,11 @@ namespace Unity.AssetManager.Core.Editor
 
                 if (downloadUrls.Count == 0)
                 {
+                    if (IsDebugLogsEnabled())
+                    {
+                        Debug.Log("Nothing to download from asset: " + m_AssetData.Identifier.AssetId);
+                    }
+
                     Utilities.DevLog($"Nothing to download from asset '{m_AssetData?.Name}'.");
                     Finish(OperationStatus.Success);
                     return;
@@ -140,7 +153,7 @@ namespace Unity.AssetManager.Core.Editor
                         Utilities.DevLogWarning($"Skipping downloading null url for file '{filePath}'.");
                         continue;
                     }
-                    
+
                     // If the file is already in the project, use the existing path in case it was moved
                     if (!m_DestinationPathPerFile.TryGetValue(filePath, out var destinationPath))
                     {
@@ -171,6 +184,14 @@ namespace Unity.AssetManager.Core.Editor
             {
                 throw new InvalidOperationException($"Nothing to download from asset '{m_AssetData?.Name}'. Asset is empty, unavailable or corrupted.");
             }
+            else
+            {
+                if (IsDebugLogsEnabled())
+                {
+                    Debug.Log(
+                        $"Found {m_DownloadRequests.Count} files to download for asset: {m_AssetData.Identifier.ToString()}");
+                }
+            }
         }
 
 
@@ -186,6 +207,11 @@ namespace Unity.AssetManager.Core.Editor
 
         public async Task StartDownloadRequests()
         {
+            if (IsDebugLogsEnabled())
+            {
+                Debug.Log($"Starting downloads for asset: {m_AssetData.Identifier.ToString()}");
+            }
+
             if (Status is not OperationStatus.InProgress)
                 return;
 
@@ -205,6 +231,13 @@ namespace Unity.AssetManager.Core.Editor
                 await Task.Delay(200);
             }
 
+            if (Status == OperationStatus.Cancelled) // got cancelled while waiting for download requests
+            {
+                downloadOperation.Finish(OperationStatus.Cancelled);
+                Finish(OperationStatus.Cancelled);
+                return;
+            }
+
             var status = m_DownloadRequests.Exists(x => !string.IsNullOrEmpty(x.WebRequest.error))
                 ? OperationStatus.Error
                 : OperationStatus.Success;
@@ -212,6 +245,20 @@ namespace Unity.AssetManager.Core.Editor
             downloadOperation.Finish(status);
 
             Finish(status);
+
+            if (IsDebugLogsEnabled())
+            {
+                if (status == OperationStatus.Error)
+                {
+                    Debug.LogError(
+                        $"The following import operation(s) for asset {m_AssetData.Identifier.AssetId} failed:\n{string.Join("\n", m_DownloadRequests.Where(x => !string.IsNullOrEmpty(x.WebRequest.error)).Select(x => $"{x.OriginalPath} - {x.Error}"))}");
+                }
+            }
+        }
+
+        bool IsDebugLogsEnabled()
+        {
+            return m_SettingsManager != null && m_SettingsManager.IsDebugLogsEnabled;
         }
     }
 }

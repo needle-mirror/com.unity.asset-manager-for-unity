@@ -4,8 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
 using Unity.AssetManager.Core.Editor;
+using UnityEditor;
+using UnityEngine;
 
 namespace Unity.AssetManager.Editor
 {
@@ -112,6 +113,50 @@ namespace Unity.AssetManager.Editor
             return userIds;
         }
 
+        /// <summary>
+        /// Returns the Unity GUIDs associated with the given asset identifier
+        /// </summary>
+        /// <param name="assetId">The asset identifier.</param>
+        /// <returns>If the given asset identifier is tracked, return all Unity GUIDs related to this asset. Else, return an empty enumerable</returns>
+        public static IEnumerable<GUID> GetImportedAssetGUIDs(string assetId)
+        {
+            if (string.IsNullOrEmpty(assetId))
+            {
+                throw new ArgumentNullException(nameof(assetId), "No asset identifier provided");
+            }
+
+            // Are we initialized?
+            if (!ServicesContainer.instance.IsInitialized())
+            {
+                throw new InitializationException("Asset Manager is not initialized.");
+            }
+
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+            if (assetDataManager == null)
+            {
+                throw new InitializationException("Asset Manager is not initialized and cannot access internal service.");
+            }
+
+            var importedAssetInfo = assetDataManager.GetImportedAssetInfo(assetId);
+            if (importedAssetInfo == null)
+            {
+                // The asset identifier is unknown
+                yield break;
+            }
+
+            foreach (var fileInfo in importedAssetInfo.FileInfos)
+            {
+                if (GUID.TryParse(fileInfo.Guid, out var guid))
+                {
+                    yield return guid;
+                }
+                else
+                {
+                    Utilities.DevLog($"Unable to parse GUID {fileInfo.Guid} from file info for asset {assetId}");
+                }
+            }
+        }
+
         static async Task<ImportResult> ImportAsync(AssetSearchFilter searchFilter, IEnumerable<string> projectIds, ImportSettings settings, CancellationToken cancellationToken = default)
         {
             if (searchFilter == null)
@@ -159,7 +204,24 @@ namespace Unity.AssetManager.Editor
                 assetDatas.Add(result);
             }
 
+            ReportExplicitlyProvidedAssetIdsAreImported(searchFilter, assetDatas);
+
             return await ImportAsync(assetDatas, settings, cancellationToken);
+        }
+
+        // Warn if any asset Ids from the assetDatasToImport list are not in the searchFilter.
+        // If that happens, this means a user expects certain assets to be imported, but they were not found.
+        static void ReportExplicitlyProvidedAssetIdsAreImported(AssetSearchFilter searchFilter,
+            List<BaseAssetData> assetDatasToImport)
+        {
+            HashSet<string> assetIdsToImport = new HashSet<string>(searchFilter.AssetIds ?? Enumerable.Empty<string>());
+            HashSet<string> importedAssetIds = new HashSet<string>(assetDatasToImport.Select(x => x.Identifier.AssetId));
+
+            var missingAssetIds = assetIdsToImport.Except(importedAssetIds).ToList();
+            if (missingAssetIds.Any())
+            {
+                UnityEngine.Debug.LogWarning($"The following explicitly provided asset IDs were not found in the search results and will not be imported:\n{ string.Join("\n", missingAssetIds.Select(x => $"{x}"))}");
+            }
         }
 
         static async Task<ImportResult> ImportAsync(IEnumerable<BaseAssetData> assetDatas, ImportSettings settings, CancellationToken cancellationToken)

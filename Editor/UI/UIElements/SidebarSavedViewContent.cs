@@ -16,13 +16,14 @@ namespace Unity.AssetManager.UI.Editor
         Dictionary<string, SidebarSavedViewItem> m_SidebarSavedViewItems = new ();
 
         Button m_SaveCurrentFilterButton;
+        Toggle m_SavedViewsToggle;
 
         public SidebarSavedViewContent(IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager,
             ISavedAssetSearchFilterManager savedSearchFilterManager)
         {
-            var toggle = this.Q<Toggle>();
-            toggle.text = Constants.SidebarSavedViewsText;
-            toggle.AddToClassList("SidebarContentTitle");
+            m_SavedViewsToggle = this.Q<Toggle>();
+            m_SavedViewsToggle.text = Constants.SidebarSavedViewsText;
+            m_SavedViewsToggle.AddToClassList("SidebarContentTitle");
 
             m_SaveCurrentFilterButton = new Button(OnSaveCurrentFilterClicked)
             {
@@ -62,6 +63,8 @@ namespace Unity.AssetManager.UI.Editor
         {
             foreach (var savedViewItem in m_SidebarSavedViewItems.Values)
                 savedViewItem.SetSelected(savedViewItem.FilterId == filter?.FilterId);
+
+            m_SavedViewsToggle.value = true;
         }
 
         void OnFilterAdded(SavedAssetSearchFilter filter)
@@ -71,6 +74,8 @@ namespace Unity.AssetManager.UI.Editor
             // Enter rename mode for the newly added filter
             if (m_SidebarSavedViewItems.TryGetValue(filter.FilterId, out var sidebarSavedViewItem))
                 sidebarSavedViewItem.StartRenaming();
+
+            m_SavedViewsToggle.value = true;
         }
 
         void OnFilterDeleted(SavedAssetSearchFilter _)

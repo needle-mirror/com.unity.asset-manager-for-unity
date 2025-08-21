@@ -77,6 +77,9 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
 
+            // Remove the main assetGuid in case we have circular dependencies
+            dependencies.Remove(assetGuid);
+
             return dependencies;
         }
 

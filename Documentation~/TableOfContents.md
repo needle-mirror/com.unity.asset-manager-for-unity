@@ -6,4 +6,5 @@
   * [Saved views in the Asset Manager Window](saved-views.md)
   * [User Preferences](preferences.md)
   * [Public API](public-api.md)
+  * [Private Cloud Guide](vpc-guide.md)
 * [More Help](more-help.md)

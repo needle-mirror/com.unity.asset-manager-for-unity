@@ -13,14 +13,6 @@ namespace Unity.AssetManager.UI.Editor
     [Serializable]
     class AssetImportDecisionMaker : IAssetImportDecisionMaker
     {
-        [SerializeReference]
-        ISettingsManager m_SettingsManager;
-
-        public AssetImportDecisionMaker(ISettingsManager settingsManager)
-        {
-            m_SettingsManager = settingsManager;
-        }
-
         public Task<IEnumerable<ResolutionData>> ResolveConflicts(UpdatedAssetData data, ImportSettingsInternal importSettings)
         {
             if (importSettings.SkipImportModal)
@@ -39,7 +31,7 @@ namespace Unity.AssetManager.UI.Editor
                 foreach (var assetDataResolutionInfo in data.Dependants)
                 {
                     var resolutionSelection = ResolutionSelection.Replace;
-                    if (m_SettingsManager.IsKeepHigherVersionEnabled)
+                    if (importSettings.AvoidRollingBackAssetVersion)
                     {
                         // If the user has the setting to avoid rolling back version of dependencies
                         // to a lower version and we would be rolling back, skip

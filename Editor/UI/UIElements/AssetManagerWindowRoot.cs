@@ -47,6 +47,7 @@ namespace Unity.AssetManager.UI.Editor
         Sort m_Sort;
         TwoPaneSplitView m_CategoriesSplit;
         TwoPaneSplitView m_InspectorSplit;
+        UpdateAllButton m_UpdateAllButton;
 
         AssetsGridView m_AssetsGridView;
         readonly List<SelectionInspectorPage> m_SelectionInspectorPages = new();
@@ -171,7 +172,7 @@ namespace Unity.AssetManager.UI.Editor
             m_CategoriesSplit = new TwoPaneSplitView(0, k_SidebarMinWidth, TwoPaneSplitViewOrientation.Horizontal);
 
             m_SideBar = new SideBar(m_UnityConnect, m_StateManager, m_PageManager,
-                m_MessageManager, m_ProjectOrganizationProvider, m_SavedSearchFilterManager, m_CategoriesSplit);
+                m_MessageManager, m_ProjectOrganizationProvider, m_SavedSearchFilterManager, m_PermissionsManager, m_CategoriesSplit);
             m_SideBar.AddToClassList("SideBarContainer");
             m_CategoriesSplit.Add(m_SideBar);
 
@@ -222,8 +223,8 @@ namespace Unity.AssetManager.UI.Editor
             var topRightContainer = new VisualElement();
             topRightContainer.AddToClassList("unity-top-right-container");
 
-            var updateAllButton = new UpdateAllButton(m_AssetImporter, m_PageManager, m_ProjectOrganizationProvider);
-            topRightContainer.Add(updateAllButton);
+            m_UpdateAllButton= new UpdateAllButton(m_AssetImporter, m_PageManager, m_ProjectOrganizationProvider, m_ApplicationProxy);
+            topRightContainer.Add(m_UpdateAllButton);
 
             topContainer.Add(topRightContainer);
 
@@ -455,6 +456,8 @@ namespace Unity.AssetManager.UI.Editor
         void Refresh()
         {
             m_LoginPage.Refresh();
+            m_UpdateAllButton.Refresh();
+            m_LoadingScreen.SetVisible(m_ProjectOrganizationProvider.IsLoading);
 
             if (!m_UnityConnect.AreCloudServicesReachable)
             {

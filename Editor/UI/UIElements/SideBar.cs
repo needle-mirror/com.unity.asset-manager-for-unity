@@ -18,6 +18,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IStateManager m_StateManager;
         readonly IMessageManager m_MessageManager;
         readonly IUnityConnectProxy m_UnityConnectProxy;
+        readonly IPermissionsManager m_PermissionsManager;
 
         VisualElement m_Sidebar;
         VisualElement m_CollapsedSidebar;
@@ -35,7 +36,7 @@ namespace Unity.AssetManager.UI.Editor
         public SideBar(IUnityConnectProxy unityConnectProxy, IStateManager stateManager,
             IPageManager pageManager, IMessageManager messageManager,
             IProjectOrganizationProvider projectOrganizationProvider, ISavedAssetSearchFilterManager savedAssetSavedSearchFilterManager,
-            TwoPaneSplitView categoriesSplitView)
+            IPermissionsManager permissionsManager, TwoPaneSplitView categoriesSplitView)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_StateManager = stateManager;
@@ -43,6 +44,7 @@ namespace Unity.AssetManager.UI.Editor
             m_MessageManager = messageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_SavedSearchFilterManager = savedAssetSavedSearchFilterManager;
+            m_PermissionsManager = permissionsManager;
 
             // We need this to hide/show the draggable line between the panes.
             m_DraglineAnchor = categoriesSplitView.Q("unity-dragline-anchor");
@@ -96,8 +98,7 @@ namespace Unity.AssetManager.UI.Editor
             var topSection = new VisualElement();
             topSection.AddToClassList("sidebar-top-section");
 
-            var title = new Label("Projects");
-            title.AddToClassList("SidebarTitle");
+            var organizationSelector = new SideBarOrganizationSelector(m_PermissionsManager, m_ProjectOrganizationProvider, m_UnityConnectProxy);
 
             var button = new Button();
             button.AddToClassList("unity-list-view__item");
@@ -105,7 +106,7 @@ namespace Unity.AssetManager.UI.Editor
             button.RemoveFromClassList("unity-button");
             button.clickable.clicked += SwitchToCollapsedSidebar;
 
-            topSection.Add(title);
+            topSection.Add(organizationSelector);
             topSection.Add(button);
 
             sidebar.Add(topSection);

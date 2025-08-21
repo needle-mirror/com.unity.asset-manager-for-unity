@@ -54,6 +54,9 @@ namespace Unity.AssetManager.UI.Editor
         // In Project
         public const string InProjectTitle = "Locally Imported Assets";
 
+        // Update all button
+        public const string UpdateAllButtonTooltip = "Update all assets to Latest.";
+
         // Upload
         public const string IgnoreAll = "Ignore All";
         public const string IncludeAll = "Include All";
@@ -277,6 +280,9 @@ namespace Unity.AssetManager.UI.Editor
         public const string ProjectWindowIconOverlayDisplayTypeLabel = "Display detailed icon overlay";
         public const string ProjectWindowIconOverlayDisplayTypeTooltip = "Enabling the detailed overlay will show the status of the Asset Manager asset relative to the cloud. Else only the import status is shown.";
 
+        public const string DebugSettingsTitle = "Debug Settings";
+        public const string DebugLogsLabel = "Enable debug logs";
+        public const string DebugLogsTooltip = "Enable detailed logs for debugging purposes.";
 
         // Collection
         public const string CollectionCreate = "Create new collection";

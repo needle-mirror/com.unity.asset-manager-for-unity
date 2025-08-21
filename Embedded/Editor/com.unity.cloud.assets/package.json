@@ -43,5 +43,6 @@
       "description": "Define and manage the field definitions of an organization.",
       "path": "Samples~/MetadataManagement"
     }
-  ]
+  ],
+  "_fingerprint": "617f1766db61036e28d012f327be9f41465ab9ed"
 }

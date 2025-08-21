@@ -11,11 +11,12 @@
 
 To import a cloud asset into your Unity Editor project, follow these steps:
 
-1. In the Asset Manager for Unity window, go to the left side, below **Projects** and do one of the following:
+1. In the Asset Manager for Unity window, go to the left side bar, select the Organization you want to work in using the top dropdown menu
+2. Once your chosen organization is loaded, do one of the following:
     - To view assets in all projects, select **All Assets**. All assets in the organization appear.
     - To view assets in a specific project, select the project that you want from the list. All assets in the project appear.
-2. Select the asset that you want. To select multiple assets, press **Shift** and select the assets. On the right side, the Asset Manager Inspector appears.
-3. Go to the bottom right corner of the Asset Manager Inspector, select **Import**.
+3. Select the asset that you want. To select multiple assets, press **Shift** and select the assets. On the right side, the Asset Manager Inspector appears.
+4. Go to the bottom right corner of the Asset Manager Inspector, select **Import**.
 
 > **Tip**:
 After you import an asset, you can move the files to another destination folder.
@@ -26,6 +27,9 @@ After import, you can upload the transformed files only as new assets. You can't
 
 > **Note**:
 Asset Manager for Unity will persist the tracking information of the imported and uploaded assets under `{Project Folder}/ProjectSettings/Packages/com.unity.asset-manager-for-unity/`. If the project is under source control, it is recommended to have the content of this folder also under source control. This will ensure anyone getting the project will also have the same Asset Manager for Unity tracking information. 
+
+> **Note**:
+It is important to have the correct role to correctly import and modify assets with Asset Manager. See the [Verify Asset Manager role](prerequisites.md#verify-asset-manager-role)
 
 ## Browse imported assets
 

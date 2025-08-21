@@ -64,6 +64,10 @@ namespace Unity.AssetManager.UI.Editor
         const string k_ProjectWindowIconOverlayDisplayTypeLabel = "projectWindowIconOverlayDisplayTypeLabel";
         const string k_ProjectWindowIconOverlayDisplayTypeToggle = "projectWindowIconOverlayDisplayTypeToggle";
 
+        const string k_DebugSettingsFoldout = "debugSettingsFoldout";
+        const string k_DebugLogsLabel = "debugLogsLabel";
+        const string k_DebugLogsToggle = "debugLogsToggle";
+
         static readonly string[] k_ProjectWindowIconOverlayPositionOptions =
         {
             L10n.Tr("Top Right"),
@@ -332,6 +336,19 @@ namespace Unity.AssetManager.UI.Editor
                 projectWindowIconOverlayPositionDropdown.SetEnabled(evt.newValue);
                 projectWindowIconOverlayDisplayTypeLabel.SetEnabled(evt.newValue);
                 projectWindowIconOverlayDisplayTypeToggle.SetEnabled(evt.newValue);
+            });
+
+            var debugSettingsFoldout = rootElement.Q<Foldout>(k_DebugSettingsFoldout);
+            debugSettingsFoldout.text = L10n.Tr(Constants.DebugSettingsTitle);
+
+            var debugLogsLabel = rootElement.Q<Label>(k_DebugLogsLabel);
+            debugLogsLabel.text = L10n.Tr(Constants.DebugLogsLabel);
+            var debugLogsToggle = rootElement.Q<Toggle>(k_DebugLogsToggle);
+            debugLogsToggle.tooltip = L10n.Tr(Constants.DebugLogsTooltip);
+            debugLogsToggle.value = m_SettingsManager.IsDebugLogsEnabled;
+            debugLogsToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
+            {
+                m_SettingsManager.SetDebugLogsEnabled(evt.newValue);
             });
 
         }

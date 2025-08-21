@@ -10,19 +10,45 @@ using Unity.Cloud.CommonEmbedded;
 using Unity.Cloud.IdentityEmbedded;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.TestTools;
 using Debug = UnityEngine.Debug;
 
 namespace Unity.AssetManager.Core.Editor
 {
     [Serializable]
+    struct NameAndId
+    {
+        public string Name;
+        public string Id;
+
+        public NameAndId(string name, string id)
+        {
+            Name = name;
+            Id = id;
+        }
+    }
+
+    [Serializable]
     class OrganizationInfo
     {
         [SerializeReference]
         public List<IMetadataFieldDefinition> MetadataFieldDefinitions = new();
 
-        public string Id;
-        public string Name;
+        public NameAndId nameAndId;
+
+        public string Id
+        {
+            get => nameAndId.Id;
+            set => nameAndId.Id = value;
+        }
+
+        public string Name
+        {
+            get => nameAndId.Name;
+            set => nameAndId.Name = value;
+        }
+
         public List<ProjectInfo> ProjectInfos = new();
 
         List<UserInfo> m_UserInfos;
@@ -42,10 +68,10 @@ namespace Unity.AssetManager.Core.Editor
 
         public async Task<List<UserInfo>> GetUserInfosAsync(Action<List<UserInfo>> callback = null, CancellationToken cancellationToken = default)
         {
-            if (m_UserInfos != null)
+            if (m_UserInfos != null && m_UserInfos.Count != 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                
+
                 callback?.Invoke(m_UserInfos);
                 return m_UserInfos;
             }
@@ -81,8 +107,20 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeField]
         List<CollectionInfo> m_CollectionInfos;
 
-        public string Id;
-        public string Name;
+        public NameAndId nameAndId;
+
+        public string Id
+        {
+            get => nameAndId.Id;
+            set => nameAndId.Id = value;
+        }
+
+        public string Name
+        {
+            get => nameAndId.Name;
+            set => nameAndId.Name = value;
+        }
+
         public IEnumerable<CollectionInfo> CollectionInfos => m_CollectionInfos;
 
         public void SetCollections(IEnumerable<CollectionInfo> collections)
@@ -99,8 +137,19 @@ namespace Unity.AssetManager.Core.Editor
     [Serializable]
     class UserInfo
     {
-        public string UserId;
-        public string Name;
+        public NameAndId nameAndId;
+
+        public string UserId
+        {
+            get => nameAndId.Id;
+            set => nameAndId.Id = value;
+        }
+
+        public string Name
+        {
+            get => nameAndId.Name;
+            set => nameAndId.Name = value;
+        }
     }
 
     interface IProjectOrganizationProvider : IService
@@ -117,6 +166,7 @@ namespace Unity.AssetManager.Core.Editor
         IAsyncEnumerable<UserInfo> GetOrganizationUsersAsync(string organizationId, Range range,
             CancellationToken token);
         Task<StorageUsage> GetStorageUsageAsync(string organizationId, CancellationToken token = default);
+        void SelectOrganization(string organizationId);
         void SelectProject(string projectId, string collectionPath = null, bool updateProject = false);
         void EnableProjectForAssetManager();
         ProjectInfo GetProject(string projectId);
@@ -124,6 +174,7 @@ namespace Unity.AssetManager.Core.Editor
         Task CreateCollection(CollectionInfo collectionInfo);
         Task DeleteCollection(CollectionInfo collectionInfo);
         Task RenameCollection(CollectionInfo collectionInfo, string newName);
+        IAsyncEnumerable<NameAndId> ListOrganizationsAsync();
     }
 
     [Serializable]
@@ -149,7 +200,8 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeReference]
         IUnityConnectProxy m_UnityConnectProxy;
 
-        static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
+        internal static readonly string k_OrganizationPrefKey = "com.unity.asset-manager-for-unity.selectedOrganizationId";
+        internal static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
         static readonly string k_CollectionPathPrefKey = "com.unity.asset-manager-for-unity.selectedCollectionPath";
         static readonly string k_DefaultCollectionDescription = "none";
 
@@ -171,6 +223,17 @@ namespace Unity.AssetManager.Core.Editor
         private static readonly HelpBoxMessage k_NoConnectionMessage = new(
             L10n.Tr("No network connection. Please check your internet connection."),
             RecommendedAction.None, 0);
+
+        string SavedOrganizationId
+        {
+            set => EditorPrefs.SetString(k_OrganizationPrefKey, value);
+            get
+            {
+                var savedId = EditorPrefs.GetString(k_OrganizationPrefKey, null);
+                return string.IsNullOrWhiteSpace(savedId) ? m_UnityConnectProxy.OrganizationId : savedId;
+            }
+
+        }
 
         string SavedProjectId
         {
@@ -275,15 +338,17 @@ namespace Unity.AssetManager.Core.Editor
         public override void OnEnable()
         {
             RegisterOnAuthenticationStateChanged(OnAuthenticationStateChanged);
-            m_UnityConnectProxy.OrganizationIdChanged += TryLoadConnectedOrganization;
+            m_UnityConnectProxy.OrganizationIdChanged += TryLoadSelectedOrganization;
             m_UnityConnectProxy.ProjectIdChanged += SetSelectedProject;
             m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+
+            _ = TryLoadValidOrganizationAsync();
         }
 
         public override void OnDisable()
         {
             UnregisterOnAuthenticationStateChanged(OnAuthenticationStateChanged);
-            m_UnityConnectProxy.OrganizationIdChanged -= TryLoadConnectedOrganization;
+            m_UnityConnectProxy.OrganizationIdChanged -= TryLoadSelectedOrganization;
             m_UnityConnectProxy.ProjectIdChanged -= SetSelectedProject;
             m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
         }
@@ -296,12 +361,12 @@ namespace Unity.AssetManager.Core.Editor
                 m_LoadOrganizationOperation?.Cancel();
             }
 
-            TryLoadConnectedOrganization();
+            _ = TryLoadValidOrganizationAsync();
         }
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
-            TryLoadConnectedOrganization();
+            _ = TryLoadValidOrganizationAsync();
         }
 
         public async IAsyncEnumerable<UserInfo> GetOrganizationUsersAsync(string organizationId, Range range, [EnumeratorCancellation] CancellationToken token)
@@ -328,6 +393,15 @@ namespace Unity.AssetManager.Core.Editor
 
             var cloudStorageUsage = await organization.GetCloudStorageUsageAsync(token);
             return Map(cloudStorageUsage);
+        }
+
+        public void SelectOrganization(string organizationId)
+        {
+            if (string.IsNullOrEmpty(organizationId))
+                return;
+
+            SavedOrganizationId = organizationId;
+            LoadOrganization(organizationId);
         }
 
         void SetSelectedProject()
@@ -367,11 +441,11 @@ namespace Unity.AssetManager.Core.Editor
 
         public async void EnableProjectForAssetManager()
         {
-            var projectDescriptor = new ProjectDescriptor(new OrganizationId(m_UnityConnectProxy.OrganizationId),
+            var projectDescriptor = new ProjectDescriptor(new OrganizationId(SavedOrganizationId),
                 new ProjectId(m_UnityConnectProxy.ProjectId));
             await AssetRepository.EnableProjectForAssetManagerLiteAsync(projectDescriptor, CancellationToken.None);
 
-            await LoadOrganization(m_UnityConnectProxy.OrganizationId);
+            await LoadOrganization(SavedOrganizationId);
         }
 
         public ProjectInfo GetProject(string projectId)
@@ -486,6 +560,12 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
+        public async IAsyncEnumerable<NameAndId> ListOrganizationsAsync()
+        {
+            await foreach(var organization in OrganizationRepository.ListOrganizationsAsync(Range.All))
+                yield return new NameAndId() { Id = organization.Id.ToString(), Name = organization.Name };
+        }
+
         async Task<IOrganization> GetOrganizationAsync(string organizationId)
         {
             // Try the direct way as this is the preferred way to get an organization and avoids listing all organizations.
@@ -518,13 +598,33 @@ namespace Unity.AssetManager.Core.Editor
             return null;
         }
 
-        void TryLoadConnectedOrganization()
+        internal async Task TryLoadValidOrganizationAsync(bool forceLoad = false)
         {
-            if (string.IsNullOrEmpty(m_OrganizationInfo?.Id) ||
-                m_OrganizationInfo.Id != m_UnityConnectProxy.OrganizationId)
+            // If the saved org if it is not accessible to the current user
+            // reset it to the connected org in project settings if linked,
+            // else to the first accessible org for this user.
+
+            var isOrganizationAvailable = await IsSavedOrganizationAvailableForUser();
+            if (!isOrganizationAvailable)
             {
-                LoadOrganization(m_UnityConnectProxy.OrganizationId);
+                if (m_UnityConnectProxy.HasValidOrganizationId)
+                    SavedOrganizationId = m_UnityConnectProxy.OrganizationId;
+                else
+                {
+                    // Get the first available organization for the user
+                    await foreach(var organization in OrganizationRepository.ListOrganizationsAsync(Range.All))
+                        SavedOrganizationId = organization.Id.ToString();
+                }
             }
+
+            if (forceLoad || string.IsNullOrWhiteSpace(m_OrganizationInfo?.Id) || m_OrganizationInfo?.Id != SavedOrganizationId)
+                await LoadOrganization(SavedOrganizationId);
+        }
+
+        void TryLoadSelectedOrganization()
+        {
+            if (string.IsNullOrWhiteSpace(m_OrganizationInfo?.Id) || m_OrganizationInfo?.Id != SavedOrganizationId)
+                LoadOrganization(SavedOrganizationId);
         }
 
         Task LoadOrganization(string newOrgId)
@@ -576,6 +676,7 @@ namespace Unity.AssetManager.Core.Editor
                 successCallback: result =>
                 {
                     m_OrganizationInfo = result;
+                    SavedOrganizationId = m_OrganizationInfo.Id;
                     if (m_OrganizationInfo?.ProjectInfos.Any() == false)
                     {
                         m_MessageManager.SetGridViewMessage(k_CurrentProjectNotEnabledMessage);
@@ -589,6 +690,20 @@ namespace Unity.AssetManager.Core.Editor
                 },
                 finallyCallback: () => { LoadingStateChanged?.Invoke(false); }
             );
+        }
+
+        async Task<bool> IsSavedOrganizationAvailableForUser()
+        {
+            if (GetAuthenticationState() != Cloud.IdentityEmbedded.AuthenticationState.LoggedIn)
+                return false;
+
+            await foreach (var organization in OrganizationRepository.ListOrganizationsAsync(Range.All))
+            {
+                if (organization.Id.ToString() == SavedOrganizationId)
+                    return true;
+            }
+
+            return false;
         }
 
         async Task<OrganizationInfo> GetOrganizationInfoAsync(string organizationId, CancellationToken token)
@@ -707,11 +822,6 @@ namespace Unity.AssetManager.Core.Editor
             if (!string.IsNullOrEmpty(SavedProjectId) && m_OrganizationInfo?.ProjectInfos.Any(x => x.Id == SavedProjectId) == true)
             {
                 return SavedProjectId;
-            }
-
-            if (m_UnityConnectProxy.HasValidProjectId)
-            {
-                return m_UnityConnectProxy.ProjectId;
             }
 
             return m_OrganizationInfo?.ProjectInfos.FirstOrDefault()?.Id;

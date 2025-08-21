@@ -32,6 +32,7 @@ namespace Unity.AssetManager.Core.Editor
         void RemoveFilesFromImportedAssetInfos(IReadOnlyCollection<string> guidsToRemove);
         void AddOrUpdateAssetDataFromCloudAsset(IEnumerable<BaseAssetData> assetDatas);
         ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier assetIdentifier);
+        ImportedAssetInfo GetImportedAssetInfo(string assetId);
         void RemoveImportedAssetInfo(IEnumerable<AssetIdentifier> assetIdentifiers);
         List<ImportedAssetInfo> GetImportedAssetInfosFromFileGuid(string guid);
         string GetImportedFileGuid(AssetIdentifier assetIdentifier, string path);
@@ -401,13 +402,20 @@ namespace Unity.AssetManager.Core.Editor
         }
 
         public ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier assetIdentifier)
+            => GetImportedAssetInfo(new TrackedAssetIdentifier(assetIdentifier));
+
+        public ImportedAssetInfo GetImportedAssetInfo(TrackedAssetIdentifier assetIdentifier)
         {
             return assetIdentifier?.IsIdValid() == true &&
-                m_TrackedIdentifierMap.TryGetValue(new TrackedAssetIdentifier(assetIdentifier),
-                    out var result) ?
-                    result :
-                    null;
+                   m_TrackedIdentifierMap.TryGetValue(assetIdentifier,
+                       out var result) ?
+                result :
+                null;
         }
+
+        // Retrieve the asset identifier using the assetId
+        public ImportedAssetInfo GetImportedAssetInfo(string assetId)
+            => GetImportedAssetInfo(m_TrackedIdentifierMap.Keys.FirstOrDefault(x => x.AssetId == assetId));
 
         public void RemoveImportedAssetInfo(IEnumerable<AssetIdentifier> assetIdentifiers)
         {
@@ -565,7 +573,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public void OnBeforeSerialize()
         {
-            m_SerializedImportedAssetInfos = m_FileGuidToImportedAssetInfosMap.Values.SelectMany(x => x).ToArray();
+            m_SerializedImportedAssetInfos = m_TrackedIdentifierMap.Values.ToArray();
             m_SerializedAssetData = m_AssetData.Values.ToArray();
         }
 

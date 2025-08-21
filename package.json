@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "unity": "2022.3",
   "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.",
   "keywords": [
@@ -20,18 +20,18 @@
     "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.6.0"
+    "com.unity.asset-manager-for-unity.tests": "1.7.0"
   },
   "_upm": {
-    "changelog": "[Added]\n- Added support for saving search filters as views in the Asset Manager window\n- Search by file extension\n- Support for Virtual Private Cloud\n\n[Changed]\n- Asset Type search aligns with AM service dashboard Asset Type search\n- Assets with no files can now be imported for tracking\n- Search filters now persist across project and collections in the Assets tab.\n\n[Fixed]\n- Appropriate messaging when user account is switched with different Organizational access.\n- Re-upload failing when embedding multiple files.\n- The \"Update All\" button will correctly display its status based on all assets in a selected project, not only the assets visible in the scroller\n- Fixed the import status resetting whenever the Asset Manager window is closed or refreshed.\n- Ensure the task scheduler is never null upon making an HTTP request"
+    "changelog": "[Added]\n- Added debugging logs in the import process. Can be enabled using the \"Enable debug logs\" in the Preferences.\n- Add the ability to retrieve programmatically the Unity GUIDs associated to an imported asset via the new `AssetManagerClient.GetImportedAssetGUIDs` method.\n- Added a new organization selector in the Asset Manager window.\n\n[Fixed]\n- Fix error when uploading assets with circular dependencies."
   },
   "upmCi": {
-    "footprint": "843bbf2394917b89dfdcd6d2af809a4332e3197e"
+    "footprint": "dd33f1bbcf4bb5460b71ceefea70f8546db3fad8"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.6/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.7/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "d10120c823ff5abbcd1daa9806339dbef81dfd57"
+    "revision": "5e97f678970544b5d25637288be26cc8a405a85d"
   }
 }

@@ -67,6 +67,7 @@
 .collapse-sidebar-button {
     height: 32px;
     width: 32px;
+    flex-shrink: 0;
     justify-content: center;
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Left-Arrow.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
@@ -100,8 +101,8 @@
 .sidebar-top-section {
     flex-direction: row;
     justify-content: space-between;
-    min-height: 32px;
-    max-height: 32px;
+    min-height: 29px;
+    max-height: 29px;
 }
 
 #FooterContainer {
@@ -626,6 +627,8 @@ PageTitle {
     flex-shrink: 0;
     flex-grow: 1;
     justify-content: flex-end;
+
+    overflow: hidden;
 }
 
 .unity-save-view-button {
@@ -709,6 +712,36 @@ PageTitle {
 .unity-sort-order--descending {
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Arrow-Down.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+/************************************************
+* Organization selection
+************************************************/
+.unity-org-selector {
+    flex-direction: row;
+    flex-shrink: 1;
+    flex-grow: 1;
+    margin-top: 3px;
+    margin-bottom: 3px;
+    margin-right: 20px;
+}
+
+.unity-org-selector-dropdown > .unity-label {
+    min-width: 0;
+    align-self: center;
+}
+
+.unity-org-selector-dropdown > .unity-popup-field__input {
+    flex-direction: row;
+    flex-shrink: 0;
+    flex-grow: 1;
+    justify-content: flex-end;
+
+    background-color: transparent;
+    border-top-color: transparent;
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+    border-left-color: transparent;
 }
 
 /************************************************
@@ -2313,11 +2346,11 @@ AssetDetailsPage {
 ************************************************/
 
 .horizontal-separator {
-    height: 2px;
+    height: 1px;
     width: 100%;
     background-color: black;
-    margin-top: 10px;
-    margin-bottom: 5px;
+    margin-top: 2px;
+    margin-bottom: 2px;
     align-self: center;
 }
 

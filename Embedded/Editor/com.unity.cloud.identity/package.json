@@ -38,5 +38,6 @@
       "description": "An EditorWindow sample that uses the UnityEditorServiceAuthorizer to fetch user information from Unity Cloud services.",
       "path": "Samples~/UnityEditorServiceAuthorizer"
     }
-  ]
+  ],
+  "_fingerprint": "1e92949f988a4761a88d7f3bfc8a5b099783dcc8"
 }

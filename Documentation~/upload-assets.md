@@ -26,7 +26,7 @@ To upload your assets from your local project in the Unity Editor to the Asset M
 1. Open the Unity Editor.
 2. Go to the Project window, select the assets you want to upload.
 3. Right-click and select **Upload to Asset Manager** or drag and drop from Project Window to Asset Manager.
-4. Go to the left navigation bar. Select the project you want to upload the assets to from the dropdown list.
+4. Go to the left navigation bar. Select the organization and project you want to upload the assets to from the dropdown list.
 5. You can also select the [collection](https://docs.unity.com/cloud/en-us/asset-manager/basic-concepts#collections) you want to upload your asset to. See the **Create a Collection** section for instructions on how to create a collection.
 6. In the bottom right corner, you will find the **Upload Settings** window where you can choose one of the following options for the **Reupload mode** setting:
    - **Skip Identical:** Skip assets that are already uploaded to the Asset Manager.

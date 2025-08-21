@@ -9,7 +9,7 @@ namespace Unity.AssetManager.Core.Editor
 {
     interface IImportedAssetsTracker : IService
     {
-        Task TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, BaseAssetData assetData);
+        Task TrackAssets(IEnumerable<(string originalPath, string finalPath, string checksum)> assetPaths, BaseAssetData assetData);
         public void UntrackAsset(AssetIdentifier identifier);
     }
 
@@ -72,7 +72,7 @@ namespace Unity.AssetManager.Core.Editor
             m_FileUtility ??= ServicesContainer.instance.Get<IFileUtility>();
         }
 
-        public async Task TrackAssets(IEnumerable<(string originalPath, string finalPath)> assetPaths, BaseAssetData assetData)
+        public async Task TrackAssets(IEnumerable<(string originalPath, string finalPath, string checksum)> assetPaths, BaseAssetData assetData)
         {
             var fileInfos = new List<ImportedFileInfo>();
             foreach (var item in assetPaths)
@@ -87,7 +87,13 @@ namespace Unity.AssetManager.Core.Editor
                     continue;
                 }
 
-                var (timestamp, checksum) = await ExtractTimestampAndChecksum(assetPath);
+                string checksum = item.checksum;
+                if (checksum == null)
+                {
+                    checksum = await m_FileUtility.CalculateMD5ChecksumAsync(assetPath, default);
+                }
+
+                var timestamp = m_FileUtility.GetTimestamp(assetPath);
 
                 var metafilePath = MetafilesHelper.AssetMetaFile(assetPath);
 

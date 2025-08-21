@@ -55,7 +55,7 @@ When enabled, the Asset Manager automatically generates AI tags for assets based
 
 It's the minimum confidence level that the Asset Manager uses to generate tags for assets based on the preview image. By default, this is set to 80%. You can change this to any value between 0 and 100.
 
-### Pin Dependencies to **Latest** Version Label During Upload
+### Pin Dependencies to 'Latest' Version Label During Upload
 
 When enabled, the dependencies of an uploaded asset point to the version with the **Latest** version label. When disabled, the uploaded asset points to fixed versions of its dependencies.
 
@@ -91,3 +91,9 @@ Sets whether to display the detailed status in the overlay icon, specifically th
 
 If detailed display is disabled, assets connected to the Asset Manager will simply display a gray cloud icon regardless of their specific status. <br/>
 ![Top Right](images/project-icon-top-right.png "Top Right")
+
+## Debug Settings
+
+### Enable Debug Logs
+
+When enabled, Asset Manager for Unity will increase the number of logs displayed in the console. This can be useful in order to debug unexpected results.

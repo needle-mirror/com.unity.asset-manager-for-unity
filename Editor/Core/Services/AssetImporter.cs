@@ -91,6 +91,9 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeReference]
         IApplicationProxy m_ApplicationProxy;
 
+        [SerializeReference]
+        IFileUtility m_FileUtility;
+
         // Do not serialize as import operations are not domain reload safe and the flag should be reset.
         [NonSerialized]
         bool m_IsImporting;
@@ -106,7 +109,7 @@ namespace Unity.AssetManager.Core.Editor
             IEditorUtilityProxy editorUtilityProxy, IImportedAssetsTracker importedAssetsTracker,
             IAssetDataManager assetDataManager, IAssetOperationManager assetOperationManager,
             ISettingsManager settingsManager, IAssetsProvider assetsProvider, IAssetImportResolver assetImportResolver,
-            IApplicationProxy applicationProxy)
+            IApplicationProxy applicationProxy, IFileUtility fileUtility)
         {
             m_IOProxy = ioProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
@@ -118,6 +121,7 @@ namespace Unity.AssetManager.Core.Editor
             m_AssetsProvider = assetsProvider;
             m_Resolver = assetImportResolver;
             m_ApplicationProxy = applicationProxy;
+            m_FileUtility = fileUtility;
         }
 
         public override void OnEnable()
@@ -143,6 +147,19 @@ namespace Unity.AssetManager.Core.Editor
 
         public async Task<ImportResultInternal> StartImportAsync(ImportTrigger trigger, List<BaseAssetData> assets, ImportSettings importSettings, CancellationToken cancellationToken = default)
         {
+            if (IsDebugLogEnabled())
+            {
+                if (assets == null || assets.Count == 0)
+                {
+                    Debug.Log("No asset were requested for import.");
+                }
+                else
+                {
+                    Debug.Log(
+                        $"The assets requested to be imported are:\n{string.Join("\n", assets.Select(x => x.Identifier.ToString()))}\n");
+                }
+            }
+
             if (m_IsImporting)
             {
                 return new ImportResultInternal
@@ -218,6 +235,19 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     var result = await m_Resolver.Resolve(assets, mappedImportSettings, token);
                     resolutions = result?.ToArray() ?? Array.Empty<BaseAssetData>();
+
+                    if (IsDebugLogEnabled())
+                    {
+                        if (resolutions.Length == 0)
+                        {
+                            Debug.Log("No assets to import after resolution.");
+                        }
+                        else
+                        {
+                            Debug.Log("The assets and dependencies to import following any conflict resolution:\n" +
+                                      string.Join("\n", resolutions.Select(x => x.Identifier.ToString())));
+                        }
+                    }
                 }
                 finally
                 {
@@ -251,6 +281,12 @@ namespace Unity.AssetManager.Core.Editor
 
                 // Because the Import call above will not throw on cancel, we need to check the token here
                 token.ThrowIfCancellationRequested();
+
+                if (IsDebugLogEnabled())
+                {
+                    Debug.Log(
+                        $"Import completed. The following assets were imported (including dependencies):\n{string.Join("\n", importResult.AssetsAndDependencies.Select(x => x.Identifier.ToString()))}");
+                }
 
                 return importResult;
             }
@@ -387,7 +423,10 @@ namespace Unity.AssetManager.Core.Editor
             if (!m_ImportOperations.TryGetValue(identifier.AssetId, out var importOperation))
                 return;
 
-            FinalizeImport(importOperation, OperationStatus.Cancelled);
+            foreach (var operation in m_ImportOperations.Values.ToList())
+            {
+                FinalizeImport(operation, OperationStatus.Cancelled);
+            }
         }
 
         public void CancelBulkImport(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false)
@@ -531,7 +570,7 @@ namespace Unity.AssetManager.Core.Editor
             m_ImportOperations.Remove(importOperation.Identifier.AssetId);
         }
 
-        async Task ProcessImports(IList<ImportOperation> imports)
+        async Task ProcessImports(IList<ImportOperation> imports, CancellationToken token)
         {
             bool hasErrors = false;
             foreach (var import in imports)
@@ -542,7 +581,28 @@ namespace Unity.AssetManager.Core.Editor
 
             m_UriToDownloadOperationMap.Clear();
 
-            var filesToTrack = new Dictionary<ImportOperation, List<(string originalPath, string finalPath)>>();
+            List<Task<Dictionary<string, string>>> checksumTasks = new();
+            foreach (var import in imports)
+            {
+                var checksumsTask = CalculateChecksumsAsync(import, token);
+                checksumTasks.Add(checksumsTask);
+            }
+            await TaskUtils.WaitForTasksWithHandleExceptions(checksumTasks);
+
+            Dictionary<string, string> checksums = new(); // downloadPath -> checksum
+            foreach (var checksumTask in checksumTasks)
+            {
+                if (!checksumTask.IsCompletedSuccessfully)
+                    continue;
+
+                var checksumResult = checksumTask.Result;
+                foreach (var kvp in checksumResult)
+                {
+                    checksums[kvp.Key] = kvp.Value;
+                }
+            }
+
+            var filesToTrack = new Dictionary<ImportOperation, List<(string originalPath, string finalPath, string downloadPath)>>();
             m_AssetDatabaseProxy.StartAssetEditing();
 
             try
@@ -565,7 +625,14 @@ namespace Unity.AssetManager.Core.Editor
             var tasks = new List<Task>();
             foreach (var kvp in filesToTrack)
             {
-                tasks.Add(m_ImportedAssetsTracker.TrackAssets(kvp.Value, kvp.Key.AssetData));
+                List<(string originalPath, string finalPath, string checksum)> assetPathsAndChecksum = new();
+                foreach (var file in kvp.Value)
+                {
+                    checksums.TryGetValue(file.downloadPath, out string checksum); // checksum will be null if not found
+                    assetPathsAndChecksum.Add((file.originalPath, file.finalPath, checksum));
+                }
+
+                tasks.Add(m_ImportedAssetsTracker.TrackAssets(assetPathsAndChecksum, kvp.Key.AssetData));
             }
 
             // Will report for errors but won't throw. To be redone better
@@ -584,9 +651,30 @@ namespace Unity.AssetManager.Core.Editor
             m_TokenSource = null;
         }
 
-        List<(string originalPath, string finalPath)> MoveImportedFiles(ImportOperation importOperation)
+        // Return a dict of downloadPath -> checksum
+        async Task<Dictionary<string, string>> CalculateChecksumsAsync(ImportOperation importOperation, CancellationToken token)
         {
-            var filesToTrack = new List<(string originalPath, string finalPath)>();
+            var checksums = new Dictionary<string, string>();
+
+            foreach (var downloadRequest in importOperation.DownloadRequests)
+            {
+                var downloadPath = downloadRequest.DownloadPath;
+                string checksum = null;
+
+                if (m_IOProxy.FileExists(downloadPath))
+                {
+                    checksum = await m_FileUtility.CalculateMD5ChecksumAsync(downloadPath, token);
+                }
+
+                checksums[downloadPath] = checksum;
+            }
+
+            return checksums;
+        }
+
+        List<(string originalPath, string finalPath, string downloadPath)> MoveImportedFiles(ImportOperation importOperation)
+        {
+            var filesToTrack = new List<(string originalPath, string finalPath, string downloadPath)>();
 
             try
             {
@@ -622,7 +710,7 @@ namespace Unity.AssetManager.Core.Editor
                         }
                     }
 
-                    filesToTrack.Add((downloadRequest.OriginalPath, finalPath));
+                    filesToTrack.Add((downloadRequest.OriginalPath, finalPath, downloadPath));
                 }
             }
             catch (Exception e)
@@ -781,7 +869,7 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
 
-            var importOperation = new ImportOperation(assetData, m_IOProxy.GetUniqueTempPathInProject(), filePaths, importPath);
+            var importOperation = new ImportOperation(assetData, m_IOProxy.GetUniqueTempPathInProject(), filePaths, importPath, m_SettingsManager);
 
             m_AssetOperationManager.RegisterOperation(importOperation);
 
@@ -882,7 +970,7 @@ namespace Unity.AssetManager.Core.Editor
             m_BulkImportOperation.Finished += async status =>
             {
                 Utilities.DevLog($"Bulk import finished with status: {status}");
-                await TaskUtils.WaitForTaskWithHandleExceptions(ProcessImports(importOperations));
+                await TaskUtils.WaitForTaskWithHandleExceptions(ProcessImports(importOperations, token));
                 processImportTask.TrySetResult(status != OperationStatus.Success);
             };
 
@@ -1048,6 +1136,11 @@ namespace Unity.AssetManager.Core.Editor
                 m_BulkImportOperation.Remove();
                 m_BulkImportOperation = null;
             }
+        }
+
+        bool IsDebugLogEnabled()
+        {
+            return m_SettingsManager != null && m_SettingsManager.IsDebugLogsEnabled;
         }
     }
 }

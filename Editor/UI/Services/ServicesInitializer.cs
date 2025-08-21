@@ -73,11 +73,10 @@ namespace Unity.AssetManager.UI.Editor
                 new ProjectWindowIconOverlay());
 
             // Post-initialization configurations
-            var settingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
             var assetImportResolver = ServicesContainer.instance.Resolve<IAssetImportResolver>();
-            if (assetImportResolver != null && settingsManager != null)
+            if (assetImportResolver != null)
             {
-                assetImportResolver.SetConflictResolver(new AssetImportDecisionMaker(settingsManager));
+                assetImportResolver.SetConflictResolver(new AssetImportDecisionMaker());
             }
         }
     }

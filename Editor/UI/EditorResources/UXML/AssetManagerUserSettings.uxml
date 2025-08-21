@@ -65,7 +65,7 @@
                     <ui:Label name="uploadDependenciesWithLatestLabel" class="settings-label" />
                     <ui:Toggle name="uploadDependenciesWithLatestToggle" class="upload-settings-toggle" />
                 </ui:VisualElement>
-                <ui:HelpBox class="info-helpbox" message-type="Info" name="uploadDependenciesHelpBox" />
+                <ui:HelpBox message-type="Info" name="uploadDependenciesHelpBox" class="info-helpbox" />
             </ui:Foldout>
             <ui:Foldout name="projectWindowSettingsFoldout" class="settings-foldout">
                 <ui:VisualElement class="flex-row">
@@ -79,6 +79,12 @@
                 <ui:VisualElement class="flex-row">
                     <ui:Label name="projectWindowIconOverlayDisplayTypeLabel" class="settings-label" />
                     <ui:Toggle name="projectWindowIconOverlayDisplayTypeToggle" class="upload-settings-toggle" />
+                </ui:VisualElement>
+            </ui:Foldout>
+            <ui:Foldout name="debugSettingsFoldout" class="settings-foldout">
+                <ui:VisualElement class="flex-row">
+                    <ui:Label name="debugLogsLabel" class="settings-label" />
+                    <ui:Toggle name="debugLogsToggle" class="upload-settings-toggle" />
                 </ui:VisualElement>
             </ui:Foldout>
         </ui:ScrollView>

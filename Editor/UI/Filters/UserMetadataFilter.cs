@@ -76,7 +76,8 @@ namespace Unity.AssetManager.UI.Editor
                 userIds.Add(await m_PageFilterStrategy.GetUserIdAsync(selectedFilter));
             }
 
-            m_UserMetadata.Value = userIds[0];
+            if (userIds.Count > 0)
+                m_UserMetadata.Value = userIds[0];
             base.IncludeFilter(selectedFilters);
         }
     }

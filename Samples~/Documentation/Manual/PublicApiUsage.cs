@@ -4,10 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Editor;
-using Unity.Cloud.Assets;
-using Unity.Cloud.Common;
+using Unity.Cloud.AssetsEmbedded;
+using Unity.Cloud.CommonEmbedded;
 using UnityEngine;
-using AssetType = Unity.Cloud.Assets.AssetType;
+using AssetType = Unity.Cloud.AssetsEmbedded.AssetType;
 
 namespace Samples.Documentation.AssetManager
 {

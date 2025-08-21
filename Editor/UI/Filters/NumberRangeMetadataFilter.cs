@@ -82,13 +82,6 @@ namespace Unity.AssetManager.UI.Editor
             base.IncludeFilter(selectedFilters);
         }
 
-        protected override void ClearFilter()
-        {
-            base.ClearFilter();
-            m_FromValue = 0;
-            m_ToValue = 0;
-        }
-
         public override string DisplaySelectedFilters()
         {
             if(SelectedFilters != null && SelectedFilters.Count == 2)

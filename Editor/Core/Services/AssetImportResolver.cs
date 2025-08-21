@@ -109,6 +109,12 @@ namespace Unity.AssetManager.Core.Editor
 
                 var assetsAndDependencies = await GetUpdatedAssetDataAndDependenciesAsync(assets, importSettings.ImportType, token);
 
+                if (IsDebugLogsEnabled())
+                {
+                    UnityEngine.Debug.Log(
+                        $"The assets and dependencies to consider for import are:\n{string.Join("\n", assetsAndDependencies.Select(x => x.Identifier.ToString()))}");
+                }
+
                 if (!CheckIfAssetsAlreadyInProject(assets, importSettings.ImportPath, assetsAndDependencies, out var updatedAssetData))
                 {
                     return assetsAndDependencies;
@@ -513,6 +519,11 @@ namespace Unity.AssetManager.Core.Editor
                 return b;
 
             return a.Updated > b.Updated ? a : b;
+        }
+
+        bool IsDebugLogsEnabled()
+        {
+            return m_SettingsManager != null && m_SettingsManager.IsDebugLogsEnabled;
         }
     }
 }

@@ -196,11 +196,11 @@ namespace Unity.AssetManager.Upload.Editor
         {
             try
             {
-                IEnumerable<(string originalPath, string finalPath)> assetPaths = new List<(string, string)>();
+                IEnumerable<(string originalPath, string finalPath, string checksum)> assetPaths = new List<(string, string, string)>();
 
                 foreach (var f in uploadAsset.Files)
                 {
-                    assetPaths = assetPaths.Append((originalPath: f.DestinationPath, f.SourcePath));
+                    assetPaths = assetPaths.Append((originalPath: f.DestinationPath, f.SourcePath, null));
                 }
 
                 BaseAssetData assetData;
