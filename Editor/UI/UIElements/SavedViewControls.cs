@@ -36,6 +36,11 @@ namespace Unity.AssetManager.UI.Editor
             m_SavedAssetSearchFilterManager.ClearSelectedFilter();
         }
 
+        protected override void OnActivePageChanged(IPage page)
+        {
+            InitDisplay(page);
+        }
+
         protected override bool IsDisplayed(IPage page)
         {
             if (page is BasePage basePage)

@@ -13,11 +13,13 @@ namespace Unity.AssetManager.UI.Editor
         readonly TwoPaneSplitView m_CategoriesSplitView;
         readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly IAssetDataManager m_AssetDataManager;
         readonly ISavedAssetSearchFilterManager m_SavedSearchFilterManager;
         readonly VisualElement m_DraglineAnchor;
         readonly IStateManager m_StateManager;
         readonly IMessageManager m_MessageManager;
         readonly IUnityConnectProxy m_UnityConnectProxy;
+        readonly IPopupManager m_PopupManager;
         readonly IPermissionsManager m_PermissionsManager;
 
         VisualElement m_Sidebar;
@@ -33,18 +35,20 @@ namespace Unity.AssetManager.UI.Editor
             set => EditorPrefs.SetBool(k_IsSidebarCollapsedPrefKey, value);
         }
 
-        public SideBar(IUnityConnectProxy unityConnectProxy, IStateManager stateManager,
-            IPageManager pageManager, IMessageManager messageManager,
-            IProjectOrganizationProvider projectOrganizationProvider, ISavedAssetSearchFilterManager savedAssetSavedSearchFilterManager,
-            IPermissionsManager permissionsManager, TwoPaneSplitView categoriesSplitView)
+        public SideBar(IUnityConnectProxy unityConnectProxy, IStateManager stateManager, IPageManager pageManager, IMessageManager messageManager,
+            IProjectOrganizationProvider projectOrganizationProvider, IAssetDataManager assetDataManager,
+            ISavedAssetSearchFilterManager savedAssetSavedSearchFilterManager,
+            IPermissionsManager permissionsManager, TwoPaneSplitView categoriesSplitView, IPopupManager popupManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_StateManager = stateManager;
             m_PageManager = pageManager;
             m_MessageManager = messageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_AssetDataManager = assetDataManager;
             m_SavedSearchFilterManager = savedAssetSavedSearchFilterManager;
             m_PermissionsManager = permissionsManager;
+            m_PopupManager = popupManager;
 
             // We need this to hide/show the draggable line between the panes.
             m_DraglineAnchor = categoriesSplitView.Q("unity-dragline-anchor");
@@ -98,7 +102,7 @@ namespace Unity.AssetManager.UI.Editor
             var topSection = new VisualElement();
             topSection.AddToClassList("sidebar-top-section");
 
-            var organizationSelector = new SideBarOrganizationSelector(m_PermissionsManager, m_ProjectOrganizationProvider, m_UnityConnectProxy);
+            var organizationSelector = new SideBarOrganizationSelector(m_PermissionsManager, m_ProjectOrganizationProvider, m_UnityConnectProxy, m_PopupManager);
 
             var button = new Button();
             button.AddToClassList("unity-list-view__item");
@@ -112,7 +116,7 @@ namespace Unity.AssetManager.UI.Editor
             sidebar.Add(topSection);
             sidebar.Add(new HorizontalSeparator());
 
-            m_SidebarContent = new SidebarContent(m_UnityConnectProxy, m_ProjectOrganizationProvider,
+            m_SidebarContent = new SidebarContent(m_UnityConnectProxy, m_ProjectOrganizationProvider, m_AssetDataManager,
                 m_PageManager, m_StateManager, m_MessageManager, m_SavedSearchFilterManager);
 
             sidebar.Add(m_SidebarContent);

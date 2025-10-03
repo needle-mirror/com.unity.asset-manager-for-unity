@@ -65,6 +65,10 @@
                     <ui:Label name="uploadDependenciesWithLatestLabel" class="settings-label" />
                     <ui:Toggle name="uploadDependenciesWithLatestToggle" class="upload-settings-toggle" />
                 </ui:VisualElement>
+                <ui:VisualElement class="flex-row">
+                    <ui:Label name="dependencyVersionSelectionLabel" class="settings-label" />
+                    <ui:Toggle name="dependencyVersionSelectionToggle" class="upload-settings-toggle" />
+                </ui:VisualElement>
                 <ui:HelpBox message-type="Info" name="uploadDependenciesHelpBox" class="info-helpbox" />
             </ui:Foldout>
             <ui:Foldout name="projectWindowSettingsFoldout" class="settings-foldout">

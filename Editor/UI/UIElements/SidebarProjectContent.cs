@@ -1,54 +1,114 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
-using UnityEditor;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
     class SidebarProjectContent : Foldout
     {
-        readonly IPageManager m_PageManager;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly ISidebarContentEnabler m_SidebarContentEnabler;
         readonly IStateManager m_StateManager;
         readonly IMessageManager m_MessageManager;
-        readonly IUnityConnectProxy m_UnityConnectProxy;
 
-        readonly Dictionary<string, SideBarCollectionFoldout> m_SideBarProjectFoldouts = new ();
+        readonly Dictionary<string, SideBarCollectionFoldout> m_SideBarProjectFoldouts = new();
 
-        VisualElement m_NoProjectSelectedContainer;
-
-        public VisualElement NoProjectSelectedContainer => m_NoProjectSelectedContainer;
-
-        public SidebarProjectContent(IUnityConnectProxy unityConnectProxy, IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager,
+        public SidebarProjectContent(IProjectOrganizationProvider projectOrganizationProvider, ISidebarContentEnabler sidebarContentEnabler,
             IStateManager stateManager, IMessageManager messageManager)
         {
             var toggle = this.Q<Toggle>();
             toggle.text = Constants.SidebarProjectsText;
             toggle.AddToClassList("SidebarContentTitle");
 
-            m_UnityConnectProxy = unityConnectProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
-            m_PageManager = pageManager;
+            m_SidebarContentEnabler = sidebarContentEnabler;
             m_StateManager = stateManager;
             m_MessageManager = messageManager;
 
-            InitializeLayout();
+            RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
+            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         }
-
-        void InitializeLayout()
+        
+        void OnAttachToPanel(AttachToPanelEvent _)
         {
-            m_NoProjectSelectedContainer = new VisualElement();
-            m_NoProjectSelectedContainer.AddToClassList("NoProjectSelected");
-            m_NoProjectSelectedContainer.Add(new Label {text = L10n.Tr("No project selected")});
-
-            Add(m_NoProjectSelectedContainer);
+            m_ProjectOrganizationProvider.ProjectInfoChanged += ProjectInfoChanged;
+            m_SidebarContentEnabler.AllInvalidated += RefreshEnabledStates;
+        }
+        
+        void OnDetachFromPanel(DetachFromPanelEvent _)
+        {
+            m_ProjectOrganizationProvider.ProjectInfoChanged -= ProjectInfoChanged;
+            m_SidebarContentEnabler.AllInvalidated -= RefreshEnabledStates;
         }
 
-        public void ProjectInfoChanged(ProjectInfo projectInfo)
+        public void SelectProject(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        {
+            // First try to select the collection, if not available select the project
+            var selectedId = GetCollectionId(collectionInfo);
+            selectedId = string.IsNullOrEmpty(selectedId) ? projectInfo?.Id : selectedId;
+
+            foreach (var projectFoldout in m_SideBarProjectFoldouts)
+            {
+                SetSelectedRecursive(projectFoldout.Value, selectedId);
+            }
+        }
+
+        public void ClearSelectedProject()
+        {
+            foreach (var kvp in m_SideBarProjectFoldouts)
+            {
+                SetSelectedRecursive(kvp.Value, null);
+            }
+        }
+
+        void ProjectInfoChanged(ProjectInfo projectInfo)
         {
             TryAddCollections(projectInfo);
+        }
+
+        async void RefreshEnabledStates()
+        {
+            try
+            {
+                var tasks = new List<Task>();
+
+                foreach (var kvp in m_SideBarProjectFoldouts)
+                {
+                    RefreshEnabledStateRecursive(kvp.Value, tasks);
+                }
+
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception e)
+            {
+                Utilities.DevLogException(e);
+            }
+        }
+
+        void RefreshEnabledStateRecursive(SideBarFoldout foldout, List<Task> tasks)
+        {
+            tasks.Add(RefreshEnabledState(foldout));
+
+            foreach (var child in foldout.Children())
+            {
+                if (child is SideBarFoldout childFoldout)
+                {
+                    RefreshEnabledStateRecursive(childFoldout, tasks);
+                }
+            }
+        }
+
+        async Task RefreshEnabledState(SideBarFoldout foldout)
+        {
+            var isEnabled = await m_SidebarContentEnabler.IsEntryEnabledAsync(foldout.name, CancellationToken.None);
+            
+            m_StateManager.SetCollectionFoldoutPopulatedState(foldout.name, isEnabled);
+            
+            foldout.SetPopulatedState(isEnabled);
         }
 
         public void Refresh()
@@ -77,9 +137,10 @@ namespace Unity.AssetManager.UI.Editor
 
             foreach (var projectInfo in projectInfos)
             {
-                var projectFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager,
-                    m_StateManager, m_MessageManager, m_ProjectOrganizationProvider, projectInfo.Name,
-                    projectInfo.Id, null);
+                var projectFoldout = new SideBarCollectionFoldout(
+                    m_StateManager, m_MessageManager, m_ProjectOrganizationProvider,
+                    projectInfo.Name, projectInfo.Id, null,
+                    m_StateManager.GetCollectionFoldoutPopulatedState(projectInfo.Id));
                 Add(projectFoldout);
                 m_SideBarProjectFoldouts[projectInfo.Id] = projectFoldout;
 
@@ -113,11 +174,15 @@ namespace Unity.AssetManager.UI.Editor
         void CreateFoldoutForParentsThenItself(CollectionInfo collectionInfo, ProjectInfo projectInfo,
             SideBarFoldout projectFoldout)
         {
-            if (GetCollectionFoldout(projectInfo, collectionInfo.GetFullPath()) != null)
+            var collectionId = GetCollectionId(collectionInfo);
+            if (this.Q<SideBarFoldout>(collectionId) != null)
                 return;
 
-            var collectionFoldout =
-                CreateSideBarCollectionFoldout(collectionInfo.Name, projectInfo, collectionInfo.GetFullPath());
+            var collectionFoldout = new SideBarCollectionFoldout(
+                m_StateManager, m_MessageManager, m_ProjectOrganizationProvider,
+                collectionInfo.Name, projectInfo.Id, collectionInfo.GetFullPath(),
+                m_StateManager.GetCollectionFoldoutPopulatedState(collectionId));
+            collectionFoldout.SetSelected(GetCollectionId(m_ProjectOrganizationProvider.SelectedCollection) == collectionId);
 
             SideBarFoldout parentFoldout = null;
             if (!string.IsNullOrEmpty(collectionInfo.ParentPath))
@@ -125,7 +190,7 @@ namespace Unity.AssetManager.UI.Editor
                 var parentCollection = projectInfo.GetCollection(collectionInfo.ParentPath);
                 CreateFoldoutForParentsThenItself(parentCollection, projectInfo, projectFoldout);
 
-                parentFoldout = GetCollectionFoldout(projectInfo, parentCollection.GetFullPath());
+                parentFoldout = this.Q<SideBarFoldout>(GetCollectionId(parentCollection));
                 Utilities.DevAssert(parentFoldout != null);
             }
 
@@ -133,18 +198,21 @@ namespace Unity.AssetManager.UI.Editor
             immediateParent.AddFoldout(collectionFoldout);
         }
 
-        SideBarCollectionFoldout CreateSideBarCollectionFoldout(string foldoutName, ProjectInfo projectInfo,
-            string collectionPath)
+        static void SetSelectedRecursive(SideBarFoldout foldout, string selectedId)
         {
-            return new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
-                m_MessageManager, m_ProjectOrganizationProvider,
-                foldoutName, projectInfo.Id, collectionPath);
+            foldout.SetSelected(foldout.name == selectedId);
+            foreach (var child in foldout.Children())
+            {
+                if (child is SideBarFoldout childFoldout)
+                {
+                    SetSelectedRecursive(childFoldout, selectedId);
+                }
+            }
         }
 
-        SideBarFoldout GetCollectionFoldout(ProjectInfo projectInfo, string collectionPath)
-        {
-            var collectionId = SideBarCollectionFoldout.GetCollectionId(projectInfo.Id, collectionPath);
-            return this.Q<SideBarFoldout>(collectionId);
-        }
+        static string GetCollectionId(CollectionInfo collectionInfo) =>
+            collectionInfo == null
+                ? null
+                : SideBarCollectionFoldout.GetCollectionId(collectionInfo.ProjectId, collectionInfo.GetFullPath());
     }
 }

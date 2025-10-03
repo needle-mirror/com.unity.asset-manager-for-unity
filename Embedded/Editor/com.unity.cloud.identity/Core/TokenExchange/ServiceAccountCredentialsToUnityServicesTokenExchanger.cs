@@ -37,7 +37,7 @@ namespace Unity.Cloud.IdentityEmbedded
             };
             httpRequestMessage.Headers.Authorization = new AuthenticationHeaderValue(ServiceHeaderUtils.k_BasicScheme, serviceAccountCredentials.ToBase64String());
 
-            var response = await m_HttpClient.SendAsync(httpRequestMessage);
+            using var response = await m_HttpClient.SendAsync(httpRequestMessage);
             var unityServicesToken = await response.JsonDeserializeAsync<ExchangeGenesisAccessTokenResponse>();
             return new UnityServicesToken{ AccessToken = unityServicesToken.access_token};
         }

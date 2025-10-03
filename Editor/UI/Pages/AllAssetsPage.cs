@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
-using UnityEngine.UIElements;
+using UnityEngine;
 
 namespace Unity.AssetManager.UI.Editor
 {
@@ -26,17 +26,12 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.SelectProject(string.Empty);
         }
 
-        public override void LoadMore()
-        {
-            if (m_ProjectOrganizationProvider?.SelectedOrganization == null)
-                return;
-
-            base.LoadMore();
-        }
-
         protected internal override async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(
             [EnumeratorCancellation] CancellationToken token)
         {
+            if (m_ProjectOrganizationProvider?.SelectedOrganization == null)
+                yield break;
+
             await foreach (var assetData in LoadMoreAssets(m_ProjectOrganizationProvider.SelectedOrganization, token))
             {
                 yield return assetData;
@@ -59,6 +54,14 @@ namespace Unity.AssetManager.UI.Editor
 
                 m_MessageManager.ClearAllMessages();
             }
+        }
+
+        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        {
+            if (projectInfo == null)
+                return;
+
+            m_PageManager.SetActivePage<CollectionPage>();
         }
     }
 }

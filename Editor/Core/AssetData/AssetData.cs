@@ -84,7 +84,8 @@ namespace Unity.AssetManager.Core.Editor
         Task m_RefreshDependenciesTask;
         Task m_RefreshVersionsTask;
         Task m_ThumbnailUrlTask;
-        Task m_LinkedProjectsTask;
+        CachedTask m_LinkedProjectsTask;
+        CachedTask m_LinkedCollectionsTask;
 
         IThumbnailDownloader m_ThumbnailDownloader;
 
@@ -136,7 +137,8 @@ namespace Unity.AssetManager.Core.Editor
             bool isFrozen,
             IEnumerable<string> tags,
             IEnumerable<AssetLabel> labels = null,
-            IEnumerable<ProjectIdentifier> linkedProjects = null)
+            IEnumerable<ProjectIdentifier> linkedProjects = null,
+            IEnumerable<CollectionIdentifier> linkedCollections = null)
         {
             m_Identifier = assetIdentifier;
             m_SequenceNumber = sequenceNumber;
@@ -155,10 +157,12 @@ namespace Unity.AssetManager.Core.Editor
             m_Tags = tags?.ToList() ?? new List<string>();
             m_Labels = labels?.ToList() ?? new List<AssetLabel>();
             m_LinkedProjects = linkedProjects?.ToList() ?? new List<ProjectIdentifier>();
+            m_LinkedCollections = linkedCollections?.ToList() ?? new List<CollectionIdentifier>();
         }
 #pragma warning restore S107
 
-#pragma warning disable S107  // Disabling the warning regarding too many parameters.
+#pragma warning disable S107 // Disabling the warning regarding too many parameters.
+
         // Used when de-serialized from version 0.0 to fill data not in the IAsset
         public void FillFromPersistenceLegacy(IEnumerable<AssetIdentifier> dependencyAssets,
             string thumbnailUrl,
@@ -169,10 +173,11 @@ namespace Unity.AssetManager.Core.Editor
             m_ThumbnailUrl = thumbnailUrl;
 
             var sourceAssetDataFiles = sourceFiles?.ToList();
+
             // Add a default dataset for the source files. Add a system tag to identify it is manually added. (NotSynced)
             m_Datasets = new List<AssetDataset>
             {
-                new(k_Source, new List<string> { k_Source, k_NotSynced }, sourceAssetDataFiles)
+                new(k_Source, new List<string> {k_Source, k_NotSynced}, sourceAssetDataFiles)
             };
 
             m_PrimarySourceFile = primarySourceFile;
@@ -180,6 +185,7 @@ namespace Unity.AssetManager.Core.Editor
 #pragma warning restore S107
 
 #pragma warning disable S107 // Disabling the warning regarding too many parameters.
+
         // Used when de-serialized from version 1.0
         public void FillFromPersistence(AssetIdentifier assetIdentifier,
             int sequenceNumber,
@@ -203,8 +209,9 @@ namespace Unity.AssetManager.Core.Editor
             var sourceAssetDataFiles = sourceFiles?.Cast<BaseAssetDataFile>().ToList();
 
             // Add a default dataset for the source files. Add a system tag to identify it is manually added. (NotSynced)
-            var datasets = new List<AssetDataset>{
-                new (k_Source, new List<string> { k_Source, k_NotSynced }, sourceAssetDataFiles)
+            var datasets = new List<AssetDataset>
+            {
+                new(k_Source, new List<string> {k_Source, k_NotSynced}, sourceAssetDataFiles)
             };
 
             FillFromPersistence(assetIdentifier, sequenceNumber, parentSequenceNumber, changelog, name, assetType, status, description, created, updated, createdBy, updatedBy, previewFilePath, isFrozen, tags, datasets, dependencies, metadata);
@@ -212,6 +219,7 @@ namespace Unity.AssetManager.Core.Editor
 #pragma warning restore S107
 
 #pragma warning disable S107 // Disabling the warning regarding too many parameters.
+
         // Used when de-serialized from version 2.0 and 3.0
         public void FillFromPersistence(AssetIdentifier assetIdentifier,
             int sequenceNumber,
@@ -334,6 +342,10 @@ namespace Unity.AssetManager.Core.Editor
             {
                 previewFileUrl = await m_GetPreviewStatusTask;
             }
+            catch (HttpRequestException)
+            {
+                // Ignore unreachable host
+            }
             catch (NotFoundException)
             {
                 // Ignore if the Asset is not found
@@ -341,10 +353,6 @@ namespace Unity.AssetManager.Core.Editor
             catch (ForbiddenException)
             {
                 // Ignore if the Asset is unavailable
-            }
-            catch (HttpRequestException)
-            {
-                // Ignore unreachable host
             }
             finally
             {
@@ -379,6 +387,18 @@ namespace Unity.AssetManager.Core.Editor
                 try
                 {
                     await m_AssetDataAttributesTask;
+                }
+                catch (HttpRequestException)
+                {
+                    // Ignore unreachable host
+                }
+                catch (ForbiddenException)
+                {
+                    // Ignore if the Asset is unavailable
+                }
+                catch (NotFoundException)
+                {
+                    // Ignore if the Asset is not found
                 }
                 finally
                 {
@@ -422,9 +442,17 @@ namespace Unity.AssetManager.Core.Editor
                 await m_DatasetTask;
                 m_DatasetProcessed = true;
             }
+            catch (HttpRequestException)
+            {
+                // Ignore unreachable host
+            }
             catch (ForbiddenException)
             {
                 // Ignore if the Asset is unavailable
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the Asset is not found
             }
             finally
             {
@@ -434,33 +462,26 @@ namespace Unity.AssetManager.Core.Editor
 
         async Task ResolveDatasetInternalAsync(CancellationToken token = default)
         {
-            try
+            var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+
+            var sourceDataset = Datasets.FirstOrDefault(d => d.IsSource);
+
+            if (sourceDataset == null)
             {
-                var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+                Utilities.DevLogWarning($"Source dataset not set for asset {Name}");
 
-                var sourceDataset = Datasets.FirstOrDefault(d => d.IsSource);
-
-                if (sourceDataset == null)
-                {
-                    Utilities.DevLogWarning($"Source dataset not set for asset {Name}");
-
-                    sourceDataset = new AssetDataset(k_Source, new List<string> {k_Source, k_NotSynced}, null);
-                    Datasets = new List<AssetDataset> {sourceDataset};
-                }
-
-                var tasks = Datasets.Select(dataset => dataset.GetFilesAsync(assetsProvider, Identifier, token));
-                await Task.WhenAll(tasks);
-
-                token.ThrowIfCancellationRequested();
-
-                ResolvePrimaryExtension();
-
-                InvokeEvent(AssetDataEventType.FilesChanged);
+                sourceDataset = new AssetDataset(k_Source, new List<string> {k_Source, k_NotSynced}, null);
+                Datasets = new List<AssetDataset> {sourceDataset};
             }
-            catch (HttpRequestException)
-            {
-                // Ignore unreachable host
-            }
+
+            var tasks = Datasets.Select(dataset => dataset.GetFilesAsync(assetsProvider, Identifier, token));
+            await Task.WhenAll(tasks);
+
+            token.ThrowIfCancellationRequested();
+
+            ResolvePrimaryExtension();
+
+            InvokeEvent(AssetDataEventType.FilesChanged);
         }
 
         public override async Task RefreshPropertiesAsync(CancellationToken token = default)
@@ -474,6 +495,14 @@ namespace Unity.AssetManager.Core.Editor
             {
                 // Ignore unreachable host
             }
+            catch (ForbiddenException)
+            {
+                // Ignore if the Asset is unavailable
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the Asset is not found
+            }
             finally
             {
                 m_RefreshPropertiesTask = null;
@@ -484,10 +513,9 @@ namespace Unity.AssetManager.Core.Editor
         {
             var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
             var updatedAsset = await assetsSdkProvider.GetAssetAsync(Identifier, token);
-            
+
             if (updatedAsset == null)
             {
-                Utilities.DevLogError($"Asset {Identifier.AssetId} not found; properties could not be returned.");
                 return;
             }
 
@@ -506,15 +534,14 @@ namespace Unity.AssetManager.Core.Editor
             catch (HttpRequestException)
             {
                 // Ignore unreachable host
-                Utilities.DevLogError("Failed to refresh dependencies");
             }
-            catch (TaskCanceledException)
+            catch (ForbiddenException)
             {
-                Utilities.DevLog("Refresh dependencies cancelled");
+                // Ignore if the Asset is unavailable
             }
-            catch (Exception e)
+            catch (NotFoundException)
             {
-                Debug.LogException(e);
+                // Ignore if the Asset is not found
             }
             finally
             {
@@ -546,6 +573,14 @@ namespace Unity.AssetManager.Core.Editor
             {
                 // Ignore unreachable host
             }
+            catch (ForbiddenException)
+            {
+                // Ignore if the Asset is unavailable
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the Asset is not found
+            }
             finally
             {
                 m_RefreshVersionsTask = null;
@@ -556,17 +591,10 @@ namespace Unity.AssetManager.Core.Editor
         {
             var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
             var versions = new List<BaseAssetData>();
-            try
+            await foreach (var assetData in assetsSdkProvider.ListVersionInDescendingOrderAsync(m_Identifier, token))
             {
-                await foreach (var assetData in assetsSdkProvider.ListVersionInDescendingOrderAsync(m_Identifier, token))
-                {
-                    versions.Add(assetData);
-                    assetData.m_Versions = versions;
-                }
-            }
-            catch (NotFoundException)
-            {
-                versions.Clear();
+                versions.Add(assetData);
+                assetData.m_Versions = versions;
             }
 
             m_Versions = versions;
@@ -574,27 +602,58 @@ namespace Unity.AssetManager.Core.Editor
 
         public override async Task RefreshLinkedProjectsAsync(CancellationToken token = default)
         {
-            m_LinkedProjectsTask ??= RefreshLinkedProjectsInternalAsync(token);
+            m_LinkedProjectsTask ??= new CachedTask(RefreshLinkedProjectsInternalAsync);
+
             try
             {
-                await m_LinkedProjectsTask;
+                await m_LinkedProjectsTask.RunAsync(token, 25);
             }
             catch (HttpRequestException)
             {
                 // Ignore unreachable host
             }
-            finally
+            catch (ForbiddenException)
             {
-                m_LinkedProjectsTask = null;
+                // Ignore if the Asset is unavailable
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the Asset is not found
             }
         }
 
         async Task RefreshLinkedProjectsInternalAsync(CancellationToken token = default)
         {
             var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-            var linkedProjects = await assetsSdkProvider.GetLinkedProjectsAsync(this, token);
+            LinkedProjects = await assetsSdkProvider.GetLinkedProjectsAsync(this, token);
+        }
 
-            LinkedProjects = linkedProjects;
+        public override async Task RefreshLinkedCollectionsAsync(CancellationToken token = default)
+        {
+            m_LinkedCollectionsTask ??= new CachedTask(RefreshLinkedCollectionsInternalAsync);
+
+            try
+            {
+                await m_LinkedCollectionsTask.RunAsync(token, 25);
+            }
+            catch (HttpRequestException)
+            {
+                // Ignore unreachable host
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if the Asset is unavailable
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the Asset is not found
+            }
+        }
+
+        async Task RefreshLinkedCollectionsInternalAsync(CancellationToken token = default)
+        {
+            var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            LinkedCollections = await assetsSdkProvider.GetLinkedCollectionsAsync(this, token);
         }
 
         bool TryCopyDataset(AssetDataset dataset, string targetSystemLabel)

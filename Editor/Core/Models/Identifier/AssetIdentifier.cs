@@ -19,7 +19,13 @@ namespace Unity.AssetManager.Core.Editor
         string m_VersionLabel = string.Empty;
 
         public string AssetId => m_AssetId;
-        public string Version => m_Version;
+
+        public string Version
+        {
+            get => m_Version;
+            internal set => m_Version = value;
+        }
+
         public string VersionLabel
         {
             get => m_VersionLabel;
@@ -129,6 +135,16 @@ namespace Unity.AssetManager.Core.Editor
         public static bool operator !=(AssetIdentifier left, AssetIdentifier right)
         {
             return !Equals(left, right);
+        }
+
+        public AssetIdentifier Clone()
+        {
+            return new AssetIdentifier(
+                m_ProjectIdentifier.OrganizationId,
+                m_ProjectIdentifier.ProjectId,
+                m_AssetId,
+                m_Version,
+                m_VersionLabel);
         }
     }
 }

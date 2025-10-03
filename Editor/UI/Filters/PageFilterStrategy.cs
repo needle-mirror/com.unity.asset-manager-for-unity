@@ -336,7 +336,7 @@ namespace Unity.AssetManager.UI.Editor
             if (reloadImmediately)
             {
                 var activePage = m_PageManager?.ActivePage;
-                activePage?.Clear(true);
+                activePage?.LoadMore(clear:true, clearSelection:true);
             }
 
             FiltersCleared?.Invoke();

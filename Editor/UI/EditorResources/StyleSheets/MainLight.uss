@@ -85,6 +85,10 @@
     background-image: resource("uipackageresources/images/in_foldout_on.png");
 }
 
+.sidebar-content-empty {
+    color: #6A6A6A;
+}
+
 /************************************************
 * Tab View
 ************************************************/
@@ -271,15 +275,34 @@ GridMessageView > .unity-label {
 }
 
 /************************************************
-* Chips
+* Clipboard Button
 ************************************************/
 
-Chip, TagChip, ProjectChip, UserChip  {
+.ClipboardButton {
     background-color: #C6C6C6;
 }
 
-TagChip:hover, ProjectChip:hover, UserChip:hover {
+.ClipboardButton:hover {
     background-color: #E7E7E7;
+}
+
+/************************************************
+* Chips
+************************************************/
+
+Chip, TagChip, ProjectChip, UserChip, CollectionChip  {
+    background-color: #C6C6C6;
+}
+
+TagChip:hover, ProjectChip:hover, UserChip:hover, CollectionChip:hover{
+    background-color: #E7E7E7;
+}
+
+.details-page-chip__dismiss_button {
+    background-color: #C6C6C6;
+}
+.details-page-chip__dismiss_button:hover {
+    background-color: #B0B0B0;
 }
 
 /************************************************

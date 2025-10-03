@@ -105,7 +105,7 @@ namespace Unity.AssetManager.UI.Editor
         protected override void OnActivePageChanged(IPage page)
         {
             Refresh();
-            base.OnActivePageChanged(page);
+            InitDisplay(page);
         }
 
         protected override void InitDisplay(IPage page)
@@ -127,6 +127,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             Clear();
             m_FilterPerChip.Clear();
+            m_PopupManager.Clear();
 
             m_CancellationTokenSource?.Cancel();
             m_CancellationTokenSource?.Dispose();

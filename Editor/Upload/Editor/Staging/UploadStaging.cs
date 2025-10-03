@@ -106,28 +106,22 @@ namespace Unity.AssetManager.Upload.Editor
             assetData.IsIgnored = ignore;
         }
 
-        public void GenerateUploadAssetData(Action<string, float> progressCallback)
+        public void GenerateUploadAssetData(Action<string, float> progressCallback, bool pinDependencyToLatest)
         {
             // Check we actually need to regenerate the list
-            var uploadAssetData = UploadAssetStrategy.GenerateUploadAssets(m_UploadEdits, m_Settings, progressCallback).ToList();
+            var uploadAssetData = UploadAssetStrategy.GenerateUploadAssets(m_UploadEdits, m_Settings, pinDependencyToLatest, progressCallback).ToList();
 
             // Restore manual edits made by the user
-            foreach (var assetData in uploadAssetData)
-            {
-                assetData.IsIgnored = m_UploadEdits.IsIgnored(assetData.Guid);
-                if (m_UploadEdits.TryGetModifiedMetadata(assetData.Guid, m_Settings.ProjectId, out var metadata))
-                {
-                    assetData.SetMetadata(metadata);
-                }
-            }
+            ApplyEdits(uploadAssetData);
 
             // Because we are not able to detect if a user modify a metadata, we need to store the metadata for ALL UploadAssetData
             foreach (var assetData in uploadAssetData)
             {
-                m_UploadEdits.SetModifiedMetadata(assetData.Guid, m_Settings.ProjectId, assetData.Metadata);
+                m_UploadEdits.SetModifiedCustomMetadata(assetData.Guid, assetData.Metadata);
             }
 
             m_UploadAssets.SetValues(uploadAssetData);
+
             UploadAssetEntriesChanged?.Invoke();
         }
 
@@ -141,10 +135,7 @@ namespace Unity.AssetManager.Upload.Editor
 
         public bool HasIncludeAllScripts(UploadAssetData uploadAssetData)
         {
-            if (uploadAssetData == null)
-                return false;
-
-            return m_UploadEdits.IncludesAllScripts(uploadAssetData.Guid);
+            return uploadAssetData != null && m_UploadEdits.IncludesAllScripts(uploadAssetData.Guid);
         }
 
         static void AddAllScriptsInternal(UploadAssetData assetData)
@@ -152,24 +143,91 @@ namespace Unity.AssetManager.Upload.Editor
             assetData.AddFiles(DependencyUtils.GetAllScriptGuids(), false);
         }
 
-        public void AddMetadata(AssetIdentifier identifier, IMetadata metadata)
+        public void AddEdit(AssetFieldEdit assetFieldEdit)
         {
-            var assetData = m_UploadAssets.Find(uploadAssetData => uploadAssetData.Identifier == identifier);
-
+            var assetData = m_UploadAssets.Find(uploadAssetData => uploadAssetData.Identifier == assetFieldEdit.AssetIdentifier);
             if (assetData == null)
                 return;
 
-            assetData.AddMetadata(metadata);
+            switch (assetFieldEdit.Field)
+            {
+                case EditField.Name:
+                    m_UploadEdits.SetModifiedName(assetData.Guid, assetFieldEdit.EditValue as string);
+                    break;
+
+                case EditField.Description:
+                    m_UploadEdits.SetModifiedDescription(assetData.Guid, assetFieldEdit.EditValue as string);
+                    break;
+
+                case EditField.Tags:
+                    m_UploadEdits.SetModifiedTags(assetData.Guid, assetFieldEdit.EditValue as IEnumerable<string>);
+                    break;
+
+                case EditField.Custom:
+                    // TODO: See about following the same flow for storing edits here. Might not be possible given comments in the GenerateUploadAssetData method
+                    // Also consider whether the comment about needing to store by ProjectId is still valid
+                    assetData.AddMetadata(assetFieldEdit.EditValue as IMetadata);
+                    break;
+
+                // TODO:
+                case EditField.Status:
+                default:
+                    return;
+
+            }
+        }
+
+        public void AddEdits(IEnumerable<AssetFieldEdit> assetFieldEdits)
+        {
+            foreach (var edit in assetFieldEdits)
+                AddEdit(edit);
+        }
+
+        public void ApplyEdits(UploadAssetData assetData)
+        {
+            if (assetData == null)
+                return;
+
+            assetData.IsIgnored = m_UploadEdits.IsIgnored(assetData.Guid);
+
+            if (m_UploadEdits.TryGetModifiedName(assetData.Guid, out var name))
+            {
+                assetData.SetName(name);
+            }
+
+            if (m_UploadEdits.TryGetModifiedDescription(assetData.Guid, out var description))
+            {
+                assetData.SetDescription(description);
+            }
+
+            if (m_UploadEdits.TryGetModifiedTags(assetData.Guid, out var tags))
+            {
+                assetData.SetTags(tags);
+            }
+
+            if (m_UploadEdits.TryGetModifiedCustomMetadata(assetData.Guid, out var metadata))
+            {
+                assetData.SetMetadata(metadata);
+            }
+        }
+
+        public void ApplyEdits(IEnumerable<UploadAssetData> assetDatas)
+        {
+            foreach (var assetData in assetDatas)
+            {
+                ApplyEdits(assetData);
+            }
+        }
+
+        public bool HasEdits(UploadAssetData assetData)
+        {
+            return m_UploadEdits.HasEdits(assetData.Guid);
         }
 
         public void RemoveMetadata(AssetIdentifier identifier, string fieldKey)
         {
             var assetData = m_UploadAssets.Find(uploadAssetData => uploadAssetData.Identifier == identifier);
-
-            if (assetData == null)
-                return;
-
-            assetData.RemoveMetadata(fieldKey);
+            assetData?.RemoveMetadata(fieldKey);
         }
 
         public void SetOrganizationInfo(OrganizationInfo organizationInfo)
@@ -189,7 +247,7 @@ namespace Unity.AssetManager.Upload.Editor
         {
             var readyAssets = m_UploadAssets.Where(asset => asset.CanBeUploaded).ToList();
             var files = readyAssets.SelectMany(asset => asset.GetFiles()).ToList();
-            
+
             var status = new UploadStagingStatus(m_Settings.OrganizationId, m_Settings.ProjectId)
             {
                 TotalAssetCount = m_UploadAssets.Count,
@@ -269,15 +327,15 @@ namespace Unity.AssetManager.Upload.Editor
             }
 
             progressCallback?.Invoke("Gathering asset status...", 0f);
-                
+
             SetStagingStatus(null);
-            
+
             ImportStatuses importStatuses = null;
             if (checkWithCloud)
             {
                 importStatuses = await GatherImportStatusesAsync(m_UploadAssets, token);
             }
-            
+
             var total = m_UploadAssets.Count + 1;
             var count = 0f;
 
@@ -314,7 +372,7 @@ namespace Unity.AssetManager.Upload.Editor
 
             foreach (var identifier in assetData.Dependencies)
             {
-                var depAssetData = m_UploadAssets.Find(uploadAssetData => uploadAssetData.Identifier == identifier);
+                var depAssetData = m_UploadAssets.Find(uploadAssetData => uploadAssetData.Identifier.AssetId == identifier.AssetId);
                 ResolveFinalStatusRecursive(depAssetData, uploadMode, processed);
             }
 

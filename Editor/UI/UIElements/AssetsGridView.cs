@@ -374,7 +374,7 @@ namespace Unity.AssetManager.UI.Editor
         void OnLastGridViewItemVisible()
         {
             var page = m_PageManager.ActivePage;
-            page.LoadMore();
+            page.LoadMore(clear: false, clearSelection: false);
         }
 
         void OnOrganizationChanged(OrganizationInfo organization)

@@ -45,7 +45,7 @@ namespace Unity.Cloud.IdentityEmbedded
             }
             else
             {
-                var response = await m_ServiceHttpClient.GetAsync(url);
+                using var response = await m_ServiceHttpClient.GetAsync(url);
                 var deserializedUnityUserInfoResponse = await response.JsonDeserializeAsync<UnityUserInfoJson>();
                 userInfoJson = m_GetUnityUserOrganizationRequestResponseCache.AddGetRequestResponseToCache(url, deserializedUnityUserInfoResponse);
             }

@@ -12,7 +12,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly DependenciesFoldout m_DependenciesFoldout;
         readonly VisualElement m_NoDependenciesBox;
 
-        public AssetDependenciesComponent(VisualElement parent, IPageManager pageManager, IStateManager stateManager = null)
+        public AssetDependenciesComponent(VisualElement parent, IPageManager pageManager, IPopupManager popupManager, ISettingsManager settingsManager, IProjectOrganizationProvider projectOrganizationProvider, IStateManager stateManager = null)
         {
             m_NoDependenciesBox = new Label("No dependencies");
             m_NoDependenciesBox.AddToClassList("no-dependencies-label");
@@ -30,7 +30,7 @@ namespace Unity.AssetManager.UI.Editor
 
             parent.Add(dependenciesContainer);
             m_DependenciesFoldout =
-                new DependenciesFoldout(dependenciesContainer, Constants.DependenciesText, pageManager)
+                new DependenciesFoldout(dependenciesContainer, Constants.DependenciesText, pageManager, popupManager, settingsManager, projectOrganizationProvider)
                 {
                     Expanded = stateManager?.DependenciesFoldoutValue ?? false
                 };

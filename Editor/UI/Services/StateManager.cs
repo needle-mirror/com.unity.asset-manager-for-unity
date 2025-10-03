@@ -17,6 +17,9 @@ namespace Unity.AssetManager.UI.Editor
 
         bool GetFilesFoldoutValue(string key);
         void SetFilesFoldoutValue(string key, bool value);
+        
+        bool GetCollectionFoldoutPopulatedState(string key);
+        void SetCollectionFoldoutPopulatedState(string key, bool value);
     }
 
     [Serializable]
@@ -37,6 +40,9 @@ namespace Unity.AssetManager.UI.Editor
 
         [SerializeField]
         FileFoldoutState[] m_SerializedFilesFoldoutValues;
+        
+        [SerializeField]
+        FileFoldoutState[] m_SerializedCollectionFoldoutPopulatedStates;
 
         [SerializeField]
         bool m_DependenciesFoldoutValue;
@@ -45,6 +51,7 @@ namespace Unity.AssetManager.UI.Editor
         bool[] m_MultiSelectionFoldoutsValues = new bool[Enum.GetValues(typeof(MultiAssetDetailsPage.FoldoutName)).Cast<MultiAssetDetailsPage.FoldoutName>().Distinct().Count()];
 
         Dictionary<string, bool> m_FilesFoldoutValues = new();
+        Dictionary<string, bool> m_CollectionFoldoutPopulatedStates = new();
         
         static readonly string k_SideBarWidthPrefKey = "com.unity.asset-manager-for-unity.side-bar-width";
 
@@ -98,11 +105,21 @@ namespace Unity.AssetManager.UI.Editor
             m_FilesFoldoutValues[key] = value;
         }
 
+        public bool GetCollectionFoldoutPopulatedState(string key)
+        {
+            return m_CollectionFoldoutPopulatedStates.GetValueOrDefault(key, true);
+        }
+        public void SetCollectionFoldoutPopulatedState(string key, bool value)
+        {
+            m_CollectionFoldoutPopulatedStates[key] = value;
+        }
+
         public void OnBeforeSerialize()
         {
             m_SerializedUncollapsedCollections = UncollapsedCollections.ToArray();
             
             m_SerializedFilesFoldoutValues = m_FilesFoldoutValues.Select(kv => new FileFoldoutState { Key = kv.Key, Value = kv.Value }).ToArray();
+            m_SerializedCollectionFoldoutPopulatedStates = m_CollectionFoldoutPopulatedStates.Select(kv => new FileFoldoutState { Key = kv.Key, Value = kv.Value }).ToArray();
         }
 
         public void OnAfterDeserialize()
@@ -110,6 +127,7 @@ namespace Unity.AssetManager.UI.Editor
             m_UncollapsedCollections = new HashSet<string>(m_SerializedUncollapsedCollections);
 
             m_FilesFoldoutValues = m_SerializedFilesFoldoutValues?.ToDictionary(kv => kv.Key, kv => kv.Value) ?? new Dictionary<string, bool>();
+            m_CollectionFoldoutPopulatedStates = m_SerializedCollectionFoldoutPopulatedStates?.ToDictionary(kv => kv.Key, kv => kv.Value) ?? new Dictionary<string, bool>();
         }
     }
 }

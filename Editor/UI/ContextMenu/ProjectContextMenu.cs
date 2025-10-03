@@ -5,27 +5,24 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
-    class ProjectContextMenu: ContextMenu
+    class ProjectContextMenu : ContextMenu
     {
-        readonly IUnityConnectProxy m_UnityConnectProxy;
-        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
-        readonly IPageManager m_PageManager;
+        protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        protected readonly IMessageManager m_MessageManager;
         readonly IStateManager m_StateManager;
-        readonly IMessageManager m_MessageManager;
+        readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly string m_ProjectId;
+        
+        protected bool IsEnabled => m_UnityConnectProxy.AreCloudServicesReachable;
 
-        VisualElement m_Target;
-
-        public ProjectContextMenu(string projectId, IUnityConnectProxy unityConnectProxy,
-            IProjectOrganizationProvider projectOrganizationProvider, IPageManager pageManager,
+        public ProjectContextMenu(string projectId, IProjectOrganizationProvider projectOrganizationProvider,
             IStateManager stateManager, IMessageManager messageManager)
         {
             m_ProjectId = projectId;
-            m_UnityConnectProxy = unityConnectProxy;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
-            m_PageManager = pageManager;
             m_StateManager = stateManager;
             m_MessageManager = messageManager;
+            m_UnityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
         }
 
         public override void SetupContextMenuEntries(ContextualMenuPopulateEvent evt)
@@ -33,35 +30,36 @@ namespace Unity.AssetManager.UI.Editor
             // Check the target to avoid adding the same menu entries multiple times add don't know which one is called
             if (evt.target == evt.currentTarget)
             {
-                m_Target = (VisualElement)evt.target;
+                var targetElement = (VisualElement) evt.currentTarget;
                 AddMenuEntry(evt, Constants.CollectionCreate,
-                    m_UnityConnectProxy.AreCloudServicesReachable && !string.IsNullOrEmpty(m_ProjectId),
-                    (_) =>
+                    IsEnabled && !string.IsNullOrEmpty(m_ProjectId),
+                    _ =>
                     {
-                        CreateCollection();
+                        CreateCollection(targetElement);
                     });
             }
         }
 
-        void CreateCollection()
+        void CreateCollection(VisualElement target)
         {
             var name = Constants.CollectionDefaultName;
-
             var projectInfo = m_ProjectOrganizationProvider.GetProject(m_ProjectId);
 
             if (projectInfo?.CollectionInfos != null)
             {
                 var index = 1;
-                while (projectInfo.CollectionInfos.Any(c => c.GetFullPath() == $"{name}"))
+                while (projectInfo.CollectionInfos.Any(c => c.Name == name && c.ParentPath == GetParentPath()))
                 {
                     name = $"{Constants.CollectionDefaultName} ({index++})";
                 }
             }
 
-            var newFoldout = new SideBarCollectionFoldout(m_UnityConnectProxy, m_PageManager, m_StateManager,
-                m_MessageManager, m_ProjectOrganizationProvider, name, m_ProjectId, string.Empty);
-            m_Target.Add(newFoldout);
+            var newFoldout = new SideBarCollectionFoldout(m_StateManager, m_MessageManager, m_ProjectOrganizationProvider,
+                name, m_ProjectId, GetParentPath(), true);
+            target.Add(newFoldout);
             newFoldout.StartNaming();
         }
+
+        protected virtual string GetParentPath() => string.Empty;
     }
 }

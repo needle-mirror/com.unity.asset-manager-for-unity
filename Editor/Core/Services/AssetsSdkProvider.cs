@@ -80,6 +80,7 @@ namespace Unity.AssetManager.Core.Editor
         Task UpdateDependenciesAsync(AssetIdentifier assetIdentifier, IEnumerable<AssetIdentifier> assetDependencies, IEnumerable<AssetDependency> existingDependencies, CancellationToken token);
 
         Task<IEnumerable<ProjectIdentifier>> GetLinkedProjectsAsync(AssetData assetData, CancellationToken token);
+        Task<IEnumerable<CollectionIdentifier>> GetLinkedCollectionsAsync(AssetData assetData, CancellationToken token);
 
         // Files
 
@@ -93,7 +94,7 @@ namespace Unity.AssetManager.Core.Editor
 
         Task<AssetDataset> GetDatasetAsync(AssetData assetData, IEnumerable<string> systemTags, CancellationToken token);
         Task<IReadOnlyDictionary<string, Uri>> GetDatasetDownloadUrlsAsync(AssetIdentifier assetIdentifier, AssetDataset assetDataset, IProgress<FetchDownloadUrlsProgress> progress, CancellationToken token);
-        
+
         // Utilities
 
         string GetValueAsString(AssetType assetType);
@@ -166,7 +167,7 @@ namespace Unity.AssetManager.Core.Editor
             await foreach (var asset in SearchAsync(new OrganizationId(organizationId), projectIds, assetSearchFilter,
                                sortField, sortingOrder, startIndex, pageSize, cacheConfiguration, token))
             {
-                yield return asset == null ? null : await DataMapper.From(asset, token);
+                yield return await DataMapper.From(asset, token);
             }
         }
 
@@ -236,7 +237,7 @@ namespace Unity.AssetManager.Core.Editor
                 }
                 catch (NotFoundException e)
                 {
-                    Utilities.DevLog(e.Detail);
+                    Utilities.DevLogException(e);
                 }
             }
 
@@ -344,6 +345,11 @@ namespace Unity.AssetManager.Core.Editor
                 var asset = await AssetRepository.GetAssetAsync(projectDescriptor, assetId, "Latest", token);
                 return await asset.WithCacheConfigurationAsync(assetCacheConfiguration, token);
             }
+            catch (ForbiddenException e)
+            {
+                // Ignore if we don't have access to the asset
+                Utilities.DevLog(e.Detail);
+            }
             catch (NotFoundException)
             {
                 try
@@ -361,10 +367,12 @@ namespace Unity.AssetManager.Core.Editor
                 }
                 catch (NotFoundException)
                 {
-                    // Ignore, asset could not be found on cloud.
-                    return null;
+                    // Ignore if the asset could not be found.
+                    // Don't log because this can be quite noisy when updating tracking
                 }
             }
+
+            return null;
         }
 
         public async IAsyncEnumerable<AssetData> ListVersionInDescendingOrderAsync(AssetIdentifier assetIdentifier, [EnumeratorCancellation] CancellationToken token)
@@ -503,9 +511,15 @@ namespace Unity.AssetManager.Core.Editor
             }
             catch (ForbiddenException e)
             {
-                Utilities.DevLogException(e);
+                // Ignore if we don't have access to the organization.
+                Utilities.DevLog(e.Detail);
             }
             catch (NotFoundException e)
+            {
+                // Ignore if the organization could not be found.
+                Utilities.DevLog(e.Detail);
+            }
+            catch (ServerException e)
             {
                 Utilities.DevLogException(e);
             }
@@ -649,9 +663,15 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     // Ignore
                 }
+                catch (ForbiddenException e)
+                {
+                    // Ignore if we don't have access to the asset
+                    Utilities.DevLog(e.Detail);
+                }
                 catch (NotFoundException e)
                 {
-                    Utilities.DevLogError($"Asset {assetDescriptor.AssetId} not found; reference list could not be returned.\n{e.Message}");
+                    // Ignore if the asset could not be found.
+                    Utilities.DevLog(e.Detail);
                 }
 
                 return false;
@@ -677,7 +697,6 @@ namespace Unity.AssetManager.Core.Editor
             CancellationToken token)
         {
             var assetDescriptor = Map(assetIdentifier);
-            var project = await AssetRepository.GetAssetProjectAsync(assetDescriptor.ProjectDescriptor, token);
             var asset = await AssetRepository.GetAssetAsync(assetDescriptor, token);
 
             // For instance:
@@ -685,7 +704,18 @@ namespace Unity.AssetManager.Core.Editor
             // New dependencies = d1, d4
             // Dependencies to remove from target asset: d2, d3
             // Dependencies to add to target asset: d4
-            var assetDependenciesList = assetDependencies.Select(Map).ToList();
+            var assetDependenciesList = assetDependencies.Where(ad => string.IsNullOrEmpty(ad.VersionLabel)).Select(Map).ToList();
+            var assetDependenciesWithLabel = assetDependencies.Where(ad => !string.IsNullOrEmpty(ad.VersionLabel)).ToList();
+
+            foreach (var dependencyWithLabel in assetDependenciesWithLabel)
+            {
+                var dependencyAsset = await AssetRepository.GetAssetAsync(Map(dependencyWithLabel), token);
+                var assetLabels = await GetAssetVersionLabelsAsync(dependencyAsset, token);
+                if (!assetLabels.Contains(dependencyWithLabel.VersionLabel))
+                {
+                    await dependencyAsset.AssignLabelsAsync(new[] { dependencyWithLabel.VersionLabel }, token);
+                }
+            }
 
             var tasks = new List<Task>();
 
@@ -698,10 +728,15 @@ namespace Unity.AssetManager.Core.Editor
                 // d1 will be removed
                 var nb = assetDependenciesList.RemoveAll(dep =>
                     dep.AssetId.ToString() == existingDependency.TargetAssetIdentifier.AssetId &&
-                    dep.AssetVersion.ToString() == existingDependency.TargetAssetIdentifier.Version);
+                    (dep.AssetVersion.ToString() == existingDependency.TargetAssetIdentifier.Version));
 
                 // If this dependency is not in the input list, remove it from target asset
                 // d2 and d3 will be removed
+
+                nb += assetDependenciesWithLabel.RemoveAll(dep =>
+                    dep.AssetId.ToString() == existingDependency.TargetAssetIdentifier.AssetId &&
+                    dep.VersionLabel == existingDependency.TargetAssetIdentifier.VersionLabel);
+
                 if (nb == 0)
                 {
                     tasks.Add(asset.RemoveReferenceAsync(existingDependency.ReferenceId, token));
@@ -710,11 +745,26 @@ namespace Unity.AssetManager.Core.Editor
 
             // Add any remaining dependencies
             // d4 will be added
-            tasks.AddRange(m_SettingsManager.IsUploadDependenciesUsingLatestLabel
-                ? assetDependenciesList.Select(dependencyDescriptor => asset.AddReferenceAsync(dependencyDescriptor.AssetId, "Latest", token))
-                : assetDependenciesList.Select(dependencyDescriptor => asset.AddReferenceAsync(dependencyDescriptor.AssetId, dependencyDescriptor.AssetVersion, token)));
+            tasks.AddRange(assetDependenciesList.Select(dependencyDescriptor => asset.AddReferenceAsync(dependencyDescriptor.AssetId, dependencyDescriptor.AssetVersion, token)));
+            // We had dependencies using version label
+            tasks.AddRange(assetDependenciesWithLabel.Where(ad => !string.IsNullOrEmpty(ad.VersionLabel)).Select(identifier => asset.AddReferenceAsync(new AssetId(identifier.AssetId), identifier.VersionLabel, token)));
 
             await Task.WhenAll(tasks);
+        }
+
+        async Task<List<string>> GetAssetVersionLabelsAsync(IAsset asset, CancellationToken token)
+        {
+            var query = asset.QueryLabels();
+            query.WhereIsArchivedEquals(false);
+
+            var labelsAsync = query.ExecuteAsync(token);
+            var labels = new List<string>();
+            await foreach (var item in labelsAsync.WithCancellation(token))
+            {
+                labels.AddRange(item.Item2);
+            }
+
+            return labels.Distinct().ToList();
         }
 
         public async Task<IEnumerable<ProjectIdentifier>> GetLinkedProjectsAsync(AssetData assetData, CancellationToken token)
@@ -725,16 +775,46 @@ namespace Unity.AssetManager.Core.Editor
             {
                 return await DataMapper.GetLinkedProjectsAsync(asset, token);
             }
-            catch (ForbiddenException e)
+            catch (ForbiddenException)
             {
-                Utilities.DevLog(e.Detail);
-                return Array.Empty<ProjectIdentifier>();
+                // Ignore if we don't have access to the asset
+                // Don't log because this can be quite noisy when updating tracking
             }
-            catch (NotFoundException e)
+            catch (NotFoundException)
             {
-                Utilities.DevLog(e.Detail);
-                return Array.Empty<ProjectIdentifier>();
+                // Ignore if the asset is not found
+                // Don't log because this can be quite noisy when updating tracking
             }
+
+            return Array.Empty<ProjectIdentifier>();
+        }
+
+        public async Task<IEnumerable<CollectionIdentifier>> GetLinkedCollectionsAsync(AssetData assetData, CancellationToken token)
+        {
+            var asset = await InternalGetAssetAsync(assetData, token);
+
+            var collectionPaths = new List<CollectionIdentifier>();
+
+            try
+            {
+                await foreach (var collection in asset.ListLinkedAssetCollectionsAsync(Range.All, token))
+                {
+                    var projectIdentifier = new ProjectIdentifier(collection.ProjectDescriptor.OrganizationId.ToString(), collection.ProjectDescriptor.ProjectId.ToString());
+                    collectionPaths.Add(new CollectionIdentifier(projectIdentifier, collection.Path));
+                }
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if we don't have access to the asset
+                // Don't log because this can be quite noisy when updating tracking
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the asset is not found
+                // Don't log because this can be quite noisy when updating tracking
+            }
+
+            return collectionPaths.ToArray();
         }
 
         async IAsyncEnumerable<IAsset> SearchAsync(OrganizationId organizationId, IEnumerable<string> projectIds,
@@ -786,6 +866,9 @@ namespace Unity.AssetManager.Core.Editor
             {
                 await UpdateMetadata(assetData.Identifier, assetUpdate.Metadata, token);
             }
+
+            // Refresh the local data state with the modifications in the cloud
+            await assetData.RefreshPropertiesAsync(token);
         }
 
         public async Task UpdateStatusAsync(AssetData assetData, string statusName, CancellationToken token)
@@ -822,7 +905,7 @@ namespace Unity.AssetManager.Core.Editor
             {
                 var previewFilePath = assetData.PreviewFilePath;
 
-                // [Backwards Compatability] If the preview file path has not been set, we need to fetch it from the asset
+                // [Backwards Compatibility] If the preview file path has not been set, we need to fetch it from the asset
                 if (string.IsNullOrEmpty(previewFilePath))
                 {
                     previewFilePath = await GetPreviewFilePathAsync(assetData, token);
@@ -849,22 +932,34 @@ namespace Unity.AssetManager.Core.Editor
 
                 return await file.GetResizedImageDownloadUrlAsync(maxDimension, token);
             }
-            catch (NotFoundException)
-            {
-                // Ignore if the preview is not found
-            }
             catch (InvalidArgumentException)
             {
                 // Ignore if the preview doesn't support resizing
             }
-            catch (ServiceException e)
+            catch (ServiceException)
             {
-                // Private Cloud services throw 500 error for unsupported preview resizing.
-                // If the status code is anything other than InternalServerError, we rethrow the exception.
-                if (e.StatusCode != HttpStatusCode.InternalServerError)
-                {
-                    throw;
-                }
+                // If we get a service exception when trying to get a resized preview, it might be because the user doesn't have the permission / seat
+                // or because the back-end doesn't support it (such is the case with the VPC). We then fallback on trying to get the non-resized preview.
+                return await GetPreviewUrlNonResizedAsync(assetData, token);
+            }
+
+            return null;
+        }
+
+        async Task<Uri> GetPreviewUrlNonResizedAsync(AssetData assetData, CancellationToken token)
+        {
+            try
+            {
+                var asset = await InternalGetAssetAsync(assetData, token);
+                return await asset.GetPreviewUrlAsync(token);
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if we don't have access to the asset
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the preview is not found
             }
 
             return null;
@@ -885,9 +980,13 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     await dataset.RemoveFileAsync(k_ThumbnailFilename, token);
                 }
+                catch (ForbiddenException)
+                {
+                    // Ignore if we don't have access to the dataset or file
+                }
                 catch (NotFoundException)
                 {
-                    // Ignore if the file is not found
+                    // Ignore if the dataset or file is not found
                 }
             }
         }
@@ -1138,11 +1237,8 @@ namespace Unity.AssetManager.Core.Editor
             }
             catch (ServiceException e)
             {
-                if (e.StatusCode != HttpStatusCode.Conflict)
-                {
-                    Debug.LogError($"Unable to upload file {destinationPath} to dataset {dataset.Descriptor.DatasetId}. Error code is {e.ErrorCode} with message \"{e.Message}\"");
-                    throw;
-                }
+                Debug.LogError($"Unable to upload file {destinationPath} to dataset {dataset.Descriptor.DatasetId}. {e.StatusCode?.ToString()} error with message \"{e.Detail}\"");
+                throw;
             }
 
             return file;
@@ -1245,11 +1341,18 @@ namespace Unity.AssetManager.Core.Editor
             {
                 return await dataset.WithCacheConfigurationAsync(cacheConfiguration, token);
             }
+            catch (ForbiddenException e)
+            {
+                // Ignore if we don't have access to the dataset
+                Utilities.DevLog(e.Detail);
+            }
             catch (NotFoundException e)
             {
-                Utilities.DevLogError($"Asset {assetDescriptor.AssetId} not found; dataset {datasetDescriptor.DatasetId} could not be returned.\n{e.Message}");
-                return null;
+                // Ignore if the dataset is not found
+                Utilities.DevLog(e.Detail);
             }
+
+            return null;
         }
 
         async Task<IDataset> GetDatasetAsync(AssetIdentifier assetIdentifier, IEnumerable<string> systemTags, DatasetCacheConfiguration cacheConfiguration, CancellationToken token)
@@ -1277,9 +1380,15 @@ namespace Unity.AssetManager.Core.Editor
                     }
                 }
             }
-            catch (NotFoundException)
+            catch (ForbiddenException e)
             {
-                // Ignore, asset could not be found on cloud.
+                // Ignore if we don't have access to the asset or dataset
+                Utilities.DevLog(e.Detail);
+            }
+            catch (NotFoundException e)
+            {
+                // Ignore if the asset or dataset is not found
+                Utilities.DevLog(e.Detail);
             }
 
             return null;
@@ -1402,11 +1511,16 @@ namespace Unity.AssetManager.Core.Editor
                 asset = await asset.WithCacheConfigurationAsync(GetAssetCacheConfigurationForMapping(), token);
                 return await DataMapper.From(asset, token);
             }
-            catch (NotFoundException)
+            catch (ForbiddenException e)
             {
-                // Ignore, asset could not be found on cloud.
-                return null;
+                Utilities.DevLog(e.Detail);
             }
+            catch (NotFoundException e)
+            {
+                Utilities.DevLog(e.Detail);
+            }
+
+            return null;
         }
 
         static IEnumerable<AssetLabel> Map(IEnumerable<LabelDescriptor> labelDescriptors)
@@ -1669,6 +1783,7 @@ namespace Unity.AssetManager.Core.Editor
 
             return new Unity.Cloud.AssetsEmbedded.AssetCreation(assetCreation.Name)
             {
+                Description = assetCreation.Description,
                 Type = Map(assetCreation.Type),
                 Collections = assetCreation.Collections?.Select(x => new CollectionPath(x)).ToList(),
                 Tags = assetCreation.Tags,
@@ -1710,6 +1825,7 @@ namespace Unity.AssetManager.Core.Editor
             return new Unity.Cloud.AssetsEmbedded.AssetUpdate
             {
                 Name = assetUpdate.Name,
+                Description = assetUpdate.Description,
                 Type = assetUpdate.Type.HasValue ? Map(assetUpdate.Type.Value) : null,
                 PreviewFile = assetUpdate.PreviewFile,
                 Tags = assetUpdate.Tags

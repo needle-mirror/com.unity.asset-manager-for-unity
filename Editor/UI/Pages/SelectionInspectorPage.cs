@@ -28,7 +28,8 @@ namespace Unity.AssetManager.UI.Editor
         protected ScrollView m_ScrollView;
         protected Button m_CloseButton;
         protected Label m_TitleLabel;
-        protected VisualElement m_UploadMetadataContainer;
+        protected VisualElement m_UploadPrimaryMetadataContainer;
+        protected VisualElement m_UploadCustomMetadataContainer;
 
         protected SelectionInspectorPage(IAssetImporter assetImporter,
             IAssetOperationManager assetOperationManager,
@@ -67,10 +68,15 @@ namespace Unity.AssetManager.UI.Editor
             m_CloseButton = this.Q<Button>(k_InspectorPageCloseButtonClassName);
             m_TitleLabel = this.Q<Label>(k_InspectorPageTitleClassName);
 
+            // Upload primary metadata container
+            m_UploadPrimaryMetadataContainer = m_ScrollView.contentContainer.Q<VisualElement>("upload-primary-metadata-container");
+            m_UploadPrimaryMetadataContainer?.Add(new UploadPrimaryMetadataContainer(m_PageManager, m_AssetDataManager));
+
             // Upload metadata container
-            m_UploadMetadataContainer = m_ScrollView.contentContainer.Q<VisualElement>("upload-metadata-container");
-            m_UploadMetadataContainer.Add(new UploadMetadataContainer(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider, m_LinksProxy));
-            RefreshUploadMetadataContainer(); // Hide the container by default
+            m_UploadCustomMetadataContainer = m_ScrollView.contentContainer.Q<VisualElement>("upload-metadata-container");
+            m_UploadCustomMetadataContainer?.Add(new UploadMetadataContainer(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider, m_LinksProxy));
+
+            RefreshUploadMetadataContainer(); // Hide the metadata containers by default
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
@@ -84,12 +90,12 @@ namespace Unity.AssetManager.UI.Editor
                 .StartingIn(25);
         }
 
-        protected void RefreshUploadMetadataContainer()
+        protected virtual void RefreshUploadMetadataContainer()
         {
-            if(m_UploadMetadataContainer == null || m_PageManager?.ActivePage == null)
+            if(m_UploadCustomMetadataContainer == null || m_PageManager?.ActivePage == null)
                 return;
 
-            UIElementsUtils.SetDisplay(m_UploadMetadataContainer,
+            UIElementsUtils.SetDisplay(m_UploadCustomMetadataContainer,
                 ((BasePage)m_PageManager.ActivePage).DisplayUploadMetadata);
         }
 
@@ -142,6 +148,8 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_PageManager.ActivePage.ClearSelection();
         }
+
+        public abstract void EnableEditing(bool enable);
 
         protected abstract void OnOperationProgress(AssetDataOperation operation);
         protected abstract void OnOperationFinished(AssetDataOperation operation);

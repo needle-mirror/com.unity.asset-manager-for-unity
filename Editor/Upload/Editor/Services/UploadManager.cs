@@ -97,7 +97,7 @@ namespace Unity.AssetManager.Upload.Editor
                 }
 
                 // Prepare the IAssets
-                var createAssetTasks = await TaskUtils.RunAllTasks(assetEntriesWithAllDependencies,
+                var createAssetTasks = await TaskUtils.RunAllTasksBatched(assetEntriesWithAllDependencies,
                     (uploadEntry) =>
                     {
                         var operation = StartNewOperation(uploadEntry);
@@ -125,7 +125,7 @@ namespace Unity.AssetManager.Upload.Editor
                 token.ThrowIfCancellationRequested();
 
                 // Prepare a cloud asset for every asset entry that we want to upload
-                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup,
+                await TaskUtils.RunAllTasksBatched(uploadEntryToAssetUploadInfoLookup,
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
@@ -134,23 +134,35 @@ namespace Unity.AssetManager.Upload.Editor
                     });
 
                 // Upload the assets
-                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup,
+                var uploadTasks = await TaskUtils.RunAllTasksBatchedWithHandledExceptions(uploadEntryToAssetUploadInfoLookup,
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
                         return UploadAssetAsync(entry.Value, operation, token);
                     });
 
+                if (uploadTasks.Any(t => t.IsFaulted))
+                {
+                    Debug.LogWarning("Some uploads failed. Upload process will be cancelled and created assets will be removed.");
+                    throw new OperationCanceledException(); // we throw a cancel exception to re-use the cleanup code in the catch block
+                }
+
                 // Update the dependencies after the upload
-                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup,
+                var updateTasks = await TaskUtils.RunAllTasksBatchedWithHandledExceptions(uploadEntryToAssetUploadInfoLookup,
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
                         return UpdateDependenciesAsync(operation, entry.Value.TargetAssetData, token);
                     });
 
+                if (updateTasks.Any(t => t.IsFaulted))
+                {
+                    Debug.LogWarning("Some dependencies update failed. Upload process will be cancelled and created assets will be removed.");
+                    throw new OperationCanceledException(); // we throw a cancel exception to re-use the cleanup code in the catch block
+                }
+
                 // Track the assets
-                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup,
+                await TaskUtils.RunAllTasksBatched(uploadEntryToAssetUploadInfoLookup,
                     (entry) =>
                     {
                         return TrackAsset(entry.Value.UploadAsset, entry.Value.TargetAssetData, token);
@@ -203,7 +215,7 @@ namespace Unity.AssetManager.Upload.Editor
                     assetPaths = assetPaths.Append((originalPath: f.DestinationPath, f.SourcePath, null));
                 }
 
-                BaseAssetData assetData;
+                var assetData = asset;
                 try
                 {
                     var cloudAsset = await m_AssetsProvider.GetAssetAsync(asset.Identifier, token);
@@ -223,8 +235,7 @@ namespace Unity.AssetManager.Upload.Editor
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError("Error while trying to track the asset from the cloud: " + e.Message);
-                    assetData = asset;
+                    Debug.LogError($"Error while trying get track data for cloud asset {asset.Name}\n{e.Message}");
                 }
 
                 await m_ImportTracker.TrackAssets(assetPaths, assetData);
@@ -385,6 +396,7 @@ namespace Unity.AssetManager.Upload.Editor
             var assetCreation = new AssetCreation
             {
                 Name = uploadAsset.Name,
+                Description = uploadAsset.Description,
                 Collections = string.IsNullOrEmpty(targetCollection) ? null : new List<string> { new(targetCollection) },
                 Type = uploadAsset.AssetType,
                 Tags = uploadAsset.Tags.ToList(),
@@ -407,6 +419,7 @@ namespace Unity.AssetManager.Upload.Editor
             var assetUpdate = new AssetUpdate
             {
                 Name = uploadAsset.Name,
+                Description = uploadAsset.Description,
                 Type = uploadAsset.AssetType,
                 Tags = uploadAsset.Tags.ToList(),
             };

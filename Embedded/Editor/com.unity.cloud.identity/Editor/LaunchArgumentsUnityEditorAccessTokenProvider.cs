@@ -56,7 +56,7 @@ namespace Unity.Cloud.IdentityEmbedded.Editor
         async Task GetDeviceTokenFromCredential() {
             var loginCredentials = new LoginCredentials() { username = m_Username, password = m_Password, grant_type = "password" };
             var httpClient = new UnityHttpClient();
-            var response = await httpClient.PostAsync($"https://{m_UnitySubdomain}.unity.com/v1/core/api/login", new StringContent(JsonSerialization.Serialize(loginCredentials), Encoding.UTF8, "application/json"));
+            using var response = await httpClient.PostAsync($"https://{m_UnitySubdomain}.unity.com/v1/core/api/login", new StringContent(JsonSerialization.Serialize(loginCredentials), Encoding.UTF8, "application/json"));
 
             var loginTokenJson = await response.JsonDeserializeAsync<LoginTokenJson>();
             m_DeviceToken = new DeviceToken(loginTokenJson.refresh_token, loginTokenJson.access_token,

@@ -164,6 +164,18 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
+        public void OnAssetSelectionEdited(AssetFieldEdit assetFieldEdit)
+        {
+            m_UploadStaging.AddEdit(assetFieldEdit);
+            RefreshLocalStatus(false);
+        }
+
+        public void OnAssetSelectionEdited(IEnumerable<AssetFieldEdit> assetFieldEdits)
+        {
+            m_UploadStaging.AddEdits(assetFieldEdits);
+            RefreshLocalStatus(false);
+        }
+
         public override void OnEnable()
         {
             base.OnEnable();
@@ -345,8 +357,6 @@ namespace Unity.AssetManager.UI.Editor
 
         void Reload()
         {
-            m_SelectionToRestore = SelectedAssets.ToList();
-
             Utilities.DevLog("Analysing Selection for upload to cloud...");
 
             m_DialogManager?.DisplayProgressBar("Analysing Assets For Upload...", 0f);
@@ -364,9 +374,10 @@ namespace Unity.AssetManager.UI.Editor
                 {
                     Utilities.DevLogException(e);
                 }
-            });
+            }, m_SettingsManager.IsUploadDependenciesUsingLatestLabel);
 
-            Clear(true);
+            LoadMore(clear: true, clearSelection: true);
+            m_SelectionToRestore = SelectedAssets.ToList();
 
             RefreshStagingStatus(0.5f);
         }
@@ -386,17 +397,20 @@ namespace Unity.AssetManager.UI.Editor
             }, default));
         }
 
-        public void RefreshLocalStatus()
+        public void RefreshLocalStatus(bool displayProgressBar = true)
         {
             TaskUtils.TrackException(m_UploadStaging.RefreshStatusAsync(checkWithCloud: false, (info, progress) =>
             {
-                if (progress >= 1f)
+                if (displayProgressBar)
                 {
-                    m_DialogManager?.ClearProgressBar();
-                }
-                else
-                {
-                    m_DialogManager?.DisplayProgressBar("Resolving asset statuses", progress, info);
+                    if (progress >= 1f)
+                    {
+                        m_DialogManager?.ClearProgressBar();
+                    }
+                    else
+                    {
+                        m_DialogManager?.DisplayProgressBar("Resolving asset statuses", progress, info);
+                    }
                 }
             }, default));
         }
@@ -448,7 +462,7 @@ namespace Unity.AssetManager.UI.Editor
                 mode =>
                 {
                     m_UploadStaging.DependencyMode = mode;
-                    Reload();
+                    OnDependencyModeChanged(mode);
                 }, UploadSettings.GetDependencyModeTooltip);
 
             foldout.Add(dependencyModeDropdown);
@@ -479,6 +493,14 @@ namespace Unity.AssetManager.UI.Editor
             foldout.Add(resetButton);
 
             return settingsPanel;
+        }
+
+        void OnDependencyModeChanged(UploadDependencyMode mode)
+        {
+            if (mode == UploadDependencyMode.Embedded)
+                Debug.LogWarning("The option to embed dependencies is being deprecated and will be removed in a future version.");
+
+            Reload();
         }
 
         DropdownField CreateEnumDropdown<TEnum>(string name, TEnum defaultValue, Action<TEnum> onValueChanged, Func<TEnum, string> tooltipProvider) where TEnum : Enum
@@ -770,17 +792,7 @@ namespace Unity.AssetManager.UI.Editor
             Reload(); // Recalculate the upload asset data
         }
 
-        public void AddMetadata(IEnumerable<(UploadAssetData, IMetadata)> toAddOrReplace)
-        {
-            foreach (var addOrReplace in toAddOrReplace)
-            {
-                m_UploadStaging.AddMetadata(addOrReplace.Item1.Identifier, addOrReplace.Item2);
-            }
-
-            RefreshLocalStatus();
-        }
-
-        public void RemoveMetadata(IEnumerable<UploadAssetData> uploadAssets, string fieldKey)
+        public void RemoveCustomMetadata(IEnumerable<UploadAssetData> uploadAssets, string fieldKey)
         {
             foreach (var uploadAssetData in uploadAssets)
             {

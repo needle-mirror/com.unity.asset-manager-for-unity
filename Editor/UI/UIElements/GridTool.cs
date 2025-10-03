@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
-    class GridTool : VisualElement
+    abstract class GridTool : VisualElement
     {
         protected readonly IPageManager m_PageManager;
         protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
@@ -36,10 +36,7 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
         }
 
-        protected virtual void OnActivePageChanged(IPage page)
-        {
-            InitDisplay(page);
-        }
+        protected abstract void OnActivePageChanged(IPage page);
 
         protected virtual void InitDisplay(IPage page)
         {

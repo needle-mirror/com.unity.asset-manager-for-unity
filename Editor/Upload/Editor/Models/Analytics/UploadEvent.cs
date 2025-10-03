@@ -76,6 +76,11 @@ namespace Unity.AssetManager.Upload.Editor
             public bool UseLatestDependencies;
 
             /// <summary>
+            /// Number of assets with modifications to their primary metadata fields (name, desc, tags, etc)
+            /// </summary>
+            public int AssetsWithModifiedFieldsCount;
+
+            /// <summary>
             /// Information about the custom metadata fields added or modified in the uploaded assets
             /// </summary>
             public CustomMetadataInfo CustomMetadataInfo;
@@ -89,7 +94,7 @@ namespace Unity.AssetManager.Upload.Editor
 
         internal readonly UploadEventData m_Data;
 
-        internal UploadEvent(int fileCount, string[] fileExtensions, UploadSettings settings, CustomMetadataInfo customMetadataInfo)
+        internal UploadEvent(int fileCount, string[] fileExtensions, UploadSettings settings, int assetsWithModifiedFieldsCount, CustomMetadataInfo customMetadataInfo)
         {
             m_Data = new UploadEventData
             {
@@ -100,6 +105,7 @@ namespace Unity.AssetManager.Upload.Editor
                 FilePathMode = settings.FilePathMode,
                 UseCollection = settings.UseCollection,
                 UseLatestDependencies = settings.UseLatestDependencies,
+                AssetsWithModifiedFieldsCount = assetsWithModifiedFieldsCount,
                 CustomMetadataInfo = customMetadataInfo
             };
         }
@@ -107,9 +113,10 @@ namespace Unity.AssetManager.Upload.Editor
         internal static UploadEvent CreateFromUploadData(IReadOnlyCollection<IUploadAsset> uploadEntries, UploadSettings settings)
         {
             var fileExtensions = GetFileExtensionAnalytics(uploadEntries);
+            var assetsWithModifiedFieldsCount = GetNumberOfAssetsWithModifiedFields(uploadEntries);
             var customMetadataInfo = GetCustomMetadataAnalytics(uploadEntries);
 
-            return new UploadEvent(uploadEntries.Count, fileExtensions, settings, customMetadataInfo);
+            return new UploadEvent(uploadEntries.Count, fileExtensions, settings, assetsWithModifiedFieldsCount, customMetadataInfo);
         }
 
         internal static string[] GetFileExtensionAnalytics(IReadOnlyCollection<IUploadAsset> uploadEntries)
@@ -128,6 +135,11 @@ namespace Unity.AssetManager.Upload.Editor
                 })
                 .ToArray();
             return fileExtensions;
+        }
+
+        internal static int GetNumberOfAssetsWithModifiedFields(IReadOnlyCollection<IUploadAsset> uploadEntries)
+        {
+            return uploadEntries.Count(entry => entry.ComparisonResults.HasFlag(ComparisonResults.DataModified));
         }
 
         internal static CustomMetadataInfo GetCustomMetadataAnalytics(IReadOnlyCollection<IUploadAsset> uploadEntries)

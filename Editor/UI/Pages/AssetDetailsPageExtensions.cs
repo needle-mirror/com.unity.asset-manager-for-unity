@@ -69,6 +69,23 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.SetDisplay(container.parent, container.childCount > 0);
         }
 
+        public static void AddCollectionChip(this CreateProjectChip createProjectChip, VisualElement container, params string[] projectIds)
+        {
+            container.Clear();
+
+            foreach (var projectId in projectIds)
+            {
+                var projectChip = createProjectChip?.Invoke(projectId);
+
+                if (projectChip != null)
+                {
+                    container.Add(projectChip);
+                }
+            }
+
+            UIElementsUtils.SetDisplay(container.parent, container.childCount > 0);
+        }
+
         public static async Task AddUserChip(this CreateUserChip createUserChip, VisualElement container, string userId, Type searchFilterType)
         {
             container.Clear();

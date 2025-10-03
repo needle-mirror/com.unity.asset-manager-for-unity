@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
@@ -48,6 +49,7 @@ namespace Unity.AssetManager.UI.Editor
         TwoPaneSplitView m_CategoriesSplit;
         TwoPaneSplitView m_InspectorSplit;
         UpdateAllButton m_UpdateAllButton;
+        HelpBox m_SeatWarningHelpbox;
 
         AssetsGridView m_AssetsGridView;
         readonly List<SelectionInspectorPage> m_SelectionInspectorPages = new();
@@ -76,6 +78,9 @@ namespace Unity.AssetManager.UI.Editor
         readonly IDialogManager m_DialogManager;
         readonly ISettingsManager m_SettingsManager;
         readonly ISavedAssetSearchFilterManager m_SavedSearchFilterManager;
+        readonly IAssetsProvider m_AssetsProvider;
+
+        Task m_SeatWarningVisibilityTask;
 
         static int InspectorPanelLastWidth
         {
@@ -101,7 +106,8 @@ namespace Unity.AssetManager.UI.Editor
             IApplicationProxy applicationProxy,
             IDialogManager dialogManager,
             ISettingsManager settingsManager,
-            ISavedAssetSearchFilterManager savedSearchFilterManager)
+            ISavedAssetSearchFilterManager savedSearchFilterManager,
+            IAssetsProvider assetsProvider)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -122,6 +128,7 @@ namespace Unity.AssetManager.UI.Editor
             m_DialogManager = dialogManager;
             m_SettingsManager = settingsManager;
             m_SavedSearchFilterManager = savedSearchFilterManager;
+            m_AssetsProvider = assetsProvider;
         }
 
         public void OnEnable()
@@ -137,6 +144,11 @@ namespace Unity.AssetManager.UI.Editor
         public void OnDisable()
         {
             UnregisterCallbacks();
+        }
+
+        public void RefreshLoadingStatus()
+        {
+            m_LoadingScreen.SetVisible(m_ProjectOrganizationProvider.IsLoading);
         }
 
         void InitializeLayout()
@@ -171,8 +183,9 @@ namespace Unity.AssetManager.UI.Editor
                 new TwoPaneSplitView(1, k_InspectorPanelMaxWidth, TwoPaneSplitViewOrientation.Horizontal);
             m_CategoriesSplit = new TwoPaneSplitView(0, k_SidebarMinWidth, TwoPaneSplitViewOrientation.Horizontal);
 
-            m_SideBar = new SideBar(m_UnityConnect, m_StateManager, m_PageManager,
-                m_MessageManager, m_ProjectOrganizationProvider, m_SavedSearchFilterManager, m_PermissionsManager, m_CategoriesSplit);
+            m_SideBar = new SideBar(m_UnityConnect, m_StateManager, m_PageManager, m_MessageManager,
+                m_ProjectOrganizationProvider, m_AssetDataManager, m_SavedSearchFilterManager, m_PermissionsManager, m_CategoriesSplit, m_PopupManager);
+
             m_SideBar.AddToClassList("SideBarContainer");
             m_CategoriesSplit.Add(m_SideBar);
 
@@ -185,6 +198,7 @@ namespace Unity.AssetManager.UI.Editor
             tabView.AddPage<CollectionPage>(L10n.Tr(Constants.AssetsTabLabel));
             tabView.MergePage<CollectionPage, AllAssetsPage>();
             tabView.AddPage<InProjectPage>(L10n.Tr(Constants.InProjectTabLabel));
+            tabView.MergePage<InProjectPage, AllAssetsInProjectPage>();
             tabView.AddPage<UploadPage>(L10n.Tr(Constants.UploadTabLabel));
             m_SearchContentSplitViewContainer.Add(tabView);
 
@@ -200,6 +214,16 @@ namespace Unity.AssetManager.UI.Editor
             var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect, m_SettingsManager);
             storageInfoHelpBoxContainer.Add(storageInfoHelpBox);
             m_SearchContentSplitViewContainer.Add(storageInfoHelpBoxContainer);
+
+            m_SeatWarningHelpbox = new HelpBox
+            {
+                messageType = HelpBoxMessageType.Warning,
+                text = L10n.Tr(Constants.NoSeatAssignedWarning),
+                style = { display = DisplayStyle.None}
+            };
+            m_SeatWarningHelpbox.AddToClassList("HelpBoxContainer");
+
+            m_SearchContentSplitViewContainer.Add(m_SeatWarningHelpbox);
 
             // Schedule storage info to be refreshed each 30 seconds
             m_StorageInfoRefreshScheduledItem = storageInfoHelpBox.schedule.Execute(storageInfoHelpBox.RefreshCloudStorageAsync).Every(k_CloudStorageUsageRefreshMs);
@@ -223,7 +247,7 @@ namespace Unity.AssetManager.UI.Editor
             var topRightContainer = new VisualElement();
             topRightContainer.AddToClassList("unity-top-right-container");
 
-            m_UpdateAllButton= new UpdateAllButton(m_AssetImporter, m_PageManager, m_ProjectOrganizationProvider, m_ApplicationProxy);
+            m_UpdateAllButton= new UpdateAllButton(m_AssetImporter, m_PageManager, m_ProjectOrganizationProvider, m_AssetsProvider, m_ApplicationProxy);
             topRightContainer.Add(m_UpdateAllButton);
 
             topContainer.Add(topRightContainer);
@@ -275,7 +299,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_SelectionInspectorPages.Add(new AssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
                 m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy,
-                m_UnityConnect, m_ProjectIconDownloader, m_PermissionsManager, m_DialogManager));
+                m_UnityConnect, m_ProjectIconDownloader, m_PermissionsManager, m_DialogManager, m_PopupManager, m_SettingsManager));
 
             m_SelectionInspectorPages.Add(new MultiAssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
                 m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect,
@@ -389,6 +413,9 @@ namespace Unity.AssetManager.UI.Editor
                 var inspectorPageToShow = m_SelectionInspectorPages.Find(page => page.IsVisible(validAssets.Count));
                 TaskUtils.TrackException(inspectorPageToShow?.SelectedAsset(validAssets));
                 UIElementsUtils.Show(inspectorPageToShow);
+
+                var isPageEditable = m_PageManager.ActivePage is UploadPage;
+                inspectorPageToShow?.EnableEditing(isPageEditable);
             }
             else
             {
@@ -416,6 +443,10 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.SetDisplay(m_SavedViewControls, basePage.DisplaySavedViewControls);
             UIElementsUtils.SetDisplay(m_Sort, basePage.DisplaySort);
 
+            if(m_SeatWarningVisibilityTask is { IsCompleted: false })
+                m_SeatWarningVisibilityTask.Dispose();
+            m_SeatWarningVisibilityTask = SetSeatWarningVisibilityAsync();
+
             if (basePage.DisplaySideBar)
             {
                 m_CategoriesSplit.UnCollapse();
@@ -431,6 +462,15 @@ namespace Unity.AssetManager.UI.Editor
             {
                 m_CustomizableSection.Add(customSection);
             }
+        }
+
+        async Task SetSeatWarningVisibilityAsync()
+        {
+            if(m_ProjectOrganizationProvider.SelectedOrganization == null)
+                return;
+
+            var hasValidSeat = await m_PermissionsManager.CheckSeatValidity(m_ProjectOrganizationProvider.SelectedOrganization.Id);
+            UIElementsUtils.SetDisplay(m_SeatWarningHelpbox, !hasValidSeat);
         }
 
         void OnActivePageChanged(IPage page)
@@ -457,7 +497,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_LoginPage.Refresh();
             m_UpdateAllButton.Refresh();
-            m_LoadingScreen.SetVisible(m_ProjectOrganizationProvider.IsLoading);
+            RefreshLoadingStatus();
 
             if (!m_UnityConnect.AreCloudServicesReachable)
             {

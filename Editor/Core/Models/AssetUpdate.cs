@@ -8,6 +8,7 @@ namespace Unity.AssetManager.Core.Editor
     class AssetUpdate
     {
         public string Name { get; set; }
+        public string Description { get; set; }
         public AssetType? Type { get; set; }
         public string PreviewFile { get; set; }
 

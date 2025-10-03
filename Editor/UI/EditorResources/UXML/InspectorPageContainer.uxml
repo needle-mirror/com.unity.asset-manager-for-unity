@@ -8,11 +8,11 @@
         </ui:VisualElement>
         <ui:ScrollView name="inspector-page-scrollview" mode="Vertical" class="inspector-page-scrollview">
             <ui:VisualElement name="inspector-page-content-container" />
-            <ui:VisualElement name="upload-metadata-container" class="px-2"/>
+            <ui:VisualElement name="upload-primary-metadata-container" class="px-2" />
+            <ui:VisualElement name="upload-metadata-container" class="px-2" />
         </ui:ScrollView>
         <ui:VisualElement name="footer" class="inspector-page-footer px-2">
-            <ui:VisualElement name="footer-container" class="inspector-footer-container">
-            </ui:VisualElement>
+            <ui:VisualElement name="footer-container" class="inspector-footer-container" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

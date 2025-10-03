@@ -32,6 +32,7 @@ namespace Unity.AssetManager.UI.Editor
         static readonly string k_UploadIncludedFoldoutTitle = "Included Dependencies";
 
         readonly AssetDataSelection m_SelectedAssetsData = new();
+        bool m_IsEditingEnabled = false;
 
         public enum FoldoutName
         {
@@ -123,6 +124,17 @@ namespace Unity.AssetManager.UI.Editor
             RefreshUI();
         }
 
+        protected override void RefreshUploadMetadataContainer()
+        {
+            base.RefreshUploadMetadataContainer();
+
+            if(m_UploadPrimaryMetadataContainer == null || m_PageManager?.ActivePage == null)
+                return;
+
+            UIElementsUtils.SetDisplay(m_UploadPrimaryMetadataContainer,
+                ((BasePage)m_PageManager.ActivePage).DisplayUploadMetadata && m_IsEditingEnabled);
+        }
+
         void CancelOrClearImport()
         {
             var operations = new List<AssetDataOperation>();
@@ -169,6 +181,12 @@ namespace Unity.AssetManager.UI.Editor
 
             RefreshScrollView();
             return Task.CompletedTask;
+        }
+
+        public override void EnableEditing(bool enable)
+        {
+            m_IsEditingEnabled =  enable;
+            RefreshUploadMetadataContainer();
         }
 
         protected override void OnOperationProgress(AssetDataOperation operation)

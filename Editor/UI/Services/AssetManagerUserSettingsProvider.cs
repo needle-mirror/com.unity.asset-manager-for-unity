@@ -55,6 +55,8 @@ namespace Unity.AssetManager.UI.Editor
         const string k_UploadDependenciesHelpBox = "uploadDependenciesHelpBox";
         const string k_DisableReimportModalLabel = "disableReimportModalLabel";
         const string k_DisableReimportModalToggle = "disableReimportModalToggle";
+        const string k_DependencyVersionSelectionLabel = "dependencyVersionSelectionLabel";
+        const string k_DependencyVersionSelectionToggle = "dependencyVersionSelectionToggle";
 
         const string k_ProjectWindowSettingsFoldout = "projectWindowSettingsFoldout";
         const string k_ProjectWindowShowIconOverlayLabel = "projectWindowShowIconOverlayLabel";
@@ -275,6 +277,16 @@ namespace Unity.AssetManager.UI.Editor
             uploadDependenciesWithLatestToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
             {
                 m_SettingsManager.SetUploadDependenciesUsingLatestLabel(evt.newValue);
+            });
+
+            var dependencyVersionSelectionLabel = rootElement.Q<Label>(k_DependencyVersionSelectionLabel);
+            dependencyVersionSelectionLabel.text = L10n.Tr(Constants.DependencyVersionSelectionLabel);
+            var dependencyVersionSelectionToggle = rootElement.Q<Toggle>(k_DependencyVersionSelectionToggle);
+            dependencyVersionSelectionToggle.tooltip = L10n.Tr(Constants.DependencyVersionSelectionTooltip);
+            dependencyVersionSelectionToggle.value = m_SettingsManager.IsDependencyVersionSelectionEnabled;
+            dependencyVersionSelectionToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
+            {
+                m_SettingsManager.SetDependencyVersionSelectionEnabled(evt.newValue);
             });
 
             var uploadDependenciesHelpBox = rootElement.Q<HelpBox>(k_UploadDependenciesHelpBox);

@@ -10,24 +10,22 @@ namespace Unity.AssetManager.UI.Editor
     {
         protected const string k_UnityListViewItemSelected = "unity-list-view__item--selected";
         protected const string k_CheckMarkName = "unity-checkmark";
-        protected const string k_ToggleInputUssClassName = "unity-toggle__input";
+        protected const string k_EmptyFoldoutClassName = "sidebar-content-empty";
+        const string k_ToggleInputUssClassName = "unity-toggle__input";
 
         VisualElement m_CheckMark;
 
-        protected readonly IPageManager m_PageManager;
-        protected readonly IUnityConnectProxy m_UnityConnectProxy;
         protected readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         protected readonly IStateManager m_StateManager;
         protected readonly IMessageManager m_MessageManager;
-        protected bool m_HasChild;
         protected Toggle m_Toggle;
 
-        protected SideBarFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager,
-            IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            string foldoutName)
+        protected bool m_HasChild;
+        protected bool m_IsPopulated;
+
+        protected SideBarFoldout(IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            string foldoutName, bool isPopulated)
         {
-            m_UnityConnectProxy = unityConnectProxy;
-            m_PageManager = pageManager;
             m_StateManager = stateManager;
             m_MessageManager = messageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -43,50 +41,32 @@ namespace Unity.AssetManager.UI.Editor
 
             var iconParent = this.Q(className: inputUssClassName);
             iconParent.pickingMode = PickingMode.Ignore;
-            iconParent.Insert(1, new ToolbarSpacer { pickingMode = PickingMode.Ignore, style = { flexShrink = 0 } });
-            iconParent.Insert(1, new Image { pickingMode = PickingMode.Ignore, style = { flexShrink = 0 } });
+            iconParent.Insert(1, new ToolbarSpacer {pickingMode = PickingMode.Ignore, style = {flexShrink = 0}});
+            iconParent.Insert(1, new Image {pickingMode = PickingMode.Ignore, style = {flexShrink = 0}});
 
             MakeFolderOnlyOpenOnCheckMarkClick();
             AddToClassList("removed-arrow");
 
-            RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
-            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+            SetPopulatedState(isPopulated);
         }
 
-        void OnAttachToPanel(AttachToPanelEvent evt)
+        public virtual void SetSelected(bool selected) { }
+
+        public void SetPopulatedState(bool isPopulated)
         {
-            m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
-            OnActivePageChanged(m_PageManager.ActivePage);
-            m_PageManager.ActivePageChanged += OnActivePageChanged;
-            m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
+            m_IsPopulated = isPopulated;
+
+            // Don't override selection style
+            if (!m_Toggle.ClassListContains(k_UnityListViewItemSelected))
+            {
+                m_Toggle.EnableInClassList(k_EmptyFoldoutClassName, !m_IsPopulated);
+            }
         }
-
-        void OnDetachFromPanel(DetachFromPanelEvent evt)
-        {
-            m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
-            m_PageManager.ActivePageChanged -= OnActivePageChanged;
-            m_ProjectOrganizationProvider.ProjectSelectionChanged -= OnProjectSelectionChanged;
-        }
-
-        void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
-        {
-            OnActivePageChanged(m_PageManager.ActivePage);
-        }
-
-        protected virtual void OnActivePageChanged(IPage page) { }
-
-        protected virtual void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo) { }
 
         public virtual void AddFoldout(SideBarCollectionFoldout child)
         {
             Add(child);
-            child.RefreshSelectionStatus();
 
-            ChangeIntoParentFolder();
-        }
-
-        void ChangeIntoParentFolder()
-        {
             if (m_HasChild)
                 return;
 

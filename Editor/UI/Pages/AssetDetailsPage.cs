@@ -20,9 +20,16 @@ namespace Unity.AssetManager.UI.Editor
         void RefreshButtons(UIEnabledStates enabled, BaseAssetData assetData, BaseOperation operationInProgress);
     }
 
+    interface IEditableComponent
+    {
+        bool IsEditingEnabled { get; }
+        void EnableEditing(bool enable);
+    }
+
     class AssetDetailsPage : SelectionInspectorPage
     {
         readonly IEnumerable<IPageComponent> m_PageComponents;
+        readonly IEnumerable<IEditableComponent> m_EditableComponents;
 
         VisualElement m_NoFilesWarningBox;
         VisualElement m_SameFileNamesWarningBox;
@@ -65,22 +72,25 @@ namespace Unity.AssetManager.UI.Editor
         readonly Action<string> SetFileSize;
         readonly Action<string> SetPrimaryExtension;
         readonly Action<BaseAssetData> AssetDependenciesUpdated;
+        readonly Action<BaseAssetData, bool> LocalStatusUpdated;
         Action<Type, List<string>> ApplyFilter;
 
         public AssetDetailsPage(IAssetImporter assetImporter, IAssetOperationManager assetOperationManager,
             IStateManager stateManager, IPageManager pageManager, IAssetDataManager assetDataManager,
             IAssetDatabaseProxy assetDatabaseProxy, IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, IProjectIconDownloader projectIconDownloader,
-            IPermissionsManager permissionsManager, IDialogManager dialogManager)
+            IPermissionsManager permissionsManager, IDialogManager dialogManager, IPopupManager popupManager, ISettingsManager settingsManager)
             : base(assetImporter, assetOperationManager, stateManager, pageManager, assetDataManager,
                 assetDatabaseProxy, projectOrganizationProvider, linksProxy, unityConnectProxy, projectIconDownloader,
                 permissionsManager, dialogManager)
         {
             BuildUxmlDocument();
 
-            var header = new AssetDetailsHeader(this);
+            var header = new AssetDetailsHeader(this, assetDataManager);
             header.OpenDashboard += LinkToDashboard;
             header.CanOpenDashboard += () => m_LinksProxy.CanOpenAssetManagerDashboard;
+            header.FieldEdited += OnFieldEdited;
+
 
             var footer = new AssetDetailsFooter(this, m_DialogManager);
             footer.CancelOperation += CancelOrClearImport;
@@ -92,10 +102,12 @@ namespace Unity.AssetManager.UI.Editor
             footer.StopTrackingOnlySelected += StopTrackingOnlyAsset;
             PreviewStatusUpdated += footer.UpdatePreviewStatus;
 
-            var detailsTab = new AssetDetailsTab(m_ScrollView.contentContainer, IsAnyFilterActive, m_PageManager, m_StateManager);
+            var detailsTab = new AssetDetailsTab(m_ScrollView.contentContainer, IsAnyFilterActive, m_PageManager, m_StateManager, popupManager, settingsManager, projectOrganizationProvider, assetDataManager);
             detailsTab.CreateProjectChip += CreateProjectChip;
             detailsTab.CreateUserChip += CreateUserChip;
             detailsTab.ApplyFilter += OnFilterModified;
+            detailsTab.FieldEdited += OnFieldEdited;
+
             PreviewStatusUpdated += detailsTab.UpdatePreviewStatus;
             AssetDataAttributesUpdated += detailsTab.UpdateStatusWarning;
             PreviewImageUpdated += detailsTab.SetPreviewImage;
@@ -105,6 +117,7 @@ namespace Unity.AssetManager.UI.Editor
             SetFileSize += detailsTab.SetFileSize;
             SetPrimaryExtension += detailsTab.SetPrimaryExtension;
             AssetDependenciesUpdated += detailsTab.UpdateDependencyComponent;
+            LocalStatusUpdated += header.RefreshUI;
 
             var versionsTab = new AssetVersionsTab(m_ScrollView.contentContainer, m_DialogManager);
             versionsTab.CreateUserChip += CreateUserChip;
@@ -127,6 +140,12 @@ namespace Unity.AssetManager.UI.Editor
                 versionsTab,
             };
 
+            m_EditableComponents = new IEditableComponent[]
+            {
+                header,
+                detailsTab
+            };
+
             RefreshUI();
         }
 
@@ -143,8 +162,9 @@ namespace Unity.AssetManager.UI.Editor
             m_ScrollView = this.Q<ScrollView>("details-page-scrollview");
 
             // Upload metadata container
-            m_UploadMetadataContainer = m_ScrollView.Q<VisualElement>("upload-metadata-container");
-            m_UploadMetadataContainer.Add(new UploadMetadataContainer(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider, m_LinksProxy));
+            m_UploadCustomMetadataContainer = m_ScrollView.Q<VisualElement>("upload-metadata-container");
+            m_UploadCustomMetadataContainer.Add(new UploadMetadataContainer(m_PageManager, m_AssetDataManager, m_ProjectOrganizationProvider, m_LinksProxy));
+
             RefreshUploadMetadataContainer(); // Hide the container by default
 
             m_FilesFoldoutContainer = m_ScrollView.Q("files-container");
@@ -182,6 +202,14 @@ namespace Unity.AssetManager.UI.Editor
             m_CloseButton.clicked -= OnCloseButton;
 
             ApplyFilter -= OnFilterModified;
+        }
+
+        public override void EnableEditing(bool enable)
+        {
+            foreach (var editableComponent in m_EditableComponents)
+            {
+                editableComponent.EnableEditing(enable);
+            }
         }
 
         protected override void OnOperationProgress(AssetDataOperation operation)
@@ -234,6 +262,26 @@ namespace Unity.AssetManager.UI.Editor
         void OnFilterModified(IEnumerable<string> filterValue)
         {
             m_PageManager.PageFilterStrategy.AddSearchFilter(filterValue);
+        }
+
+        void OnFieldEdited(AssetFieldEdit assetFieldEdit)
+        {
+            switch (assetFieldEdit.Field)
+            {
+                case EditField.Name:
+                    (SelectedAssetData as UploadAssetData)?.SetName(assetFieldEdit.EditValue as string);
+                    break;
+                case EditField.Description:
+                    (SelectedAssetData as UploadAssetData)?.SetDescription(assetFieldEdit.EditValue as string);
+                    break;
+                case EditField.Tags:
+                    (SelectedAssetData as UploadAssetData)?.SetTags(assetFieldEdit.EditValue as IEnumerable<string>);
+                    break;
+                // TODO: Status
+            }
+
+            var uploadPage = m_PageManager.ActivePage as UploadPage;
+            uploadPage?.OnAssetSelectionEdited(assetFieldEdit);
         }
 
         void LinkToDashboard()
@@ -402,6 +450,9 @@ namespace Unity.AssetManager.UI.Editor
                 case AssetDataEventType.DependenciesChanged:
                     AssetDependenciesUpdated?.Invoke(SelectedAssetData);
                     break;
+                case AssetDataEventType.LocalStatusChanged:
+                    LocalStatusUpdated?.Invoke(SelectedAssetData, false);
+                    break;
             }
         }
 
@@ -410,10 +461,7 @@ namespace Unity.AssetManager.UI.Editor
             if (SelectedAssetData == null)
                 return;
 
-            foreach (var component in m_PageComponents)
-            {
-                component.RefreshUI(SelectedAssetData, isLoading);
-            }
+            RefreshPageComponents(isLoading);
 
             PreviewStatusUpdated?.Invoke(AssetDataStatus.GetOverallStatus(SelectedAssetData.AssetDataAttributeCollection));
 
@@ -429,6 +477,17 @@ namespace Unity.AssetManager.UI.Editor
             {
                 var operation = m_AssetOperationManager.GetAssetOperation(SelectedAssetData.Identifier);
                 RefreshButtons(SelectedAssetData, operation);
+            }
+        }
+
+        void RefreshPageComponents(bool isLoading = false)
+        {
+            if (SelectedAssetData == null)
+                return;
+
+            foreach (var component in m_PageComponents)
+            {
+                component.RefreshUI(SelectedAssetData, isLoading);
             }
         }
 
@@ -459,7 +518,8 @@ namespace Unity.AssetManager.UI.Editor
             {
                 SelectedAssetData.GetThumbnailAsync(),
                 SelectedAssetData.RefreshAssetDataAttributesAsync(),
-                SelectedAssetData.RefreshLinkedProjectsAsync()
+                SelectedAssetData.RefreshLinkedProjectsAsync(),
+                SelectedAssetData.RefreshLinkedCollectionsAsync()
             };
             if (requiresLoading)
             {

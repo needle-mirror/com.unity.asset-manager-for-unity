@@ -34,11 +34,7 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.Hide(m_SaveCurrentFilterButton);
 
             m_ProjectOrganizationProvider = projectOrganizationProvider;
-            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
-
             m_PageManager = pageManager;
-            m_PageManager.ActivePageChanged += OnActivePageChanged;
-            OnActivePageChanged(m_PageManager.ActivePage);
 
             m_SavedSearchFilterManager = savedSearchFilterManager;
             m_SavedSearchFilterManager.FilterSelected += OnFilterSelected;
@@ -48,15 +44,14 @@ namespace Unity.AssetManager.UI.Editor
             RebuildSavedViewItemsList();
         }
 
-        void OnOrganizationChanged(OrganizationInfo _)
+        public void Refresh()
         {
             RebuildSavedViewItemsList();
         }
 
-        void OnActivePageChanged(IPage page)
+        public void SetDisplay(bool isDisplayed)
         {
-            var displayed = page is BasePage {DisplaySavedViewControls: true} basePage;
-            UIElementsUtils.SetDisplay(this, displayed);
+            UIElementsUtils.SetDisplay(this, isDisplayed);
         }
 
         void OnFilterSelected(SavedAssetSearchFilter filter, bool _)

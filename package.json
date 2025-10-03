@@ -1,9 +1,9 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "unity": "2022.3",
-  "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.",
+  "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.\n\nTo open the Asset Manager for Unity window once the package is installed, go to the top left menu bar, select <b>Window > Asset Manager</b>.",
   "keywords": [
     "asset",
     "packages",
@@ -20,18 +20,18 @@
     "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.7.0"
+    "com.unity.asset-manager-for-unity.tests": "1.8.0"
   },
   "_upm": {
-    "changelog": "[Added]\n- Added debugging logs in the import process. Can be enabled using the \"Enable debug logs\" in the Preferences.\n- Add the ability to retrieve programmatically the Unity GUIDs associated to an imported asset via the new `AssetManagerClient.GetImportedAssetGUIDs` method.\n- Added a new organization selector in the Asset Manager window.\n\n[Fixed]\n- Fix error when uploading assets with circular dependencies."
+    "changelog": "[Added]\n- Added the ability to edit asset metadata (name, description, tags) in the Upload page.\n- Added info about asset collections in the details tab. Selecting a collection will redirect to the collection on the Assets page.\n- Added capacity to select organization labels when settings dependencies version in the upload tab.\n- Added the ability to select any fixed versions or available version labels to dependencies during upload, this setting needs to be enabled from the preferences.\n- Added a warning for when the user's seat is either absent or does not fit the organization entitlements.\n- Added the user's role in the organization selection dropdown.\n\n[Changed]\n- When an error happens during the file upload step of assets upload, the upload operation is cancelled and reverted.\n- 'In Project' tab assets can be navigated by project and collection.\n\n[Fixed]\n- Fixed preview not showing when a user is lacking permission or doesn't have the right seat in the organization.\n- Fixed a file sharing problem that could happen during import on Windows."
   },
   "upmCi": {
-    "footprint": "dd33f1bbcf4bb5460b71ceefea70f8546db3fad8"
+    "footprint": "8c72ea7b7a61cccce7e379a53f182ccea6807dc4"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.7/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.8/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "5e97f678970544b5d25637288be26cc8a405a85d"
+    "revision": "cc9146912feed50aaf9c9db8f866637a9f644664"
   }
 }

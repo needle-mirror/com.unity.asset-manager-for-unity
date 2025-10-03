@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using AuthenticationState = Unity.AssetManager.Core.Editor.AuthenticationState;
@@ -11,9 +13,15 @@ namespace Unity.AssetManager.UI.Editor
     class SideBarOrganizationSelector : VisualElement
     {
         const string k_UssClassName = "unity-org-selector";
-        const string k_DropdownUssClassName = k_UssClassName + "-dropdown";
+        const string k_ButtonUssClassName = k_UssClassName + "-button";
+        const string k_OrganizationChoice = k_UssClassName + "-choice";
+        const string k_OrganizationChoiceSeparatorLine = k_UssClassName + "-choice-separator-line";
+        const string k_OrganizationChoiceText = k_UssClassName + "-choice-text";
+        const string k_OrganizationChoiceRoleContainer = k_UssClassName + "-choice-role-container";
+        const string k_OrganizationChoiceRole = k_OrganizationChoice + "-role";
+        const string k_OrganizationChoiceSeatWarning = k_OrganizationChoice + "-seat-warning";
         const string k_DefaultOrgTooltip = "If configured, the Organization linked within " +
-            "the Project Settings will display at the top of the Organization List.";
+                                           "the Project Settings will display at the top of the Organization List.";
 
         [SerializeReference]
         IPermissionsManager m_PermissionsManager;
@@ -24,11 +32,19 @@ namespace Unity.AssetManager.UI.Editor
         [SerializeReference]
         IUnityConnectProxy m_UnityConnectProxy;
 
-        SeparatorDropdownMenu m_OrganizationDropdownMenu;
+        IPopupManager m_PopupManager;
+        Button m_OrganizationButton;
+        TextElement m_OrganizationButtonText;
 
         Dictionary<string, NameAndId> m_OrganizationOptions = new();
+        Dictionary<string, Role> m_OrganizationRoles = new();
+        Dictionary<string, bool> m_OrganizationSeatValidity = new();
+        Dictionary<string, Task> m_FetchOrganizationsTasks = new();
+        string m_LinkedOrganizationName;
 
-        public SideBarOrganizationSelector(IPermissionsManager permissionsManager, IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnectProxy)
+        public SideBarOrganizationSelector(IPermissionsManager permissionsManager,
+            IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnectProxy,
+            IPopupManager popupManager)
         {
             m_PermissionsManager = permissionsManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
@@ -37,6 +53,7 @@ namespace Unity.AssetManager.UI.Editor
             m_PermissionsManager.AuthenticationStateChanged += OnAuthenticationStateChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_UnityConnectProxy.OrganizationIdChanged += RefreshDropdown;
+            m_PopupManager = popupManager;
 
             InitializeUI();
         }
@@ -45,14 +62,11 @@ namespace Unity.AssetManager.UI.Editor
         {
             if (authenticationState == AuthenticationState.LoggedIn)
             {
-                m_OrganizationDropdownMenu.style.display = DisplayStyle.Flex;
-                _ = PopulateDropdown();
+                _ = FetchOrganizationsData();
             }
             else
             {
                 ClearDropdown();
-                m_OrganizationDropdownMenu.SetEnabled(false);
-                m_OrganizationDropdownMenu.style.display = DisplayStyle.None;
             }
 
         }
@@ -64,20 +78,48 @@ namespace Unity.AssetManager.UI.Editor
 
         void RefreshDropdown()
         {
-            _ = PopulateDropdown();
+            _ = FetchOrganizationsData();
         }
 
         void InitializeUI()
         {
             AddToClassList(k_UssClassName);
 
-            m_OrganizationDropdownMenu = new SeparatorDropdownMenu(tooltip: k_DefaultOrgTooltip);
-            m_OrganizationDropdownMenu.AddToClassList(k_DropdownUssClassName);
-            m_OrganizationDropdownMenu.RegisterValueChangedCallback(OnSelectionChanged);
-            Add(m_OrganizationDropdownMenu);
+            m_OrganizationButton = new Button
+            {
+                tooltip = k_DefaultOrgTooltip
+            };
+            m_OrganizationButton.AddToClassList(k_ButtonUssClassName);
+
+            var caret = new VisualElement();
+            caret.AddToClassList("unity-org-selector-caret");
+
+            m_OrganizationButtonText = new TextElement();
+            m_OrganizationButtonText.text = L10n.Tr(Constants.LoadingText);
+            m_OrganizationButtonText.AddToClassList("unity-text-element");
+            m_OrganizationButton.Add(m_OrganizationButtonText);
+
+            m_OrganizationButton.Add(caret);
+            Add(m_OrganizationButton);
 
             if (m_PermissionsManager.AuthenticationState == AuthenticationState.LoggedIn)
-                _ = PopulateDropdown();
+                _ = FetchOrganizationsData();
+
+            m_OrganizationButton.RegisterCallback<ClickEvent>( evt =>
+            {
+                if (m_OrganizationOptions.Count <= 1)
+                    return;
+
+                BuildOrganizationSelection();
+                m_PopupManager.Show(m_OrganizationButton, PopupContainer.PopupAlignment.BottomLeft);
+                m_OrganizationButton.tooltip = null;
+            });
+
+            m_PopupManager.Container.RegisterCallback<GeometryChangedEvent>(evt =>
+            {
+                if (m_PopupManager.Container.style.display == DisplayStyle.None && string.IsNullOrEmpty(m_OrganizationButton.tooltip))
+                    m_OrganizationButton.tooltip = k_DefaultOrgTooltip;
+            });
         }
 
         void OnSelectionChanged(string organizationName)
@@ -88,65 +130,152 @@ namespace Unity.AssetManager.UI.Editor
             AnalyticsSender.SendEvent(new OrganizationSelectedEvent());
         }
 
-        async Task PopulateDropdown()
+        async Task FetchOrganizationsData()
         {
             ClearDropdown();
 
             m_OrganizationOptions = new Dictionary<string, NameAndId>();
             await foreach (var organization in m_ProjectOrganizationProvider.ListOrganizationsAsync())
+            {
                 m_OrganizationOptions[organization.Name] = organization;
-
-            var multipleOrgOptions = m_OrganizationOptions.Count > 1;
+                if (!m_FetchOrganizationsTasks.ContainsKey(organization.Name))
+                    m_FetchOrganizationsTasks[organization.Name] = FetchOrganizationRoleAndEntitlements(organization.Name, organization.Id);
+            }
 
             var linkedOrganizationId = m_UnityConnectProxy.HasValidOrganizationId ? m_UnityConnectProxy.OrganizationId : null;
-            var linkedOrganizationName = string.Empty;
+            m_LinkedOrganizationName = string.Empty;
             if (linkedOrganizationId != null)
-                linkedOrganizationName = m_OrganizationOptions.Values.FirstOrDefault(o => o.Id == linkedOrganizationId).Name;
-
-            // The linked organization should be first in the list, with a separator to the rest of the options
-            var dropdownMenuItems = new List<DropdownMenuItem>();
-            if (!string.IsNullOrWhiteSpace(linkedOrganizationName))
-            {
-                dropdownMenuItems.Add(new DropdownMenuItem(linkedOrganizationName));
-
-                if (multipleOrgOptions)
-                    dropdownMenuItems.Add(new DropdownMenuItem(string.Empty, true));
-            }
-
-            if (!multipleOrgOptions)
-            {
-                m_OrganizationDropdownMenu.SetDropdownEnabled(false);
-            }
-            else
-            {
-                foreach (var organizationName in m_OrganizationOptions.Keys.OrderBy(organization => organization).ToList())
-                {
-                    if (organizationName != linkedOrganizationName)
-                        dropdownMenuItems.Add(new DropdownMenuItem(organizationName));
-                }
-
-                m_OrganizationDropdownMenu.choices = dropdownMenuItems;
-                m_OrganizationDropdownMenu.SetEnabled(true);
-                m_OrganizationDropdownMenu.SetDropdownEnabled(true);
-            }
-
+                m_LinkedOrganizationName = m_OrganizationOptions.Values.FirstOrDefault(o => o.Id == linkedOrganizationId).Name;
 
             var selectedOrganization = m_ProjectOrganizationProvider.SelectedOrganization;
             if (selectedOrganization != null)
+            {
                 SetSelectedOrganizationWithoutNotify(selectedOrganization.Name);
+            }
+        }
+
+        async Task FetchOrganizationRoleAndEntitlements(string organizationName, string organizationId)
+        {
+            if(!m_OrganizationRoles.ContainsKey(organizationName))
+                m_OrganizationRoles[organizationName] = await m_PermissionsManager.GetRoleAsync(organizationId, string.Empty);
+
+            if (!m_OrganizationSeatValidity.ContainsKey(organizationName))
+                m_OrganizationSeatValidity[organizationName] = await m_PermissionsManager.CheckSeatValidity(organizationId);
+        }
+
+        void BuildOrganizationSelection()
+        {
+            m_PopupManager.Clear();
+            var organizationSelection = new ScrollView();
+
+            if (!string.IsNullOrEmpty(m_LinkedOrganizationName))
+            {
+                var linkedOrganizationChoice = new VisualElement();
+                linkedOrganizationChoice.AddToClassList(k_OrganizationChoice);
+
+                var linkedOrganizationChoiceName = new TextElement();
+                linkedOrganizationChoiceName.AddToClassList(k_OrganizationChoiceText);
+                linkedOrganizationChoiceName.text = m_LinkedOrganizationName;
+
+                linkedOrganizationChoice.Add(linkedOrganizationChoiceName);
+
+                var linkedOrgRoleAndSeatContainer = new VisualElement();
+                linkedOrgRoleAndSeatContainer.AddToClassList(k_OrganizationChoiceRoleContainer);
+
+                var linkedOrgRoleCapsule = new TextElement();
+                if (m_OrganizationRoles.ContainsKey(m_LinkedOrganizationName))
+                {
+                    linkedOrgRoleCapsule.text = m_OrganizationRoles[m_LinkedOrganizationName].ToString();
+                    linkedOrgRoleCapsule.AddToClassList(k_OrganizationChoiceRole);
+                    linkedOrgRoleAndSeatContainer.Add(linkedOrgRoleCapsule);
+
+                    if (m_OrganizationSeatValidity.ContainsKey(m_LinkedOrganizationName) &&
+                        !m_OrganizationSeatValidity[m_LinkedOrganizationName])
+                    {
+                        //add a warning
+                        var seatWarning = new Image();
+                        seatWarning.AddToClassList(k_OrganizationChoiceSeatWarning);
+                        seatWarning.tooltip = Constants.NoSeatAssignedWarning;
+                        linkedOrgRoleAndSeatContainer.Add(seatWarning);
+                    }
+                }
+
+                linkedOrganizationChoice.Add(linkedOrgRoleAndSeatContainer);
+
+                linkedOrganizationChoice.RegisterCallback<ClickEvent>(evt =>
+                {
+                    evt.StopPropagation();
+                    OnSelectionChanged(m_LinkedOrganizationName);
+                    m_PopupManager.Hide();
+                });
+
+                organizationSelection.Add(linkedOrganizationChoice);
+
+                var line = new VisualElement();
+                line.AddToClassList(k_OrganizationChoiceSeparatorLine);
+                organizationSelection.Add(line);
+            }
+
+            foreach (var organizationName in m_OrganizationOptions.Keys.OrderBy(organization => organization).ToList())
+            {
+                if (organizationName == m_LinkedOrganizationName)
+                    continue;
+
+                var organizationChoice = new VisualElement();
+                organizationChoice.AddToClassList(k_OrganizationChoice);
+
+                var organizationChoiceName = new TextElement();
+                organizationChoiceName.AddToClassList(k_OrganizationChoiceText);
+                organizationChoiceName.text = organizationName;
+                organizationChoice.Add(organizationChoiceName);
+
+                var roleAndSeatContainer = new VisualElement();
+                roleAndSeatContainer.AddToClassList(k_OrganizationChoiceRoleContainer);
+
+                if (m_OrganizationRoles.ContainsKey(organizationName))
+                {
+                    var orgRoleCapsule = new TextElement
+                    {
+                        text = m_OrganizationRoles[organizationName].ToString()
+                    };
+                    orgRoleCapsule.AddToClassList(k_OrganizationChoiceRole);
+                    roleAndSeatContainer.Add(orgRoleCapsule);
+
+                    if (m_OrganizationSeatValidity.ContainsKey(organizationName) && !m_OrganizationSeatValidity[organizationName])
+                    {
+                        //add a warning
+                        var seatWarning = new Image();
+                        seatWarning.AddToClassList(k_OrganizationChoiceSeatWarning);
+                        seatWarning.tooltip = Constants.NoSeatAssignedWarning;
+                        roleAndSeatContainer.Add(seatWarning);
+                    }
+                }
+
+                organizationChoice.Add(roleAndSeatContainer);
+
+                organizationChoice.RegisterCallback<ClickEvent>(evt =>
+                {
+                    evt.StopPropagation();
+                    OnSelectionChanged(organizationName);
+                    m_PopupManager.Hide();
+                });
+
+
+                organizationSelection.Add(organizationChoice);
+            }
+
+            m_PopupManager.Container.Add(organizationSelection);
         }
 
         void ClearDropdown()
         {
             m_OrganizationOptions.Clear();
-            m_OrganizationDropdownMenu.choices = new();
-            m_OrganizationDropdownMenu.SetValueWithoutNotify(string.Empty);
         }
 
         void SetSelectedOrganizationWithoutNotify(string organizationName)
         {
             if (m_OrganizationOptions.ContainsKey(organizationName))
-                    m_OrganizationDropdownMenu.SetValueWithoutNotify(organizationName);
+                m_OrganizationButtonText.text = organizationName;
         }
     }
 }

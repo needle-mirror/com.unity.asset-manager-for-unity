@@ -1,11 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.Design;
-using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.UI.Editor
 {
@@ -59,10 +56,10 @@ namespace Unity.AssetManager.UI.Editor
         [SerializeReference]
         IPageFilterStrategy m_PageFilterStrategy;
 
-        Dictionary<string, PageFilters> m_PageFiltersByType = new ();
+        Dictionary<string, PageFilters> m_PageFiltersByType = new();
 
         [SerializeField]
-        List<string> m_SerializedPageFiltersByTypeKeys = new ();
+        List<string> m_SerializedPageFiltersByTypeKeys = new();
 
         [SerializeReference]
         List<PageFilters> m_SerializedPageFiltersByTypeValues = new();
@@ -81,14 +78,14 @@ namespace Unity.AssetManager.UI.Editor
 
         public SortField SortField
         {
-            get => (SortField)EditorPrefs.GetInt(ActivePageSortFieldKey, (int)SortField.Name);
-            set => EditorPrefs.SetInt(ActivePageSortFieldKey, (int)value);
+            get => (SortField) EditorPrefs.GetInt(ActivePageSortFieldKey, (int) SortField.Name);
+            set => EditorPrefs.SetInt(ActivePageSortFieldKey, (int) value);
         }
 
         public SortingOrder SortingOrder
         {
-            get => (SortingOrder)EditorPrefs.GetInt(ActivePageSortingOrderKey, (int)SortingOrder.Ascending);
-            set => EditorPrefs.SetInt(ActivePageSortingOrderKey, (int)value);
+            get => (SortingOrder) EditorPrefs.GetInt(ActivePageSortingOrderKey, (int) SortingOrder.Ascending);
+            set => EditorPrefs.SetInt(ActivePageSortingOrderKey, (int) value);
         }
 
         public event Action<IPage> ActivePageChanged;
@@ -114,7 +111,8 @@ namespace Unity.AssetManager.UI.Editor
         public void Inject(IUnityConnectProxy unityConnectProxy, IAssetsProvider assetsProvider,
             IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider,
             IAssetOperationManager assetOperationManager, IMessageManager messageManager,
-            IDialogManager dialogManager, ISettingsManager settingsManager, ISavedAssetSearchFilterManager savedSearchFilterManager)
+            IDialogManager dialogManager, ISettingsManager settingsManager,
+            ISavedAssetSearchFilterManager savedSearchFilterManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_AssetsProvider = assetsProvider;
@@ -157,7 +155,28 @@ namespace Unity.AssetManager.UI.Editor
 
         public void SetActivePage<T>(bool forceChange = false) where T : IPage
         {
-            if (!forceChange && m_ActivePage is T)
+            // By default, the target page type is expected to be T
+            var targetPageType = typeof(T);
+
+            // Special cases that would change the target page type:
+            if (typeof(T) == typeof(CollectionPage)
+                && string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProject?.Id))
+            {
+                targetPageType = typeof(AllAssetsPage);
+            }
+            else if (typeof(T) == typeof(InProjectPage)
+                     && string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProject?.Id))
+            {
+                targetPageType = typeof(AllAssetsInProjectPage);
+            }
+            else if (typeof(T) == typeof(AllAssetsPage)
+                     && m_ActivePage is InProjectPage)
+            {
+                targetPageType = typeof(AllAssetsInProjectPage);
+            }
+
+            // Check if the requested page is already active
+            if (!forceChange && m_ActivePage?.GetType() == targetPageType)
                 return;
 
             m_ActivePage?.OnDeactivated();
@@ -166,21 +185,14 @@ namespace Unity.AssetManager.UI.Editor
 
             PageFilterStrategy.ClearPageFiltersObject();
 
-            if (typeof(T) == typeof(CollectionPage) &&
-                string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProject?.Id))
-            {
-                m_ActivePage = CreatePage<AllAssetsPage>();
-            }
-            else
-            {
-                m_ActivePage = CreatePage<T>();
-            }
+            m_ActivePage = CreatePage(targetPageType);
 
             PageFilterStrategy.SetPageFiltersObject(m_PageFiltersByType[m_ActivePage.GetType().Name]);
 
             m_ActivePage?.OnEnable();
             m_ActivePage?.SetFilterStrategy(PageFilterStrategy);
             m_ActivePage?.OnActivated();
+            m_ActivePage?.LoadMore(clear: true, clearSelection: true);
 
             m_AssetOperationManager.ClearFinishedOperations();
 
@@ -189,21 +201,22 @@ namespace Unity.AssetManager.UI.Editor
 
         public void SetSortValues(SortField sortField, SortingOrder sortingOrder)
         {
-            if(sortField == SortField && sortingOrder == SortingOrder)
+            if (sortField == SortField && sortingOrder == SortingOrder)
                 return;
 
             SortField = sortField;
             SortingOrder = sortingOrder;
 
-            ActivePage?.Clear(reloadImmediately:true, clearSelection:false);
+            ActivePage?.LoadMore(true, clearSelection: false);
         }
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
-            if (!cloudServicesReachable && m_ActivePage is not InProjectPage)
-            {
-                SetActivePage<InProjectPage>();
-            }
+            if (cloudServicesReachable) return;
+
+            SetActivePage<InProjectPage>();
+            m_ProjectOrganizationProvider.SelectProject(null); // we clear the project selection when cloud services are not reachable to select All Assets by default
+            m_ActivePage.LoadMore(true, true); // we trigger a reload
         }
 
         void RegisterPageEvents(IPage page)
@@ -214,9 +227,9 @@ namespace Unity.AssetManager.UI.Editor
             page.UIComponentEnabledChanged += data => UIComponentEnabledChanged?.Invoke(page, data);
         }
 
-        IPage CreatePage<T>()
+        IPage CreatePage(Type type)
         {
-            var page = (IPage) Activator.CreateInstance(typeof(T), m_AssetDataManager, m_AssetsProvider,
+            var page = (IPage) Activator.CreateInstance(type, m_AssetDataManager, m_AssetsProvider,
                 m_ProjectOrganizationProvider, m_MessageManager, this, m_DialogManager);
             RegisterPageEvents(page);
             return page;
@@ -242,6 +255,7 @@ namespace Unity.AssetManager.UI.Editor
             m_PageFiltersByType[nameof(CollectionPage)] = collectionPageFilters;
             m_PageFiltersByType[nameof(AllAssetsPage)] = collectionPageFilters;
             m_PageFiltersByType[nameof(InProjectPage)] = inProjectPageFilters;
+            m_PageFiltersByType[nameof(AllAssetsInProjectPage)] = inProjectPageFilters;
             m_PageFiltersByType[nameof(UploadPage)] = uploadPageFilters;
         }
 
@@ -275,6 +289,19 @@ namespace Unity.AssetManager.UI.Editor
                 Utilities.DevLogException(e);
             }
 
+            // Add any missing page filters that were not serialized
+            var pageFiltersFactory = new PageFiltersFactory(PageFilterStrategy, m_ProjectOrganizationProvider, m_AssetDataManager);
+
+            var collectionPageFilters = pageFiltersFactory.CreateCollectionPageFilters();
+            var inProjectPageFilters = pageFiltersFactory.CreateInProjectPageFilters();
+            var uploadPageFilters = pageFiltersFactory.CreateUploadPageFilters();
+
+            TryAddMissingFilter(nameof(CollectionPage), collectionPageFilters);
+            TryAddMissingFilter(nameof(AllAssetsPage), collectionPageFilters);
+            TryAddMissingFilter(nameof(InProjectPage), inProjectPageFilters);
+            TryAddMissingFilter(nameof(AllAssetsInProjectPage), inProjectPageFilters);
+            TryAddMissingFilter(nameof(UploadPage), uploadPageFilters);
+
             if (m_ActivePage != null)
             {
                 RegisterPageEvents(m_ActivePage);
@@ -285,12 +312,19 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
+        void TryAddMissingFilter(string key, PageFilters filters)
+        {
+            m_PageFiltersByType ??= new Dictionary<string, PageFilters>();
+            m_PageFiltersByType.TryAdd(key, filters);
+        }
+
         void OnOrganizationChanged(OrganizationInfo _)
         {
             CreatePageFiltersByType();
 
             if (m_ActivePage != null)
             {
+                m_ActivePage.ClearSelection();
                 PageFilterStrategy.SetPageFiltersObject(m_PageFiltersByType[m_ActivePage.GetType().Name]);
             }
         }

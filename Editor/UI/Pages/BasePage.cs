@@ -61,10 +61,10 @@ namespace Unity.AssetManager.UI.Editor
         protected VisualElement m_CustomUISection;
         protected Dictionary<string, SortField> m_SortField;
         protected IAsyncEnumerator<AssetData> m_SearchRequest;
+        CancellationTokenSource m_UpdateAssetAttributesCancellation;
 
         public UIComponents EnabledUIComponents => m_EnabledUIComponents;
         public virtual bool SupportsUpdateAll => false;
-
         public virtual bool DisplaySearchBar => true;
         public virtual bool DisplayBreadcrumbs => false;
         public virtual bool DisplaySideBar => true;
@@ -77,6 +77,7 @@ namespace Unity.AssetManager.UI.Editor
         public virtual bool DisplayTitle => false;
         public virtual string DefaultProjectName => L10n.Tr(Constants.AllAssetsFolderName);
         public virtual string Title => GetPageName();
+        protected Task UpdateAssetAttributesTask { get; private set; }
 
         internal static readonly Dictionary<SortField, string> s_SortFieldsLabelMap = new()
         {
@@ -167,34 +168,32 @@ namespace Unity.AssetManager.UI.Editor
         public virtual void OnActivated()
         {
             AnalyticsSender.SendEvent(new PageSelectedEvent(GetPageName()));
-            Clear(true);
         }
 
         public virtual void OnDeactivated()
         {
-            Clear(false);
+            Clear();
+            ClearSelection();
         }
 
         public virtual void OnEnable()
         {
             m_ProjectOrganizationProvider.ProjectSelectionChanged += OnProjectSelectionChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
             m_AssetList.RebuildAssetList(m_AssetDataManager);
 
             if (m_ReTriggerSearchAfterDomainReload)
             {
                 m_ReTriggerSearchAfterDomainReload = false;
-                LoadMore();
+                LoadMore(clear: false, clearSelection: false);
             }
 
-            TaskUtils.TrackException(RefreshAssetDataAttributesAsync());
+            TryStartUpdateAssetAttributesTask(forceRestart: true);
         }
 
         public virtual void OnDisable()
         {
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= OnProjectSelectionChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
 
             if (!IsLoading)
                 return;
@@ -259,8 +258,18 @@ namespace Unity.AssetManager.UI.Editor
             SelectAsset(assetIdentifier, checkState);
         }
 
-        public virtual void LoadMore()
+        public void LoadMore(bool clear, bool clearSelection)
         {
+            if (clear)
+            {
+                Clear();
+            }
+
+            if (clearSelection)
+            {
+                ClearSelection();
+            }
+
             if (!m_CanLoadMoreItems || IsLoading)
                 return;
 
@@ -304,25 +313,20 @@ namespace Unity.AssetManager.UI.Editor
             );
         }
 
-        public virtual void Clear(bool reloadImmediately, bool clearSelection = true)
+        protected virtual void Clear()
         {
             CancelAndClearLoadMoreOperations();
+
+            m_UpdateAssetAttributesCancellation?.Cancel();
+            m_UpdateAssetAttributesCancellation?.Dispose();
+            m_UpdateAssetAttributesCancellation = null;
+            UpdateAssetAttributesTask = null;
 
             m_AssetList.Clear();
             m_CanLoadMoreItems = true;
             m_SearchRequest = null;
             m_NextStartIndex = 0;
             m_MessageManager.ClearAllMessages();
-
-            if (clearSelection)
-            {
-                ClearSelection();
-            }
-
-            if (reloadImmediately)
-            {
-                LoadMore();
-            }
         }
 
         public VisualElement GetCustomUISection()
@@ -332,14 +336,7 @@ namespace Unity.AssetManager.UI.Editor
 
         protected internal abstract IAsyncEnumerable<BaseAssetData> LoadMoreAssets(CancellationToken token);
         protected abstract void OnLoadMoreSuccessCallBack();
-
-        protected virtual void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
-        {
-            if (projectInfo == null)
-                return;
-
-            m_PageManager.SetActivePage<CollectionPage>();
-        }
+        protected abstract void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo);
 
         protected async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(CollectionInfo collectionInfo,
             [EnumeratorCancellation] CancellationToken token)
@@ -373,17 +370,31 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        protected async Task RefreshAssetDataAttributesAsync()
+        protected virtual Task RefreshAssetDataAttributesAsync()
         {
-            var tasks = m_AssetDataManager.ImportedAssetInfos
-                .Select(i => i.AssetData.RefreshAssetDataAttributesAsync()).ToList();
+            var token = GetUpdateAssetAttributesCancellationToken();
 
-            await TaskUtils.WaitForTasksWithHandleExceptions(tasks);
+            var tasks = m_AssetDataManager.ImportedAssetInfos
+                .Select(i => i.AssetData.RefreshAssetDataAttributesAsync(token)).ToList();
+
+            return Task.WhenAll(tasks);
         }
 
-        void OnOrganizationChanged(OrganizationInfo obj)
+        protected CancellationToken GetUpdateAssetAttributesCancellationToken()
         {
-            m_PageManager.ActivePage.ClearSelection();
+            m_UpdateAssetAttributesCancellation?.Cancel();
+            m_UpdateAssetAttributesCancellation?.Dispose();
+            m_UpdateAssetAttributesCancellation = new CancellationTokenSource();
+            return m_UpdateAssetAttributesCancellation.Token;
+        }
+
+        protected void TryStartUpdateAssetAttributesTask(bool forceRestart = false)
+        {
+            if (UpdateAssetAttributesTask is {IsFaulted: false} && !forceRestart)
+                return;
+
+            UpdateAssetAttributesTask = RefreshAssetDataAttributesAsync();
+            TaskUtils.TrackException(UpdateAssetAttributesTask);
         }
 
         async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(string organizationId, IEnumerable<string> projectIds,
@@ -480,7 +491,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnSearchFiltersChanged(IReadOnlyCollection<string> searchFilters)
         {
-            Clear(true);
+            LoadMore(clear: true, clearSelection: true);
             SearchFiltersChanged?.Invoke(searchFilters);
         }
 
@@ -489,6 +500,7 @@ namespace Unity.AssetManager.UI.Editor
             var type = typeof(T);
             return m_PageFilterStrategy?.SelectedFilters.Any(x => type.IsInstanceOfType(x)) ?? false;
         }
+
         protected virtual VisualElement CreateCustomUISection()
         {
             return null;

@@ -108,7 +108,7 @@ namespace Unity.Cloud.IdentityEmbedded
             {
                 return new Organization(value, m_ServiceHttpClient, m_ServiceHostResolver, m_OrganizationProjectsJsonProvider, m_EntityRoleProvider, m_GuestProjectJsonProvider);
             }
-            var response = await m_ServiceHttpClient.GetAsync(url);
+            using var response = await m_ServiceHttpClient.GetAsync(url);
             var deserializedResponse = await response.JsonDeserializeAsync<OrganizationJson>();
             var organizationJson = m_GetOrganizationRequestResponseCache.AddGetRequestResponseToCache(url, deserializedResponse);
             return new Organization(organizationJson, m_ServiceHttpClient, m_ServiceHostResolver, m_OrganizationProjectsJsonProvider, m_EntityRoleProvider, m_GuestProjectJsonProvider);

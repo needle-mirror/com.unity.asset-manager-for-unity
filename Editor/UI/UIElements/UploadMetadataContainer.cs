@@ -89,7 +89,7 @@ namespace Unity.AssetManager.UI.Editor
             separator.AddToClassList(UssStyle.k_HorizontalSeparator);
             Add(separator);
 
-            var title = new Label(L10n.Tr(Constants.UploadMetadata));
+            var title = new Label(L10n.Tr(Constants.CustomUploadMetadata));
             title.AddToClassList(UssStyle.k_UploadMetadataTitle);
             Add(title);
 
@@ -261,15 +261,13 @@ namespace Unity.AssetManager.UI.Editor
 
         void CreateNewMetadataField(IMetadataFieldDefinition fieldDefinition)
         {
-            var list = new List<(UploadAssetData, IMetadata)>();
-
+            var editList = new List<AssetFieldEdit>();
             foreach (var assetData in m_SelectedAssetsData.Selection)
             {
                 var metadata = CreateMetadataFromFieldDefinition(fieldDefinition);
-                list.Add(new((UploadAssetData)assetData, metadata));
+                editList.Add(new AssetFieldEdit(assetData.Identifier, EditField.Custom, metadata));
             }
-
-            ((UploadPage)m_PageManager.ActivePage).AddMetadata(list);
+            ((UploadPage)m_PageManager.ActivePage).OnAssetSelectionEdited(editList);
         }
 
         static IMetadata CreateMetadataFromFieldDefinition(IMetadataFieldDefinition def) =>
@@ -314,7 +312,7 @@ namespace Unity.AssetManager.UI.Editor
                 ? string.Empty
                 : fieldDefinition.DisplayName, metadataField, () =>
             {
-                ((UploadPage)m_PageManager.ActivePage).RemoveMetadata(m_SelectedAssetsData.Selection.Cast<UploadAssetData>(), fieldDefinition.Key);
+                ((UploadPage)m_PageManager.ActivePage).RemoveCustomMetadata(m_SelectedAssetsData.Selection.Cast<UploadAssetData>(), fieldDefinition.Key);
             });
         }
 

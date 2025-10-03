@@ -65,7 +65,7 @@ namespace Unity.AssetManager.UI.Editor
         protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
         {
             m_PageManager.SetActivePage<CollectionPage>(true);
-            TaskUtils.TrackException(RefreshAssetDataAttributesAsync());
+            TryStartUpdateAssetAttributesTask(forceRestart: true);
         }
 
         protected override string GetPageName()

@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 
 namespace Unity.AssetManager.UI.Editor
@@ -26,8 +24,7 @@ namespace Unity.AssetManager.UI.Editor
         void SelectAsset(AssetIdentifier asset, bool additive);
         void SelectAssets(IEnumerable<AssetIdentifier> assets);
         public void ToggleAsset(AssetIdentifier assetIdentifier, bool checkState);
-        void LoadMore();
-        void Clear(bool reloadImmediately, bool clearSelection = true);
+        void LoadMore(bool clear, bool clearSelection);
         void ClearSelection();
 
         // Called after the page is created, and after a domain reload

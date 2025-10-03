@@ -37,7 +37,7 @@ namespace Unity.Cloud.IdentityEmbedded
         /// <inheritdoc/>
         public async Task<UnityServicesToken> ExchangeAsync(TargetClientIdToken exchangeToken)
         {
-            var response = await m_HttpClient.PostAsync($"https://{m_UnityServicesApiUrl}/api/auth/v1/genesis-token-exchange/unity", new StringContent(JsonSerialization.Serialize(exchangeToken), Encoding.UTF8, "application/json"));
+            using var response = await m_HttpClient.PostAsync($"https://{m_UnityServicesApiUrl}/api/auth/v1/genesis-token-exchange/unity", new StringContent(JsonSerialization.Serialize(exchangeToken), Encoding.UTF8, "application/json"));
             var unityServicesToken = await response.JsonDeserializeAsync<ExchangeTargetClientIdTokenResponse>();
             return new UnityServicesToken{ AccessToken = unityServicesToken.token};
         }

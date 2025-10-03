@@ -1,6 +1,5 @@
 using System;
 using Unity.AssetManager.Core.Editor;
-using Unity.AssetManager.Upload.Editor;
 using UnityEngine.UIElements;
 using Image = UnityEngine.UIElements.Image;
 
@@ -20,10 +19,9 @@ namespace Unity.AssetManager.UI.Editor
 
         string m_CollectionPath;
 
-        internal SideBarCollectionFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager,
-            IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            string foldoutName, string projectId, string collectionPath)
-            : base(unityConnectProxy, pageManager, stateManager, messageManager, projectOrganizationProvider, foldoutName)
+        internal SideBarCollectionFoldout(IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            string foldoutName, string projectId, string collectionPath, bool isPopulated)
+            : base(stateManager, messageManager, projectOrganizationProvider, foldoutName, isPopulated)
         {
             m_ProjectId = projectId;
             m_CollectionPath = collectionPath;
@@ -88,17 +86,17 @@ namespace Unity.AssetManager.UI.Editor
 
             if (m_CollectionPath != null)
             {
-                var collectionInfo = CollectionInfo.CreateFromFullPath(m_CollectionPath);
-                collectionInfo.ProjectId = m_ProjectId;
-                collectionInfo.OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id;
-                var contextMenu = new CollectionContextMenu(collectionInfo, m_UnityConnectProxy,
-                    m_ProjectOrganizationProvider, m_PageManager, m_StateManager, m_MessageManager);
+                var collectionInfo = CollectionInfo.CreateFromFullPath(
+                    m_ProjectOrganizationProvider.SelectedOrganization.Id,
+                    m_ProjectId,
+                    m_CollectionPath);
+                var contextMenu = new CollectionContextMenu(collectionInfo, m_ProjectOrganizationProvider, m_StateManager, m_MessageManager);
                 m_ContextualMenuManipulator = new ContextualMenuManipulator(contextMenu.SetupContextMenuEntries);
             }
             else
             {
-                var contextMenu = new ProjectContextMenu(m_ProjectId, m_UnityConnectProxy, m_ProjectOrganizationProvider,
-                    m_PageManager, m_StateManager, m_MessageManager);
+                var contextMenu = new ProjectContextMenu(m_ProjectId, m_ProjectOrganizationProvider,
+                    m_StateManager, m_MessageManager);
                 m_ContextualMenuManipulator = new ContextualMenuManipulator(contextMenu.SetupContextMenuEntries);
             }
 
@@ -128,37 +126,20 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.SelectProject(m_ProjectId, m_CollectionPath, updateProject: m_CollectionPath == null);
         }
 
-        protected override void OnActivePageChanged(IPage page)
+        public override void SetSelected(bool selected)
         {
-            RefreshSelectionStatus();
-        }
-
-        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
-        {
-            if (m_PageManager.ActivePage is not (CollectionPage or UploadPage))
-            {
-                SetSelected(false);
-                return;
-            }
-
-            var selected = projectInfo?.Id == m_ProjectId &&
-                           collectionInfo?.GetFullPath() == (m_CollectionPath ?? string.Empty);
-
-            SetSelected(selected);
-        }
-
-        protected internal void RefreshSelectionStatus()
-        {
-            OnProjectSelectionChanged(m_ProjectOrganizationProvider.SelectedProject, m_ProjectOrganizationProvider.SelectedCollection);
-        }
-
-        void SetSelected(bool selected)
-        {
+            base.SetSelected(selected);
+            
             m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
 
             if (selected)
             {
+                m_Toggle.RemoveFromClassList(k_EmptyFoldoutClassName);
                 UncollapseHierarchy();
+            }
+            else
+            {
+                m_Toggle.EnableInClassList(k_EmptyFoldoutClassName, !m_IsPopulated);
             }
         }
 
@@ -241,15 +222,13 @@ namespace Unity.AssetManager.UI.Editor
 
             m_Label.text = collectionName;
 
-            var collectionInfo = new CollectionInfo
-            {
-                OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id,
-                ProjectId = m_ProjectId,
-                ParentPath = m_CollectionPath,
-                Name = collectionName
-            };
+            var collectionInfo = new CollectionInfo(
+                m_ProjectOrganizationProvider.SelectedOrganization.Id,
+                m_ProjectId,
+                collectionName,
+                m_CollectionPath);
 
-            m_CollectionPath += $"/{collectionName}";
+            m_CollectionPath = collectionInfo.GetFullPath();
             name = GetCollectionId(m_ProjectId, m_CollectionPath);
 
             try
@@ -290,9 +269,10 @@ namespace Unity.AssetManager.UI.Editor
                 return;
 
             m_Label.text = collectionName;
-            var collectionInfo = CollectionInfo.CreateFromFullPath(m_CollectionPath);
-            collectionInfo.ProjectId = m_ProjectId;
-            collectionInfo.OrganizationId = m_ProjectOrganizationProvider.SelectedOrganization.Id;
+            var collectionInfo = CollectionInfo.CreateFromFullPath(
+                m_ProjectOrganizationProvider.SelectedOrganization.Id,
+                m_ProjectId,
+                m_CollectionPath);
 
             try
             {

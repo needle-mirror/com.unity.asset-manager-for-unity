@@ -9,29 +9,29 @@ namespace Unity.AssetManager.UI.Editor
     {
         readonly Image m_AllAssetsImage;
 
-        internal SideBarAllAssetsFoldout(IUnityConnectProxy unityConnectProxy, IPageManager pageManager,
-            IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            string foldoutName)
-            : base(unityConnectProxy, pageManager, stateManager, messageManager, projectOrganizationProvider,
-                foldoutName)
+        internal SideBarAllAssetsFoldout(IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
+            string foldoutName, Action onClick = null)
+            : base(stateManager, messageManager, projectOrganizationProvider, foldoutName, true)
         {
+            AddToClassList("allAssetsFolder");
+
             RegisterCallback<PointerDownEvent>(e =>
             {
-                var target = (VisualElement)e.target;
+                var target = (VisualElement) e.target;
+
                 // We skip the user's click if they aimed the check mark of the foldout
                 // to only select foldouts when they click on it's title/label
                 if (e.button != 0 || target.name == k_CheckMarkName)
                     return;
 
-                m_PageManager.SetActivePage<AllAssetsPage>();
+                onClick?.Invoke();
             }, TrickleDown.TrickleDown);
         }
 
-        protected override void OnActivePageChanged(IPage page)
+        public override void SetSelected(bool selected)
         {
-            SetEnabled(page is not UploadPage);
+            base.SetSelected(selected);
 
-            var selected = page is AllAssetsPage;
             m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
         }
     }

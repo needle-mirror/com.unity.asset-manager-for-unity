@@ -28,12 +28,15 @@ namespace Unity.Cloud.IdentityEmbedded
         readonly IAssetProjectsJsonProvider m_AssetProjectsJsonProvider;
         readonly IMemberInfoJsonProvider m_MemberInfoJsonProvider;
         readonly ICloudStorageJsonProvider m_CloudStorageJsonProvider;
+        readonly IEntitlementsJsonProvider m_EntitlementsJsonProvider;
 
         readonly GetRequestResponseCache<RangeResultsJson<MemberInfoJson>> m_GetRequestResponseCache;
 
         readonly GetRequestResponseCache<AssetProjectPageResultsJson<AssetProjectJson>> m_GetAssetProjectRequestResponseCache;
 
-        internal Organization(OrganizationJson organizationJson, IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver, IOrganizationProjectsJsonProvider organizationProjectsJsonProvider, IEntityRoleProvider entityRoleProvider, IGuestProjectJsonProvider guestProjectJsonProvider, IAssetProjectsJsonProvider assetProjectsJsonProvider = null, IMemberInfoJsonProvider memberInfoJsonProvider = null, ICloudStorageJsonProvider cloudStorageUsageJsonProvider = null)
+        readonly GetRequestResponseCache<EntitlementsJson> m_GetOrganizationEntitlementsRequestResponseCache;
+
+        internal Organization(OrganizationJson organizationJson, IServiceHttpClient serviceHttpClient, IServiceHostResolver serviceHostResolver, IOrganizationProjectsJsonProvider organizationProjectsJsonProvider, IEntityRoleProvider entityRoleProvider, IGuestProjectJsonProvider guestProjectJsonProvider, IAssetProjectsJsonProvider assetProjectsJsonProvider = null, IMemberInfoJsonProvider memberInfoJsonProvider = null, ICloudStorageJsonProvider cloudStorageUsageJsonProvider = null, IEntitlementsJsonProvider entitlementsJsonProvider = null)
         {
             Id = new OrganizationId(organizationJson.GenesisId);
 
@@ -54,6 +57,7 @@ namespace Unity.Cloud.IdentityEmbedded
             m_AssetProjectsJsonProvider = assetProjectsJsonProvider;
             m_MemberInfoJsonProvider = memberInfoJsonProvider;
             m_CloudStorageJsonProvider = cloudStorageUsageJsonProvider;
+            m_EntitlementsJsonProvider = entitlementsJsonProvider;
 
             EntityId = organizationJson.Id;
             Name = organizationJson.Name;
@@ -64,6 +68,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
             m_GetRequestResponseCache = new GetRequestResponseCache<RangeResultsJson<MemberInfoJson>>(60);
             m_GetAssetProjectRequestResponseCache = new GetRequestResponseCache<AssetProjectPageResultsJson<AssetProjectJson>>(60);
+            m_GetOrganizationEntitlementsRequestResponseCache = new GetRequestResponseCache<EntitlementsJson>(60);
         }
 
         /// <inheritdoc />
@@ -226,6 +231,34 @@ namespace Unity.Cloud.IdentityEmbedded
             }
 
             return new CloudStorageEntitlements(cloudStorageEntitlementsJson);
+        }
+
+        async Task<EntitlementsJson> GetEntitlementsJsonAsync(CancellationToken cancellationToken)
+        {
+            var url = m_ServiceHostResolver.GetResolvedRequestUri($"/assets/v1/organizations/{Id}/entitlements");
+            if (m_GetOrganizationEntitlementsRequestResponseCache.TryGetRequestResponseFromCache(url, out EntitlementsJson value))
+            {
+                return value;
+            }
+            using var response = await m_ServiceHttpClient.GetAsync(url, cancellationToken:cancellationToken);
+            var deserializedResponse = await response.JsonDeserializeAsync<EntitlementsJson>();
+            return m_GetOrganizationEntitlementsRequestResponseCache.AddGetRequestResponseToCache(url, deserializedResponse);
+        }
+
+        /// <inheritdoc/>
+        public async Task<IEntitlements> GetEntitlementsAsync(CancellationToken cancellationToken = default)
+        {
+            EntitlementsJson entitlementsJson;
+            if (m_EntitlementsJsonProvider != null)
+            {
+                entitlementsJson = await m_EntitlementsJsonProvider.GetEntitlementsJsonAsync(cancellationToken);
+            }
+            else
+            {
+                entitlementsJson = await GetEntitlementsJsonAsync(cancellationToken);
+            }
+
+            return new Entitlements(entitlementsJson);
         }
 
         /// <inheritdoc/>

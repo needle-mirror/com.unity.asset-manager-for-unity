@@ -26,6 +26,7 @@ namespace Unity.AssetManager.Core.Editor
         bool IsDebugLogsEnabled { get; }
         PrivateCloudSettings PrivateCloudSettings { get; }
         SavedAssetSearchFilterSettings SavedAssetSearchFilterSettings { get; }
+        bool IsDependencyVersionSelectionEnabled { get; }
 
         void SetIsSubfolderCreationEnabled(bool value);
         void SetIsKeepHigherVersionEnabled(bool value);
@@ -39,6 +40,7 @@ namespace Unity.AssetManager.Core.Editor
 
         void SetUploadDependenciesUsingLatestLabel(bool value);
         void SetDisableReimportModal(bool value);
+        void SetDependencyVersionSelectionEnabled(bool value);
 
         void SetProjectWindowIconOverlayEnabled(bool value);
         void SetProjectWindowIconOverlayPosition(int value);
@@ -69,6 +71,7 @@ namespace Unity.AssetManager.Core.Editor
         const string k_ProjectWindowIconOverlayEnabled = "AM4U.projectWindowIconOverlayEnabled";
         const string k_ProjectWindowIconOverlayPosition = "AM4U.projectWindowIconOverlayPosition";
         const string k_ProjectWindowIconOverlayType = "AM4U.projectWindowIconOverlayType";
+        const string k_DependencyVersionSelectionEnabledKey = "AM4U.dependencyVersionSelectionEnabled";
         const string k_DebugLogsEnabled = "AM4U.debugLogsEnabled";
 
         enum ProjectIconOverlayPosition
@@ -123,6 +126,7 @@ namespace Unity.AssetManager.Core.Editor
         public bool IsProjectWindowIconOverlayEnabled => Instance.Get(k_ProjectWindowIconOverlayEnabled, SettingsScope.User, true);
         public int ProjectWindowIconOverlayPosition => Instance.Get(k_ProjectWindowIconOverlayPosition, SettingsScope.User, (int)ProjectIconOverlayPosition.TopRight);
         public bool DisplayDetailedProjectWindowIconOverlay => Instance.Get(k_ProjectWindowIconOverlayType, SettingsScope.User, true);
+        public bool IsDependencyVersionSelectionEnabled => Instance.Get(k_DependencyVersionSelectionEnabledKey, SettingsScope.User, false);
 
         public bool IsDebugLogsEnabled => Instance.Get(k_DebugLogsEnabled, SettingsScope.User, false);
 
@@ -257,12 +261,19 @@ namespace Unity.AssetManager.Core.Editor
         public void SetUploadDependenciesUsingLatestLabel(bool value)
         {
             Instance.Set(k_UploadDependenciesUsingLatestLabel, value, SettingsScope.User);
+            AnalyticsSender.SendEvent(new PinVersionToLatestToggleEvent(value));
         }
 
         public void SetDisableReimportModal(bool value)
         {
             Instance.Set(k_ReimportModalDisabled, value, SettingsScope.User);
             AnalyticsSender.SendEvent(new DisableImportModalToggleEvent(value));
+        }
+
+        public void SetDependencyVersionSelectionEnabled(bool value)
+        {
+            Instance.Set(k_DependencyVersionSelectionEnabledKey, value, SettingsScope.User);
+            AnalyticsSender.SendEvent(new DependencyVersionSelectionToggleEvent(value));
         }
 
         public void SetProjectWindowIconOverlayEnabled(bool value)

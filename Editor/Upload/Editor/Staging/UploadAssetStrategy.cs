@@ -7,7 +7,7 @@ namespace Unity.AssetManager.Upload.Editor
 {
     static class UploadAssetStrategy
     {
-        public static IEnumerable<UploadAssetData> GenerateUploadAssets(UploadEdits uploadEdits, UploadSettings settings, Action<string, float> progressCallback = null)
+        public static IEnumerable<UploadAssetData> GenerateUploadAssets(UploadEdits uploadEdits, UploadSettings settings, bool pinDependencyToLatest, Action<string, float> progressCallback = null)
         {
             Utilities.DevAssert(uploadEdits != null, "UploadEdits cannot be null");
             if (uploadEdits == null)
@@ -51,6 +51,8 @@ namespace Unity.AssetManager.Upload.Editor
             {
                 asset.IsDependency = !mainGuids.Contains(asset.Guid);
             }
+
+            SetDependenciesIdentifierVersionLabel(cache.Values, pinDependencyToLatest);
 
             return cache.Values;
         }
@@ -208,6 +210,14 @@ namespace Unity.AssetManager.Upload.Editor
             return assetDatabaseProxy.IsValidFolder(assetPath)
                 ? assetDatabaseProxy.GetAssetsInFolder(assetPath)
                 : new[] { guid };
+        }
+
+        static void SetDependenciesIdentifierVersionLabel(IEnumerable<UploadAssetData> uploadAssetData, bool pinDependencyToLatest)
+        {
+            foreach (var dependencyIdentifier in uploadAssetData.SelectMany(assetData => assetData.Dependencies))
+            {
+                dependencyIdentifier.VersionLabel = pinDependencyToLatest ? "Latest" : string.Empty;
+            }
         }
 
         /// <summary>

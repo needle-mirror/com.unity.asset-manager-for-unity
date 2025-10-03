@@ -5,6 +5,25 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2025-09-03
+
+### Added
+- `IEntitlements` and `IEntitlementsProvider` interfaces.
+
+### Changed
+- `IOrganization` inherits `IEntitlementsProvider`.
+
+### Fixed
+- Dispose of HttpResponseMessage.
+
+## [1.5.0] - 2025-07-17
+
+### Added
+- `IdToken` property added to the `DeviceToken` class.
+
+### Fixed
+- Usage of `PkceAuthenticator.LogoutAsync(true);` for complete signout operation in the browser on Private Cloud.
+
 ## [1.4.0] - 2025-06-26
 
 ### Changed

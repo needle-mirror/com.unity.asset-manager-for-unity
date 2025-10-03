@@ -73,13 +73,14 @@ namespace Unity.Cloud.IdentityEmbedded
             return $"{genesisLoginRedirectUrl}?client_id={pkceConfiguration.ClientId}{pkceConfiguration.CustomLoginParams}&state={state}&code_challenge={codeChallenge}&code_challenge_method=S256&response_type=code";
         }
 
-        public static string CreateSignOutUrl(string appNamespace,  string state, string redirectUri, PkceConfiguration pkceConfiguration, string overriddenState = "")
+        public static string CreateSignOutUrl(string appNamespace,  string state, string redirectUri, PkceConfiguration pkceConfiguration, string overriddenState = "", string idToken = "")
         {
             var redirectHint = CreateRedirectHint($"{appNamespace}", redirectUri);
             var redirectProcessId = !string.IsNullOrEmpty(overriddenState) ? $"/{overriddenState}" : "";
             var redirectProxyUri = $"https://{pkceConfiguration.ProxySignOutCompletedRoute}{redirectHint}{redirectProcessId}/?state={state}";
-            // External IDP will need to support
-            return $"{pkceConfiguration.SignOutUrl}{redirectProxyUri}";
+            // Some signOut url requires to have an id_token_hint query parameter
+            var signOutUrl = pkceConfiguration.SignOutUrl.Contains("ID_TOKEN_HINT") && !string.IsNullOrEmpty(idToken) ? pkceConfiguration.SignOutUrl.Replace("ID_TOKEN_HINT", idToken) : pkceConfiguration.SignOutUrl;
+            return $"{signOutUrl}{redirectProxyUri}";
         }
 
         static string CreateRedirectHint(string customUri, string redirectUri)

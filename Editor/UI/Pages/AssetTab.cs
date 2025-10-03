@@ -50,6 +50,17 @@ namespace Unity.AssetManager.UI.Editor
             container.Add(space);
         }
 
+        protected static IEditableEntry AddEditableText(VisualElement container, string assetId, string title, string details, bool isSelectable = false, string name = null)
+        {
+            var entry = new EditableTextEntry(assetId, title, details, isSelectable)
+            {
+                name = name
+            };
+            container.Add(entry);
+
+            return entry;
+        }
+
         protected static void AddText(VisualElement container, string title, string details, bool isSelectable = false, string name = null)
         {
             if (string.IsNullOrEmpty(details))
@@ -145,10 +156,18 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        protected void AddTagChips(VisualElement container, string title, IEnumerable<string> chips,
+        protected EditableListEntry AddEditableTagList(VisualElement container, string assetId, string title, IEnumerable<string> chips,
             string name = null)
         {
-            AddChips(container, title,chips, chipText =>
+            var entry = new EditableListEntry(assetId, title, chips, TagChipCreator)
+            {
+                name = name
+            };
+            container.Add(entry);
+
+            return entry;
+
+            Chip TagChipCreator(string chipText)
             {
                 var tagChip = new TagChip(chipText);
                 tagChip.TagChipPointerUpAction += tagText =>
@@ -158,7 +177,31 @@ namespace Unity.AssetManager.UI.Editor
                 };
 
                 return tagChip;
-            }, name);
+            }
+        }
+
+        protected void AddCollectionChips(VisualElement container, string title, IEnumerable<CollectionIdentifier> collections,
+            string name = null)
+        {
+            if (!collections.Any())
+            {
+                return;
+            }
+
+            var entry = new DetailsPageEntry(title)
+            {
+                name = name
+            };
+            container.Add(entry);
+
+            var chipsContainer = entry.AddChipContainer();
+            chipsContainer.AddToClassList(UssStyle.FlexWrap);
+
+            foreach (var collection in collections)
+            {
+                var chip = new CollectionChip(collection);
+                chipsContainer.Add(chip);
+            }
         }
 
         protected void AddSelectionChips(VisualElement container, string title, IEnumerable<string> chips, bool isSelectable = false,

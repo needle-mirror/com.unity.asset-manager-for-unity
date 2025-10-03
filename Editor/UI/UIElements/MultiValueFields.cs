@@ -89,7 +89,7 @@ namespace Unity.AssetManager.UI.Editor
             if (values == null || !values.Any())
                 return;
 
-            if (values.Exists(x => !x.Equals(values.FirstOrDefault())))
+            if (values.Exists(x => x == null || !x.Equals(values.FirstOrDefault())))
             {
                 field.showMixedValue = true;
             }

@@ -10,7 +10,7 @@ namespace Unity.AssetManager.Core.Editor
     static class TaskUtils
     {
         //number based on half the back-end rate limit and to keep it the UI reactive when running batches of tasks
-        const int k_MaxConcurrentTasks = 60;
+        const int k_MaxConcurrentTasks = 40;
 
         public static void TrackException(Task task, Action<Exception> exceptionCallback = null)
         {
@@ -68,33 +68,57 @@ namespace Unity.AssetManager.Core.Editor
 
         public static async Task<IReadOnlyCollection<Task>> RunAllTasks<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation)
         {
-
             var allTasks = inputs.Select(taskCreation.Invoke).ToList();
             await Task.WhenAll(allTasks);
             return allTasks;
         }
 
-        public static async Task<IReadOnlyCollection<Task>> RunAllTasksBatched<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation)
+        public static async Task<IReadOnlyCollection<Task>> RunAllTasksWithHandledExceptions<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation)
         {
-            var inputLists = inputs.ToList();
-
-            //create chunks of tasks
-            var chunks = new List<List<T>>();
-            for (var i = 0; i < inputLists.Count; i += k_MaxConcurrentTasks)
-            {
-                chunks.Add(inputLists.GetRange(i, Math.Min(k_MaxConcurrentTasks, inputLists.Count - i)));
-            }
-
-            var allTasks = new List<Task>();
-            foreach (var tasks in chunks.Select(chunk => chunk.Select(taskCreation.Invoke).ToList()))
-            {
-                allTasks.AddRange(tasks);
-                await Task.WhenAll(tasks);
-            }
-
+            var allTasks = inputs.Select(taskCreation.Invoke).ToList();
+            await WaitForTasksWithHandleExceptions(allTasks);
             return allTasks;
         }
 
+        public static async Task<IReadOnlyCollection<Task>> RunAllTasksBatched<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation, int maxConcurrentTasks = k_MaxConcurrentTasks)
+        {
+            var allTasks = new List<Task>();
+            var batch = new List<Task>(maxConcurrentTasks);
+            foreach (var input in inputs)
+            {
+                var task = taskCreation(input);
+                allTasks.Add(task);
+                batch.Add(task);
+                if (batch.Count < maxConcurrentTasks) continue;
+                await Task.WhenAll(batch);
+                batch.Clear();
+            }
+            if (batch.Count > 0)
+            {
+                await Task.WhenAll(batch);
+            }
+            return allTasks;
+        }
+
+        public static async Task<IReadOnlyCollection<Task>> RunAllTasksBatchedWithHandledExceptions<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation, int maxConcurrentTasks = k_MaxConcurrentTasks)
+        {
+            var allTasks = new List<Task>();
+            var batch = new List<Task>(maxConcurrentTasks);
+            foreach (var input in inputs)
+            {
+                var task = taskCreation(input);
+                allTasks.Add(task);
+                batch.Add(task);
+                if (batch.Count < maxConcurrentTasks) continue;
+                await WaitForTasksWithHandleExceptions(batch);
+                batch.Clear();
+            }
+            if (batch.Count > 0)
+            {
+                await WaitForTasksWithHandleExceptions(batch);
+            }
+            return allTasks;
+        }
 
         public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> asyncEnumerable, CancellationToken token)
         {

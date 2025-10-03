@@ -8,7 +8,7 @@ namespace Unity.AssetManager.UI.Editor
 {
     static class OpenInAssetManagerHook
     {
-        static AssetManagerWindowHook s_AssetManagerWindowHook = new ();
+        static AssetManagerWindowHook s_AssetManagerWindowHook = new();
 
         [MenuItem("Assets/Show in Asset Manager", false, 22)]
         static void ProjectOpenInAssetManagerMenuItem()
@@ -91,29 +91,23 @@ namespace Unity.AssetManager.UI.Editor
             if (string.IsNullOrEmpty(projectOrganizationProvider.SelectedOrganization?.Id))
                 return;
 
-            var pageManager = ServicesContainer.instance.Resolve<IPageManager>();
-            if (pageManager.ActivePage is not InProjectPage)
-                pageManager.SetActivePage<InProjectPage>();
-
-            var inProjectPage = pageManager.ActivePage as InProjectPage;
-            if (inProjectPage == null)
-                return;
-
             var assetDatas = GetAssetData(guids);
             if (assetDatas == null || !assetDatas.Any())
                 return;
 
-            inProjectPage.ClearSelection();
-            inProjectPage.SelectAssets(assetDatas.Select(asset => asset.Identifier).ToArray());
+            var pageManager = ServicesContainer.instance.Resolve<IPageManager>();
+            pageManager.SetActivePage<AllAssetsInProjectPage>();
+            pageManager.ActivePage.ClearSelection();
+            pageManager.ActivePage.SelectAssets(assetDatas.Select(asset => asset.Identifier).ToArray());
         }
 
         static IEnumerable<BaseAssetData> GetAssetData(string[] guids)
         {
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
             var assetDatas = new List<BaseAssetData>();
 
             foreach (var guid in guids)
             {
-                var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
                 var importedAssetInfos = assetDataManager.GetImportedAssetInfosFromFileGuid(guid);
                 if (importedAssetInfos == null || importedAssetInfos.Count == 0)
                     continue;

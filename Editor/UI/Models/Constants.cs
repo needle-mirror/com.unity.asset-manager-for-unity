@@ -14,6 +14,7 @@ namespace Unity.AssetManager.UI.Editor
 
         // Sidebar
         public const string SidebarProjectsText = "Projects";
+        public const string SidebarNoProjectsText = "No projects available";
         public const string SidebarSavedViewsText = "Saved Views";
         public const string SidebarRenameSavedView = "Rename saved view";
         public const string SidebarDeleteSavedView = "Delete saved view";
@@ -52,7 +53,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string UploadTabLabel = "Upload";
 
         // In Project
-        public const string InProjectTitle = "Locally Imported Assets";
+        public const string AllAssetsInProjectTitle = "All Imported Assets";
+        public const string InProjectTitle = "Imported Assets for Project: ";
 
         // Update all button
         public const string UpdateAllButtonTooltip = "Update all assets to Latest.";
@@ -77,6 +79,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string UploadActionText = "Upload Assets";
         public const string UploadingText = "Uploading...";
         public const string UploadNoEntitlementMessage = "You can't upload this asset without an assigned seat. \nContact your Organization Owner to assign you a seat.";
+        public const string NoSeatAssignedWarning = "You have not been assigned a seat, or your seat assignation does not match that of your Organization tier. You will be restricted to the \"Viewer\" role and will not be able to add,"+
+                                                    " modify or download assets. Please contact your Organization Owner to get the correct seat assignation.";
         public const string UploadNoPermissionTooltip = "You don’t have permissions to upload this asset. \nSee your role from the project settings page on \nthe Asset Manager dashboard.";
         public const string UploadCloudServicesNotReachableTooltip = "Cloud services are not reachable";
         public const string UploadAllIgnoredTooltip = "All assets are ignored";
@@ -107,7 +111,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string InvalidYearLabel = "Year must be between 1 and 9999";
         public const string UnexpectedTimestampFormat = "Unexpected timestamp format encountered.";
         public const string NoProjectSelected = "No project selected";
-        public const string UploadMetadata = "Upload Metadata";
+        public const string PrimaryUploadMetadata = "Asset Metadata";
+        public const string CustomUploadMetadata = "Custom Metadata";
         public const string AddCustomField = "Add custom field";
         public const string MetadataPartialEditing = "Metadata that are only on some of the selected assets cannot be multi-edited.";
         public const string NoMatchingFields = "No matching metadata field. To add custom fields, go to the <a>dashboard</a> and create a new metadata field.";
@@ -128,6 +133,10 @@ namespace Unity.AssetManager.UI.Editor
         public const string UploadOutsideText = "This asset is outside the Assets folder and cannot be uploaded";
         public const string UploadSourceControlledText = "This asset is source controlled and cannot be re-uploaded";
 
+        // Details dependency items
+        public const string VersionLabelSelectionTitle = "Version label";
+        public const string FixedVersionSelectionTitle = "Fixed version";
+
         // AssetDetailsView Asset info
         public const string AssetIdText = "Asset Id";
         public const string VersionText = "Ver. ";
@@ -135,6 +144,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string NewVersionText = "New Ver.";
         public const string FromVersionText = "From Ver.";
         public const string DashboardLinkTooltip = "Open asset in the dashboard";
+        public const string CollectionsText = "Collections";
         public const string TotalFilesText = "Total Files";
         public const string FilesSizeText = "Files Size";
         public const string LoadingText = "Loading...";
@@ -150,6 +160,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string ProjectText = "Project";
         public const string ProjectsText = "Projects";
         public const string AssetTypeText = "Asset Type";
+        public const string DescriptionText = "Description";
         public const string StatusText = "Status";
         public const string SourceFilesText = "Source Files";
         public const string NoFilesText = "No files were found in this asset.";
@@ -267,7 +278,9 @@ namespace Unity.AssetManager.UI.Editor
         public const string TagsCreationConfidenceLevelTooltip = "The higher the value, the more accurate the tags will be.";
         public const string UploadDependenciesUsingLatestLabel = "Pin dependencies to 'Latest' version label during upload";
         public const string UploadDependenciesUsingLatestTooltip = "Enable this option to map asset dependencies to their latest versions during upload, ensuring the latest versions are used during import. ";
-        public const string UploadDependenciesUsingLatestHelpText = "This setting only applies when dependencies are set to \"Separate\". It doesn't affect uploads with dependencies set to \"Embedded\" or \"Ignore\".";
+        public const string UploadDependenciesUsingLatestHelpText = "The last two settings only apply when dependencies are set to \"Separate\". They don't affect uploads with dependencies set to \"Embedded\" or \"Ignore\".";
+        public const string DependencyVersionSelectionLabel = "Allow individual dependency version selection during upload";
+        public const string DependencyVersionSelectionTooltip = "Enable this option to allow users to select the version of dependencies during upload via a dropdown.";
 
         public const string DisableReimportModalLabel = "Disable the reimport modal";
         public const string DisableReimportModalToolTip = "When enabled, no conflict resolution modals will be shown when importing and \"replace\" will be applied to everything. \"Avoid rolling back versions of dependencies\" must be enabled to use this setting.";

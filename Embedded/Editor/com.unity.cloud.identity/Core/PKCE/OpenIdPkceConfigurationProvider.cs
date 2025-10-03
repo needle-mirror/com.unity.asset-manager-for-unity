@@ -43,7 +43,7 @@ namespace Unity.Cloud.IdentityEmbedded
             // Only fetch the openid configuration once per session
             if (m_OpenIdConfigurationJson == null)
             {
-                var result = await m_HttpClient.GetAsync(m_OpenIdConfigurationUrl);
+                using var result = await m_HttpClient.GetAsync(m_OpenIdConfigurationUrl);
                 m_OpenIdConfigurationJson = await result.JsonDeserializeAsync<OpenIdConfigurationJson>();
                 m_OpenIdConfigurationJson = ReplaceUnsecureProtocol(m_OpenIdConfigurationJson);
             }
@@ -62,9 +62,9 @@ namespace Unity.Cloud.IdentityEmbedded
                 TokenUrl = !string.IsNullOrEmpty(m_BasePkceConfiguration.TokenUrl) ? m_BasePkceConfiguration.TokenUrl :  m_OpenIdConfigurationJson.token_endpoint,
                 RefreshTokenUrl = !string.IsNullOrEmpty(m_BasePkceConfiguration.RefreshTokenUrl) ? m_BasePkceConfiguration.RefreshTokenUrl : m_OpenIdConfigurationJson.token_endpoint,
                 LogoutUrl = !string.IsNullOrEmpty(m_BasePkceConfiguration.LogoutUrl) ? m_BasePkceConfiguration.LogoutUrl : m_OpenIdConfigurationJson.end_session_endpoint,
-                SignOutUrl = !string.IsNullOrEmpty(m_BasePkceConfiguration.SignOutUrl) ? m_BasePkceConfiguration.SignOutUrl : $"{m_OpenIdConfigurationJson.end_session_endpoint}?post_logout_redirect_uri=",
+                SignOutUrl = !string.IsNullOrEmpty(m_BasePkceConfiguration.SignOutUrl) ? m_BasePkceConfiguration.SignOutUrl : $"{m_OpenIdConfigurationJson.end_session_endpoint}?id_token_hint=ID_TOKEN_HINT&post_logout_redirect_uri=",
                 UserInfoUrl = !string.IsNullOrEmpty(m_BasePkceConfiguration.UserInfoUrl) ? m_BasePkceConfiguration.UserInfoUrl : m_OpenIdConfigurationJson.userinfo_endpoint,
-                CustomLoginParams = !string.IsNullOrEmpty(m_BasePkceConfiguration.CustomLoginParams) ? m_BasePkceConfiguration.CustomLoginParams : ""
+                CustomLoginParams = !string.IsNullOrEmpty(m_BasePkceConfiguration.CustomLoginParams) ? m_BasePkceConfiguration.CustomLoginParams : "&scope=openid"
             };
         }
 

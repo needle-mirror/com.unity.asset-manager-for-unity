@@ -104,7 +104,7 @@ namespace Unity.AssetManager.Upload.Editor
 
                 UploadDependencyMode.Separate => L10n.Tr("Dependencies will be uploaded as separate Cloud Asset and the parent Cloud Asset will have a reference to them"),
 
-                UploadDependencyMode.Embedded => L10n.Tr("Dependencies will have be added as files in the parent Cloud Asset"),
+                UploadDependencyMode.Embedded => L10n.Tr("<b>[DEPRECATED]</b> Dependencies will be added as files in the parent Cloud Asset."),
 
                 _ => null
             };

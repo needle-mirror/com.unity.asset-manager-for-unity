@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,21 +18,24 @@ namespace Unity.AssetManager.UI.Editor
 
     class UpdateAllButton : GridTool
     {
-        private readonly Button m_UpdateAllButton;
-        private readonly VisualElement m_Icon;
-        private readonly IAssetDataManager m_AssetDataManager;
-        private readonly HashSet<BaseAssetData> m_TrackedAssets = new();
-        private readonly IApplicationProxy m_ApplicationProxy;
+        readonly Button m_UpdateAllButton;
+        readonly VisualElement m_Icon;
+        readonly IAssetDataManager m_AssetDataManager;
+        readonly HashSet<BaseAssetData> m_TrackedAssets = new();
+        readonly IAssetsProvider m_AssetsProvider;
+        readonly IApplicationProxy m_ApplicationProxy;
+        
+        CancellationTokenSource m_UpdateStatusCancellationTokenSource = new();
 
         bool IsAvailable => m_PageManager.ActivePage?.SupportsUpdateAll ?? false;
 
-        public UpdateAllButton(IAssetImporter assetImporter, IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider, IApplicationProxy applicationProxy)
-        :base(pageManager, projectOrganizationProvider)
+        public UpdateAllButton(IAssetImporter assetImporter, IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider, IApplicationProxy applicationProxy)
+            : base(pageManager, projectOrganizationProvider)
         {
             m_UpdateAllButton = new Button(() =>
             {
-                var project = pageManager.ActivePage is InProjectPage ? null : projectOrganizationProvider.SelectedProject;
-                var collection = pageManager.ActivePage is InProjectPage ? null : projectOrganizationProvider.SelectedCollection;
+                var project = projectOrganizationProvider.SelectedProject;
+                var collection = projectOrganizationProvider.SelectedCollection;
 
                 TaskUtils.TrackException(assetImporter.UpdateAllToLatestAsync(ImportTrigger.UpdateAllToLatest, project, collection, CancellationToken.None));
 
@@ -55,9 +59,16 @@ namespace Unity.AssetManager.UI.Editor
 
             container.Add(m_Icon);
 
+            m_AssetsProvider = assetsProvider;
             m_ApplicationProxy = applicationProxy;
 
             tooltip = L10n.Tr(Constants.UpdateAllButtonTooltip);
+        }
+
+        protected override void OnActivePageChanged(IPage page)
+        {
+            // Don't enable the button until loading 
+            EnableButton(false);
         }
 
         protected override void InitDisplay(IPage page)
@@ -73,6 +84,10 @@ namespace Unity.AssetManager.UI.Editor
 
         async Task UpdateButtonStatus()
         {
+            m_UpdateStatusCancellationTokenSource?.Cancel();
+            m_UpdateStatusCancellationTokenSource?.Dispose();
+            m_UpdateStatusCancellationTokenSource = null;
+
             // Only update the button status if the button is available for the current page and the application is reachable
             if (!IsAvailable || !m_ApplicationProxy.InternetReachable)
             {
@@ -80,15 +95,29 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
+            m_UpdateStatusCancellationTokenSource = new CancellationTokenSource();
+            var token = m_UpdateStatusCancellationTokenSource.Token;
+
             // Unsubscribe from assets to be cleared
             foreach (var asset in m_TrackedAssets)
             {
                 asset.AssetDataChanged -= OnAssetDataAttributesChanged;
             }
+
             m_TrackedAssets.Clear();
 
-            // Get the relevant imported assets for the current page
-            var importedAssets = await GetImportedAssetsForCurrentPage();
+            IEnumerable<BaseAssetData> importedAssets;
+            try
+            {
+                // Get the relevant imported assets for the current page
+                importedAssets = await GetImportedAssetsForCurrentPage(token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Don't log cancellation exceptions
+                return;
+            }
+
             if (!importedAssets.Any())
             {
                 EnableButton(false);
@@ -112,7 +141,7 @@ namespace Unity.AssetManager.UI.Editor
             await UpdateButtonStatus();
         }
 
-        async Task<List<BaseAssetData>> GetImportedAssetsForCurrentPage()
+        async Task<IEnumerable<BaseAssetData>> GetImportedAssetsForCurrentPage(CancellationToken token)
         {
             var assets = new List<BaseAssetData>();
 
@@ -121,7 +150,7 @@ namespace Unity.AssetManager.UI.Editor
             if (localFilters != null && localFilters.Any())
             {
                 // Filter the imported assets based on the local filters
-                var filteredAssets = await FilteringUtils.GetFilteredImportedAssets(m_AssetDataManager.ImportedAssetInfos, localFilters, CancellationToken.None);
+                var filteredAssets = await FilteringUtils.GetFilteredImportedAssets(m_AssetDataManager.ImportedAssetInfos, localFilters, token);
                 assets.AddRange(filteredAssets.Select(info => info.AssetData));
             }
             else
@@ -130,7 +159,35 @@ namespace Unity.AssetManager.UI.Editor
                 assets.AddRange(m_AssetDataManager.ImportedAssetInfos.Select(info => info.AssetData));
             }
 
-            return assets;
+            return await FilterByLinkedProjectsAndCollections(assets, token);
+        }
+
+        async Task<IEnumerable<BaseAssetData>> FilterByLinkedProjectsAndCollections(IEnumerable<BaseAssetData> assetDatas, CancellationToken token)
+        {
+            await FilteringUtils.UpdateLinkedProjectsAndCollectionsForSelectionAsync(m_ProjectOrganizationProvider, m_AssetsProvider, assetDatas, token);
+
+            var selectedProjectId = m_ProjectOrganizationProvider.SelectedProject?.Id;
+            if (!string.IsNullOrEmpty(selectedProjectId))
+            {
+                var selectedCollection = m_ProjectOrganizationProvider.SelectedCollection;
+                if (selectedCollection != null && !string.IsNullOrEmpty(selectedCollection.Name))
+                {
+                    // Filter imported assets by linked collection
+                    var selectedCollectionFullPath = selectedCollection.GetFullPath();
+                    assetDatas = assetDatas.Where(x =>
+                        x.LinkedCollections.Any(c =>
+                            c.ProjectIdentifier.ProjectId == selectedProjectId
+                            && c.CollectionPath == selectedCollectionFullPath));
+                }
+                else
+                {
+                    // Filter imported assets by imported project or linked project
+                    assetDatas = assetDatas.Where(x => x.Identifier.ProjectId == selectedProjectId
+                        || x.LinkedProjects.Any(p => p.ProjectId == selectedProjectId));
+                }
+            }
+
+            return assetDatas;
         }
 
         void OnAssetDataAttributesChanged(BaseAssetData asset, AssetDataEventType changeType)
@@ -146,36 +203,24 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        void CheckAssetsStatus(List<BaseAssetData> assets)
+        void CheckAssetsStatus(IEnumerable<BaseAssetData> assets)
         {
             // Reset the button state, only enable if we find an asset that is out of date
             EnableButton(false);
 
             // Only update the button status if the button is available for the current page
-            if (!IsAvailable || assets == null || assets.Count == 0)
+            if (!IsAvailable || assets == null || !assets.Any())
                 return;
 
-            var assetsWithNoAttributes = new List<BaseAssetData>();
             foreach (var asset in assets)
             {
                 var importAttribute = asset.AssetDataAttributeCollection?.GetAttribute<ImportAttribute>();
-                if (importAttribute == null)
-                {
-                    // If the asset has no import attribute, we need to fetch it
-                    assetsWithNoAttributes.Add(asset);
-                    continue;
-                }
-
-                if (importAttribute.Status == ImportAttribute.ImportStatus.OutOfDate)
+                if (importAttribute != null && importAttribute.Status == ImportAttribute.ImportStatus.OutOfDate)
                 {
                     EnableButton(true);
                     return;
                 }
             }
-
-            // If we have no outdated assets, but some assets without attributes, we need to fetch the attributes
-            foreach (var assetsWithNoAttribute in assetsWithNoAttributes)
-                TaskUtils.TrackException(assetsWithNoAttribute.RefreshAssetDataAttributesAsync());
         }
 
         ~UpdateAllButton()
@@ -184,6 +229,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 asset.AssetDataChanged -= OnAssetDataAttributesChanged;
             }
+
             m_TrackedAssets.Clear();
 
             m_AssetDataManager.AssetDataChanged -= OnAssetDataChanged;

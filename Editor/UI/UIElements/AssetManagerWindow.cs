@@ -29,6 +29,8 @@ namespace Unity.AssetManager.UI.Editor
             {
                 pageManager.SetActivePage<CollectionPage>();
             }
+
+            ResetSelections();
         }
 
         void CreateGUI()
@@ -64,7 +66,8 @@ namespace Unity.AssetManager.UI.Editor
                 container.Resolve<IApplicationProxy>(),
                 container.Resolve<IDialogManager>(),
                 container.Resolve<ISettingsManager>(),
-                container.Resolve<ISavedAssetSearchFilterManager>());
+                container.Resolve<ISavedAssetSearchFilterManager>(),
+                container.Resolve<IAssetsProvider>());
 
             m_Root.RegisterCallback<GeometryChangedEvent>(OnResized);
             m_Root.OnEnable();
@@ -122,9 +125,9 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnFocus()
         {
-            if (m_Root != null && m_Root.CurrentOrganizationIsEmpty())
+            if (m_Root != null)
             {
-                RefreshAll();
+                m_Root.RefreshLoadingStatus();
             }
         }
 
@@ -168,6 +171,15 @@ namespace Unity.AssetManager.UI.Editor
             AnalyticsSender.SendEvent(new MenuItemSelectedEvent(MenuItemSelectedEvent.MenuItemType.Refresh));
         }
 
+        static void ResetSelections()
+        {
+            // Restore and reload the last selected organization and project
+            var projectOrganizationProvider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
+            var selectedOrganization = projectOrganizationProvider?.SelectedOrganization;
+            if (selectedOrganization != null)
+                projectOrganizationProvider.SelectOrganization(selectedOrganization.Id);
+        }
+
         void OnResized(GeometryChangedEvent evt)
         {
             if (docked == m_IsDocked)
@@ -184,7 +196,7 @@ namespace Unity.AssetManager.UI.Editor
                 case KeyCode.Escape:
                     if (evt.modifiers == EventModifiers.None)
                     {
-                        ServicesContainer.instance.Resolve<IPageManager>().ActivePage.Clear(true);
+                        ServicesContainer.instance.Resolve<IPageManager>().ActivePage.LoadMore(clear: true, clearSelection: true);
                     }
                     break;
             }

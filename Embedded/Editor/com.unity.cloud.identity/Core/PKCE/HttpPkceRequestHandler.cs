@@ -39,9 +39,11 @@ namespace Unity.Cloud.IdentityEmbedded
         public async Task<DeviceToken> ExchangeCodeForDeviceTokenAsync(string tokenEndPointParams)
         {
             var pkceConfiguration = await m_PkceConfigurationProvider.GetPkceConfigurationAsync();
-            var response = await m_HttpClient.PostAsync(pkceConfiguration.TokenUrl, new StringContent(tokenEndPointParams, Encoding.UTF8, "application/x-www-form-urlencoded"));
+            using var response = await m_HttpClient.PostAsync(pkceConfiguration.TokenUrl, new StringContent(tokenEndPointParams, Encoding.UTF8, "application/x-www-form-urlencoded"));
             var exchangeCodeToken = await response.JsonDeserializeAsync<ExchangeCodeToken>();
-            m_DeviceToken = new DeviceToken(exchangeCodeToken.access_token, exchangeCodeToken.refresh_token, exchangeCodeToken.expires_in);
+            m_DeviceToken = !string.IsNullOrEmpty(exchangeCodeToken.id_token) ?
+                new DeviceToken(exchangeCodeToken.access_token, exchangeCodeToken.refresh_token, exchangeCodeToken.id_token, exchangeCodeToken.expires_in) :
+                new DeviceToken(exchangeCodeToken.access_token, exchangeCodeToken.refresh_token, exchangeCodeToken.expires_in);
             m_PkceUserInfoClaims = null;
             return m_DeviceToken;
         }
@@ -57,9 +59,11 @@ namespace Unity.Cloud.IdentityEmbedded
         public async Task<DeviceToken> RefreshTokenAsync(string tokenEndPointParams, string refreshToken)
         {
             var pkceConfiguration = await m_PkceConfigurationProvider.GetPkceConfigurationAsync();
-            var response = await m_HttpClient.PostAsync(pkceConfiguration.RefreshTokenUrl, new StringContent(tokenEndPointParams, Encoding.UTF8, "application/x-www-form-urlencoded"));
+            using var response = await m_HttpClient.PostAsync(pkceConfiguration.RefreshTokenUrl, new StringContent(tokenEndPointParams, Encoding.UTF8, "application/x-www-form-urlencoded"));
             var refreshDeviceToken = await response.JsonDeserializeAsync<RefreshDeviceToken>();
-            m_DeviceToken = new DeviceToken(refreshDeviceToken.access_token, refreshDeviceToken.refresh_token, refreshDeviceToken.expires_in, refreshToken);
+            m_DeviceToken = refreshDeviceToken.id_token != null ?
+                new DeviceToken(refreshDeviceToken.access_token, refreshDeviceToken.refresh_token, refreshDeviceToken.id_token, refreshDeviceToken.expires_in, refreshToken) :
+                new DeviceToken(refreshDeviceToken.access_token, refreshDeviceToken.refresh_token, refreshDeviceToken.expires_in, refreshToken);
             m_PkceUserInfoClaims = null;
             return m_DeviceToken;
         }
@@ -75,7 +79,7 @@ namespace Unity.Cloud.IdentityEmbedded
         {
             m_PkceUserInfoClaims = null;
             var pkceConfiguration = await m_PkceConfigurationProvider.GetPkceConfigurationAsync();
-            await m_HttpClient.PostAsync(pkceConfiguration.LogoutUrl, new StringContent(revokeEndPointParams, Encoding.UTF8, "application/x-www-form-urlencoded"));
+            using var _ = await m_HttpClient.PostAsync(pkceConfiguration.LogoutUrl, new StringContent(revokeEndPointParams, Encoding.UTF8, "application/x-www-form-urlencoded"));
         }
 
         /// <inheritdoc />
@@ -86,7 +90,7 @@ namespace Unity.Cloud.IdentityEmbedded
                 var pkceConfiguration = await m_PkceConfigurationProvider.GetPkceConfigurationAsync();
                 var requestMessage = new HttpRequestMessage(HttpMethod.Get, pkceConfiguration.UserInfoUrl);
                 requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", m_DeviceToken?.AccessToken);
-                var response = await m_HttpClient.SendAsync(requestMessage);
+                using var response = await m_HttpClient.SendAsync(requestMessage);
                 m_PkceUserInfoClaims = await response.JsonDeserializeAsync<PkceUserInfoClaims>();
             }
             return m_PkceUserInfoClaims.GetUserInfo(userInfoClaim);

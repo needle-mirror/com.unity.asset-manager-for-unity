@@ -18,6 +18,7 @@ namespace Unity.AssetManager.Core.Editor
         DependenciesChanged,
         PropertiesChanged,
         LinkedProjectsChanged,
+        LocalStatusChanged,
     }
 
     [Serializable]
@@ -53,6 +54,7 @@ namespace Unity.AssetManager.Core.Editor
         public abstract Task RefreshVersionsAsync(CancellationToken token = default);
         public abstract Task RefreshDependenciesAsync(CancellationToken token = default);
         public abstract Task RefreshLinkedProjectsAsync(CancellationToken token = default);
+        public abstract Task RefreshLinkedCollectionsAsync(CancellationToken token = default);
 
         public string PrimaryExtension => m_PrimarySourceFile?.Extension;
 
@@ -73,8 +75,12 @@ namespace Unity.AssetManager.Core.Editor
 
         [SerializeReference]
         protected MetadataContainer m_Metadata = new();
+
         [SerializeField]
         protected List<ProjectIdentifier> m_LinkedProjects = new();
+
+        [SerializeField]
+        protected List<CollectionIdentifier> m_LinkedCollections = new();
 
         public virtual Texture2D Thumbnail
         {
@@ -145,9 +151,19 @@ namespace Unity.AssetManager.Core.Editor
         public virtual IEnumerable<ProjectIdentifier> LinkedProjects
         {
             get => m_LinkedProjects;
-            protected set
+            set
             {
                 m_LinkedProjects = value?.ToList();
+                InvokeEvent(AssetDataEventType.LinkedProjectsChanged);
+            }
+        }
+
+        public virtual IEnumerable<CollectionIdentifier> LinkedCollections
+        {
+            get => m_LinkedCollections;
+            set
+            {
+                m_LinkedCollections = value?.ToList() ?? new List<CollectionIdentifier>();
                 InvokeEvent(AssetDataEventType.LinkedProjectsChanged);
             }
         }
@@ -218,6 +234,34 @@ namespace Unity.AssetManager.Core.Editor
 
             // Don't check for modified files, this is done by HasLocallyModifiedFilesAsync as an optional, separate call as this is an expensive operation.
 
+            // Check for modifications to primary metadata (name, description, status, tags, etc)
+
+            var dataModified = false;
+            var detailsMessage = string.Empty;
+
+            if (!string.Equals(Name ?? string.Empty, other.Name ?? string.Empty, StringComparison.Ordinal))
+            {
+                dataModified = true;
+                AppendDetail($"Name was changed to: {Name}", ref detailsMessage);
+            }
+
+            if (!string.Equals(Description ?? string.Empty, other.Description ?? string.Empty, StringComparison.Ordinal))
+            {
+                dataModified = true;
+                AppendDetail($"Description was changed to: {Description}", ref detailsMessage);
+            }
+
+            if (!(Tags ?? Enumerable.Empty<string>()).SequenceEqual(other.Tags ?? Enumerable.Empty<string>()))
+            {
+                dataModified = true;
+                AppendDetail($"Tags were modified", ref detailsMessage);
+            }
+
+            // TODO: Status
+
+            if (dataModified)
+                results.Add(new ComparisonDetails(ComparisonResults.DataModified, $"Asset data modified for {other.Name}: {detailsMessage}"));
+
             var localMetadata = Metadata.Select(m => m.FieldKey).ToHashSet();
             var otherMetadata = other.Metadata.Select(m => m.FieldKey).ToHashSet();
 
@@ -245,6 +289,14 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return ComparisonDetails.Merge(results.ToArray());
+
+            void AppendDetail(string detail, ref string detailMessage)
+            {
+                if (!string.IsNullOrEmpty(detailMessage))
+                    detailMessage += ", ";
+
+                detailMessage += detail;
+            }
         }
     }
 

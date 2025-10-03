@@ -62,7 +62,11 @@ namespace Unity.AssetManager.Upload.Editor
                 if (dependency.IsLocal())
                 {
                     // If the dependency is pointing to a local asset, we need to resolve its target asset data
-                    dependencies.Add(identifierToAssetLookup[dependency].Identifier);
+
+                    var identifier = identifierToAssetLookup[dependency].Identifier.Clone();
+                    identifier.VersionLabel = dependency.VersionLabel;
+                    identifier.Version = dependency.Version != AssetManagerCoreConstants.NewVersionId ? dependency.Version : identifier.Version;
+                    dependencies.Add(identifier);
                 }
                 else
                 {
@@ -103,8 +107,7 @@ namespace Unity.AssetManager.Upload.Editor
             // Upload files tasks
 
             // Only upload files if they were considered modified in some way
-            // If the asset is new (ComparisonDetails == None), we always upload the files
-            if (m_UploadAsset.ComparisonResults == ComparisonResults.None || (m_UploadAsset.ComparisonResults & filesChanged) != 0)
+            if ((m_UploadAsset.ComparisonResults & filesChanged) != 0)
             {
                 var fileNumber = 0;
                 await TaskUtils.RunAllTasks(m_UploadAsset.Files.Where(file => !string.IsNullOrEmpty(file.SourcePath)),

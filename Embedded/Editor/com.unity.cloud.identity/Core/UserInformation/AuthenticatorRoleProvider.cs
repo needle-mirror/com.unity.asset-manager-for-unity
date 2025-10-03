@@ -121,7 +121,7 @@ namespace Unity.Cloud.IdentityEmbedded
             }
 
             // First time, or time to refresh if cached result has expired
-            var response = await m_ServiceHttpClient.GetAsync(url);
+            using var response = await m_ServiceHttpClient.GetAsync(url);
             var entityJsons = await response.JsonDeserializeAsync<IEnumerable<EntityJson>>();
             return m_GetRequestResponseCache.AddGetRequestResponseToCache(url, entityJsons);
         }

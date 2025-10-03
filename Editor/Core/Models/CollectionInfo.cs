@@ -1,15 +1,41 @@
 using System;
+using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Core.Editor
 {
     [Serializable]
     class CollectionInfo
     {
-        public string OrganizationId;
-        public string ProjectId;
-        public string Name;
-        public string ParentPath;
+        [FormerlySerializedAs("OrganizationId")]
+        [SerializeField]
+        string m_OrganizationId;
+        
+        [FormerlySerializedAs("ProjectId")]
+        [SerializeField]
+        string m_ProjectId;
+        
+        [FormerlySerializedAs("Name")]
+        [SerializeField]
+        string m_Name;
+        
+        [FormerlySerializedAs("ParentPath")]
+        [SerializeField]
+        string m_ParentPath;
 
+        public string OrganizationId => m_OrganizationId;
+        public string ProjectId => m_ProjectId;
+        public string Name => m_Name;
+        public string ParentPath => m_ParentPath;
+
+        internal CollectionInfo(string organizationId, string projectId, string name, string parentPath = "")
+        {
+            m_OrganizationId = organizationId;
+            m_ProjectId = projectId;
+            m_Name = name;
+            m_ParentPath = parentPath;
+        }
+        
         public string GetFullPath()
         {
             return string.IsNullOrEmpty(ParentPath) ? Name ?? string.Empty : $"{ParentPath}/{Name ?? string.Empty}";
@@ -32,7 +58,7 @@ namespace Unity.AssetManager.Core.Editor
             return leftIdentifier == rightIdentifier;
         }
 
-        public static CollectionInfo CreateFromFullPath(string fullPath)
+        public static CollectionInfo CreateFromFullPath(string organizationId, string projectId, string fullPath)
         {
             if (!string.IsNullOrEmpty(fullPath))
             {
@@ -41,11 +67,11 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     var parentPath = fullPath.Substring(0, slashIndex);
                     var name = fullPath.Substring(slashIndex + 1);
-                    return new CollectionInfo { Name = name, ParentPath = parentPath };
+                    return new CollectionInfo(organizationId, projectId, name, parentPath);
                 }
             }
 
-            return new CollectionInfo { Name = fullPath, ParentPath = string.Empty };
+            return new CollectionInfo(organizationId, projectId, fullPath);
         }
     }
 }

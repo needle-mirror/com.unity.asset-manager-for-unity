@@ -36,14 +36,23 @@ To upload your assets from your local project in the Unity Editor to the Asset M
     - **Ignore:** To ignore dependencies.
     - **Separate:** To upload dependencies as separate cloud assets.
     - **Embedded:** To upload dependencies together with the main asset as a single asset.
+      > **Warning**: The option to embed dependencies is being deprecated and will be removed in a future version.
 8. In the same window, you can manage the way paths are displayed by selecting one of the following options for the **File paths** setting:
    - **Full:** Keeps the path relative to the project Assets folder.
    - **Compact:** Reduces files nesting by removing common path parts.
    - **Flatten:** Flatten all files to the root of the asset and rename them in case of collision.
-9. You can select an asset and in the upload metadata select any existing custom metadata fields in your organization for 1 or multiple assets at the time. If you want to add a new custom metadata on all the selected assets, it will be possible only if that custom metadata is not present in any selected assets, and the value will be set the same for every assets.
+9. You can edit the assets' metadata fields such as **Name**, **Description**, and **Tags**
+    - Select the asset to display an inspector showing the default data.
+    - Select any editable field and enter your modifications. Press return/enter or exit focus of the field to set the change. The changes will only be applied once they are uploaded.
+    - Any edited fields will be indicated by a blue border appearing to the left of the field. <br/> ![upload-inline-edits.jpg](images/upload-inline-edits.jpg)
+    - You can also multi-select assets and bulk edit their fields. <br/> ![upload-multi-edits.jpg](images/upload-multi-edits.jpg)
+      - For the **Description** field, if the selected assets do not have identical descriptions, an "—" symbol will be displayed.
+      - For the **Tags** field, only the tags common across all assets will be displayed for edit. You can remove any of these tags for all selected assets by clicking the "x", or add new ones by typing them in. If any tags exist that are not assigned to all assets, a "— Mixed" tag will appear to indicate this case.
+10. You can select an asset and in the upload metadata select any existing custom metadata fields in your organization for 1 or multiple assets at the time. If you want to add a new custom metadata on all the selected assets, it will be possible only if that custom metadata is not present in any selected assets, and the value will be set the same for every assets.
+If you enabled `Allow individual dependency version selection during upload` in the preferences, you can also select the version or version label of each dependency in the **Dependencies** section of the asset.
 > **Note**:
     The custom metadata fields need to be created on the web application first. See the [Manage custom metadata for assets](https://docs.unity.com/cloud/en-us/asset-manager/manage-custom-metadata) for more details on how to create them.
-10. Select **Upload assets**.
+11. Select **Upload assets**.
 
 > **Note**:
 Check the asset import states to know the current import and version status of the asset. For more information on asset import states, see Asset import states.

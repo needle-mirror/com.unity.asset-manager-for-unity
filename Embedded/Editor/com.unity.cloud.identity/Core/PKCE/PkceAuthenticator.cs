@@ -41,6 +41,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
         readonly IAccessTokenExchanger<string, UnityServicesToken> m_UnityServicesTokenExchanger;
         UnityServicesToken m_UnityServicesToken;
+        string m_IdToken = null;
 
         /// <inheritdoc/>
         public AuthenticationState AuthenticationState
@@ -449,7 +450,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
             var redirectUri = await m_AuthenticationPlatformSupport.GetRedirectUriAsync("signout");
             var appNamespace = m_AppNamespaceProvider.GetAppNamespace();
-            var url = PkceHelper.CreateSignOutUrl(appNamespace, state, redirectUri, pkceConfiguration, stateOverride);
+            var url = PkceHelper.CreateSignOutUrl(appNamespace, state, redirectUri, pkceConfiguration, stateOverride, m_IdToken);
 
             UrlRedirectResult urlRedirectResult;
 
@@ -506,6 +507,7 @@ namespace Unity.Cloud.IdentityEmbedded
             if (pkceConfiguration.CacheRefreshToken && m_AuthenticationPlatformSupport.SecretCacheStore != null)
                 await m_AuthenticationPlatformSupport.SecretCacheStore?.WriteToCacheAsync(m_DeviceTokenFileName, deviceToken.RefreshToken);
 
+            m_IdToken = deviceToken.IdToken;
             m_UnityServicesToken = await m_UnityServicesTokenExchanger.ExchangeAsync(deviceToken.AccessToken);
 
             var userId = m_JwtDecoder.Decode(m_UnityServicesToken.AccessToken).sub;

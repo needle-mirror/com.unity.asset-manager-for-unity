@@ -10,7 +10,6 @@ using Unity.Cloud.CommonEmbedded;
 using Unity.Cloud.IdentityEmbedded;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Serialization;
 using UnityEngine.TestTools;
 using Debug = UnityEngine.Debug;
 
@@ -109,16 +108,14 @@ namespace Unity.AssetManager.Core.Editor
 
         public NameAndId nameAndId;
 
-        public string Id
-        {
-            get => nameAndId.Id;
-            set => nameAndId.Id = value;
-        }
+        public string Id => nameAndId.Id;
 
-        public string Name
+        public string Name => nameAndId.Name;
+
+        public ProjectInfo(string id, string name = "")
         {
-            get => nameAndId.Name;
-            set => nameAndId.Name = value;
+            nameAndId.Id = id;
+            nameAndId.Name = name;
         }
 
         public IEnumerable<CollectionInfo> CollectionInfos => m_CollectionInfos;
@@ -163,8 +160,7 @@ namespace Unity.AssetManager.Core.Editor
         event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
         event Action<ProjectInfo> ProjectInfoChanged;
 
-        IAsyncEnumerable<UserInfo> GetOrganizationUsersAsync(string organizationId, Range range,
-            CancellationToken token);
+        IAsyncEnumerable<UserInfo> GetOrganizationUsersAsync(string organizationId, Range range, CancellationToken token);
         Task<StorageUsage> GetStorageUsageAsync(string organizationId, CancellationToken token = default);
         void SelectOrganization(string organizationId);
         void SelectProject(string projectId, string collectionPath = null, bool updateProject = false);
@@ -175,6 +171,7 @@ namespace Unity.AssetManager.Core.Editor
         Task DeleteCollection(CollectionInfo collectionInfo);
         Task RenameCollection(CollectionInfo collectionInfo, string newName);
         IAsyncEnumerable<NameAndId> ListOrganizationsAsync();
+        Task<List<string>> GetOrganizationVersionLabelsAsync();
     }
 
     [Serializable]
@@ -182,7 +179,6 @@ namespace Unity.AssetManager.Core.Editor
     {
         public override Type RegistrationType => typeof(IProjectOrganizationProvider);
 
-        [SerializeField]
         AsyncLoadOperation m_LoadOrganizationOperation = new();
 
         [SerializeField]
@@ -247,11 +243,17 @@ namespace Unity.AssetManager.Core.Editor
             get => EditorPrefs.GetString(k_CollectionPathPrefKey, null);
         }
 
+        Dictionary<string, List<string>> m_VersionLabels = new();
+        Task<List<string>> m_VersionLabelsTask;
+        object m_VersionLabelsLock = new();
+
         public event Action<OrganizationInfo> OrganizationChanged;
         public event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
         public event Action<ProjectInfo> ProjectInfoChanged;
 
-        public bool IsLoading => m_LoadOrganizationOperation.IsLoading;
+        public bool IsLoading => m_LoadOrganizationOperation?.IsLoading ?? false;
+        bool IsCloudReachable => m_UnityConnectProxy.AreCloudServicesReachable;
+        bool IsLoggedIn => GetAuthenticationState() == Cloud.IdentityEmbedded.AuthenticationState.LoggedIn;
 
         public event Action<bool> LoadingStateChanged;
 
@@ -268,17 +270,7 @@ namespace Unity.AssetManager.Core.Editor
             get
             {
                 var collection = SelectedProject?.GetCollection(m_CollectionPath);
-
-                if (collection != null)
-                {
-                    return collection;
-                }
-
-                return new CollectionInfo
-                {
-                    OrganizationId = SelectedOrganization?.Id,
-                    ProjectId = SelectedProject?.Id
-                };
+                return collection ?? new CollectionInfo(SelectedOrganization?.Id, SelectedProject?.Id, null);
             }
         }
 
@@ -338,8 +330,6 @@ namespace Unity.AssetManager.Core.Editor
         public override void OnEnable()
         {
             RegisterOnAuthenticationStateChanged(OnAuthenticationStateChanged);
-            m_UnityConnectProxy.OrganizationIdChanged += TryLoadSelectedOrganization;
-            m_UnityConnectProxy.ProjectIdChanged += SetSelectedProject;
             m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
 
             _ = TryLoadValidOrganizationAsync();
@@ -347,9 +337,13 @@ namespace Unity.AssetManager.Core.Editor
 
         public override void OnDisable()
         {
+            if (IsLoading)
+            {
+                m_LoadOrganizationOperation?.Cancel();
+                m_LoadOrganizationOperation = null;
+            }
+
             UnregisterOnAuthenticationStateChanged(OnAuthenticationStateChanged);
-            m_UnityConnectProxy.OrganizationIdChanged -= TryLoadSelectedOrganization;
-            m_UnityConnectProxy.ProjectIdChanged -= SetSelectedProject;
             m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
         }
 
@@ -359,6 +353,7 @@ namespace Unity.AssetManager.Core.Editor
             if (IsLoading && GetAuthenticationState() == Unity.Cloud.IdentityEmbedded.AuthenticationState.LoggedOut)
             {
                 m_LoadOrganizationOperation?.Cancel();
+                m_OrganizationInfo = null;
             }
 
             _ = TryLoadValidOrganizationAsync();
@@ -402,14 +397,6 @@ namespace Unity.AssetManager.Core.Editor
 
             SavedOrganizationId = organizationId;
             LoadOrganization(organizationId);
-        }
-
-        void SetSelectedProject()
-        {
-            if (!IsLoading && m_UnityConnectProxy.HasValidProjectId)
-            {
-                SelectProject(m_UnityConnectProxy.ProjectId);
-            }
         }
 
         public void SelectProject(string projectId, string collectionPath = null, bool updateProject = false)
@@ -566,6 +553,36 @@ namespace Unity.AssetManager.Core.Editor
                 yield return new NameAndId() { Id = organization.Id.ToString(), Name = organization.Name };
         }
 
+        public async Task<List<string>> GetOrganizationVersionLabelsAsync()
+        {
+            if (m_VersionLabels.ContainsKey(m_OrganizationInfo.Id))
+                return m_VersionLabels[m_OrganizationInfo.Id];
+
+            lock (m_VersionLabelsLock)
+            {
+                m_VersionLabelsTask ??= GetOrganizationVersionLabelsInternalAsync();
+            }
+
+            return await m_VersionLabelsTask;
+        }
+
+        async Task<List<string>> GetOrganizationVersionLabelsInternalAsync()
+        {
+            var query = AssetRepository.QueryLabels(new OrganizationId(m_OrganizationInfo.Id));
+            var filter = new LabelSearchFilter();
+            filter.IsArchived.WhereEquals(false);
+            var labelsAsync = query.SelectWhereMatchesFilter(filter).ExecuteAsync(default);
+
+            var labels = new List<ILabel>();
+            await foreach (var item in labelsAsync)
+            {
+                labels.Add(item);
+            }
+
+            m_VersionLabels[m_OrganizationInfo.Id] = labels.Select(l => l.Descriptor.LabelName).ToList();
+            return m_VersionLabels[m_OrganizationInfo.Id];
+        }
+
         async Task<IOrganization> GetOrganizationAsync(string organizationId)
         {
             // Try the direct way as this is the preferred way to get an organization and avoids listing all organizations.
@@ -598,11 +615,10 @@ namespace Unity.AssetManager.Core.Editor
             return null;
         }
 
-        internal async Task TryLoadValidOrganizationAsync(bool forceLoad = false)
+        internal async Task TryLoadValidOrganizationAsync()
         {
-            // If the saved org if it is not accessible to the current user
-            // reset it to the connected org in project settings if linked,
-            // else to the first accessible org for this user.
+            if (!IsCloudReachable || !IsLoggedIn || IsLoading)
+                return;
 
             var isOrganizationAvailable = await IsSavedOrganizationAvailableForUser();
             if (!isOrganizationAvailable)
@@ -617,34 +633,26 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
 
-            if (forceLoad || string.IsNullOrWhiteSpace(m_OrganizationInfo?.Id) || m_OrganizationInfo?.Id != SavedOrganizationId)
-                await LoadOrganization(SavedOrganizationId);
-        }
-
-        void TryLoadSelectedOrganization()
-        {
             if (string.IsNullOrWhiteSpace(m_OrganizationInfo?.Id) || m_OrganizationInfo?.Id != SavedOrganizationId)
-                LoadOrganization(SavedOrganizationId);
+            {
+                await LoadOrganization(SavedOrganizationId);
+            }
         }
 
         Task LoadOrganization(string newOrgId)
         {
-            var areCloudServicesReachable = m_UnityConnectProxy.AreCloudServicesReachable;
-            var isLoggedIn = GetAuthenticationState() == Cloud.IdentityEmbedded.AuthenticationState.LoggedIn;
-            if (!areCloudServicesReachable || !isLoggedIn)
+            if (!IsCloudReachable || !IsLoggedIn)
                 return Task.CompletedTask;
 
             // Create a new instance if the id has changed
             if (m_OrganizationInfo?.Id != newOrgId)
             {
-                m_OrganizationInfo = new OrganizationInfo { Id = newOrgId };
+                m_OrganizationInfo = new OrganizationInfo {Id = newOrgId};
             }
 
             // Cancel any existing operation
             if (IsLoading)
-            {
-                m_LoadOrganizationOperation.Cancel();
-            }
+                m_LoadOrganizationOperation?.Cancel();
 
             Utilities.DevLog($"Fetching organization info for '{newOrgId}'...");
 
@@ -656,6 +664,7 @@ namespace Unity.AssetManager.Core.Editor
                 return Task.CompletedTask;
             }
 
+            m_LoadOrganizationOperation ??= new();
             return m_LoadOrganizationOperation.Start(token => GetOrganizationInfoAsync(newOrgId, token),
                 loadingStartCallback: () =>
                 {
@@ -665,7 +674,11 @@ namespace Unity.AssetManager.Core.Editor
 
                     InvokeOrganizationChanged(); // TODO Should use a different event
                 },
-                cancelledCallback: InvokeOrganizationChanged,
+                cancelledCallback: () =>
+                {
+                    Utilities.DevLog("Cancelled loading organization.");
+                    InvokeOrganizationChanged();
+                },
                 exceptionCallback: e =>
                 {
                     Debug.LogException(e);
@@ -677,6 +690,9 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     m_OrganizationInfo = result;
                     SavedOrganizationId = m_OrganizationInfo.Id;
+
+                    InvokeOrganizationChanged();
+
                     if (m_OrganizationInfo?.ProjectInfos.Any() == false)
                     {
                         m_MessageManager.SetGridViewMessage(k_CurrentProjectNotEnabledMessage);
@@ -685,8 +701,6 @@ namespace Unity.AssetManager.Core.Editor
                     {
                         SelectProject(RestoreSelectedProjectId(), RestoreSelectedCollection());
                     }
-
-                    InvokeOrganizationChanged();
                 },
                 finallyCallback: () => { LoadingStateChanged?.Invoke(false); }
             );
@@ -962,11 +976,10 @@ namespace Unity.AssetManager.Core.Editor
             {
                 var projectProperties = await project.GetPropertiesAsync(token);
 
-                var projectInfo = new ProjectInfo
-                {
-                    Id = project.Descriptor.ProjectId.ToString(),
-                    Name = projectProperties.Name,
-                };
+                var projectInfo = new ProjectInfo(
+                    project.Descriptor.ProjectId.ToString(),
+                    projectProperties.Name
+                );
 
                 if (projectProperties.HasCollection)
                 {
@@ -975,12 +988,12 @@ namespace Unity.AssetManager.Core.Editor
                         collections =>
                         {
                             projectInfo.SetCollections(collections.Select(c => new CollectionInfo
-                            {
-                                OrganizationId = project.Descriptor.OrganizationId.ToString(),
-                                ProjectId = projectInfo.Id,
-                                Name = c.Name,
-                                ParentPath = c.ParentPath
-                            }));
+                            (
+                                project.Descriptor.OrganizationId.ToString(),
+                                project.Descriptor.ProjectId.ToString(),
+                                c.Name,
+                                c.ParentPath
+                            )));
                         },
                         token);
 

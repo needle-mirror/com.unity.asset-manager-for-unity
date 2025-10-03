@@ -77,7 +77,7 @@ namespace Unity.Cloud.IdentityEmbedded
 
             try
             {
-                var response = await m_HttpClient.PostAsync(requestUri, contentBody);
+                using var response = await m_HttpClient.PostAsync(requestUri, contentBody);
                 response.EnsureSuccessStatusCode();
                 var channelIdResponse = await response.JsonDeserializeAsync<ChannelIdResponseJson>();
                 return channelIdResponse.channelId;
@@ -95,7 +95,7 @@ namespace Unity.Cloud.IdentityEmbedded
         {
             var requestUri = m_ServiceHostResolver.GetResolvedRequestUri($"/app-linking/v1/channels/{channelId}");
 
-            var response = await m_HttpClient.GetAsync(requestUri);
+            using var response = await m_HttpClient.GetAsync(requestUri);
             response.EnsureSuccessStatusCode();
 
             var channel = await response.JsonDeserializeAsync<ChannelJson>();

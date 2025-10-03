@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -17,7 +18,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string ImageContainer = "image-container";
     }
 
-    class AssetDetailsTab : AssetTab
+    class AssetDetailsTab : AssetTab, IEditableComponent
     {
         const string k_FileSizeName = "file-size";
         const string k_FileCountName = "file-count";
@@ -25,8 +26,12 @@ namespace Unity.AssetManager.UI.Editor
         readonly AssetPreview m_AssetPreview;
         readonly VisualElement m_OutdatedWarningBox;
         readonly VisualElement m_EntriesContainer;
-        private readonly IPageManager m_PageManager;
-        private readonly IStateManager m_StateManager;
+        readonly IPageManager m_PageManager;
+        readonly IStateManager m_StateManager;
+        readonly IPopupManager m_PopupManager;
+        readonly ISettingsManager m_SettingsManager;
+        readonly IProjectOrganizationProvider m_projectOrganizationProvider;
+        readonly IAssetDataManager m_AssetDataManager;
 
         BaseAssetData m_AssetData;
 
@@ -39,13 +44,21 @@ namespace Unity.AssetManager.UI.Editor
 
         AssetDependenciesComponent m_DependenciesComponent;
 
+        List<IEditableEntry> m_EditableEntries = new();
 
-        public AssetDetailsTab(VisualElement visualElement, Func<bool> isFilterActive = null, IPageManager pageManager = null, IStateManager stateManager = null)
+        public bool IsEditingEnabled { get; private set; }
+        public event Action<AssetFieldEdit> FieldEdited;
+
+        public AssetDetailsTab(VisualElement visualElement, Func<bool> isFilterActive = null, IPageManager pageManager = null, IStateManager stateManager = null, IPopupManager popupManager = null, ISettingsManager settingsManager = null, IProjectOrganizationProvider projectOrganizationProvider = null, IAssetDataManager assetDataManager = null)
         {
             var root = visualElement.Q("details-page-content-container");
             Root = root;
             m_PageManager = pageManager;
             m_StateManager = stateManager;
+            m_PopupManager = popupManager;
+            m_SettingsManager = settingsManager;
+            m_projectOrganizationProvider = projectOrganizationProvider;
+            m_AssetDataManager = assetDataManager;
 
             m_EntriesContainer = new VisualElement();
             m_EntriesContainer.AddToClassList(UssStyle.DetailsPageEntriesContainer);
@@ -66,6 +79,10 @@ namespace Unity.AssetManager.UI.Editor
         public override void OnSelection(BaseAssetData assetData)
         {
             m_AssetPreview.ClearPreview();
+            m_AssetData = assetData;
+            // TODO: This class should have been caching the selected data.
+            // We need to clean up all the methods that accept new data as parameters...
+            // Alternatively we could keep reference to the AssetDataManager
         }
 
         public override void RefreshUI(BaseAssetData assetData, bool isLoading = false)
@@ -73,9 +90,10 @@ namespace Unity.AssetManager.UI.Editor
             // Remove asset preview from hierarchy to avoid it being destroyed when clearing the container
             m_AssetPreview.RemoveFromHierarchy();
 
+            // TODO: Clearing/rebuilding all fields here means we cannot maintain any focus state
+            // or values in any of the editable fields. Should be refactored to update existing fields
             m_EntriesContainer.Clear();
-
-            AddText(m_EntriesContainer, null, assetData.Description);
+            m_EditableEntries.Clear();
 
             m_AssetPreview.SetAssetType(assetData.PrimaryExtension);
             m_EntriesContainer.Add(m_AssetPreview);
@@ -86,15 +104,34 @@ namespace Unity.AssetManager.UI.Editor
 
             AddSpace(m_EntriesContainer);
 
+            if (!string.IsNullOrWhiteSpace(assetData.Description) || IsEditingEnabled)
+            {
+                var assetId = (assetData as UploadAssetData)?.ExistingAssetIdentifier?.AssetId ?? assetData.Identifier.AssetId;
+                var descriptionEntry = AddEditableText(m_EntriesContainer, assetId, Constants.DescriptionText, assetData.Description);
+                descriptionEntry.EntryEdited += OnDescriptionEdited;
+                descriptionEntry.IsEntryEdited += IsDescriptionEdited;
+                descriptionEntry.EnableEditing(IsEditingEnabled);
+                m_EditableEntries.Add(descriptionEntry);
+            }
+
             AddText(m_EntriesContainer, Constants.StatusText, assetData.Status, isSelectable: true);
 
             var projectIds = GetProjectIdsDisplayList(assetData.Identifier.ProjectId, assetData.LinkedProjects);
             var projectEntryTitle = projectIds.Length > 1 ? Constants.ProjectsText : Constants.ProjectText;
             AddProjectChips(m_EntriesContainer, projectEntryTitle, projectIds, "entry-project");
+            AddCollectionChips(m_EntriesContainer, Constants.CollectionsText, assetData.LinkedCollections);
 
-            AddTagChips(m_EntriesContainer, Constants.TagsText, assetData.Tags);
+            if (assetData.Tags.Any() || IsEditingEnabled)
+            {
+                var assetId = (assetData as UploadAssetData)?.ExistingAssetIdentifier?.AssetId ?? assetData.Identifier.AssetId;
+                var tagsEntry = AddEditableTagList(m_EntriesContainer, assetId, Constants.TagsText, assetData.Tags);
+                tagsEntry.EntryEdited += OnTagsEdited;
+                tagsEntry.IsEntryEdited += AreTagsEdited;
+                tagsEntry.EnableEditing(IsEditingEnabled);
+                m_EditableEntries.Add(tagsEntry);
+            }
 
-            m_DependenciesComponent = new AssetDependenciesComponent(m_EntriesContainer, m_PageManager, m_StateManager);
+            m_DependenciesComponent = new AssetDependenciesComponent(m_EntriesContainer, m_PageManager, m_PopupManager, m_SettingsManager, m_projectOrganizationProvider ,m_StateManager);
             m_DependenciesComponent.RefreshUI(assetData, isLoading);
             DisplayMetadata(assetData);
 
@@ -245,6 +282,46 @@ namespace Unity.AssetManager.UI.Editor
                 uniqueProjectIds.Add(linkedProject.ProjectId);
 
             return uniqueProjectIds.ToArray();
+        }
+
+        void OnDescriptionEdited(object editValue)
+        {
+            OnEntryEdited(EditField.Description, editValue);
+        }
+
+        void OnTagsEdited(object editValue)
+        {
+            OnEntryEdited(EditField.Tags, editValue);
+        }
+
+        bool IsDescriptionEdited(string assetId, object description)
+        {
+            var importedAssetData = m_AssetDataManager.GetImportedAssetInfo(assetId);
+            return !string.Equals(importedAssetData?.AssetData?.Description, description as string, StringComparison.Ordinal);
+        }
+
+        bool AreTagsEdited(string assetId, object tags)
+        {
+            var importedAssetData = m_AssetDataManager.GetImportedAssetInfo(assetId);
+            var tagsCollection = tags as IEnumerable<string> ?? Enumerable.Empty<string>();
+            var importedTags = importedAssetData?.AssetData?.Tags ?? Enumerable.Empty<string>();
+
+            return !importedTags.SequenceEqual(tagsCollection);
+        }
+
+        void OnEntryEdited(EditField fieldType, object editValue)
+        {
+            var edit = new AssetFieldEdit(m_AssetData.Identifier, fieldType, editValue);
+            FieldEdited?.Invoke(edit);
+        }
+
+        public void EnableEditing(bool enable)
+        {
+            foreach (var editableEntry in m_EditableEntries)
+            {
+                editableEntry.EnableEditing(enable);
+            }
+            IsEditingEnabled = enable;
         }
     }
 }

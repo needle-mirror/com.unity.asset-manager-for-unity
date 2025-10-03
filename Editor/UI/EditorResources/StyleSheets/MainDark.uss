@@ -77,6 +77,10 @@
     background-color: #3d3d3d;
 }
 
+.sidebar-content-empty .unity-text-element {
+    color: #8A8A8A;
+}
+
 /************************************************
 * Tab View
 ************************************************/
@@ -271,14 +275,26 @@ GridMessageView > .unity-label {
 }
 
 /************************************************
+* Clipboard Button
+************************************************/
+
+.ClipboardButton {
+    background-color: rgba(77, 77, 77, 1);
+}
+
+.ClipboardButton:hover {
+    background-color: rgba(88, 88, 88, 1);
+}
+
+/************************************************
 * Chips
 ************************************************/
 
-Chip, TagChip, ProjectChip, UserChip {
+Chip, TagChip, ProjectChip, UserChip, CollectionChip {
     background-color: rgba(66, 66, 66, 1);
 }
 
-TagChip:hover, ProjectChip:hover, UserChip:hover {
+TagChip:hover, ProjectChip:hover, UserChip:hover, CollectionChip:hover {
     background-color: rgba(88, 88, 88, 1);
 }
 
@@ -289,6 +305,13 @@ RoleChip {
 RoleChip:hover {
     border-color: #6E6E6E;
     background-color: #383838;
+}
+
+.details-page-chip__dismiss_button {
+    background-color: rgba(66, 66, 66, 1);
+}
+.details-page-chip__dismiss_button:hover {
+    background-color: rgba(88, 88, 88, 1);
 }
 
 /************************************************

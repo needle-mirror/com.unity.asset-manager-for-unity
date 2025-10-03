@@ -1,8 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Upload.Editor
 {
@@ -25,7 +27,7 @@ namespace Unity.AssetManager.Upload.Editor
         List<string> m_IncludesAllScripts = new();
 
         [SerializeReference]
-        MetadataModification m_ModifiedMetadata = new();
+        AssetEdits m_ModifiedMetadata = new();
 
         public IReadOnlyCollection<string> MainAssetGuids => m_MainAssetGuids;
         public IReadOnlyCollection<string> IgnoredAssetGuids => m_IgnoredAssetGuids;
@@ -61,6 +63,7 @@ namespace Unity.AssetManager.Upload.Editor
                 return false;
 
             m_MainAssetGuids.Remove(guid);
+            m_ModifiedMetadata.ClearEdits(guid);
             return true;
         }
 
@@ -69,7 +72,7 @@ namespace Unity.AssetManager.Upload.Editor
             m_MainAssetGuids.Clear();
             m_IgnoredAssetGuids.Clear();
             m_IncludesAllScripts.Clear();
-            m_ModifiedMetadata.Dictionary.Clear();
+            m_ModifiedMetadata.Clear();
         }
 
         public void SetIgnore(string assetGuid, bool ignore)
@@ -106,16 +109,70 @@ namespace Unity.AssetManager.Upload.Editor
             }
         }
 
-        public void SetModifiedMetadata(string assetDataGuid, string projectId, IMetadataContainer metadataContainer)
+        public bool HasEdits(string assetDataGuid)
         {
-            var key = GetKey(assetDataGuid, projectId);
-            m_ModifiedMetadata.Dictionary[key] = metadataContainer;
+            return m_ModifiedMetadata.HasEdits(assetDataGuid);
         }
 
-        public bool TryGetModifiedMetadata(string assetDataGuid, string projectId, out IReadOnlyCollection<IMetadata> metadata)
+        public void SetModifiedName(string assetDataGuid, string name)
         {
-            var key = GetKey(assetDataGuid, projectId);
-            if (m_ModifiedMetadata.Dictionary.TryGetValue(key, out var dictionary))
+            m_ModifiedMetadata.Names.Dictionary[assetDataGuid] = name;
+        }
+
+        public bool TryGetModifiedName(string assetDataGuid, out string name)
+        {
+            if (m_ModifiedMetadata.Names.Dictionary.TryGetValue(assetDataGuid, out var value))
+            {
+                name = value;
+                return true;
+            }
+
+            name = null;
+            return false;
+        }
+
+        public void SetModifiedDescription(string assetDataGuid, string description)
+        {
+            m_ModifiedMetadata.Descriptions.Dictionary[assetDataGuid] = description;
+        }
+
+        public bool TryGetModifiedDescription(string assetDataGuid, out string description)
+        {
+            if (m_ModifiedMetadata.Descriptions.Dictionary.TryGetValue(assetDataGuid, out var value))
+            {
+                description = value;
+                return true;
+            }
+
+            description = null;
+            return false;
+        }
+
+        public void SetModifiedTags(string assetDataGuid, IEnumerable<string> tags)
+        {
+            m_ModifiedMetadata.Tags.Dictionary[assetDataGuid] = tags;
+        }
+
+        public bool TryGetModifiedTags(string assetDataGuid, out IEnumerable<string> tags)
+        {
+            if (m_ModifiedMetadata.Tags.Dictionary.TryGetValue(assetDataGuid, out var value))
+            {
+                tags = value;
+                return true;
+            }
+
+            tags = null;
+            return false;
+        }
+
+        public void SetModifiedCustomMetadata(string assetDataGuid, IMetadataContainer metadataContainer)
+        {
+            m_ModifiedMetadata.CustomMetadata.Dictionary[assetDataGuid] = metadataContainer;
+        }
+
+        public bool TryGetModifiedCustomMetadata(string assetDataGuid, out IReadOnlyCollection<IMetadata> metadata)
+        {
+            if (m_ModifiedMetadata.CustomMetadata.Dictionary.TryGetValue(assetDataGuid, out var dictionary))
             {
                 metadata = dictionary.ToList();
                 return true;
@@ -124,27 +181,103 @@ namespace Unity.AssetManager.Upload.Editor
             metadata = null;
             return false;
         }
+    }
 
-        // We want to store the metadata per-Project basis
-        // This is because in case of a re-upload, the metadata might not be the same for the same asset
-        // We can try and think for a better solution in the future
-        static string GetKey(string assetDataGuid, string projectId)
+    enum EditField
+    {
+        Name,
+        Description,
+        Status,
+        Tags,
+        Custom,
+    }
+
+    class AssetFieldEdit
+    {
+        readonly Dictionary<EditField, Type> k_FieldTypeMap = new()
         {
-            return assetDataGuid + "__" + projectId;
+            { EditField.Name, typeof(string) },
+            { EditField.Description, typeof(string) },
+            { EditField.Status, typeof(string) },
+            { EditField.Tags, typeof(IEnumerable<string>) },
+            { EditField.Custom, typeof(IMetadata) },
+        };
+
+        public AssetIdentifier AssetIdentifier {get;}
+        public EditField Field {get;}
+        public object EditValue { get; }
+        Type EditValueType => k_FieldTypeMap[Field];
+
+        public AssetFieldEdit(AssetIdentifier assetIdentifier, EditField field, object editValue)
+        {
+            AssetIdentifier = assetIdentifier;
+            Field = field;
+            EditValue = editValue;
+
+            ValidateFieldType();
+        }
+
+        void ValidateFieldType()
+        {
+            if (EditValue == null || !EditValueType.IsInstanceOfType(EditValue))
+                throw new ArgumentException($"AssetFieldEdit with type \"{Field.ToString()}\" must be assignable to \"{EditValueType.Name}\"");
         }
     }
 
     [Serializable]
-    class MetadataModification : ISerializationCallbackReceiver
+    class AssetEdits
+    {
+        [SerializeReference]
+        public AssetEditDictionary<string> Names = new();
+
+        [SerializeReference]
+        public AssetEditDictionary<string> Descriptions = new();
+
+        [SerializeReference]
+        public AssetEditDictionary<IEnumerable<string>> Tags = new();
+
+        [SerializeReference]
+        public AssetEditDictionary<IMetadataContainer> CustomMetadata = new();
+
+        public void Clear()
+        {
+            Names.Dictionary.Clear();
+            Descriptions.Dictionary.Clear();
+            Tags.Dictionary.Clear();
+            CustomMetadata.Dictionary.Clear();
+        }
+
+        public bool HasEdits(string assetDataGuid)
+        {
+            var hasEdits = false;
+
+            hasEdits |= Names.Dictionary.ContainsKey(assetDataGuid);
+            hasEdits |= Descriptions.Dictionary.ContainsKey(assetDataGuid);
+            hasEdits |= Tags.Dictionary.ContainsKey(assetDataGuid);
+            hasEdits |= CustomMetadata.Dictionary.ContainsKey(assetDataGuid);
+
+            return hasEdits;
+        }
+
+        public void ClearEdits(string assetDataGuid)
+        {
+            Names.Dictionary.Remove(assetDataGuid);
+            Descriptions.Dictionary.Remove(assetDataGuid);
+            Tags.Dictionary.Remove(assetDataGuid);
+            CustomMetadata.Dictionary.Remove(assetDataGuid);
+        }
+    }
+
+    [Serializable]
+    class AssetEditDictionary<T> : ISerializationCallbackReceiver
     {
         [SerializeField]
         List<string> m_Keys = new();
 
-        [SerializeReference]
-        List<IMetadataContainer> m_Values = new();
+        [SerializeField]
+        List<T> m_Values = new();
 
-        Dictionary<string, IMetadataContainer> m_Dictionary = new();
-        public Dictionary<string, IMetadataContainer> Dictionary => m_Dictionary;
+        public Dictionary<string, T> Dictionary { get; private set; } = new();
 
         public void OnBeforeSerialize()
         {
@@ -160,14 +293,14 @@ namespace Unity.AssetManager.Upload.Editor
 
         public void OnAfterDeserialize()
         {
-            m_Dictionary = new Dictionary<string, IMetadataContainer>();
+            Dictionary = new Dictionary<string, T>();
             Utilities.DevAssert(m_Keys.Count == m_Values.Count);
 
             try
             {
                 for (int i = 0; i < m_Keys.Count; i++)
                 {
-                    m_Dictionary[m_Keys[i]] = m_Values[i];
+                    Dictionary[m_Keys[i]] = m_Values[i];
                 }
             }
             catch (Exception e)

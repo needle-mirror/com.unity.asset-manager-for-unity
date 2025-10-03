@@ -18,26 +18,43 @@ namespace Unity.AssetManager.UI.Editor
         const string k_DetailsPageFileItemStatusUssStyle = "details-page-dependency-item-status";
         const string k_DetailsPageFileIconItemUssStyle = "details-page-dependency-item-icon";
         const string k_DetailsPageFileLabelItemUssStyle = "details-page-dependency-item-label";
+        const string k_DetailsPageDependencySelectionItemDisabledUssStyle = "details-page-dependency-selection-disabled";
+        const string k_DetailsPageDependencyButtonUssStyle = "details-page-dependency-selection-button";
+        const string k_DetailsPageDependencyButtonCaretUssStyle = "details-page-dependency-selection-button-caret";
 
         readonly Button m_Button;
         readonly VisualElement m_Icon;
         readonly Label m_FileName;
         readonly VisualElement m_ImportedStatusIcon;
         readonly Label m_VersionNumber;
+        readonly Button m_DependencyVersionButton;
+        readonly TextElement m_DependencyVersionButtonText;
+
+        readonly IPageManager m_PageManager;
+        readonly IPopupManager m_PopupManager;
+        readonly ISettingsManager m_SettingsManager;
+        readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
         AssetIdentifier m_AssetIdentifier;
         BaseAssetData m_AssetData;
-        string m_VersionLabel;
+        Dictionary<string, string> m_VersionsIds = new();
+        List<string> m_VersionLabels = new();
 
         CancellationTokenSource m_CancellationTokenSource;
 
-        public DetailsPageDependencyItem(IPageManager pageManager)
+        public DetailsPageDependencyItem(IPageManager pageManager, IPopupManager popupManager, ISettingsManager settingsManager, IProjectOrganizationProvider projectOrganizationProvider)
         {
+            m_PageManager = pageManager;
+            m_PopupManager = popupManager;
+            m_ProjectOrganizationProvider = projectOrganizationProvider;
+
+            m_SettingsManager = settingsManager;
+
             m_Button = new Button(() =>
             {
                 if (m_AssetIdentifier != null)
                 {
-                    pageManager.ActivePage.SelectAsset(m_AssetIdentifier, false);
+                    m_PageManager.ActivePage.SelectAsset(m_AssetIdentifier, false);
                 }
             });
 
@@ -69,7 +86,28 @@ namespace Unity.AssetManager.UI.Editor
             m_VersionNumber = new Label();
             m_VersionNumber.AddToClassList("asset-version");
 
-            statusElement.Add(m_VersionNumber);
+            if (m_PageManager.ActivePage is UploadPage && settingsManager.IsDependencyVersionSelectionEnabled)
+            {
+                m_VersionNumber.visible = false;
+
+                m_DependencyVersionButton = new Button();
+                m_DependencyVersionButton.AddToClassList(k_DetailsPageDependencyButtonUssStyle);
+                statusElement.Add(m_DependencyVersionButton);
+
+                m_DependencyVersionButtonText = new TextElement();
+                m_DependencyVersionButtonText.text = L10n.Tr(Constants.LoadingText);
+                m_DependencyVersionButtonText.AddToClassList("unity-text-element");
+                m_DependencyVersionButton.Add(m_DependencyVersionButtonText);
+
+                var caret = new VisualElement();
+                caret.AddToClassList(k_DetailsPageDependencyButtonCaretUssStyle);
+                m_DependencyVersionButton.Add(caret);
+            }
+            else
+            {
+                statusElement.Add(m_VersionNumber);
+            }
+
             statusElement.Add(m_ImportedStatusIcon);
 
             m_Button.Add(infoElement);
@@ -103,7 +141,31 @@ namespace Unity.AssetManager.UI.Editor
 
             try
             {
-                m_AssetData = await FetchAssetData(dependencyIdentifier, token);
+                var assetData = await FetchAssetData(dependencyIdentifier, token);
+
+                if (IsOffline()) // when offline or unity services are unreachable, we go back to default behaviour or showing local dependency
+                {
+                    m_AssetData = assetData;
+                    m_FileName.text = assetData.Name;
+                    m_AssetIdentifier = dependencyIdentifier;
+
+                    RefreshUI();
+                    return;
+                }
+
+                if (assetData is AssetData)
+                {
+                    // The local dependency vs the actual dependency might not be the same version.
+                    // So we fetch the versions and select the correct one. This is both for the upload tab and the project detail tab
+                    await assetData.RefreshVersionsAsync(CancellationToken.None);
+                    m_AssetData = assetData.Versions
+                        .FirstOrDefault(v => v.Identifier.Version == dependencyIdentifier.Version);
+                }
+                else
+                {
+                    m_AssetData = assetData;
+                }
+
             }
             catch (OperationCanceledException)
             {
@@ -114,12 +176,17 @@ namespace Unity.AssetManager.UI.Editor
                 Utilities.DevLog($"Dependency ({dependencyIdentifier.AssetId}) could not found for asset.");
             }
 
-            m_AssetIdentifier = m_AssetData?.Identifier ?? dependencyIdentifier;
-            m_VersionLabel = dependencyIdentifier.VersionLabel;
+            m_AssetIdentifier = dependencyIdentifier;
 
             RefreshUI();
 
             await ResolveData(m_AssetData, token);
+        }
+
+        bool IsOffline()
+        {
+            var unityProxy = ServicesContainer.instance.Get<IUnityConnectProxy>();
+            return !unityProxy.AreCloudServicesReachable;
         }
 
         async Task ResolveData(BaseAssetData assetData, CancellationToken token)
@@ -135,11 +202,52 @@ namespace Unity.AssetManager.UI.Editor
 
             await Task.WhenAll(tasks);
 
+            if (CanSelectVersion())
+            {
+                var uploadAssetData = (UploadAssetData)assetData;
+                if ((uploadAssetData.Versions == null || !uploadAssetData.Versions.Any()) && !uploadAssetData.IsBeingAdded && !uploadAssetData.IsIgnored)
+                    await uploadAssetData.RefreshVersionsAsync(CancellationToken.None);
+
+                m_VersionsIds.Clear();
+                m_VersionLabels = await m_ProjectOrganizationProvider.GetOrganizationVersionLabelsAsync();
+
+                var versions = !uploadAssetData.IsBeingAdded ? uploadAssetData.Versions?.Where(v => v.SequenceNumber != 0)
+                    .OrderByDescending(v => v.SequenceNumber).ToList() : new List<BaseAssetData>();
+                if (versions != null)
+                {
+                    if (uploadAssetData.CanBeUploaded)
+                    {
+                        m_VersionsIds.Add(Constants.NewVersionText, AssetManagerCoreConstants.NewVersionId);
+                    }
+
+                    foreach (var version in versions)
+                    {
+                        var versionDisplay = $"Ver. {version.SequenceNumber}";
+                        m_VersionsIds[versionDisplay] = version.Identifier.Version;
+                    }
+
+                    UpdateVersionSelectionDisplayText();
+                    BuildVersionSelection();
+
+                    m_DependencyVersionButton.RegisterCallback<ClickEvent>(evt =>
+                    {
+                        BuildVersionSelection();
+                        m_PopupManager.Show(m_DependencyVersionButton, PopupContainer.PopupAlignment.BottomLeft);
+                    });
+                }
+            }
+
             // If by the time the tasks have completed, the target BaseAssetData has changed, don't continue
             if (m_AssetData != assetData)
                 return;
 
             RefreshUI();
+        }
+
+        bool CanSelectVersion()
+        {
+            return m_PageManager.ActivePage is UploadPage && m_SettingsManager.IsDependencyVersionSelectionEnabled &&
+                   (m_VersionsIds.Count == 0 || m_VersionLabels.Count == 0);
         }
 
         void RefreshUI()
@@ -155,6 +263,85 @@ namespace Unity.AssetManager.UI.Editor
             SetVersionNumber(m_AssetData);
         }
 
+        void BuildVersionSelection()
+        {
+            m_PopupManager.Clear();
+            var versionSelection = new ScrollView();
+
+            var versionLabelTitle = new Label(L10n.Tr(Constants.VersionLabelSelectionTitle));
+            versionLabelTitle.AddToClassList(UssStyle.k_FilterSectionLabel);
+            versionSelection.Add(versionLabelTitle);
+
+            foreach (var versionLabel in m_VersionLabels)
+            {
+                if (versionLabel == "Pending") // Skip the pending label (not allowed to be selected by user)
+                    continue;
+
+                var versionLabelSelection = new TextElement();
+                versionLabelSelection.AddToClassList(UssStyle.k_FilterItemSelection);
+                versionLabelSelection.text = versionLabel;
+                versionLabelSelection.RegisterCallback<ClickEvent>(evt =>
+                {
+                    evt.StopPropagation();
+
+                    m_AssetIdentifier.Version = AssetManagerCoreConstants.NewVersionId;
+                    m_AssetIdentifier.VersionLabel = versionLabel;
+
+                    m_DependencyVersionButtonText.text = versionLabel;
+                    m_PopupManager.Hide();
+                });
+                versionSelection.Add(versionLabelSelection);
+            }
+
+            var line = new VisualElement();
+            line.AddToClassList(UssStyle.k_FilterSeparatorLine);
+            versionSelection.Add(line);
+
+            var fixedVersionTitle = new Label(L10n.Tr(Constants.FixedVersionSelectionTitle));
+            fixedVersionTitle.AddToClassList(UssStyle.k_FilterSectionLabel);
+            versionSelection.Add(fixedVersionTitle);
+
+            foreach (var versionNumber in m_VersionsIds.Keys)
+            {
+                var versionLabelSelection = new TextElement();
+                versionLabelSelection.AddToClassList(UssStyle.k_FilterItemSelection);
+                versionLabelSelection.text = versionNumber;
+                versionLabelSelection.RegisterCallback<ClickEvent>(evt =>
+                {
+                    evt.StopPropagation();
+
+                    m_AssetIdentifier.VersionLabel = "";
+                    m_AssetIdentifier.Version = versionNumber == Constants.NewVersionText ? AssetManagerCoreConstants.NewVersionId : m_VersionsIds[versionNumber];
+
+                    m_DependencyVersionButtonText.text = versionNumber;
+                    m_PopupManager.Hide();
+                });
+                versionSelection.Add(versionLabelSelection);
+            }
+
+            m_PopupManager.Container.Add(versionSelection);
+        }
+
+        void UpdateVersionSelectionDisplayText()
+        {
+            if(!string.IsNullOrEmpty(m_AssetIdentifier.VersionLabel))
+            {
+                m_DependencyVersionButtonText.text = m_AssetIdentifier.VersionLabel;
+            }
+            else
+            {
+                var versionDisplayText = m_VersionsIds.FirstOrDefault(versionDisplayIds =>
+                    versionDisplayIds.Value == m_AssetIdentifier.Version).Key;
+
+                if (string.IsNullOrEmpty(versionDisplayText)) // that means it's trying to select "new version" but it's not present
+                {
+                    versionDisplayText = m_VersionsIds.FirstOrDefault().Key ?? string.Empty;
+                }
+
+                m_DependencyVersionButtonText.text = versionDisplayText;
+            }
+        }
+
         CancellationToken GetCancellationToken()
         {
             if (m_CancellationTokenSource != null)
@@ -167,7 +354,7 @@ namespace Unity.AssetManager.UI.Editor
             return m_CancellationTokenSource.Token;
         }
 
-        static async Task<BaseAssetData> FetchAssetData(AssetIdentifier identifier, CancellationToken token)
+        async Task<BaseAssetData> FetchAssetData(AssetIdentifier identifier, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
 
@@ -185,7 +372,8 @@ namespace Unity.AssetManager.UI.Editor
             // The AssetDataManager cache can only contain one version per asset (limitation or design choice?)
             // So we need to make sure the version returned is the one we need.
             var assetData = assetDataManager.GetAssetData(identifier);
-            if (assetData != null && assetData.Identifier == identifier)
+
+            if (assetData != null && (assetData.Identifier == identifier || m_PageManager.ActivePage is UploadPage && assetData.Identifier.AssetId == identifier.AssetId))
             {
                 return assetData;
             }
@@ -234,7 +422,7 @@ namespace Unity.AssetManager.UI.Editor
             if (assetData == null)
                 return;
 
-            UIElementsUtils.SetSequenceNumberText(m_VersionNumber, assetData, m_VersionLabel);
+            UIElementsUtils.SetSequenceNumberText(m_VersionNumber, assetData, m_AssetIdentifier.VersionLabel);
         }
     }
 }

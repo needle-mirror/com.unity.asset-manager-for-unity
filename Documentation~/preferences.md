@@ -59,6 +59,10 @@ It's the minimum confidence level that the Asset Manager uses to generate tags f
 
 When enabled, the dependencies of an uploaded asset point to the version with the **Latest** version label. When disabled, the uploaded asset points to fixed versions of its dependencies.
 
+### Allow individual dependency version selection during upload
+
+When enabled, you will be able to select the version or the version label of each dependency when uploading an asset. This allows for more granular control over which versions of dependencies are used in the uploaded asset.
+
 > **Note**:
 > This setting only applies when the Dependencies upload option is set to Separate. If Embedded or Ignore is selected, this setting has no effect.
 

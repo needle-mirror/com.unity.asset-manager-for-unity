@@ -50,6 +50,7 @@ namespace Unity.AssetManager.Core.Editor
 
         Task<Role> GetRoleAsync(string organizationId, string projectId);
         Task<bool> CheckPermissionAsync(string organizationId, string projectId, string permission);
+        Task<bool> CheckSeatValidity(string organizationId);
 
         void Reset();
 
@@ -150,6 +151,7 @@ namespace Unity.AssetManager.Core.Editor
         readonly Dictionary<OrganizationProjectPair, (Task, CancellationTokenSource)> m_PopulatePermissionsTasks = new();
         readonly Dictionary<OrganizationProjectPair, Role> m_CachedRoles = new();
         readonly Dictionary<OrganizationProjectPair, Permission[]> m_CachedPermissions = new();
+        readonly Dictionary<string, IEntitlements> m_CachedEntitlements = new();
 
         static readonly string k_AssetManagerAdmin = "asset manager admin";
         static readonly string k_Manager = Unity.Cloud.CommonEmbedded.Role.Manager.ToString();
@@ -254,6 +256,37 @@ namespace Unity.AssetManager.Core.Editor
             return CheckPermission(m_CachedPermissions.TryGetValue(key, out permissions) ? permissions : Array.Empty<Permission>(), permission);
         }
 
+        public async Task<bool> CheckSeatValidity(string organizationId)
+        {
+            if (!m_CachedEntitlements.TryGetValue(organizationId, out var entitlements))
+                entitlements = await GetEntitlementsInfoAsync(organizationId);
+
+            if(entitlements == null)
+                throw new InvalidOperationException($"Could not fetch entitlements for organization {organizationId}");
+
+            var organizationEntitlements = entitlements.OrganizationEntitlements.ToList();
+            var userSeats = entitlements.UserSeats.ToList();
+
+            return !organizationEntitlements.Any() || // No entitlements for the org, no seats required
+                   userSeats.Any() && userSeats.All(s => organizationEntitlements.Any(e => e == s)); // User has at least one of the entitlements required for the org
+        }
+
+        async Task<IEntitlements> GetEntitlementsInfoAsync(string organizationId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var organization = await GetOrganizationAsync(organizationId, cancellationToken);
+                var entitlements = await organization.GetEntitlementsAsync(cancellationToken);
+                m_CachedEntitlements[organizationId] = entitlements;
+                return entitlements;
+            }
+            catch (Exception e)
+            {
+                Utilities.DevLog($"Could not fetch entitlements for organization {organizationId}: {e.Message}");
+                return null;
+            }
+        }
+
         public void Reset()
         {
             CancelPermissionsTasks();
@@ -262,6 +295,7 @@ namespace Unity.AssetManager.Core.Editor
             m_CachedPermissions.Clear();
             m_CachedRoles.Clear();
             m_OrganizationPermissions.Clear();
+            m_CachedEntitlements.Clear();
         }
 
         bool CheckPermission(Permission[] permissions, string permission)
@@ -350,22 +384,13 @@ namespace Unity.AssetManager.Core.Editor
 
         async Task<IOrganization> GetOrganizationAsync_Internal(string organizationId, CancellationToken cancellationToken)
         {
-            try
+            var organizations = OrganizationRepository.ListOrganizationsAsync(Range.All, cancellationToken);
+            await foreach (var organization in organizations.WithCancellation(cancellationToken))
             {
-                var organizations = OrganizationRepository.ListOrganizationsAsync(Range.All, cancellationToken);
-                await foreach (var organization in organizations)
+                if (organization.Id.ToString() == organizationId)
                 {
-                    if (organization.Id.ToString() == organizationId)
-                    {
-                        return organization;
-                    }
+                    return organization;
                 }
-            }
-            catch (Exception)
-            {
-                // Patch for fixing UnityEditorCloudServiceAuthorizer not serializing properly.
-                // This case only shows up in 2021 because organization is fetched earlier than other versions
-                // Delete this code once Identity get bumped beyond 1.2.0-exp.1
             }
 
             return null;

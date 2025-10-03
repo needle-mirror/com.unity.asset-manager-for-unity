@@ -135,9 +135,12 @@ namespace Unity.AssetManager.Core.Editor
             }
             else if (!CloudProjectSettings.projectBound)
             {
-                m_ConnectedOrganizationId = k_NoValue;
-                m_ConnectedProjectId = k_NoValue;
-                OrganizationIdChanged?.Invoke();
+                if (!m_ConnectedOrganizationId.Equals(k_NoValue) || !m_ConnectedProjectId.Equals(k_NoValue))
+                {
+                    m_ConnectedOrganizationId = k_NoValue;
+                    m_ConnectedProjectId = k_NoValue;
+                    OrganizationIdChanged?.Invoke();
+                }
             }
 #if UNITY_2021
             else if (CloudProjectSettings.organizationId != k_NoValue && !m_ConnectedOrganizationId.Equals(CloudProjectSettings.organizationId))

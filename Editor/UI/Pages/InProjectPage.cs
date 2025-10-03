@@ -15,12 +15,14 @@ namespace Unity.AssetManager.UI.Editor
     class InProjectPage : BasePage
     {
         public override bool DisplaySearchBar => false;
+        public override bool DisplayBreadcrumbs => true;
         public override bool DisplayTitle => true;
         public override bool DisplaySavedViewControls => false;
         public override string Title => L10n.Tr(Constants.InProjectTitle);
         public override bool SupportsUpdateAll => true;
 
-        Task m_UpdateImportStatusTask;
+        static CachedTask m_UpdateLinkedProjectsTask;
+        Task m_UpdateLinkedProjectsForSelectionTask;
         Task<IEnumerable<ImportedAssetInfo>> m_GetFilteredImportedAssetsTask;
 
         public InProjectPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
@@ -32,36 +34,48 @@ namespace Unity.AssetManager.UI.Editor
         public override void OnEnable()
         {
             base.OnEnable();
+
+            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
         }
 
         public override void OnDisable()
         {
             base.OnDisable();
+
+            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
+        }
+
+        void OnOrganizationChanged(OrganizationInfo _)
+        {
+            // Force an update of linked projects and collections when the organization changes
+            m_UpdateLinkedProjectsTask = null;
         }
 
         void OnImportedAssetInfoChanged(AssetChangeArgs args)
         {
+            // Force an update of linked projects and collections if any imported data has changed
+            m_UpdateLinkedProjectsForSelectionTask = null;
+            m_UpdateLinkedProjectsTask = null;
+
             if (!m_PageManager.IsActivePage(this))
                 return;
 
             var clearSelection = args.Removed.Any(trackedAsset =>
-                SelectedAssets.Any(selectedAsset => trackedAsset.Equals(selectedAsset)));
+                SelectedAssets.Any(trackedAsset.Equals));
 
-            Clear(true, clearSelection);
+            LoadMore(clear: true, clearSelection: clearSelection);
         }
 
-        public override void Clear(bool reloadImmediately, bool clearSelection = true)
+        protected override void Clear()
         {
-            m_UpdateImportStatusTask = null;
             m_GetFilteredImportedAssetsTask = null;
 
-            base.Clear(reloadImmediately, clearSelection);
+            base.Clear();
         }
 
-        protected internal override async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(
-            [EnumeratorCancellation] CancellationToken token)
+        protected internal override async IAsyncEnumerable<BaseAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
         {
             var importedAssetCount = m_AssetDataManager.ImportedAssetInfos.Count;
 
@@ -70,21 +84,32 @@ namespace Unity.AssetManager.UI.Editor
             t.Start();
 #endif
 
-            if (m_UpdateImportStatusTask == null)
+            if (m_UpdateLinkedProjectsForSelectionTask == null)
             {
-                // Only initiate an update of import statuses if required by the filter or search order
-                if (HasFilter<LocalImportStatusFilter>() || m_PageManager.SortField == SortField.ImportStatus)
-                {
-                    Utilities.DevLog($"Updating import status for {importedAssetCount} asset(s)...");
-                    m_UpdateImportStatusTask = UpdateImportStatusAsync(m_AssetDataManager.ImportedAssetInfos, token);
-                }
-                else
-                {
-                    m_UpdateImportStatusTask = Task.CompletedTask;
-                }
+                m_UpdateLinkedProjectsForSelectionTask = UpdateLinkedProjectsAndCollectionsForSelectionAsync(m_AssetDataManager.ImportedAssetInfos, token);
             }
 
-            await m_UpdateImportStatusTask;
+            await m_UpdateLinkedProjectsForSelectionTask;
+
+            if (m_UpdateLinkedProjectsTask == null)
+            {
+                m_UpdateLinkedProjectsTask = new CachedTask(cancellationToken =>
+                    UpdateLinkedProjectsAndCollectionsAsync(m_AssetDataManager.ImportedAssetInfos, OnAssetDatasUpdated, cancellationToken));
+            }
+
+            // Non-blocking global update of linked projects and collections
+            _ = m_UpdateLinkedProjectsTask.RunAsync(token, 25);
+
+            token.ThrowIfCancellationRequested();
+
+            // Only wait an update of import statuses if required by the filter or search order
+            if (HasFilter<LocalImportStatusFilter>() || m_PageManager.SortField == SortField.ImportStatus)
+            {
+                TryStartUpdateAssetAttributesTask();
+                await UpdateAssetAttributesTask;
+            }
+
+            token.ThrowIfCancellationRequested();
 
             if (m_GetFilteredImportedAssetsTask == null)
             {
@@ -93,7 +118,11 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             var filteredImportedAssets = await m_GetFilteredImportedAssetsTask;
-            var sortedImportedAssets = SortImportedAssetsAsync(filteredImportedAssets);
+
+            token.ThrowIfCancellationRequested();
+
+            var projectImportedAssets = FilterByActiveProject(filteredImportedAssets);
+            var sortedImportedAssets = SortImportedAssetsAsync(projectImportedAssets);
 
             var maxIndex = Math.Min(m_NextStartIndex + Constants.DefaultPageSize, sortedImportedAssets.Length);
             var count = 0;
@@ -126,6 +155,28 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
+        protected override Task RefreshAssetDataAttributesAsync()
+        {
+            var token = GetUpdateAssetAttributesCancellationToken();
+
+            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
+            if (unityConnectProxy.AreCloudServicesReachable)
+            {
+                var assetDatas = m_AssetDataManager.ImportedAssetInfos.Select(x => x.AssetData).Where(x => x != null);
+                return FilteringUtils.UpdateImportStatusAsync(m_AssetsProvider, assetDatas, token);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        {
+            if (projectInfo == null)
+                return;
+
+            m_PageManager.SetActivePage<InProjectPage>(true);
+        }
+
         protected override Dictionary<string, SortField> CreateSortField()
         {
             return new Dictionary<string, SortField>
@@ -137,6 +188,32 @@ namespace Unity.AssetManager.UI.Editor
                 {s_SortFieldsLabelMap[SortField.Status], SortField.Status},
                 {s_SortFieldsLabelMap[SortField.ImportStatus], SortField.ImportStatus}
             };
+        }
+
+        ImportedAssetInfo[] FilterByActiveProject(IEnumerable<ImportedAssetInfo> importedAssets)
+        {
+            var selectedProjectId = m_ProjectOrganizationProvider.SelectedProject?.Id;
+            if (!string.IsNullOrEmpty(selectedProjectId))
+            {
+                var selectedCollection = m_ProjectOrganizationProvider.SelectedCollection;
+                if (selectedCollection != null && !string.IsNullOrEmpty(selectedCollection.Name))
+                {
+                    // Filter imported assets by linked collection
+                    var selectedCollectionFullPath = selectedCollection.GetFullPath();
+                    importedAssets = importedAssets.Where(x =>
+                        x.AssetData.LinkedCollections.Any(c =>
+                            c.ProjectIdentifier.ProjectId == selectedProjectId
+                            && c.CollectionPath == selectedCollectionFullPath));
+                }
+                else
+                {
+                    // Filter imported assets by imported project or linked project
+                    importedAssets = importedAssets.Where(x => x.Identifier.ProjectId == selectedProjectId
+                        || x.AssetData.LinkedProjects.Any(p => p.ProjectId == selectedProjectId));
+                }
+            }
+
+            return importedAssets.ToArray();
         }
 
         ImportedAssetInfo[] SortImportedAssetsAsync(IEnumerable<ImportedAssetInfo> importedAssets)
@@ -189,23 +266,34 @@ namespace Unity.AssetManager.UI.Editor
             };
         }
 
-        async Task UpdateImportStatusAsync(IEnumerable<ImportedAssetInfo> importedAssets, CancellationToken token)
+        async Task UpdateLinkedProjectsAndCollectionsForSelectionAsync(IEnumerable<ImportedAssetInfo> importedAssets, CancellationToken token)
         {
-            var assetDatas = importedAssets.Select(x => x.AssetData).Where(x => x != null);
-            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
+            Utilities.DevLog("Updating project lists for imported asset(s) for selected project or collection...");
 
+            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
             if (unityConnectProxy.AreCloudServicesReachable)
             {
-                // Only refresh the status for those that don't have it.
-                var results = await m_AssetsProvider.GatherImportStatusesAsync(assetDatas, token);
-                foreach (var assetData in assetDatas)
-                {
-                    if (results.TryGetValue(assetData.Identifier, out var status))
-                    {
-                        assetData.AssetDataAttributeCollection = new AssetDataAttributeCollection(new ImportAttribute(status));
-                    }
-                }
+                var assetDatas = importedAssets.Select(x => x.AssetData).Where(x => x != null);
+                await FilteringUtils.UpdateLinkedProjectsAndCollectionsForSelectionAsync(m_ProjectOrganizationProvider, m_AssetsProvider, assetDatas, token);
             }
+        }
+
+        async Task UpdateLinkedProjectsAndCollectionsAsync(IEnumerable<ImportedAssetInfo> importedAssets, Action onCompleted, CancellationToken token)
+        {
+            Utilities.DevLog("Updating project lists for imported asset(s)...");
+
+            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
+            if (unityConnectProxy.AreCloudServicesReachable)
+            {
+                var assetDatas = importedAssets.Select(x => x.AssetData).Where(x => x != null);
+                await FilteringUtils.UpdateLinkedProjectsAndCollectionsAsync(m_ProjectOrganizationProvider, m_AssetsProvider, assetDatas, token);
+                onCompleted?.Invoke();
+            }
+        }
+
+        void OnAssetDatasUpdated()
+        {
+            m_AssetDataManager.AddOrUpdateAssetDataFromCloudAsset(m_AssetDataManager.ImportedAssetInfos.Select(x => x.AssetData));
         }
     }
 }

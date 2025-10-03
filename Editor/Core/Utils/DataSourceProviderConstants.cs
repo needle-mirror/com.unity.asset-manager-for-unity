@@ -21,5 +21,7 @@ namespace Unity.AssetManager.Core.Editor
 
         // This exists here for compatibility with 2020.x versions
         public static readonly DateTime UnixEpoch = DateTime.UnixEpoch;
+
+        public const string NewVersionId = "1"; // to reference "the version that is about to be created"
     }
 }

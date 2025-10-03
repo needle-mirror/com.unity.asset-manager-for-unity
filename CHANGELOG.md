@@ -4,6 +4,24 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2025-10-03
+
+[Added]
+- Added the ability to edit asset metadata (name, description, tags) in the Upload page.
+- Added info about asset collections in the details tab. Selecting a collection will redirect to the collection on the Assets page.
+- Added capacity to select organization labels when settings dependencies version in the upload tab.
+- Added the ability to select any fixed versions or available version labels to dependencies during upload, this setting needs to be enabled from the preferences.
+- Added a warning for when the user's seat is either absent or does not fit the organization entitlements.
+- Added the user's role in the organization selection dropdown.
+
+[Changed]
+- When an error happens during the file upload step of assets upload, the upload operation is cancelled and reverted.
+- 'In Project' tab assets can be navigated by project and collection.
+
+[Fixed]
+- Fixed preview not showing when a user is lacking permission or doesn't have the right seat in the organization.
+- Fixed a file sharing problem that could happen during import on Windows.
+
 ## [1.7.0] - 2025-08-21
 
 [Added]

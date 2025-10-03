@@ -135,6 +135,9 @@ namespace Unity.AssetManager.UI.Editor
                 case AssetDataEventType.ToggleValueChanged:
                     RefreshToggle();
                     break;
+                case AssetDataEventType.PropertiesChanged:
+                    RefreshName();
+                    break;
             }
         }
 
@@ -142,7 +145,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             if (m_AssetData == null)
                 return;
-            
+
             if (m_ContextMenu == null)
             {
                 InitContextMenu(m_AssetData);
@@ -160,9 +163,7 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             RefreshHighlight();
-
-            m_AssetNameLabel.text = m_AssetData.Name;
-            m_AssetNameLabel.tooltip = m_AssetData.Name;
+            RefreshName();
 
             m_OperationProgressBar.Refresh(m_OperationManager.GetAssetOperation(m_AssetData.Identifier));
 
@@ -301,6 +302,12 @@ namespace Unity.AssetManager.UI.Editor
 
             m_LoadingIcon.StopAnimation();
             UIElementsUtils.Hide(m_LoadingIcon);
+        }
+
+        void RefreshName()
+        {
+            m_AssetNameLabel.text = m_AssetData.Name;
+            m_AssetNameLabel.tooltip = m_AssetData.Name;
         }
 
         void RefreshHighlight()

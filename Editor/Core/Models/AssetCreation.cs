@@ -8,6 +8,7 @@ namespace Unity.AssetManager.Core.Editor
     class AssetCreation
     {
         public string Name { get; set; }
+        public string Description { get; set; }
         public AssetType Type { get; set; }
         public List<string> Collections { get; set; } = new();
         public List<string> Tags { get; set; } = new();

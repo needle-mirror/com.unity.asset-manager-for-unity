@@ -54,6 +54,11 @@ namespace Unity.Cloud.IdentityEmbedded
         public string RefreshToken { get; }
 
         /// <summary>
+        /// The token used on for openid authentication.
+        /// </summary>
+        public string IdToken { get; }
+
+        /// <summary>
         /// The TimeSpan value before the current <see cref="DeviceToken"/> expires.
         /// </summary>
         public TimeSpan AccessTokenExpiresIn => m_AccessTokenExpiry - DateTime.UtcNow;
@@ -69,6 +74,21 @@ namespace Unity.Cloud.IdentityEmbedded
             AccessToken = accessToken;
             RefreshToken = refreshToken;
             m_AccessTokenExpiry = accessTokenExpiryDateTime;
+        }
+
+        /// <summary>
+        /// Creates a `DeviceToken`.
+        /// </summary>
+        /// <param name="accessToken">The string value of the issued access token.</param>
+        /// <param name="refreshToken">The string value of the issued refresh token.</param>
+        /// <param name="idToken">The string value of the issued id token.</param>
+        /// <param name="accessTokenExpiryInSeconds">The int value in seconds of the remaining time before expiration of the issued access token.</param>
+        public DeviceToken(string accessToken, string refreshToken, string idToken, int accessTokenExpiryInSeconds)
+        {
+            AccessToken = accessToken;
+            RefreshToken = refreshToken;
+            IdToken = idToken;
+            m_AccessTokenExpiry = ConvertExpiryInSecondsToDateTime(accessTokenExpiryInSeconds);
         }
 
         /// <summary>
@@ -96,6 +116,22 @@ namespace Unity.Cloud.IdentityEmbedded
             AccessToken = accessToken;
             RefreshToken = string.IsNullOrEmpty(refreshToken) ? oldRefreshToken : refreshToken;
             m_AccessTokenExpiry = accessTokenExpiryDateTime;
+        }
+
+        /// <summary>
+        /// Creates a `DeviceToken`.
+        /// </summary>
+        /// <param name="accessToken">The string value of the issued access token.</param>
+        /// <param name="refreshToken">The string value of the issued refresh token.</param>
+        /// <param name="idToken">The string value of the issued id token.</param>
+        /// <param name="accessTokenExpiryInSeconds">The int value in seconds of the remaining time before expiration of the issued access token.</param>
+        /// <param name="oldRefreshToken">The string value of the previously issued refresh token. This value will be used if provided refreshToken is null or empty.</param>
+        public DeviceToken(string accessToken, string refreshToken, string idToken, int accessTokenExpiryInSeconds, string oldRefreshToken)
+        {
+            AccessToken = accessToken;
+            IdToken = idToken;
+            RefreshToken = string.IsNullOrEmpty(refreshToken) ? oldRefreshToken : refreshToken;
+            m_AccessTokenExpiry = ConvertExpiryInSecondsToDateTime(accessTokenExpiryInSeconds);
         }
 
         /// <summary>

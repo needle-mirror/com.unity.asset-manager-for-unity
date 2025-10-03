@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -329,7 +328,10 @@ namespace Unity.AssetManager.Core.Editor
 
             AddOrUpdateImportedAssetInfo(info);
 
-            ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { Added = added, Updated = updated });
+            if (added.Count + updated.Count > 0)
+            {
+                ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs {Added = added, Updated = updated});
+            }
         }
 
         public void RemoveFilesFromImportedAssetInfos(IReadOnlyCollection<string> guidsToRemove)
@@ -373,7 +375,6 @@ namespace Unity.AssetManager.Core.Editor
 
         public void AddOrUpdateAssetDataFromCloudAsset(IEnumerable<BaseAssetData> assetDatas)
         {
-            var assetChangeArgs = new AssetChangeArgs();
             var updated = new HashSet<TrackedAssetIdentifier>();
             var added = new HashSet<TrackedAssetIdentifier>();
 
@@ -396,9 +397,10 @@ namespace Unity.AssetManager.Core.Editor
                 m_AssetData[id] = assetData;
             }
 
-            assetChangeArgs.Added = added;
-            assetChangeArgs.Updated = updated;
-            AssetDataChanged?.Invoke(assetChangeArgs);
+            if (added.Count + updated.Count > 0)
+            {
+                AssetDataChanged?.Invoke(new AssetChangeArgs {Added = added, Updated = updated});
+            }
         }
 
         public ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier assetIdentifier)
@@ -449,7 +451,10 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
 
-            ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs { Removed = idsToRemove });
+            if (idsToRemove.Count > 0)
+            {
+                ImportedAssetInfoChanged?.Invoke(new AssetChangeArgs {Removed = idsToRemove});
+            }
         }
 
         public List<ImportedAssetInfo> GetImportedAssetInfosFromFileGuid(string guid)
