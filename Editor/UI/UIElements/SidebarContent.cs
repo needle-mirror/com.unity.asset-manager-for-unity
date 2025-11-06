@@ -19,6 +19,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly SideBarAllAssetsFoldout m_AllAssetsFoldout;
         readonly SidebarSavedViewContent m_SidebarSavedViewContent;
         readonly SidebarProjectContent m_SidebarProjectContent;
+        readonly SidebarProjectContent m_SidebarAssetLibraryContent;
         readonly VisualElement m_NoProjectsContainer;
 
         public SidebarContent(IUnityConnectProxy unityConnectProxy, IProjectOrganizationProvider projectOrganizationProvider, IAssetDataManager assetDataManager, IPageManager pageManager,
@@ -46,6 +47,9 @@ namespace Unity.AssetManager.UI.Editor
             m_SidebarProjectContent = new SidebarProjectContent(m_ProjectOrganizationProvider, m_ProjectContentEnabler, m_StateManager, messageManager);
             m_ScrollContainer.Add(m_SidebarProjectContent);
 
+            m_SidebarAssetLibraryContent = new SidebarProjectContent(m_ProjectOrganizationProvider, m_ProjectContentEnabler, m_StateManager, messageManager, true);
+            m_ScrollContainer.Add(m_SidebarAssetLibraryContent);
+
             m_NoProjectsContainer = new VisualElement();
             m_NoProjectsContainer.AddToClassList("NoProjectSelected");
             m_NoProjectsContainer.Add(new Label {text = L10n.Tr(Constants.SidebarNoProjectsText)});
@@ -65,10 +69,8 @@ namespace Unity.AssetManager.UI.Editor
 
             Refresh();
             ScrollToHeight(m_StateManager.SideBarScrollValue);
-            
             OnActivePageChanged(m_PageManager.ActivePage);
             m_PageManager.ActivePageChanged += OnActivePageChanged;
-            
             m_ProjectContentEnabler.Enabled = true;
         }
 
@@ -88,7 +90,6 @@ namespace Unity.AssetManager.UI.Editor
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
             Refresh();
-            
             OnActivePageChanged(m_PageManager.ActivePage);
         }
 
@@ -99,15 +100,26 @@ namespace Unity.AssetManager.UI.Editor
             m_SidebarSavedViewContent.Refresh();
         }
 
-        void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        void OnProjectSelectionChanged(ProjectOrLibraryInfo projectOrLibraryInfo, CollectionInfo collectionInfo)
         {
-            if (m_PageManager.ActivePage is AllAssetsPage or AllAssetsInProjectPage)
+            if (projectOrLibraryInfo == null || m_PageManager.ActivePage is AllAssetsPage or AllAssetsInProjectPage)
             {
                 m_SidebarProjectContent.ClearSelectedProject();
+                m_SidebarAssetLibraryContent.ClearSelectedProject();
             }
             else
             {
-                m_SidebarProjectContent.SelectProject(projectInfo, collectionInfo);
+                if (projectOrLibraryInfo.IsAssetLibrary)
+                {
+                    m_SidebarProjectContent.ClearSelectedProject();
+                    m_SidebarAssetLibraryContent.SelectProject(projectOrLibraryInfo, collectionInfo);
+                    m_SidebarSavedViewContent.Unselect();
+                }
+                else
+                {
+                    m_SidebarProjectContent.SelectProject(projectOrLibraryInfo, collectionInfo);
+                    m_SidebarAssetLibraryContent.ClearSelectedProject();
+                }
             }
         }
 
@@ -115,12 +127,12 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_AllAssetsFoldout.SetEnabled(page is not UploadPage);
             m_AllAssetsFoldout.SetSelected(page is AllAssetsPage or AllAssetsInProjectPage);
-            
-            m_SidebarSavedViewContent.SetDisplay(page is BasePage {DisplaySavedViewControls: true});
-            
-            OnProjectSelectionChanged(m_ProjectOrganizationProvider.SelectedProject, m_ProjectOrganizationProvider.SelectedCollection);
+
+            m_SidebarAssetLibraryContent.SetEnabled(page is CollectionPage or AllAssetsPage);
+            m_SidebarSavedViewContent.SetEnabled(m_ProjectOrganizationProvider.SelectedAssetLibrary == null);
+            OnProjectSelectionChanged(m_ProjectOrganizationProvider.SelectedProjectOrLibrary, m_ProjectOrganizationProvider.SelectedCollection);
         }
-        
+
         void OnAllAssetsFolderClicked()
         {
             m_PageManager.SetActivePage<AllAssetsPage>();
@@ -132,6 +144,7 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.SetDisplay(m_AllAssetsFoldout, showAllAssetsFolder);
 
             m_SidebarProjectContent.Refresh();
+            m_SidebarAssetLibraryContent.Refresh();
 
             if (!m_UnityConnectProxy.AreCloudServicesReachable)
             {
@@ -140,16 +153,19 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            var projectInfos = m_ProjectOrganizationProvider.SelectedOrganization?.ProjectInfos as IList<ProjectInfo> ??
-                Array.Empty<ProjectInfo>();
+            var projectInfos = m_ProjectOrganizationProvider.SelectedOrganization?.ProjectInfos as IList<ProjectOrLibraryInfo> ??
+                Array.Empty<ProjectOrLibraryInfo>();
             if (projectInfos.Count == 0)
             {
-                UIElementsUtils.Hide(m_ScrollContainer);
+                UIElementsUtils.Hide(m_SidebarProjectContent);
+                UIElementsUtils.Hide(m_SidebarSavedViewContent);
                 UIElementsUtils.Show(m_NoProjectsContainer);
                 return;
             }
 
             UIElementsUtils.Show(m_ScrollContainer);
+            UIElementsUtils.Show(m_SidebarProjectContent);
+            UIElementsUtils.Show(m_SidebarSavedViewContent);
             UIElementsUtils.Hide(m_NoProjectsContainer);
 
             m_ScrollContainer.verticalScroller.value = m_StateManager.SideBarScrollValue;
@@ -160,6 +176,19 @@ namespace Unity.AssetManager.UI.Editor
             if (m_ScrollContainer != null)
             {
                 m_ScrollContainer.verticalScroller.value = height;
+            }
+        }
+
+        public void ScrollToElement(VisualElement element)
+        {
+            if (m_ScrollContainer != null && element != null)
+            {
+                void OnGeometryChanged(GeometryChangedEvent evt)
+                {
+                    m_ScrollContainer.ScrollTo(element);
+                    element.UnregisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+                }
+                element.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
             }
         }
     }

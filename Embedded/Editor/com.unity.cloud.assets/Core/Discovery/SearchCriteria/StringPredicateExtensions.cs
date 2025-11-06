@@ -11,7 +11,7 @@ namespace Unity.Cloud.AssetsEmbedded.SearchExtensions
 
         public static StringPredicate AsPrefix(this string value) => new(value, StringSearchOption.Prefix);
 
-        public static StringPredicate AsExactMatch(this string value) => new(value);
+        public static StringPredicate AsExactMatch(this string value) => new(value, StringSearchOption.ExactMatch);
 
         public static StringPredicate AsFuzzyMatch(this string value) => new(value, StringSearchOption.Fuzzy);
 

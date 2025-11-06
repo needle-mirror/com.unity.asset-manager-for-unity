@@ -2,7 +2,7 @@ using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
-    class TerminateTransformationRequest : ProjectRequest
+    class TerminateTransformationRequest : ProjectOrLibraryRequest
     {
         public TerminateTransformationRequest(ProjectId projectId, TransformationId transformationId)
             : base(projectId)

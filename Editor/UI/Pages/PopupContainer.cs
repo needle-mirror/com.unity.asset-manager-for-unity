@@ -73,14 +73,7 @@ namespace Unity.AssetManager.UI.Editor
             switch (alignment)
             {
                 case PopupAlignment.TopLeft:
-                    if(localPos.x + resolvedStyle.width > parent.resolvedStyle.width)
-                    {
-                        style.left = parent.resolvedStyle.width - resolvedStyle.width;
-                    }
-                    else
-                    {
-                        style.left = localPos.x;
-                    }
+                    style.left = localPos.x;
                     style.maxHeight = worldPos.y - k_Gap;
                     style.top = localPos.y - resolvedStyle.height;
                     break;
@@ -94,14 +87,7 @@ namespace Unity.AssetManager.UI.Editor
                     style.top = localPos.y - resolvedStyle.height;
                     break;
                 case PopupAlignment.BottomLeft:
-                    if(localPos.x + resolvedStyle.width > parent.resolvedStyle.width)
-                    {
-                        style.left = parent.resolvedStyle.width - resolvedStyle.width;
-                    }
-                    else
-                    {
-                        style.left = localPos.x;
-                    }
+                    style.left = localPos.x;
                     style.top = localPos.y + target.resolvedStyle.height;
                     await Task.Delay(1);
                     style.maxHeight = parent.resolvedStyle.height - (resolvedStyle.top + k_Gap);

@@ -82,6 +82,16 @@ namespace Unity.AssetManager.UI.Editor
                     text = tooltip;
                 }
                     break;
+                case RecommendedAction.OpenUnityCloudConfigurationDocumentation:
+                {
+                    RemoveFromClassList(k_LinkClassName);
+                    AddToClassList(k_ButtonClassName);
+                    clicked += m_LinksProxy.OpenUnityCloudConfigurationDocumentation;
+
+                    tooltip = L10n.Tr("Open Documentation");
+                    text = tooltip;
+                }
+                    break;
                 case RecommendedAction.Retry:
                 {
                     RemoveFromClassList(k_LinkClassName);

@@ -34,7 +34,11 @@ namespace Unity.AssetManager.UI.Editor
         public string tooltip
         {
             get => m_RemoveButton.tooltip;
-            set => m_RemoveButton.tooltip = value;
+            set
+            {
+                base.tooltip = value;
+                m_RemoveButton.tooltip = value;
+            }
         }
 #pragma warning restore CS0108 // 'RemoveButton.tooltip' hides inherited member 'VisualElement.tooltip'
 

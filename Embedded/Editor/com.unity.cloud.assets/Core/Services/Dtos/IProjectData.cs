@@ -14,6 +14,9 @@ namespace Unity.Cloud.AssetsEmbedded
         [DataMember(Name = "id")]
         ProjectId Id { get; }
 
+        /// <summary>
+        /// Whether the project has at least one collection.
+        /// </summary>
         [DataMember(Name="hasCollection")]
         bool HasCollection { get; }
     }

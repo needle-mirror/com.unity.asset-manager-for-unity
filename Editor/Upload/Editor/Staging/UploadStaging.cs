@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
+using Unity.AssetManager.Editor;
+using UnityEditor;
 using UnityEngine;
 using Task = System.Threading.Tasks.Task;
 
@@ -111,6 +113,9 @@ namespace Unity.AssetManager.Upload.Editor
             // Check we actually need to regenerate the list
             var uploadAssetData = UploadAssetStrategy.GenerateUploadAssets(m_UploadEdits, m_Settings, pinDependencyToLatest, progressCallback).ToList();
 
+            // Postprocess the generated list
+            PostprocessUploadAssets(uploadAssetData);
+
             // Restore manual edits made by the user
             ApplyEdits(uploadAssetData);
 
@@ -163,14 +168,16 @@ namespace Unity.AssetManager.Upload.Editor
                     m_UploadEdits.SetModifiedTags(assetData.Guid, assetFieldEdit.EditValue as IEnumerable<string>);
                     break;
 
+                case EditField.Status:
+                    m_UploadEdits.SetModifiedStatus(assetData.Guid, assetFieldEdit.EditValue as string);
+                    break;
+
                 case EditField.Custom:
                     // TODO: See about following the same flow for storing edits here. Might not be possible given comments in the GenerateUploadAssetData method
                     // Also consider whether the comment about needing to store by ProjectId is still valid
                     assetData.AddMetadata(assetFieldEdit.EditValue as IMetadata);
                     break;
 
-                // TODO:
-                case EditField.Status:
                 default:
                     return;
 
@@ -203,6 +210,11 @@ namespace Unity.AssetManager.Upload.Editor
             if (m_UploadEdits.TryGetModifiedTags(assetData.Guid, out var tags))
             {
                 assetData.SetTags(tags);
+            }
+
+            if (m_UploadEdits.TryGetModifiedStatus(assetData.Guid, out var status))
+            {
+                assetData.SetStatus(status);
             }
 
             if (m_UploadEdits.TryGetModifiedCustomMetadata(assetData.Guid, out var metadata))
@@ -414,6 +426,100 @@ namespace Unity.AssetManager.Upload.Editor
         public void ResetDefaultSettings()
         {
             m_Settings?.ResetToDefault();
+        }
+
+        static void PostprocessUploadAssets(IEnumerable<UploadAssetData> uploadAssetDatas)
+        {
+            var projectOrganizationProvider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
+            var organizationInfo = projectOrganizationProvider?.SelectedOrganization;
+            if (organizationInfo == null)
+            {
+                Debug.LogError("Unable to retrieve organization information for postprocessing upload assets");
+                return;
+            }
+
+            foreach (var assetData in uploadAssetDatas)
+            {
+                // Intentionally re-create postprocessors for each asset to ensure a clean state
+                var postprocessors = AssetManagerPostprocessorUtility.InstantiateAllAssetManagerPostprocessorsAndOrder();
+                if (postprocessors == null || postprocessors.Length == 0)
+                    continue;
+
+                var uploadData = CreateFrom(assetData);
+                Utilities.DevAssert(uploadData != null, "Upload asset data was null");
+
+                if (uploadData == null)
+                    continue;
+
+                foreach (var postprocessor in postprocessors)
+                {
+                    try
+                    {
+                        postprocessor.OnPostprocessUploadAsset(uploadData);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError( $"Failed to postprocess asset {assetData.Name} with {postprocessor.GetType().FullName}: {ex.Message}");
+                    }
+                }
+
+                assetData.TrySetProperties(
+                    uploadData.Name,
+                    uploadData.Description,
+                    AssetManagerClient.Map(uploadData.AssetType),
+                    uploadData.Status,
+                    uploadData.Tags,
+                    AssetManagerClient.Map(uploadData.Metadata.Values, organizationInfo.MetadataFieldDefinitions));
+            }
+        }
+
+        internal static Unity.AssetManager.Editor.UploadAsset CreateFrom(UploadAssetData assetData)
+        {
+            if (string.IsNullOrEmpty(assetData.Guid))
+            {
+                Utilities.DevLogError("AssetData has no GUID");
+                return null;
+            }
+            if (!GUID.TryParse(assetData.Guid, out var parsedAssetGuid))
+            {
+                Utilities.DevLogError($"Failed to parse asset GUID: {assetData.Guid}");
+                return null;
+            }
+
+            List<GUID> dependencies = new List<GUID>();
+            foreach (var dependency in assetData.Dependencies)
+            {
+                if (!dependency.IsLocal())
+                {
+                    Utilities.DevLogError($"Asset dependencies are not local: {dependency}");
+                    return null;
+                }
+
+                // Remove the "local_" prefix to get the actual GUID
+                var dependencyGuid = dependency.AssetId.Replace(AssetIdentifier.k_LocalPrefix + "_", "");
+                if (!GUID.TryParse(dependencyGuid, out var parsedDependencyGuid))
+                {
+                    Utilities.DevLogError($"Failed to parse dependency GUID: {dependencyGuid}");
+                    return null;
+                }
+                dependencies.Add(parsedDependencyGuid);
+            }
+
+            var metadataContainer = new Unity.AssetManager.Editor.MetadataContainer();
+            var metadataList = AssetManagerClient.Map(assetData.Metadata);
+            foreach (var m in metadataList)
+            {
+                metadataContainer.Add(m.Key, m);
+            }
+
+            return new Unity.AssetManager.Editor.UploadAsset(parsedAssetGuid, dependencies.ToArray(), AssetManagerClient.Map(assetData.AssetType))
+            {
+                Name = assetData.Name,
+                Description = assetData.Description,
+                Status = assetData.Status,
+                Tags = assetData.Tags.ToArray(),
+                Metadata = metadataContainer
+            };
         }
     }
 }

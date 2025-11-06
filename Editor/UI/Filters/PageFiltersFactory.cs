@@ -92,6 +92,22 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
+        internal PageFilters CreateLibraryPageFilters()
+        {
+            return CreateAndInitializePageFilters(CreatePrimaryMetadataFilters, CreateCustomMetadataFilters);
+
+            List<BaseFilter> CreatePrimaryMetadataFilters()
+            {
+                return new List<BaseFilter>();
+            }
+
+            //empty list for now
+            List<CustomMetadataFilter> CreateCustomMetadataFilters()
+            {
+                return new List<CustomMetadataFilter>();
+            }
+        }
+
         internal PageFilters CreateInProjectPageFilters()
         {
             return CreateAndInitializePageFilters(CreatePrimaryMetadataFilters, CreateCustomMetadataFilters);

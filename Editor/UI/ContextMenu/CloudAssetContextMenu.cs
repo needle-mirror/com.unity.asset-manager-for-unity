@@ -52,6 +52,10 @@ namespace Unity.AssetManager.UI.Editor
             if (IsImporting || !m_UnityConnectProxy.AreCloudServicesReachable)
                 return;
 
+            var projectOrganizationProvider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
+            if (projectOrganizationProvider.SelectedAssetLibrary != null)
+                return;
+
             var permissionsManager = ServicesContainer.instance.Resolve<IPermissionsManager>();
             var importPermission = await permissionsManager.CheckPermissionAsync(TargetAssetData.Identifier.OrganizationId, TargetAssetData.Identifier.ProjectId, Constants.ImportPermission);
 
@@ -61,6 +65,7 @@ namespace Unity.AssetManager.UI.Editor
             enabled |= UIEnabledStates.CanImport.GetFlag(true); // We unfortunately don't have a way to check instantly if the asset is not empty, so we need to assume it is.
 
             var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
+
             if (selectedAssetData.Count > 1 && selectedAssetData.Exists(ad => ad.Identifier.AssetId == TargetAssetData.Identifier.AssetId))
             {
                 ImportEntryMultiple(evt, selectedAssetData, enabled);
@@ -257,6 +262,9 @@ namespace Unity.AssetManager.UI.Editor
                 return;
 
             var projectOrganizationProvider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
+            if (projectOrganizationProvider.SelectedAssetLibrary != null)
+                return;
+
             string optionName = Constants.UpdateAllToLatestActionText;
             if (selectedAssetData.Count > 1)
             {
@@ -281,16 +289,16 @@ namespace Unity.AssetManager.UI.Editor
                 {
                     if (selectedAssetData.Count == 0)
                     {
-                        ProjectInfo selectedProject = null;
+                        ProjectOrLibraryInfo selectedProjectOrLibrary = null;
                         CollectionInfo selectedCollection = null;
 
                         if (m_PageManager.ActivePage is CollectionPage)
                         {
-                            selectedProject = projectOrganizationProvider.SelectedProject;
+                            selectedProjectOrLibrary = projectOrganizationProvider.SelectedProjectOrLibrary;
                             selectedCollection = projectOrganizationProvider.SelectedCollection;
                         }
 
-                        TaskUtils.TrackException(m_AssetImporter.UpdateAllToLatestAsync(ImportTrigger.UpdateAllToLatestContextMenu, selectedProject, selectedCollection, CancellationToken.None));
+                        TaskUtils.TrackException(m_AssetImporter.UpdateAllToLatestAsync(ImportTrigger.UpdateAllToLatestContextMenu, selectedProjectOrLibrary, selectedCollection, CancellationToken.None));
                     }
                     else
                     {

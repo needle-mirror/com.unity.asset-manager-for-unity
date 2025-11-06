@@ -12,7 +12,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 dataset.Properties = datasetData.From(includeFields);
 
             if (includeFields.HasFlag(DatasetFields.metadata))
-                dataset.MetadataEntity.Properties = datasetData.Metadata?.From(assetDataSource, dataset.Descriptor.OrganizationId) ?? new Dictionary<string, MetadataObject>();
+                dataset.MetadataEntity.Properties = datasetData.Metadata?.From(assetDataSource, dataset.Descriptor.AssetDescriptor) ?? new Dictionary<string, MetadataObject>();
             if (includeFields.HasFlag(DatasetFields.systemMetadata))
                 dataset.SystemMetadataEntity.Properties = datasetData.SystemMetadata?.From() ?? new Dictionary<string, MetadataObject>();
 
@@ -56,6 +56,8 @@ namespace Unity.Cloud.AssetsEmbedded
                 datasetProperties.FileOrder = datasetData.FileOrder;
             if (includeFields.HasFlag(DatasetFields.workflowName))
                 datasetProperties.WorkflowName = datasetData.WorkflowName;
+            if (includeFields.HasFlag(DatasetFields.vcsMappingId))
+                datasetProperties.VcsMappingId = new VcsMappingId(datasetData.VcsMappingId);
 
             return datasetProperties;
         }

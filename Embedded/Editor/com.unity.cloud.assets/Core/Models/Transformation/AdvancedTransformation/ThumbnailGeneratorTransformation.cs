@@ -90,7 +90,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
             if (BackgroundColor.HasValue)
             {
-                parameters.Add("backgroundColor", $"{BackgroundColor.Value.R} {BackgroundColor.Value.G} {BackgroundColor.Value.B} {BackgroundColor.Value.A}");
+                parameters.Add("backgroundColorRGBA", $"{BackgroundColor.Value.R} {BackgroundColor.Value.G} {BackgroundColor.Value.B} {BackgroundColor.Value.A}");
             }
 
             return parameters;

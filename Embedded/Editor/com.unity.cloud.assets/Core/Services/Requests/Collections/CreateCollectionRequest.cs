@@ -7,7 +7,7 @@ namespace Unity.Cloud.AssetsEmbedded
     /// <summary>
     /// Builds an API request which creates a collection.
     /// </summary>
-    class CreateCollectionRequest : ProjectRequest
+    class CreateCollectionRequest : ProjectOrLibraryRequest
     {
         /// <summary>
         /// Returns a collection.

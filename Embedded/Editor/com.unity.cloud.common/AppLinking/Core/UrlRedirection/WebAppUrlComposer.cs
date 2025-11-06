@@ -71,7 +71,7 @@ namespace Unity.Cloud.AppLinkingEmbedded
             if (m_WebAppBaseUrls.Count == 0)
             {
                 var webAppUrlEndpoint = m_ServiceHostResolver.GetResolvedRequestUri(m_WebAppUrlEndpoint);
-                var response = await m_HttpClient.GetAsync(webAppUrlEndpoint);
+                using var response = await m_HttpClient.GetAsync(webAppUrlEndpoint);
                 m_WebAppBaseUrls = await response.JsonDeserializeAsync<Dictionary<string, string>>();
             }
         }

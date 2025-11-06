@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Cloud.CommonEmbedded;
 
-[assembly: ApiSourceVersion("com.unity.cloud.common", "1.2.0")]
+[assembly: ApiSourceVersion("com.unity.cloud.common", "1.3.0")]
 #if !(UC_NUGET)
 [assembly: InternalsVisibleTo("Unity.Cloud.Common.Tests")]
 [assembly: InternalsVisibleTo("Unity.Cloud.Common.Tests.Editor")]

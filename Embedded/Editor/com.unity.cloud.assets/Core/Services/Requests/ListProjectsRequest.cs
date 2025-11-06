@@ -11,8 +11,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="organizationId">Genesis ID of the organization</param>
         /// <param name="page">The page.</param>
         /// <param name="pageSize">The page size.</param>
-        public ListProjectsRequest(OrganizationId organizationId,
-            int? page = default, int? pageSize = default)
+        public ListProjectsRequest(OrganizationId organizationId, int? page, int? pageSize)
             : base(organizationId)
         {
             m_RequestUrl += "/projects";

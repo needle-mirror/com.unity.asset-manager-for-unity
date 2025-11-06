@@ -15,7 +15,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 asset.Properties = assetData.From(asset.Descriptor, includeFields);
 
             if (includeFields.AssetFields.HasFlag(AssetFields.metadata))
-                asset.MetadataEntity.Properties = assetData.Metadata?.From(assetDataSource, asset.Descriptor.OrganizationId) ?? new Dictionary<string, MetadataObject>();
+                asset.MetadataEntity.Properties = assetData.Metadata?.From(assetDataSource, asset.Descriptor) ?? new Dictionary<string, MetadataObject>();
 
             if (includeFields.AssetFields.HasFlag(AssetFields.systemMetadata))
                 asset.SystemMetadataEntity.Properties = assetData.SystemMetadata?.From() ?? new Dictionary<string, MetadataObject>();
@@ -154,6 +154,13 @@ namespace Unity.Cloud.AssetsEmbedded
             ProjectDescriptor projectDescriptor, FieldsFilter includeFields, AssetCacheConfiguration? assetCacheConfiguration = null)
         {
             var descriptor = new AssetDescriptor(projectDescriptor, data.Id, data.Version);
+            return data.From(assetDataSource, defaultCacheConfiguration, descriptor, includeFields, assetCacheConfiguration);
+        }
+
+        internal static AssetEntity From(this IAssetData data, IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            AssetLibraryId assetLibraryId, FieldsFilter includeFields, AssetCacheConfiguration? assetCacheConfiguration = null)
+        {
+            var descriptor = new AssetDescriptor(assetLibraryId, data.Id, data.Version);
             return data.From(assetDataSource, defaultCacheConfiguration, descriptor, includeFields, assetCacheConfiguration);
         }
 

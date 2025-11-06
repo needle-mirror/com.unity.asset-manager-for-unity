@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -13,7 +14,8 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         readonly IAssetDataSource m_DataSource;
         readonly AssetRepositoryCacheConfiguration m_DefaultCacheConfiguration;
-        readonly OrganizationId m_OrganizationId;
+        readonly OrganizationId m_OrganizationId = OrganizationId.None;
+        readonly AssetLibraryId m_AssetLibraryId = AssetLibraryId.None;
 
         LabelCacheConfiguration? m_CacheConfiguration;
         LabelSearchFilter m_Filter;
@@ -24,6 +26,13 @@ namespace Unity.Cloud.AssetsEmbedded
             m_DataSource = dataSource;
             m_DefaultCacheConfiguration = defaultCacheConfiguration;
             m_OrganizationId = organizationId;
+        }
+
+        internal LabelQueryBuilder(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, AssetLibraryId assetLibraryId)
+        {
+            m_DataSource = dataSource;
+            m_DefaultCacheConfiguration = defaultCacheConfiguration;
+            m_AssetLibraryId = assetLibraryId;
         }
 
         /// <summary>
@@ -73,14 +82,21 @@ namespace Unity.Cloud.AssetsEmbedded
                 Range = m_Range
             };
 
-            var results = m_DataSource.ListLabelsAsync(m_OrganizationId,
-                pagination,
-                m_Filter.IsArchived.GetValue(),
-                m_Filter.IsSystemLabel.GetValue(),
-                cancellationToken);
-            await foreach (var result in results)
+            if (m_AssetLibraryId.IsPathToAssetLibraryValid())
             {
-                yield return result.From(m_DataSource, m_DefaultCacheConfiguration, m_OrganizationId, m_CacheConfiguration);
+                var results = m_DataSource.ListLabelsAsync(m_AssetLibraryId, pagination, m_Filter.IsArchived.GetValue(), m_Filter.IsSystemLabel.GetValue(), cancellationToken);
+                await foreach (var result in results)
+                {
+                    yield return result.From(m_DataSource, m_DefaultCacheConfiguration, m_AssetLibraryId, m_CacheConfiguration);
+                }
+            }
+            else
+            {
+                var results = m_DataSource.ListLabelsAsync(m_OrganizationId, pagination, m_Filter.IsArchived.GetValue(), m_Filter.IsSystemLabel.GetValue(), cancellationToken);
+                await foreach (var result in results)
+                {
+                    yield return result.From(m_DataSource, m_DefaultCacheConfiguration, m_OrganizationId, m_CacheConfiguration);
+                }
             }
         }
     }

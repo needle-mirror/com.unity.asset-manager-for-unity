@@ -362,7 +362,8 @@ namespace Unity.AssetManager.Editor
             };
         }
 
-        static Core.Editor.AssetType Map(AssetType assetType)
+        // Convert a Asset Manager asset type to a Unity Editor asset type
+        internal static Core.Editor.AssetType Map(AssetType assetType)
         {
             return assetType switch
             {
@@ -395,7 +396,41 @@ namespace Unity.AssetManager.Editor
             };
         }
 
-        static List<IMetadata> Map(IEnumerable<Metadata> metadatas)
+        // Convert a Unity Editor asset type to an Asset Manager asset type
+        internal static AssetType Map(Core.Editor.AssetType assetType)
+        {
+            return assetType switch
+            {
+                Core.Editor.AssetType.Animation => AssetType.Animation,
+                Core.Editor.AssetType.Audio => AssetType.Audio,
+                Core.Editor.AssetType.AudioMixer => AssetType.Audio_Mixer,
+                Core.Editor.AssetType.Font => AssetType.Font,
+                Core.Editor.AssetType.Material => AssetType.Material,
+                Core.Editor.AssetType.Model3D => AssetType.Model_3D,
+                Core.Editor.AssetType.PhysicsMaterial => AssetType.Physics_Material,
+                Core.Editor.AssetType.Prefab => AssetType.Prefab,
+                Core.Editor.AssetType.UnityScene => AssetType.Unity_Scene,
+                Core.Editor.AssetType.Script => AssetType.Script,
+                Core.Editor.AssetType.Shader => AssetType.Shader,
+                Core.Editor.AssetType.Asset2D => AssetType.Asset_2D,
+                Core.Editor.AssetType.VisualEffect => AssetType.Visual_Effect,
+                Core.Editor.AssetType.AssemblyDefinition => AssetType.Assembly_Definition,
+                Core.Editor.AssetType.Asset => AssetType.Asset,
+                Core.Editor.AssetType.Configuration => AssetType.Configuration,
+                Core.Editor.AssetType.Document => AssetType.Document,
+                Core.Editor.AssetType.Environment => AssetType.Environment,
+                Core.Editor.AssetType.Image => AssetType.Image,
+                Core.Editor.AssetType.Playable => AssetType.Playable,
+                Core.Editor.AssetType.ShaderGraph => AssetType.Shader_Graph,
+                Core.Editor.AssetType.UnityPackage => AssetType.Unity_Package,
+                Core.Editor.AssetType.Scene => AssetType.Scene,
+                Core.Editor.AssetType.UnityEditor => AssetType.Unity_Editor,
+                Core.Editor.AssetType.Video => AssetType.Video,
+                _ => AssetType.Other
+            };
+        }
+
+        internal static List<IMetadata> Map(IEnumerable<Metadata> metadatas)
         {
             ValidateMetadatas(metadatas);
 
@@ -424,6 +459,111 @@ namespace Unity.AssetManager.Editor
                         break;
                     case MultiValueMetadata multiValueMetadata:
                         metadataList.Add(new Core.Editor.MultiSelectionMetadata(multiValueMetadata.Key, string.Empty, multiValueMetadata.Values.ToList()));
+                        break;
+                }
+            }
+
+            return metadataList;
+        }
+
+        // Convert a list of Metadata (public) to a list of internal IMetadata.
+        // The field definitions are used to determine the type of each metadata.
+        internal static List<IMetadata> Map(IEnumerable<Metadata> metadatas, List<IMetadataFieldDefinition> fieldDefinitions)
+        {
+            var metadataList = new List<IMetadata>();
+
+            foreach (var metadata in metadatas)
+            {
+                var fieldDefinition = fieldDefinitions.FirstOrDefault(x => x.Key == metadata.Key);
+                if (fieldDefinition == null)
+                {
+                    Debug.LogWarning($"No metadata field definition found for key: {metadata.Key}. Skipping this metadata.");
+                    continue;
+                }
+
+                switch(fieldDefinition.Type)
+                {
+                    case MetadataFieldType.Boolean:
+                        metadataList.Add(new Core.Editor.BooleanMetadata(fieldDefinition.Key, fieldDefinition.DisplayName, metadata.CastToBool()));
+                        break;
+                    case MetadataFieldType.MultiSelection:
+                        metadataList.Add(new Core.Editor.MultiSelectionMetadata(fieldDefinition.Key, fieldDefinition.DisplayName, metadata.CastToMultiSelection()));
+                        break;
+                    case MetadataFieldType.Number:
+                        metadataList.Add(new Core.Editor.NumberMetadata(fieldDefinition.Key, fieldDefinition.DisplayName, metadata.CastToNumber()));
+                        break;
+                    case MetadataFieldType.SingleSelection:
+                        metadataList.Add(new Core.Editor.SingleSelectionMetadata(fieldDefinition.Key, fieldDefinition.DisplayName, metadata.CastToString()));
+                        break;
+                    case MetadataFieldType.Text:
+                        metadataList.Add(new Core.Editor.TextMetadata(fieldDefinition.Key, fieldDefinition.DisplayName, metadata.CastToString()));
+                        break;
+                    case MetadataFieldType.Timestamp:
+                        metadataList.Add(new Core.Editor.TimestampMetadata(fieldDefinition.Key, fieldDefinition.DisplayName, metadata.CastToDateTimeEntry()));
+                        break;
+                    case MetadataFieldType.Url:
+                        metadataList.Add(new Core.Editor.UrlMetadata(fieldDefinition.Key, fieldDefinition.DisplayName, metadata.CastToUriEntry()));
+                        break;
+                    case MetadataFieldType.User:
+                        metadataList.Add(new Core.Editor.UserMetadata(fieldDefinition.Key, fieldDefinition.DisplayName, metadata.CastToString()));
+                        break;
+                    default:
+                        Debug.LogWarning($"Unknown field type: {fieldDefinition.Type}. Skipping this metadata.");
+                        continue;
+                }
+            }
+
+            return metadataList;
+        }
+
+        // Convert a list of internal IMetadata to a list of Metadata (public).
+        internal static List<Metadata> Map(IEnumerable<IMetadata> metadatas)
+        {
+            if (metadatas == null || !metadatas.Any())
+            {
+                return new List<Metadata>();
+            }
+
+            var metadataList = new List<Metadata>();
+
+            foreach (var metadata in metadatas)
+            {
+                switch (metadata)
+                {
+                    case Core.Editor.BooleanMetadata booleanMetadata:
+                        metadataList.Add(new BooleanMetadata(booleanMetadata.Value) { Key = booleanMetadata.FieldKey });
+                        break;
+                    case Core.Editor.NumberMetadata numberMetadata:
+                        metadataList.Add(new NumberMetadata(numberMetadata.Value) { Key = numberMetadata.FieldKey });
+                        break;
+                    case Core.Editor.TextMetadata textMetadata:
+                        metadataList.Add(new StringMetadata(textMetadata.Value) { Key = textMetadata.FieldKey });
+                        break;
+                    case Core.Editor.TimestampMetadata timestampMetadata:
+                        metadataList.Add(new DateTimeMetadata(timestampMetadata.Value.DateTime)
+                            { Key = timestampMetadata.FieldKey });
+                        break;
+                    case Core.Editor.SingleSelectionMetadata singleSelectionMetadata:
+                        metadataList.Add(new StringMetadata(singleSelectionMetadata.Value) { Key = singleSelectionMetadata.FieldKey });
+                        break;
+                    case Core.Editor.MultiSelectionMetadata multiSelectionMetadata:
+                        metadataList.Add(new MultiValueMetadata(multiSelectionMetadata.Value)
+                            { Key = multiSelectionMetadata.FieldKey });
+                        break;
+                    case Core.Editor.UrlMetadata urlMetadata:
+                        string urlString = null;
+                        if (string.IsNullOrEmpty(urlMetadata.Value.Label))
+                        {
+                            urlString = urlMetadata.Value.Uri.ToString();
+                        }
+                        else
+                        {
+                            urlString = $"[{urlMetadata.Value.Label}]({urlMetadata.Value.Uri})";
+                        }
+                        metadataList.Add(new StringMetadata(urlString) { Key = urlMetadata.FieldKey });
+                        break;
+                    case Core.Editor.UserMetadata userMetadata:
+                        metadataList.Add(new StringMetadata(userMetadata.Value) { Key = userMetadata.FieldKey });
                         break;
                 }
             }

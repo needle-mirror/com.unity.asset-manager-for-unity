@@ -10,6 +10,7 @@ namespace Unity.AssetManager.UI.Editor
     static partial class UssStyle
     {
         public const string LoadingLabel = "details-page-loading-label";
+        public const string DetailsPageEntryHeader = "details-page-entry-header";
     }
 
     abstract class AssetTab : IPageComponent
@@ -32,6 +33,13 @@ namespace Unity.AssetManager.UI.Editor
             loadingLabel.AddToClassList(UssStyle.LoadingLabel);
 
             container.Add(loadingLabel);
+        }
+
+        protected static void AddHeader(VisualElement container, string text)
+        {
+            var entry = new Label(text);
+            entry.AddToClassList(UssStyle.DetailsPageEntryHeader);
+            container.Add(entry);
         }
 
         protected static void AddLabel(VisualElement container, string title, string name = null)
@@ -178,6 +186,14 @@ namespace Unity.AssetManager.UI.Editor
 
                 return tagChip;
             }
+        }
+
+        protected EditableDropdownEntry AddEditableStatusDropdown(VisualElement container, string assetId, string title, string selectedValue, IEnumerable<string> options)
+        {
+            var statusEntry = new EditableDropdownEntry(assetId, title, selectedValue, options);
+            container.Add(statusEntry);
+
+            return statusEntry;
         }
 
         protected void AddCollectionChips(VisualElement container, string title, IEnumerable<CollectionIdentifier> collections,

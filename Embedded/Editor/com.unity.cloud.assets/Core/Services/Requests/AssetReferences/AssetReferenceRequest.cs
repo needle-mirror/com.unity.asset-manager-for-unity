@@ -4,7 +4,7 @@ using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
-    class AssetReferenceRequest : ProjectRequest
+    class AssetReferenceRequest : ProjectOrLibraryRequest
     {
         readonly IAssetReferenceRequestBody m_Data;
 
@@ -16,13 +16,13 @@ namespace Unity.Cloud.AssetsEmbedded
             m_Data = data;
         }
 
-        public AssetReferenceRequest(ProjectId projectId, AssetId assetId, AssetVersion? assetVersion, string context, int? offset = null, int? limit = null)
+        public AssetReferenceRequest(ProjectId projectId, AssetId assetId, AssetVersion? assetVersion, string context, int offset, int limit)
             : this(projectId, assetId)
         {
             AddParamToQuery("AssetVersion", assetVersion?.ToString());
             AddParamToQuery("Context", context);
-            AddParamToQuery("offset", offset?.ToString());
-            AddParamToQuery("limit", limit?.ToString());
+            AddParamToQuery("offset", offset.ToString());
+            AddParamToQuery("limit", limit.ToString());
         }
 
         public AssetReferenceRequest(ProjectId projectId, AssetId assetId, string referenceId)

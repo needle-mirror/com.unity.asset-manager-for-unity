@@ -160,12 +160,12 @@ namespace Unity.AssetManager.UI.Editor
 
             // Special cases that would change the target page type:
             if (typeof(T) == typeof(CollectionPage)
-                && string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProject?.Id))
+                && string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Id))
             {
                 targetPageType = typeof(AllAssetsPage);
             }
             else if (typeof(T) == typeof(InProjectPage)
-                     && string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProject?.Id))
+                     && string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Id))
             {
                 targetPageType = typeof(AllAssetsInProjectPage);
             }
@@ -187,7 +187,8 @@ namespace Unity.AssetManager.UI.Editor
 
             m_ActivePage = CreatePage(targetPageType);
 
-            PageFilterStrategy.SetPageFiltersObject(m_PageFiltersByType[m_ActivePage.GetType().Name]);
+            PageFilterStrategy.SetPageFiltersObject(GetActivePageFilters());
+
 
             m_ActivePage?.OnEnable();
             m_ActivePage?.SetFilterStrategy(PageFilterStrategy);
@@ -306,7 +307,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 RegisterPageEvents(m_ActivePage);
 
-                PageFilterStrategy.SetPageFiltersObject(m_PageFiltersByType[m_ActivePage.GetType().Name]);
+                PageFilterStrategy.SetPageFiltersObject(GetActivePageFilters());
                 m_ActivePage.SetFilterStrategy(PageFilterStrategy);
                 PageFilterStrategy.EnableFilters();
             }
@@ -324,8 +325,9 @@ namespace Unity.AssetManager.UI.Editor
 
             if (m_ActivePage != null)
             {
+                m_ActivePage.CheckConnection();
                 m_ActivePage.ClearSelection();
-                PageFilterStrategy.SetPageFiltersObject(m_PageFiltersByType[m_ActivePage.GetType().Name]);
+                PageFilterStrategy.SetPageFiltersObject(GetActivePageFilters());
             }
         }
 
@@ -341,6 +343,16 @@ namespace Unity.AssetManager.UI.Editor
             // It causes a short loading sequence when re-applied.
             if (applyFilter)
                 m_PageFilterStrategy.ApplyFilterFromAssetSearchFilter(savedAssetSearchFilter.AssetSearchFilter.Clone());
+        }
+
+        private PageFilters GetActivePageFilters()
+        {
+            var pageFiltersFactory = new PageFiltersFactory(PageFilterStrategy, m_ProjectOrganizationProvider, m_AssetDataManager);
+
+            return m_ActivePage.GetType().Name == nameof(CollectionPage) &&
+                   m_ProjectOrganizationProvider.SelectedAssetLibrary != null
+                ? pageFiltersFactory.CreateLibraryPageFilters()
+                : m_PageFiltersByType[m_ActivePage.GetType().Name];
         }
     }
 }

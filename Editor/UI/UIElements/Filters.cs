@@ -110,7 +110,11 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void InitDisplay(IPage page)
         {
-            UIElementsUtils.SetDisplay(Container, true);
+            var display = m_ProjectOrganizationProvider.SelectedOrganization != null &&
+                          m_ProjectOrganizationProvider.SelectedOrganization.ProjectInfos.Any() &&
+                          m_ProjectOrganizationProvider.SelectedAssetLibrary == null;
+
+            UIElementsUtils.SetDisplay(Container, display);
         }
 
         protected override bool IsDisplayed(IPage page)
@@ -429,7 +433,7 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        Button AddButtons(Button chip, BaseFilter filter, Func<List<string>> applySelection, Action clearAction)
+        (Button clearButton, Button applyButton) AddButtons(Button chip, BaseFilter filter, Func<List<string>> applySelection, Action clearAction)
         {
             var line = new VisualElement();
             line.AddToClassList(UssStyle.k_FilterSeparatorLine);
@@ -463,7 +467,7 @@ namespace Unity.AssetManager.UI.Editor
             };
             buttonContainer.Add(applyButton);
 
-            return applyButton;
+            return (clearButton, applyButton);
         }
 
         async Task AddMultiSelectionItems(Button chip, BaseFilter filter, CancellationToken cancellationToken)
@@ -485,8 +489,9 @@ namespace Unity.AssetManager.UI.Editor
                 var selectedFilters = filter.SelectedFilters?.ToList() ?? new List<string>();
                 var checkmarks = new List<Image>();
 
+                Button clearButton = null;
                 Button applyButton = null;
-                applyButton = AddButtons(chip, filter, () => selectedFilters,
+                (clearButton, applyButton) = AddButtons(chip, filter, () => selectedFilters,
                     () => {
                         selectedFilters.Clear();
                         foreach (var checkmark in checkmarks)
@@ -494,9 +499,12 @@ namespace Unity.AssetManager.UI.Editor
                             checkmark.visible = false;
                         }
 
+                        clearButton?.SetEnabled(false);
                         applyButton?.SetEnabled(false);
                     });
-                applyButton.SetEnabled(selectedFilters.Any());
+                var hasSelections = selectedFilters.Any();
+                clearButton.SetEnabled(hasSelections);
+                applyButton.SetEnabled(hasSelections);
 
                 foreach (var selection in selections)
                 {
@@ -527,11 +535,14 @@ namespace Unity.AssetManager.UI.Editor
                         if (selectedFilters.Contains(selection.Text))
                         {
                             selectedFilters.Remove(selection.Text);
-                            applyButton.SetEnabled(selectedFilters.Any());
+                            var anySelected = selectedFilters.Any();
+                            clearButton.SetEnabled(anySelected);
+                            applyButton.SetEnabled(anySelected);
                         }
                         else
                         {
                             selectedFilters.Add(selection.Text);
+                            clearButton.SetEnabled(true);
                             applyButton.SetEnabled(true);
                         }
 
@@ -567,11 +578,22 @@ namespace Unity.AssetManager.UI.Editor
             valueField.isDelayed = true;
             m_PopupManager.Container.Add(valueField);
 
-            AddButtons(chip, filter, () => new List<string>{valueField.value.ToString()},
+            var (clearButton, applyButton) = AddButtons(chip, filter, () => new List<string>{valueField.value.ToString()},
                 () =>
                 {
                     valueField.value = 0;
                 });
+
+            valueField.RegisterValueChangedCallback(evt =>
+            {
+                var hasValue = evt.newValue != 0;
+                clearButton.SetEnabled(hasValue);
+                applyButton.SetEnabled(hasValue);
+            });
+
+            var hasValue = numberFilter.Value != 0;
+            clearButton.SetEnabled(hasValue);
+            applyButton.SetEnabled(hasValue);
         }
 
         void AddRangeNumberSelection(Button chip, BaseFilter filter)
@@ -614,12 +636,16 @@ namespace Unity.AssetManager.UI.Editor
             });
             m_PopupManager.Container.Add(toField);
 
-            AddButtons(chip, filter, () => new List<string>{fromField.value.ToString(), toField.value.ToString()},
+            var (clearButton, applyButton) = AddButtons(chip, filter, () => new List<string>{fromField.value.ToString(), toField.value.ToString()},
                 () =>
                 {
                     fromField.value = 0;
                     toField.value = 0;
                 });
+
+            var hasValues = numberFilter.FromValue != 0 || numberFilter.ToValue != 0;
+            clearButton.SetEnabled(hasValues);
+            applyButton.SetEnabled(hasValues);
         }
 
         void AddRangeTimestampSelection(Button chip, BaseFilter filter)
@@ -668,12 +694,16 @@ namespace Unity.AssetManager.UI.Editor
             toContainer.Add(toLabel);
             toContainer.Add(toField);
 
-            AddButtons(chip, filter, () => new List<string>{fromField.Timestamp.ToString(), toField.Timestamp.ToString()},
+            var (clearButton, applyButton) = AddButtons(chip, filter, () => new List<string>{fromField.Timestamp.ToString(), toField.Timestamp.ToString()},
                 () =>
                 {
                     fromField.Timestamp = DateTime.Today;
                     toField.Timestamp = EndOfDay(DateTime.Today);
                 });
+
+            var hasTimestamps = timestampFilter.FromValue != DateTime.MinValue || timestampFilter.ToValue != DateTime.MinValue;
+            clearButton.SetEnabled(hasTimestamps);
+            applyButton.SetEnabled(hasTimestamps);
         }
 
         void AddTextSelection(Button chip, BaseFilter filter)
@@ -693,11 +723,15 @@ namespace Unity.AssetManager.UI.Editor
             textField.AddToClassList(UssStyle.k_FilterSelectionNumberField);
             container.Add(textField);
 
-            AddButtons(chip, filter, () => new List<string>{textField.value},
+            var (clearButton, applyButton) = AddButtons(chip, filter, () => new List<string>{textField.value},
                 () =>
                 {
                     textField.value = string.Empty;
                 });
+
+            var hasText = !string.IsNullOrEmpty(textField.value);
+            clearButton.SetEnabled(hasText);
+            applyButton.SetEnabled(hasText);
         }
 
         void AddUrlSelection(Button chip, BaseFilter filter)
@@ -717,11 +751,15 @@ namespace Unity.AssetManager.UI.Editor
             textField.AddToClassList(UssStyle.k_FilterSelectionNumberField);
             container.Add(textField);
 
-            AddButtons(chip, filter, () => new List<string>{textField.value},
+            var (clearButton, applyButton) = AddButtons(chip, filter, () => new List<string>{textField.value},
                 () =>
                 {
                     textField.value = string.Empty;
                 });
+
+            var hasUrl = !string.IsNullOrEmpty(textField.value);
+            clearButton.SetEnabled(hasUrl);
+            applyButton.SetEnabled(hasUrl);
         }
 
         void ApplyFilter(BaseFilter filter, List<string> selectedFilters)

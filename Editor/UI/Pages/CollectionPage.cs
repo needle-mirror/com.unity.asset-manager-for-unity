@@ -30,7 +30,7 @@ namespace Unity.AssetManager.UI.Editor
         protected internal override async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(
             [EnumeratorCancellation] CancellationToken token)
         {
-            if (m_ProjectOrganizationProvider.SelectedProject?.Id != m_CollectionInfo.ProjectId || string.IsNullOrEmpty(m_CollectionInfo.ProjectId))
+            if (m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Id != m_CollectionInfo.ProjectId || string.IsNullOrEmpty(m_CollectionInfo.ProjectId))
             {
                 yield break;
             }
@@ -43,6 +43,9 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void OnLoadMoreSuccessCallBack()
         {
+            if (!CheckConnection())
+                return;
+
             if (!AssetList.Any())
             {
                 if (!TrySetNoResultsPageMessage())
@@ -62,7 +65,7 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        protected override void OnProjectSelectionChanged(ProjectOrLibraryInfo projectOrLibraryInfo, CollectionInfo collectionInfo)
         {
             m_PageManager.SetActivePage<CollectionPage>(true);
             TryStartUpdateAssetAttributesTask(forceRestart: true);

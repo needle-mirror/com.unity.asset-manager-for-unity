@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -13,7 +14,8 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         readonly IAssetDataSource m_AssetDataSource;
         readonly CacheConfigurationWrapper m_CacheConfiguration;
-        readonly ProjectDescriptor m_ProjectDescriptor;
+        readonly ProjectDescriptor m_ProjectDescriptor = new ProjectDescriptor(OrganizationId.None, ProjectId.None);
+        readonly AssetLibraryId m_AssetLibraryId = AssetLibraryId.None;
         readonly AssetId m_AssetId;
 
         IAssetSearchFilter m_AssetSearchFilter;
@@ -26,6 +28,14 @@ namespace Unity.Cloud.AssetsEmbedded
             m_AssetDataSource = dataSource;
             m_CacheConfiguration = new CacheConfigurationWrapper(defaultCacheConfiguration);
             m_ProjectDescriptor = projectDescriptor;
+            m_AssetId = assetId;
+        }
+
+        internal VersionQueryBuilder(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, AssetLibraryId assetLibraryId, AssetId assetId)
+        {
+            m_AssetDataSource = dataSource;
+            m_CacheConfiguration = new CacheConfigurationWrapper(defaultCacheConfiguration);
+            m_AssetLibraryId = assetLibraryId;
             m_AssetId = assetId;
         }
 
@@ -91,10 +101,21 @@ namespace Unity.Cloud.AssetsEmbedded
                 PaginationRange = m_Range
             };
 
-            var results = m_AssetDataSource.ListAssetVersionsAsync(m_ProjectDescriptor, m_AssetId, parameters, cancellationToken);
-            await foreach (var result in results)
+            if (m_AssetLibraryId.IsPathToAssetLibraryValid())
             {
-                yield return result.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, m_ProjectDescriptor, fieldsFilter, m_CacheConfiguration.AssetConfiguration);
+                var results = m_AssetDataSource.ListAssetVersionsAsync(m_AssetLibraryId, m_AssetId, parameters, cancellationToken);
+                await foreach (var result in results)
+                {
+                    yield return result.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, m_AssetLibraryId, fieldsFilter, m_CacheConfiguration.AssetConfiguration);
+                }
+            }
+            else
+            {
+                var results = m_AssetDataSource.ListAssetVersionsAsync(m_ProjectDescriptor, m_AssetId, parameters, cancellationToken);
+                await foreach (var result in results)
+                {
+                    yield return result.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, m_ProjectDescriptor, fieldsFilter, m_CacheConfiguration.AssetConfiguration);
+                }
             }
         }
     }

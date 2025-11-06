@@ -33,6 +33,8 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             new OrganizationIdConverter(),
             new ProjectIdConverter(),
+            new LibraryIdConverter(),
+            new LibraryJobIdConverter(),
             new AssetIdConverter(),
             new AssetVersionConverter(),
             new UserIdConverter(),

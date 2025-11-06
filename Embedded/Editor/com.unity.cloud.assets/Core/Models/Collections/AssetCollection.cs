@@ -76,8 +76,24 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        public Task<int> CountNestedCollectionsAsync(bool traverseRecursively, CancellationToken cancellationToken)
+        {
+            ThrowIfPathToLibrary();
+            
+            return m_DataSource.GetCollectionCountAsync(Descriptor, traverseRecursively, cancellationToken);
+        }
+        
+        /// <inheritdoc />
+        public Task<int> CountAssetsAsync(bool includeSubcollections, CancellationToken cancellationToken)
+        {
+            return m_DataSource.GetAssetCountAsync(Descriptor, includeSubcollections, cancellationToken);
+        }
+
+        /// <inheritdoc />
         public async Task UpdateAsync(IAssetCollectionUpdate assetCollectionUpdate, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             await m_DataSource.UpdateCollectionAsync(Descriptor, assetCollectionUpdate.From(), cancellationToken);
 
             var newPath = CollectionPath.CombinePaths(ParentPath, assetCollectionUpdate.Name);
@@ -87,30 +103,40 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public Task LinkAssetsAsync(IEnumerable<IAsset> assets, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return LinkAssetsAsync(assets.Select(AssetExtensions.SelectId), cancellationToken);
         }
 
         /// <inheritdoc />
         public Task LinkAssetsAsync(IEnumerable<AssetId> assetIds, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.AddAssetsToCollectionAsync(Descriptor, assetIds, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task UnlinkAssetsAsync(IEnumerable<IAsset> assets, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return UnlinkAssetsAsync(assets.Select(AssetExtensions.SelectId), cancellationToken);
         }
 
         /// <inheritdoc />
         public Task UnlinkAssetsAsync(IEnumerable<AssetId> assetIds, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.RemoveAssetsFromCollectionAsync(Descriptor, assetIds, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task MoveToNewPathAsync(CollectionPath newCollectionPath, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             await m_DataSource.MoveCollectionToNewPathAsync(Descriptor, newCollectionPath, cancellationToken);
 
             var newPath = CollectionPath.CombinePaths(newCollectionPath, Name);
@@ -130,6 +156,14 @@ namespace Unity.Cloud.AssetsEmbedded
             }
 
             return collection;
+        }
+
+        void ThrowIfPathToLibrary(string message = "Cannot modify library asset collections.")
+        {
+            if (Descriptor.IsPathToAssetLibrary())
+            {
+                throw new InvalidOperationException(message);
+            }
         }
     }
 }

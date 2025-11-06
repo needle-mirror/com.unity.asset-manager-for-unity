@@ -3,16 +3,16 @@
         <ui:VisualElement name="titleContainer">
             <ui:Label name="titleLabel" />
         </ui:VisualElement>
-        <ui:ScrollView>
+        <ui:ScrollView name="importSettingsScrollView">
             <ui:Foldout name="importSettingsFoldout" class="settings-foldout">
                 <ui:HelpBox message-type="Error" name="importLocationErrorBox" />
                 <ui:VisualElement class="flex-row">
                     <ui:Label name="importSettingsDefaultLocationLabel" class="settings-label" />
                     <ui:Label name="importLocationPath" class="asset-manager-path" />
-                    <ui:VisualElement class="toolbar-menu">
+                    <ui:Button name="importLocationDropdownContainer" class="importLocationDropdownContainer toolbar-menu">
                         <ui:VisualElement class="folder-image" />
                         <uie:ToolbarMenu name="importLocationDropdown" class="asset-manager-dropdown" />
-                    </ui:VisualElement>
+                    </ui:Button>
                 </ui:VisualElement>
                 <ui:VisualElement class="flex-row">
                     <ui:Label name="importSettingsCreateSubfolderLabel" class="settings-label" />
@@ -32,10 +32,10 @@
                 <ui:VisualElement class="flex-row">
                     <ui:Label name="cacheManagementLocationLabel" class="settings-label" />
                     <ui:Label name="assetManagerCachePath" class="asset-manager-path" />
-                    <ui:VisualElement class="toolbar-menu">
+                    <ui:Button name="cacheLocationDropdownContainer" class="cacheLocationDropdownContainer toolbar-menu">
                         <ui:VisualElement class="folder-image" />
                         <uie:ToolbarMenu name="cacheLocationDropdown" class="asset-manager-dropdown" />
-                    </ui:VisualElement>
+                    </ui:Button>
                 </ui:VisualElement>
                 <ui:VisualElement class="flex-row">
                     <ui:Label name="cacheManagementMaxSizeLabel" class="settings-label" />

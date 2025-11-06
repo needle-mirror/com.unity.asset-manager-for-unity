@@ -34,7 +34,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_UpdateAllButton = new Button(() =>
             {
-                var project = projectOrganizationProvider.SelectedProject;
+                var project = projectOrganizationProvider.SelectedProjectOrLibrary;
                 var collection = projectOrganizationProvider.SelectedCollection;
 
                 TaskUtils.TrackException(assetImporter.UpdateAllToLatestAsync(ImportTrigger.UpdateAllToLatest, project, collection, CancellationToken.None));
@@ -106,11 +106,12 @@ namespace Unity.AssetManager.UI.Editor
 
             m_TrackedAssets.Clear();
 
-            IEnumerable<BaseAssetData> importedAssets;
+            IEnumerable<BaseAssetData> importedAssets = new List<BaseAssetData>();
             try
             {
                 // Get the relevant imported assets for the current page
-                importedAssets = await GetImportedAssetsForCurrentPage(token);
+                if (m_ProjectOrganizationProvider.SelectedAssetLibrary == null)
+                    importedAssets = await GetImportedAssetsForCurrentPage(token);
             }
             catch (OperationCanceledException)
             {
@@ -166,7 +167,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             await FilteringUtils.UpdateLinkedProjectsAndCollectionsForSelectionAsync(m_ProjectOrganizationProvider, m_AssetsProvider, assetDatas, token);
 
-            var selectedProjectId = m_ProjectOrganizationProvider.SelectedProject?.Id;
+            var selectedProjectId = m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Id;
             if (!string.IsNullOrEmpty(selectedProjectId))
             {
                 var selectedCollection = m_ProjectOrganizationProvider.SelectedCollection;

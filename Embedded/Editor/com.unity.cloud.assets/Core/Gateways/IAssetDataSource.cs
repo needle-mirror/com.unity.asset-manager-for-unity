@@ -35,10 +35,19 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <summary>
         /// Retrieves a subset of <see cref="IAssetData"/>.
         /// </summary>
+        /// <param name="assetLibraryId">ID of the library. </param>
+        /// <param name="parameters">An object containing the parameters of a search. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task whose result is an async enumeration of <see cref="IAssetData"/>. </returns>
+        IAsyncEnumerable<IAssetData> ListAssetsAsync(AssetLibraryId assetLibraryId, SearchRequestParameters parameters, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Retrieves a subset of <see cref="IAssetData"/>.
+        /// </summary>
         /// <param name="projectDescriptor">The object containing the necessary information to identify the project. </param>
         /// <param name="parameters">An object containing the parameters of a search. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
-        /// <returns>A task whose result is a cancellationToken for the next page and a collection of <see cref="IAssetData"/>. </returns>
+        /// <returns>A task whose result is an async enumeration of <see cref="IAssetData"/>. </returns>
         IAsyncEnumerable<IAssetData> ListAssetsAsync(ProjectDescriptor projectDescriptor, SearchRequestParameters parameters, CancellationToken cancellationToken);
 
         /// <summary>
@@ -48,8 +57,17 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="projectIds">The ids of the projects in which to search. </param>
         /// <param name="parameters">An object containing the parameters of a search. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
-        /// <returns>A task whose result is a cancellationToken for the next page and a collection of <see cref="IAssetData"/>. </returns>
+        /// <returns>A task whose result is an async enumeration of <see cref="IAssetData"/>. </returns>
         IAsyncEnumerable<IAssetData> ListAssetsAsync(OrganizationId organizationId, IEnumerable<ProjectId> projectIds, SearchRequestParameters parameters, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Retrieves the aggregate of assets that meet the search criteria.
+        /// </summary>
+        /// <param name="assetLibraryId">ID of the library. </param>
+        /// <param name="parameters">An object defining the search criteria. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task whose result is the aggregated count of assets. </returns>
+        Task<AggregateDto[]> GetAssetAggregateAsync(AssetLibraryId assetLibraryId, SearchAndAggregateRequestParameters parameters, CancellationToken cancellationToken);
 
         /// <summary>
         /// Retrieves the aggregate of assets that meet the search criteria.
@@ -92,9 +110,10 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <param name="assetDescriptor">The object containing the necessary information to identify the asset.</param>
         /// <param name="datasetIds">An optional collection of ids to limit the fetched urls. </param>
+        /// <param name="range">The range of results. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.. </param>
-        /// <returns>An enumeration of download urls. </returns>
-        Task<IEnumerable<AssetDownloadUrl>> GetAssetDownloadUrlsAsync(AssetDescriptor assetDescriptor, DatasetId[] datasetIds, CancellationToken cancellationToken);
+        /// <returns>An async enumeration of download urls. </returns>
+        IAsyncEnumerable<AssetDownloadUrl> GetAssetDownloadUrlsAsync(AssetDescriptor assetDescriptor, DatasetId[] datasetIds, Range range, CancellationToken cancellationToken);
 
         /// <summary>
         /// Add an asset link to the project.

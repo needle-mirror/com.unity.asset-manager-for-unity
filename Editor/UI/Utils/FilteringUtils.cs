@@ -81,7 +81,7 @@ namespace Unity.AssetManager.UI.Editor
                 assetCollectionsAndProjects[assetId] = new AssetCollectionsAndProjects();
             }
 
-            var selectedProjectId = projectOrganizationProvider.SelectedProject?.Id;
+            var selectedProjectId = projectOrganizationProvider.SelectedProjectOrLibrary?.Id;
             if (!string.IsNullOrEmpty(selectedProjectId))
             {
 #if AM4U_DEV
@@ -107,18 +107,23 @@ namespace Unity.AssetManager.UI.Editor
                 // This avoids removing linked projects and collections that may have been found by the global update task
                 foreach (var assetData in assetDatas)
                 {
-                    if (assetCollectionsAndProjects.TryGetValue(assetData.Identifier.AssetId, out var entry))
+                    if (!assetCollectionsAndProjects.TryGetValue(assetData.Identifier.AssetId, out var entry))
+                        continue;
+
+                    if (!entry.LinkedProjectIds.IsEmpty)
                     {
-                        if (!entry.LinkedProjectIds.IsEmpty)
-                        {
-                            var newLinkedProjects = assetData.LinkedProjects?.ToList() ?? new List<ProjectIdentifier>();
-                            assetData.LinkedProjects = newLinkedProjects.Union(entry.LinkedProjectIds);
-                        }
-                        else if (!entry.LinkedCollections.IsEmpty)
-                        {
-                            var newLinkedCollections = assetData.LinkedCollections?.ToList() ?? new List<CollectionIdentifier>();
-                            assetData.LinkedCollections = newLinkedCollections.Union(entry.LinkedCollections);
-                        }
+                        var newLinkedProjects = assetData.LinkedProjects == null
+                            ? entry.LinkedProjectIds
+                            : assetData.LinkedProjects.Union(entry.LinkedProjectIds);
+                        assetData.LinkedProjects = newLinkedProjects.ToList();
+                    }
+
+                    if (!entry.LinkedCollections.IsEmpty)
+                    {
+                        var newLinkedCollections = assetData.LinkedCollections == null
+                            ? entry.LinkedCollections
+                            : assetData.LinkedCollections.Union(entry.LinkedCollections);
+                        assetData.LinkedCollections = newLinkedCollections.ToList();
                     }
                 }
 #if AM4U_DEV

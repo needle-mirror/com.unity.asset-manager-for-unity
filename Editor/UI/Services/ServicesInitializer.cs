@@ -61,6 +61,7 @@ namespace Unity.AssetManager.UI.Editor
                 new FileUtility(),
                 new MessageManager(),
                 new SavedAssetSearchFilterManager(),
+                new PackageVersionService(),
 
                 // UI
                 new StateManager(),

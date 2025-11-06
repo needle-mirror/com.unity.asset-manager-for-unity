@@ -188,8 +188,46 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        public AssetUpdateHistoryQueryBuilder QueryUpdateHistory()
+        {
+            ThrowIfPathToLibrary();
+
+            return new AssetUpdateHistoryQueryBuilder(m_DataSource, Descriptor);
+        }
+
+        /// <inheritdoc />
+        public async Task<AssetUpdateHistory> GetUpdateHistoryAsync(int sequenceNumber, CancellationToken cancellationToken)
+        {
+            ThrowIfPathToLibrary();
+
+            var count = await m_DataSource.GetMetadataHistoryCountAsync(Descriptor, cancellationToken);
+
+            if (sequenceNumber < 0 || sequenceNumber >= count)
+            {
+                throw new InvalidArgumentException($"The sequence number must be between 0 and {count}.");
+            }
+
+            var range = new Range(count - 1 - sequenceNumber, count - sequenceNumber);
+            var query = m_DataSource
+                .ListMetadataHistoryAsync(Descriptor, new PaginationData {Range = range}, true, cancellationToken)
+                .GetAsyncEnumerator(cancellationToken);
+
+            if (await query.MoveNextAsync())
+            {
+                if (query.Current.MetadataSequenceNumber == sequenceNumber)
+                {
+                    return query.Current.From(m_DataSource, Descriptor);
+                }
+            }
+
+            throw new NotFoundException($"History with sequence number {sequenceNumber} not found for asset.");
+        }
+
+        /// <inheritdoc />
         public async Task UpdateAsync(IAssetUpdate assetUpdate, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             if (assetUpdate.HasValues())
             {
                 await m_DataSource.UpdateAssetAsync(Descriptor, assetUpdate.From(), cancellationToken);
@@ -203,9 +241,19 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        public Task UpdateAsync(int updateHistorySequenceNumber, CancellationToken cancellationToken)
+        {
+            ThrowIfPathToLibrary();
+
+            return m_DataSource.RollbackMetadataHistoryAsync(Descriptor, updateHistorySequenceNumber, cancellationToken);
+        }
+
+        /// <inheritdoc />
         [Obsolete("Use UpdateAsync(IAssetUpdate, CancellationToken) instead.")]
         public Task UpdateStatusAsync(AssetStatusAction statusAction, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var status = IsolatedSerialization.SerializeWithConverters(statusAction, IsolatedSerialization.StringEnumConverter).Replace("\"", "");
             return m_DataSource.UpdateAssetStatusAsync(Descriptor, status, cancellationToken);
         }
@@ -213,12 +261,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public Task UpdateStatusAsync(string statusName, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.UpdateAssetStatusAsync(Descriptor, statusName, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<IAsset> CreateUnfrozenVersionAsync(CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var assetDescriptor = await CreateUnfrozenVersionLiteAsync(cancellationToken);
             return await GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, assetDescriptor, CacheConfiguration, cancellationToken);
         }
@@ -226,6 +278,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async Task<AssetDescriptor> CreateUnfrozenVersionLiteAsync(CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var version = await m_DataSource.CreateUnfrozenAssetVersionAsync(Descriptor, null, cancellationToken);
             return new AssetDescriptor(Descriptor.ProjectDescriptor, Descriptor.AssetId, version);
         }
@@ -233,12 +287,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async Task<int> FreezeAsync(string changeLog, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return await m_DataSource.FreezeAssetVersionAsync(Descriptor, changeLog, false, cancellationToken) ?? -1;
         }
 
         /// <inheritdoc />
         public Task FreezeAsync(IAssetFreeze assetFreeze, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             bool? forceFreeze = assetFreeze.Operation switch
             {
                 AssetFreezeOperation.CancelTransformations => true,
@@ -250,6 +308,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
         public Task CancelPendingFreezeAsync(CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.CancelFreezeAssetVersionAsync(Descriptor, cancellationToken);
         }
 
@@ -284,12 +344,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public Task LinkToProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary("Assets belonging to a library cannot be linked to a project.");
+
             return m_DataSource.LinkAssetToProjectAsync(Descriptor, projectDescriptor, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task UnlinkFromProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary("Assets belonging to a library cannot be unlinked from a project.");
+
             var assetDescriptor = new AssetDescriptor(projectDescriptor, Descriptor.AssetId, Descriptor.AssetVersion);
             return m_DataSource.UnlinkAssetFromProjectAsync(assetDescriptor, cancellationToken);
         }
@@ -312,10 +376,10 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async Task<IDictionary<string, Uri>> GetAssetDownloadUrlsAsync(CancellationToken cancellationToken)
         {
-            var fileUrls = await m_DataSource.GetAssetDownloadUrlsAsync(Descriptor, null, cancellationToken);
+            var enumerable = m_DataSource.GetAssetDownloadUrlsAsync(Descriptor, null, Range.All, cancellationToken);
 
             var urls = new Dictionary<string, Uri>();
-            foreach (var url in fileUrls)
+            await foreach (var url in enumerable)
             {
                 urls.Add(url.FilePath, url.DownloadUrl);
             }
@@ -326,18 +390,11 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async IAsyncEnumerable<CollectionDescriptor> ListLinkedAssetCollectionsAsync(Range range, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var enumerable = await m_DataSource.GetAssetCollectionsAsync(Descriptor, cancellationToken);
+            ThrowIfPathToLibrary("Cannot list linked asset collections for library assets.");
 
-            var collectionDatas = enumerable?.ToArray() ?? Array.Empty<IAssetCollectionData>();
-            if (collectionDatas.Length > 0)
+            await foreach (var collectionData in m_DataSource.GetAssetCollectionsAsync(Descriptor, range, cancellationToken))
             {
-                var (start, length) = range.GetValidatedOffsetAndLength(collectionDatas.Length);
-                for (var i = start; i < start + length; ++i)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    yield return new CollectionDescriptor(Descriptor.ProjectDescriptor, collectionDatas[i].GetFullCollectionPath());
-                }
+                yield return new CollectionDescriptor(Descriptor.ProjectDescriptor, collectionData.GetFullCollectionPath());
             }
         }
 
@@ -348,6 +405,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async Task<IDataset> CreateDatasetAsync(IDatasetCreation datasetCreation, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var datasetDescriptor = await CreateDatasetLiteAsync(datasetCreation, cancellationToken);
             return await DatasetEntity.GetConfiguredAsync(m_DataSource, DefaultCacheConfiguration, datasetDescriptor, CacheConfiguration.DatasetCacheConfiguration, cancellationToken);
         }
@@ -355,6 +414,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public Task<DatasetDescriptor> CreateDatasetLiteAsync(IDatasetCreation datasetCreation, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.CreateDatasetAsync(Descriptor, datasetCreation.From(), cancellationToken);
         }
 
@@ -456,24 +517,32 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public Task AssignLabelsAsync(IEnumerable<string> labels, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.AssignLabelsAsync(Descriptor, labels, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task UnassignLabelsAsync(IEnumerable<string> labels, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.UnassignLabelsAsync(Descriptor, labels, cancellationToken);
         }
 
         /// <inheritdoc />
         public Task<string[]> GetReachableStatusNamesAsync(CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.GetReachableStatusNamesAsync(Descriptor, cancellationToken);
         }
 
         /// <inheritdoc />
         public IAsyncEnumerable<IAssetReference> ListReferencesAsync(Range range, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary("Cannot access references for library assets.");
+
             var filter = new AssetReferenceSearchFilter();
             filter.AssetVersion.WhereEquals(Descriptor.AssetVersion);
 
@@ -486,6 +555,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public Task<IAssetReference> AddReferenceAsync(AssetId targetAssetId, AssetVersion targetAssetVersion, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var assetIdentifier = new AssetIdentifierDto
             {
                 Id = targetAssetId.ToString(),
@@ -497,6 +568,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public Task<IAssetReference> AddReferenceAsync(AssetId targetAssetId, string targetLabel, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var assetIdentifier = new AssetIdentifierDto
             {
                 Id = targetAssetId.ToString(),
@@ -507,6 +580,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
         async Task<IAssetReference> AddReferenceAsync(AssetIdentifierDto targetAssetIdentifier, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var referenceId = await m_DataSource.CreateAssetReferenceAsync(Descriptor, targetAssetIdentifier, cancellationToken);
 
             // Ideally we would fetch the newly created reference data here, but the API does not have an entry for returning a single reference.
@@ -524,6 +599,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public Task RemoveReferenceAsync(string referenceId, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.DeleteAssetReferenceAsync(Descriptor.ProjectDescriptor, Descriptor.AssetId, referenceId, cancellationToken);
         }
 
@@ -557,6 +634,14 @@ namespace Unity.Cloud.AssetsEmbedded
             }
 
             return asset;
+        }
+
+        void ThrowIfPathToLibrary(string message = "Cannot modify library assets.")
+        {
+            if (Descriptor.IsPathToAssetLibrary())
+            {
+                throw new InvalidOperationException(message);
+            }
         }
     }
 }

@@ -18,7 +18,7 @@ namespace Unity.AssetManager.Core.Editor
         ImportOperation GetImportOperation(AssetIdentifier identifier);
         bool IsImporting(AssetIdentifier identifier);
         Task<ImportResultInternal> StartImportAsync(ImportTrigger trigger, List<BaseAssetData> assets, ImportSettings importSettings, CancellationToken cancellationToken = default);
-        Task UpdateAllToLatestAsync(ImportTrigger trigger, ProjectInfo project, CollectionInfo collection,  CancellationToken token);
+        Task UpdateAllToLatestAsync(ImportTrigger trigger, ProjectOrLibraryInfo projectOrLibrary, CollectionInfo collection,  CancellationToken token);
         Task UpdateAllToLatestAsync(ImportTrigger trigger, IEnumerable<BaseAssetData> assets, CancellationToken token);
         void StopTrackingAssets(List<AssetIdentifier> identifiers);
         bool RemoveImport(AssetIdentifier identifier, bool showConfirmationDialog = false);
@@ -308,7 +308,7 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public async Task UpdateAllToLatestAsync(ImportTrigger trigger, ProjectInfo project, CollectionInfo collection, CancellationToken token)
+        public async Task UpdateAllToLatestAsync(ImportTrigger trigger, ProjectOrLibraryInfo projectOrLibrary, CollectionInfo collection, CancellationToken token)
         {
             var insideCollection = collection != null && !string.IsNullOrEmpty(collection.Name);
 
@@ -337,9 +337,9 @@ namespace Unity.AssetManager.Core.Editor
 
                 assets = assets.Where(info => info.Identifier.ProjectId == collectionProjectId && collectionAssetIds.Contains(info.Identifier.AssetId));
             }
-            else if (project != null)
+            else if (projectOrLibrary != null)
             {
-                assets = assets.Where(info => info.Identifier.ProjectId == project.Id);
+                assets = assets.Where(info => info.Identifier.ProjectId == projectOrLibrary.Id);
             }
 
             await UpdateAllToLatestAsync_Internal(trigger, assets, token);
@@ -457,7 +457,7 @@ namespace Unity.AssetManager.Core.Editor
         public bool RemoveImports(List<AssetIdentifier> identifiers, bool showConfirmationDialog = false)
         {
             if (showConfirmationDialog && !m_EditorUtilityProxy.DisplayDialog(L10n.Tr("Remove Imported Assets"),
-                    L10n.Tr("Remove the selected assets and all their exclusives dependencies?" + Environment.NewLine +
+                    L10n.Tr("Remove the selected assets and all their exclusive dependencies?" + Environment.NewLine +
                             "Any changes you made to these assets will be lost."), L10n.Tr("Remove"),
                     L10n.Tr(AssetManagerCoreConstants.Cancel)))
             {
@@ -517,9 +517,9 @@ namespace Unity.AssetManager.Core.Editor
                 // Make sure to remove the asset imported info from memory before deleting the files
                 StopTrackingAssets(identifiers);
 
-                if (!assetsAndFoldersToRemove.Any())
+                if (!assetsAndFoldersToRemove.Any()) // Nothing to remove, the asset was empty
                 {
-                    return false;
+                    return true;
                 }
 
                 DeleteFilesAndFolders(assetsAndFoldersToRemove);

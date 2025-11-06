@@ -115,7 +115,7 @@ namespace Unity.AssetManager.Core.Editor
     }
 
     [Serializable]
-    struct UriEntry : ISerializationCallbackReceiver
+    struct UriEntry : ISerializationCallbackReceiver, IEquatable<UriEntry>
     {
         [SerializeField]
         string m_SerializedUri;
@@ -150,6 +150,21 @@ namespace Unity.AssetManager.Core.Editor
 
             Uri = new Uri(m_SerializedUri);
         }
+
+        public bool Equals(UriEntry other)
+        {
+            return Equals(Uri, other.Uri);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is UriEntry other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return (Uri != null ? Uri.GetHashCode() : 0);
+        }
     }
 
 
@@ -163,7 +178,7 @@ namespace Unity.AssetManager.Core.Editor
     }
 
     [Serializable]
-    struct DateTimeEntry : ISerializationCallbackReceiver
+    struct DateTimeEntry : ISerializationCallbackReceiver, IEquatable<DateTimeEntry>
     {
         [SerializeField]
         long m_SerializedDataTime;
@@ -189,6 +204,21 @@ namespace Unity.AssetManager.Core.Editor
         public void OnAfterDeserialize()
         {
             DateTime = new DateTime(m_SerializedDataTime, m_SerializedDataTimeKind);
+        }
+
+        public bool Equals(DateTimeEntry other)
+        {
+            return DateTime.Equals(other.DateTime);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is DateTimeEntry other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return DateTime.GetHashCode();
         }
     }
 

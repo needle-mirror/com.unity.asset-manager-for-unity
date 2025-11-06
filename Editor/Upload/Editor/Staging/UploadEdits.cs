@@ -4,10 +4,46 @@ using System.Collections.Generic;
 using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace Unity.AssetManager.Upload.Editor
 {
+    /// <summary>
+    /// Class that holds a collection of tags. Necessary because Unity's serializer have difficulties serializing
+    /// AssetEditDictionary<IEnumerable<string>> directly.
+    /// </summary>
+    [Serializable]
+    class TagCollection : IEnumerable<string>
+    {
+        [SerializeField]
+        public List<string> Tags = new();
+
+        public TagCollection() { }
+
+        public TagCollection(IEnumerable<string> tags)
+        {
+            Tags = tags?.ToList() ?? new List<string>();
+        }
+
+        public static implicit operator List<string>(TagCollection tagCollection)
+            => tagCollection?.Tags ?? new List<string>();
+
+        public static implicit operator TagCollection(List<string> tags)
+            => new TagCollection(tags);
+
+        public static implicit operator TagCollection(HashSet<string> tags)
+            => new TagCollection(tags);
+
+        public IEnumerator<string> GetEnumerator()
+        {
+            return Tags.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+    }
+
     [Serializable]
     // Quick solution to hold manual edits information between two UploadStaging.GenerateUploadAssetData
     // Without this, if the user manually edits assets, then changes the Dependency Mode, edits will be lost
@@ -150,7 +186,7 @@ namespace Unity.AssetManager.Upload.Editor
 
         public void SetModifiedTags(string assetDataGuid, IEnumerable<string> tags)
         {
-            m_ModifiedMetadata.Tags.Dictionary[assetDataGuid] = tags;
+            m_ModifiedMetadata.Tags.Dictionary[assetDataGuid] = new TagCollection(tags);
         }
 
         public bool TryGetModifiedTags(string assetDataGuid, out IEnumerable<string> tags)
@@ -162,6 +198,23 @@ namespace Unity.AssetManager.Upload.Editor
             }
 
             tags = null;
+            return false;
+        }
+
+        public void SetModifiedStatus(string assetDataGuid, string statusName)
+        {
+            m_ModifiedMetadata.Statuses.Dictionary[assetDataGuid] = statusName;
+        }
+
+        public bool TryGetModifiedStatus(string assetDataGuid, out string statusName)
+        {
+            if (m_ModifiedMetadata.Statuses.Dictionary.TryGetValue(assetDataGuid, out var value))
+            {
+                statusName = value;
+                return true;
+            }
+
+            statusName = null;
             return false;
         }
 
@@ -234,7 +287,10 @@ namespace Unity.AssetManager.Upload.Editor
         public AssetEditDictionary<string> Descriptions = new();
 
         [SerializeReference]
-        public AssetEditDictionary<IEnumerable<string>> Tags = new();
+        public AssetEditDictionary<string> Statuses = new();
+
+        [SerializeReference]
+        public AssetEditDictionary<TagCollection> Tags = new();
 
         [SerializeReference]
         public AssetEditDictionary<IMetadataContainer> CustomMetadata = new();
@@ -243,6 +299,7 @@ namespace Unity.AssetManager.Upload.Editor
         {
             Names.Dictionary.Clear();
             Descriptions.Dictionary.Clear();
+            Statuses.Dictionary.Clear();
             Tags.Dictionary.Clear();
             CustomMetadata.Dictionary.Clear();
         }
@@ -253,6 +310,7 @@ namespace Unity.AssetManager.Upload.Editor
 
             hasEdits |= Names.Dictionary.ContainsKey(assetDataGuid);
             hasEdits |= Descriptions.Dictionary.ContainsKey(assetDataGuid);
+            hasEdits |= Statuses.Dictionary.ContainsKey(assetDataGuid);
             hasEdits |= Tags.Dictionary.ContainsKey(assetDataGuid);
             hasEdits |= CustomMetadata.Dictionary.ContainsKey(assetDataGuid);
 
@@ -263,6 +321,7 @@ namespace Unity.AssetManager.Upload.Editor
         {
             Names.Dictionary.Remove(assetDataGuid);
             Descriptions.Dictionary.Remove(assetDataGuid);
+            Statuses.Dictionary.Remove(assetDataGuid);
             Tags.Dictionary.Remove(assetDataGuid);
             CustomMetadata.Dictionary.Remove(assetDataGuid);
         }
@@ -274,7 +333,7 @@ namespace Unity.AssetManager.Upload.Editor
         [SerializeField]
         List<string> m_Keys = new();
 
-        [SerializeField]
+        [SerializeReference]
         List<T> m_Values = new();
 
         public Dictionary<string, T> Dictionary { get; private set; } = new();

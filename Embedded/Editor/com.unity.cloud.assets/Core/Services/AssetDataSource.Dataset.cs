@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -16,10 +17,10 @@ namespace Unity.Cloud.AssetsEmbedded
             cancellationToken.ThrowIfCancellationRequested();
 
             var request = new CreateDatasetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, datasetCreation);
-            var response = await RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
+            using var response = await m_ServiceHttpClient.PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
 
-            var jsonContent = await response.GetContentAsString();
+            var jsonContent = await response.GetContentAsStringAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
             var createdDatasetResponse = IsolatedSerialization.DeserializeWithConverters<CreatedDatasetDto>(jsonContent, IsolatedSerialization.DatasetIdConverter);
@@ -28,104 +29,111 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public async IAsyncEnumerable<IDatasetData> ListDatasetsAsync(AssetDescriptor assetDescriptor, Range range, FieldsFilter includedFieldsFilter, [EnumeratorCancellation] CancellationToken cancellationToken)
+        public IAsyncEnumerable<IDatasetData> ListDatasetsAsync(AssetDescriptor assetDescriptor, Range range, FieldsFilter includedFieldsFilter, CancellationToken cancellationToken)
         {
-            var countRequest = new DatasetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, FieldsFilter.None, limit: 1);
+            return assetDescriptor.IsPathToAssetLibrary()
+                ? ListDatasetsAsync_FromLibrary(assetDescriptor, range, includedFieldsFilter, cancellationToken)
+                : ListDatasetsAsync_FromProject(assetDescriptor, range, includedFieldsFilter, cancellationToken);
+        }
 
-            Func<string, int, ApiRequest> getListRequest = (next, pageSize) => new DatasetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, includedFieldsFilter, next, pageSize);
-
-            await foreach (var data in ListEntitiesAsync<DatasetData>(countRequest, getListRequest, range, cancellationToken))
+        async IAsyncEnumerable<IDatasetData> ListDatasetsAsync_FromLibrary(AssetDescriptor assetDescriptor, Range range, FieldsFilter includedFieldsFilter, [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var assetFields = new FieldsFilter
             {
-                yield return data;
+                AssetFields = AssetFields.datasets,
+                DatasetFields = includedFieldsFilter?.DatasetFields ?? DatasetFields.none,
+                FileFields = includedFieldsFilter?.FileFields ?? FileFields.none
+            };
+            var assetData = await GetAssetAsync(assetDescriptor, assetFields, cancellationToken);
+
+            if (assetData?.Datasets == null) yield break;
+
+            var datasets = assetData.Datasets.ToArray();
+            if (assetFields.DatasetFields.HasFlag(DatasetFields.files) && assetData.Files != null)
+            {
+                foreach (var file in assetData.Files)
+                {
+                    var dataset = datasets.FirstOrDefault(d => d.DatasetId == file.DatasetIds.FirstOrDefault());
+                    if (dataset == null) continue;
+
+                    dataset.Files ??= new List<FileData>();
+
+                    ((List<FileData>)dataset.Files).Add(file);
+                }
+            }
+
+            var (start, length) = range.GetValidatedOffsetAndLength(datasets.Length);
+            for (var i = start; i < start + length; ++i)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                yield return datasets[i];
             }
         }
 
-        async IAsyncEnumerable<T> ListEntitiesAsync<T>(ApiRequest countRequest, Func<string, int, ApiRequest> getListRequest, Range range, [EnumeratorCancellation] CancellationToken cancellationToken)
+        IAsyncEnumerable<IDatasetData> ListDatasetsAsync_FromProject(AssetDescriptor assetDescriptor, Range range, FieldsFilter includedFieldsFilter, CancellationToken cancellationToken)
         {
-            const int maxPageSize = 1000;
+            var countRequest = new DatasetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, FieldsFilter.None, limit: 1);
+            return ListEntitiesAsync<DatasetData>(countRequest, GetListRequest, range, cancellationToken);
 
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var (offset, length) = await range.GetOffsetAndLengthAsync(token => GetTotalCount(countRequest, token), cancellationToken);
-
-            if (length == 0) yield break;
-
-            var pageSize = Math.Min(maxPageSize, Math.Max(offset, length));
-
-            string next = null;
-
-            var count = 0;
-            do
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var request = getListRequest(next, pageSize);
-                var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
-
-                var jsonContent = await response.GetContentAsString();
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var pageDto = IsolatedSerialization.DeserializeWithDefaultConverters<EntityPageDto<T>>(jsonContent);
-
-                if (pageDto.Results == null || pageDto.Results.Length == 0) break;
-
-                // Cap the length to the total number of results.
-                length = Math.Min(length, pageDto.Total);
-
-                // Update the next token.
-                next = pageDto.Next;
-
-                for (var i = 0; i < pageDto.Results.Length; ++i)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    // Bring offset to 0 before starting to yield results.
-                    if (offset-- > 0) continue;
-
-                    // Stop yielding results if we have reached the desired count.
-                    if (count >= length) break;
-
-                    ++count;
-                    yield return pageDto.Results[i];
-                }
-            } while (count < length && !string.IsNullOrEmpty(next));
+            ApiRequest GetListRequest(string next, int pageSize) => new DatasetRequest(assetDescriptor.ProjectId, assetDescriptor.AssetId, assetDescriptor.AssetVersion, includedFieldsFilter, next, pageSize);
         }
 
         /// <inheritdoc />
-        public async Task<IDatasetData> GetDatasetAsync(DatasetDescriptor datasetDescriptor, FieldsFilter includedFieldsFilter, CancellationToken cancellationToken)
+        public Task<IDatasetData> GetDatasetAsync(DatasetDescriptor datasetDescriptor, FieldsFilter includedFieldsFilter, CancellationToken cancellationToken)
+        {
+            return datasetDescriptor.IsPathToAssetLibrary()
+                ? GetDatasetAsync_FromLibrary(datasetDescriptor, includedFieldsFilter, cancellationToken)
+                : GetDatasetAsync_FromProject(datasetDescriptor, includedFieldsFilter, cancellationToken);
+        }
+
+        async Task<IDatasetData> GetDatasetAsync_FromLibrary(DatasetDescriptor datasetDescriptor, FieldsFilter includedFieldsFilter, CancellationToken cancellationToken)
+        {
+            await foreach(var dataset in ListDatasetsAsync_FromLibrary(datasetDescriptor.AssetDescriptor, Range.All, includedFieldsFilter, cancellationToken))
+            {
+                if (dataset.DatasetId == datasetDescriptor.DatasetId)
+                {
+                    return dataset;
+                }
+            }
+
+            throw new NotFoundException("Dataset does not exist.");
+        }
+
+        async Task<IDatasetData> GetDatasetAsync_FromProject(DatasetDescriptor datasetDescriptor, FieldsFilter includedFieldsFilter, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var request = new DatasetRequest(datasetDescriptor.ProjectId, datasetDescriptor.AssetId, datasetDescriptor.AssetVersion, datasetDescriptor.DatasetId, includedFieldsFilter);
-            var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(),
+            using var response = await m_ServiceHttpClient.GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(),
                 cancellationToken);
 
-            var jsonContent = await response.GetContentAsString();
+            var jsonContent = await response.GetContentAsStringAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
             return IsolatedSerialization.DeserializeWithDefaultConverters<DatasetData>(jsonContent);
         }
 
         /// <inheritdoc />
-        public Task UpdateDatasetAsync(DatasetDescriptor datasetDescriptor, IDatasetUpdateData datasetUpdate, CancellationToken cancellationToken)
+        public async Task UpdateDatasetAsync(DatasetDescriptor datasetDescriptor, IDatasetUpdateData datasetUpdate, CancellationToken cancellationToken)
         {
             var request = new DatasetRequest(datasetDescriptor.ProjectId, datasetDescriptor.AssetId, datasetDescriptor.AssetVersion, datasetDescriptor.DatasetId, datasetUpdate);
-            return RateLimitedServiceClient(request, HttpClientExtensions.HttpMethodPatch).PatchAsync(GetPublicRequestUri(request), request.ConstructBody(),
+            using var _ = await m_ServiceHttpClient.PatchAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
         }
 
         /// <inheritdoc />
-        public Task ReferenceFileFromDatasetAsync(DatasetDescriptor datasetDescriptor, DatasetId sourceDatasetId, string filePath, CancellationToken cancellationToken)
+        public async Task ReferenceFileFromDatasetAsync(DatasetDescriptor datasetDescriptor, DatasetId sourceDatasetId, string filePath, CancellationToken cancellationToken)
         {
             var request = new AddFileReferenceRequest(datasetDescriptor.ProjectId, datasetDescriptor.AssetId, datasetDescriptor.AssetVersion, sourceDatasetId, filePath, datasetDescriptor.DatasetId);
-            return RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
+            using var _ = await m_ServiceHttpClient.PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
         }
 
-        public Task RemoveFileFromDatasetAsync(DatasetDescriptor datasetDescriptor, string filePath, CancellationToken cancellationToken)
+        public async Task RemoveFileFromDatasetAsync(DatasetDescriptor datasetDescriptor, string filePath, CancellationToken cancellationToken)
         {
             var request = new FileRequest(datasetDescriptor.ProjectId, datasetDescriptor.AssetId, datasetDescriptor.AssetVersion, datasetDescriptor.DatasetId, filePath);
-            return RateLimitedServiceClient(request, HttpMethod.Delete).DeleteAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
+            using var _ = await m_ServiceHttpClient.DeleteAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(), cancellationToken);
         }
 
         /// <inheritdoc />
@@ -134,10 +142,10 @@ namespace Unity.Cloud.AssetsEmbedded
             cancellationToken.ThrowIfCancellationRequested();
 
             var request = new CheckDatasetBelongsToAssetRequest(datasetDescriptor.ProjectId, datasetDescriptor.AssetId, datasetDescriptor.AssetVersion, datasetDescriptor.DatasetId);
-            var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(),
+            using var response = await m_ServiceHttpClient.GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(),
                 cancellationToken);
 
-            var jsonContent = await response.GetContentAsString();
+            var jsonContent = await response.GetContentAsStringAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
             var dto = JsonSerialization.Deserialize<DatasetAssetCheckDto>(jsonContent);
@@ -146,15 +154,15 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
-        public Task RemoveDatasetMetadataAsync(DatasetDescriptor datasetDescriptor, string metadataType, IEnumerable<string> keys, CancellationToken cancellationToken)
+        public async Task RemoveDatasetMetadataAsync(DatasetDescriptor datasetDescriptor, string metadataType, IEnumerable<string> keys, CancellationToken cancellationToken)
         {
-            var request = new RemoveMetadataRequest(datasetDescriptor.ProjectId,
+            var request = RemoveMetadataRequest.Get(datasetDescriptor.ProjectId,
                 datasetDescriptor.AssetId,
                 datasetDescriptor.AssetVersion,
                 datasetDescriptor.DatasetId,
                 metadataType,
                 keys);
-            return RateLimitedServiceClient(request, HttpMethod.Delete).DeleteAsync(GetPublicRequestUri(request), request.ConstructBody(),
+            using var _ = await m_ServiceHttpClient.DeleteAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
         }
     }

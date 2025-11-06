@@ -54,11 +54,11 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <param name="assetProjectCacheConfiguration">The caching configuration for the project. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
-        /// <returns>A task whose result is an <see cref="IAssetProject"/> with cached values specified by the caching configurations. </returns>
+        /// <returns>A task whose result is an <see cref="IAssetProject"/> with cached values specified by the caching configuration. </returns>
         Task<IAssetProject> WithCacheConfigurationAsync(AssetProjectCacheConfiguration assetProjectCacheConfiguration, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
-        /// Fetches the latest changes.
+        /// Retrieves and caches the project properties.
         /// </summary>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>
@@ -104,6 +104,13 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="assetId">The id of the asset to query. </param>
         /// <returns>A <see cref="VersionQueryBuilder"/>. </returns>
         VersionQueryBuilder QueryAssetVersions(AssetId assetId) => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns an object that can be used to query asset labels across versions.
+        /// </summary>
+        /// <param name="assetId">The id of the asset to query. </param>
+        /// <returns>A <see cref="AssetLabelQueryBuilder"/>. </returns>
+        AssetLabelQueryBuilder QueryAssetLabels(AssetId assetId) => throw new NotImplementedException();
 
         /// <summary>
         /// Returns an object that can be used to query asset references.

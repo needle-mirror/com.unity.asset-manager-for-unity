@@ -62,6 +62,10 @@ namespace Unity.AssetManager.UI.Editor
             m_FieldContainers.Add(descriptionContainer);
             Add(descriptionContainer.Root);
 
+            var statusContainer = new StatusFieldContainer(uploadAssetSelection, GetImportedAssetInfo, ApplyEdits);
+            m_FieldContainers.Add(statusContainer);
+            Add(statusContainer.Root);
+
             var tagsContainer = new TagsFieldContainer(uploadAssetSelection, GetImportedAssetInfo, ApplyEdits);
             m_FieldContainers.Add(tagsContainer);
             Add(tagsContainer.Root);
@@ -118,6 +122,9 @@ namespace Unity.AssetManager.UI.Editor
                     case EditField.Description:
                         ApplyDescription(edit.EditValue as string);
                         break;
+                    case EditField.Status:
+                        ApplyStatus(edit.EditValue as string);
+                        break;
                     case EditField.Tags:
                         ApplyTags(edit.AssetIdentifier, edit.EditValue as IEnumerable<string>);
                         break;
@@ -135,6 +142,14 @@ namespace Unity.AssetManager.UI.Editor
             foreach (var assetData in m_SelectedAssetsData.Selection)
             {
                 (assetData as UploadAssetData)?.SetDescription(description);
+            }
+        }
+
+        void ApplyStatus(string status)
+        {
+            foreach (var assetData in m_SelectedAssetsData.Selection)
+            {
+                (assetData as UploadAssetData)?.SetStatus(status);
             }
         }
 

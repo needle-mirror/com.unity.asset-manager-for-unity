@@ -17,7 +17,7 @@ namespace Unity.Cloud.AssetsEmbedded
             DatasetData = datasetInfo;
         }
 
-        /// <inheritdoc/>
+        /// <inheritdoc />
         public override HttpContent ConstructBody()
         {
             var body = IsolatedSerialization.SerializeWithConverters(DatasetData, IsolatedSerialization.DatasetIdConverter);

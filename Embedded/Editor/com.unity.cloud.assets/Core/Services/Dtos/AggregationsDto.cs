@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -9,18 +10,13 @@ namespace Unity.Cloud.AssetsEmbedded
         public AggregateDto[] Aggregations { get; set; }
     }
 
-    struct AggregateDto
+    [DataContract]
+    class AggregateDto
     {
         [DataMember(Name = "value")]
         public object Value { get; set; }
 
         [DataMember(Name = "count")]
         public int Count { get; set; }
-
-        public AggregateDto(string value, int count)
-        {
-            Value = value;
-            Count = count;
-        }
     }
 }

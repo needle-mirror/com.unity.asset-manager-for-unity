@@ -10,8 +10,6 @@ namespace Unity.AssetManager.Core.Editor
         public const string CacheThumbnailsFolderName = "Thumbnails";
         public const string CacheTexturesFolderName = "Textures";
 
-        public const string StatusInReview = "InReview";
-        public const string StatusApproved = "Approved";
         public const string CancelImportActionText = "Cancel Import";
         public const string Cancel = "Cancel";
 

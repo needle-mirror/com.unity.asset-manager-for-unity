@@ -15,9 +15,19 @@ namespace Unity.Cloud.AssetsEmbedded
         /// Gets the asset collections.
         /// </summary>
         /// <param name="assetDescriptor">The object containing the necessary information to identify the asset.</param>
+        /// <param name="range">The range of the collections to return. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
-        /// <returns>An enumeration of collections. </returns>
-        Task<IEnumerable<IAssetCollectionData>> GetAssetCollectionsAsync(AssetDescriptor assetDescriptor, CancellationToken cancellationToken);
+        /// <returns>A task whose result is an async enumeration of <see cref="IAssetCollectionData"/>. </returns>
+        IAsyncEnumerable<IAssetCollectionData> GetAssetCollectionsAsync(AssetDescriptor assetDescriptor, Range range, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Retrieves the collections in a library.
+        /// </summary>
+        /// <param name="assetLibraryId">ID of the library. </param>
+        /// <param name="range">The range of the collections to return. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task whose result is an async enumeration of <see cref="IAssetCollectionData"/>. </returns>
+        IAsyncEnumerable<IAssetCollectionData> ListCollectionsAsync(AssetLibraryId assetLibraryId, Range range, CancellationToken cancellationToken);
 
         /// <summary>
         /// Retrieves the collections in a project.
@@ -62,6 +72,24 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <returns>A task with no result.</returns>
         Task DeleteCollectionAsync(CollectionDescriptor collectionDescriptor, CancellationToken cancellationToken);
 
+        /// <summary>
+        /// Counts the number of nested collections in a collection.
+        /// </summary>
+        /// <param name="collectionDescriptor">The object containing the necessary information to identify the collection. </param>
+        /// <param name="includeSubcollections">Whether to recursively include nested collections when counting. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task whose result is the number of nested collections in the collection. </returns>
+        Task<int> GetCollectionCountAsync(CollectionDescriptor collectionDescriptor, bool includeSubcollections, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Counts the number of assets in a collection.
+        /// </summary>
+        /// <param name="collectionDescriptor">The object containing the necessary information to identify the collection. </param>
+        /// <param name="includeSubcollections">Whether to include child collections when counting assets. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task whose result is the number of assets in the collection. </returns>
+        Task<int> GetAssetCountAsync(CollectionDescriptor collectionDescriptor, bool includeSubcollections, CancellationToken cancellationToken);
+        
         /// <summary>
         /// Adds assets to a collection in a project.
         /// </summary>

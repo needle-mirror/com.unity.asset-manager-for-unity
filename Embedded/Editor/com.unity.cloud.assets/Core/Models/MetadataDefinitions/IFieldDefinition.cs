@@ -55,7 +55,7 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<IFieldDefinition> WithCacheConfigurationAsync(FieldDefinitionCacheConfiguration fieldDefinitionCacheConfiguration, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
-        /// Refreshes the field to retrieve the latest values.
+        /// Retrieves and caches the field definition properties.
         /// </summary>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
@@ -75,6 +75,5 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">The cancellation token. </param>
         /// <returns>A task with no result. </returns>
         Task UpdateAsync(IFieldDefinitionUpdate definitionUpdate, CancellationToken cancellationToken);
-
     }
 }

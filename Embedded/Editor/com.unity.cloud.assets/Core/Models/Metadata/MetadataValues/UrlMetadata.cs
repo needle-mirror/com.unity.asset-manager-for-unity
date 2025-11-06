@@ -42,7 +42,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         internal override object GetValue()
         {
-            return string.IsNullOrEmpty(Label) ? Uri.ToString() : $"[{Label}]({Uri})";
+            return string.IsNullOrEmpty(Label) ? Uri?.ToString() : $"[{Label}]({Uri})";
         }
 
         internal static bool TryParse(string value, out Uri uri, out string label)

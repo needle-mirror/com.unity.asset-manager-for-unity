@@ -40,7 +40,10 @@ namespace Unity.AssetManager.UI.Editor
 
         protected virtual void InitDisplay(IPage page)
         {
-            UIElementsUtils.SetDisplay(Container, IsDisplayed(page) && m_ProjectOrganizationProvider.SelectedOrganization != null);
+            var display = IsDisplayed(page)
+                && m_ProjectOrganizationProvider.SelectedOrganization != null
+                && m_ProjectOrganizationProvider.SelectedOrganization.ProjectInfos.Any();
+            UIElementsUtils.SetDisplay(Container,display);
         }
 
         void OnPageManagerLoadingStatusChanged(IPage page, bool isLoading)

@@ -124,7 +124,7 @@ namespace Unity.AssetManager.UI.Editor
 
                 if (data.SequenceNumber > 0)
                 {
-                    AddLabel(foldout, Constants.ChangeLogText);
+                    AddHeader(foldout, Constants.ChangeLogText);
                     AddText(foldout, null, string.IsNullOrEmpty(data.Changelog) ? k_NoChangelogProvided : data.Changelog);
                 }
 
@@ -155,7 +155,7 @@ namespace Unity.AssetManager.UI.Editor
             {
                 return;
             }
-            
+
             m_ImportedVersions.Clear();
 
             var assetOperation = operationInProgress as AssetDataOperation;
@@ -169,19 +169,19 @@ namespace Unity.AssetManager.UI.Editor
                     continue;
 
                 var versionOperation = assetOperation?.Identifier.Version == identifier.Version ? operationInProgress : null;
-                var inProject = enabled.HasFlag(UIEnabledStates.InProject) && assetData.Identifier.Equals(identifier);
+                var versionIsImported = enabled.HasFlag(UIEnabledStates.InProject) && assetData.Identifier.Equals(identifier);
 
-                if (inProject)
+                if (versionIsImported)
                 {
                     m_ImportedVersions.Add(identifier.Version);
                 }
 
-                RefreshImportedChip(foldoutContainer, inProject && !enabled.HasFlag(UIEnabledStates.IsImporting));
+                RefreshImportedChip(foldoutContainer, versionIsImported && !enabled.HasFlag(UIEnabledStates.IsImporting));
 
                 // We can't rely on the preview status as it may not yet be loaded.
                 var button = foldoutContainer.Q<ImportButton>();
-                button.text = AssetDetailsPageExtensions.GetImportButtonLabel(versionOperation, inProject ? AssetDataStatus.Imported : null);
-                button.tooltip = AssetDetailsPageExtensions.GetImportButtonTooltip(versionOperation, enabled);
+                button.text = AssetDetailsPageExtensions.GetImportButtonLabel(versionOperation, versionIsImported ? AssetDataStatus.Imported : null);
+                button.tooltip = AssetDetailsPageExtensions.GetImportButtonTooltip(versionOperation, enabled, versionIsImported);
                 button.SetEnabled(isEnabled);
             }
         }

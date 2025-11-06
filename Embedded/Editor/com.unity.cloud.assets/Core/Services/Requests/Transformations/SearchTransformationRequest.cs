@@ -2,9 +2,9 @@ using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
-    class SearchTransformationRequest : ProjectRequest
+    class SearchTransformationRequest : ProjectOrLibraryRequest
     {
-        public SearchTransformationRequest(ProjectId projectId, TransformationSearchData searchData)
+        public SearchTransformationRequest(ProjectId projectId, TransformationSearchData searchData, int offset, int limit)
             : base(projectId)
         {
             m_RequestUrl += "/transformations";
@@ -14,6 +14,8 @@ namespace Unity.Cloud.AssetsEmbedded
             AddParamToQuery("datasetId", searchData.DatasetId);
             AddParamToQuery("userId", searchData.UserId);
             AddParamToQuery("status", searchData.Status?.ToString());
+            AddParamToQuery("offset", offset.ToString());
+            AddParamToQuery("limit", limit.ToString());
         }
     }
 }

@@ -4,6 +4,33 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2025-11-06
+
+[Added]
+- Added a help box message and documentation link when enabling a project in Asset Manager from the editor fails.
+- New public class AssetManagerPostprocessor. When overriden, it allows to programmatically set and modify the assets' metadata during an Upload. Further customization can still be done in the Upload staging area as usual.
+- Added the ability to browse the external asset libraries and open the assets in the dashboard to add to projects.
+- Added a banner to notify when a new version of the com.unity.asset-manager-for-unity package is available.
+
+[Fixed]
+- Fixed a bug where the first asset selected in the upload page did not show editable description.
+- Fixed the "show in project" button still active after removing an empty asset from a project.
+- Reimport button is now greyed out when internet is down or the cloud services are unreachable.
+- Fixed reimport being clikable when the reimport selection contains a deleted asset.
+- Fixed projects and collections appearing gray in the "In Project" tab even when they contains some assets.
+- Fixed multiple issues where text was truncated and not fully visible in the window.
+- Tooltips were added for truncated text in chips for versions and labels.
+- Fixed multiple colour issues with text and icons where they were difficult to read due to contrast with the chosen theme.
+- Fixed issue arising from resizing the window or panes, where they could be scaled beyond normal limits.
+- Fixed various styling issues in the Preferences window.
+- Fixed not being able to scroll the search term chips when they exceeded the window's dimensions.
+- Saved views can now have the same name across different organizations. Saved view names must only be unique within the same organization.
+- The currently selected organization is now indicated with a checkmark in the organization selector.
+- When creating new collections, the new addition will be scrolled to if it is outside the scroll view bounds.
+- Fixed various typos in the window and documentation.
+- Fixing blocked loading screen when deleting a search filter while the search is ongoing.
+- Fixed an AssetImportWorker crash that happens when both Asset Manager For Unity and Asset Tranformer packages are used together.
+
 ## [1.8.0] - 2025-10-03
 
 [Added]

@@ -17,7 +17,7 @@ namespace Unity.Cloud.AssetsEmbedded
             if (includeFields.HasFlag(FileFields.previewURL))
                 file.PreviewUrl = Uri.TryCreate(fileData.PreviewUrl, UriKind.RelativeOrAbsolute, out var previewUri) ? previewUri : null;
             if (includeFields.HasFlag(FileFields.metadata))
-                file.MetadataEntity.Properties = fileData.Metadata?.From(assetDataSource, file.Descriptor.OrganizationId) ?? new Dictionary<string, MetadataObject>();
+                file.MetadataEntity.Properties = fileData.Metadata?.From(assetDataSource, file.Descriptor.DatasetDescriptor.AssetDescriptor) ?? new Dictionary<string, MetadataObject>();
             if (includeFields.HasFlag(FileFields.systemMetadata))
                 file.SystemMetadataEntity.Properties = fileData.SystemMetadata?.From() ?? new Dictionary<string, MetadataObject>();
         }
@@ -68,7 +68,7 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             return new FileCreateData
             {
-                Path = fileCreation.Path,
+                Path = fileCreation.Path.Replace('\\', '/'),
                 Description = fileCreation.Description,
                 Tags = fileCreation.Tags?.ToList() ?? new List<string>(),
                 Metadata = fileCreation.Metadata?.ToObjectDictionary() ?? new Dictionary<string, object>(),

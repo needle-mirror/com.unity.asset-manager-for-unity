@@ -18,6 +18,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string SidebarSavedViewsText = "Saved Views";
         public const string SidebarRenameSavedView = "Rename saved view";
         public const string SidebarDeleteSavedView = "Delete saved view";
+        public const string SidebarAssetLibrariesText = "External Libraries";
 
         // Filter
         public const string NoSelectionsText = "Empty";
@@ -73,7 +74,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string IncludeToggleTooltip = "Check to include asset";
         public const string IgnoreDependenciesDialogTitle = "Warning";
         public const string IgnoreDependenciesDialogMessage = "You are trying to upload assets without their dependencies. This might break other assets that depend on them.\nAre you sure you want to proceed?";
-        public const string UploadNoAssetsMessage = "Drag and drop assets from the Project window\n\nor\n\nIn the Project window, right-click on a file or folder and select Upload to Asset Manager";
+        public const string UploadNoAssetsMessage = "Drag and drop assets from the Project window\n\nor\n\nIn the Project Window, right-click on a file or folder and select Upload to Asset Manager";
         public const string CancelUploadActionText = "Cancel Upload";
         public const string ClearAllActionText = "Clear All";
         public const string UploadActionText = "Upload Assets";
@@ -90,6 +91,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string UploadAssetsTooltip = "Upload assets to cloud";
         public const string UploadAssetsExistsTooltip = "All assets already exist in the cloud";
         public const string UploadAssetsNotModifiedTooltip = "All assets are unchanged";
+        public const string UploadToAssetLibraryTooltip = "Cannot upload assets to an Asset Library project";
         public const string UploadOutsideProjectTooltip = "One of more assets contain files outside the Assets folder";
         public const string DirtyAssetsDialogTitle = "Warning";
         public const string DirtyAssetsDialogMessage = "You are trying to upload assets that have unsaved changes.\nAre you sure you want to proceed?";
@@ -142,6 +144,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string VersionText = "Ver. ";
         public const string PendingVersionText = "Pending";
         public const string NewVersionText = "New Ver.";
+        public const string NewVersionTooltip = "A new version will be created.";
         public const string FromVersionText = "From Ver.";
         public const string DashboardLinkTooltip = "Open asset in the dashboard";
         public const string CollectionsText = "Collections";
@@ -150,7 +153,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string LoadingText = "Loading...";
         public const string ChangeLogText = "What changed?";
         public const string NoChangeLogText = "No change log provided.";
-        public const string CreatedFromText = "Created From";
+        public const string CreatedFromText = "Created from";
         public const string CreatedByText = "Created by";
         public const string UploadDateText = "Upload date";
         public const string LastEditByText = "Last edit by";
@@ -209,20 +212,23 @@ namespace Unity.AssetManager.UI.Editor
         public const string ImportAllSelectedActionText = "Import All Selected";
         public const string RemoveFromProjectAllSelectedActionText = "Remove All Selected From Project";
         public const string RemoveAllFromProjectToolTip = "Remove all selected assets and their exclusive dependencies from your Unity project";
-        public const string RemoveFromProjectButtonToolTip = "Removes the asset and its exlcusive dependencies from your Unity project";
+        public const string RemoveFromProjectButtonToolTip = "Removes the asset and its exclusive dependencies from your Unity project";
         public const string RemoveFromProjectButtonDisabledToolTip = "There is nothing to remove from the project.";
         public const string ImportButtonDisabledToolTip = "There is nothing to import.";
         public const string ImportNoPermissionMessage = "You don’t have permissions to import this asset. \nSee your role from the project settings page on \nthe Asset Manager dashboard.";
         public const string FilteredAssetOutdatedWarning = "Asset is not up to date. Update your asset to see the latest asset details.";
+        public const string AssetLibraryFooterHelpBoxText = "Add this asset to your own Asset Manager project on the dashboard. It will then be available to import into your project.";
+        public const string OpenInBrowserText = "Open in browser";
 
         // Grid View
         public const string EmptyCollectionsText = "This collection has no assets, use the Asset Manager dashboard to link your assets to a collection.";
         public const string EmptyInProjectText = "Your imported assets will be shown here.";
-        public const string EmptyProjectText = "The selected project is empty. To add assets, right click on any asset in project window and select upload to asset manager.";
-        public const string EmptyAllAssetsText = "The selected organization is empty. To add assets, right click on any asset in project window and select upload to asset manager.";
+        public const string EmptyProjectText = "The selected project is empty. To add assets, right click on any asset in Project Window and select Upload to Asset Manager.";
+        public const string EmptyAllAssetsText = "The selected organization is empty. To add assets, right click on any asset in Project Window and select Upload to Asset Manager.";
         public const string NoResultsText = "No results found";
         public const string NoResultsForSearchText = " for search: ";
         public const string NoResultsForFiltersText = " with filters: ";
+        public const string CantSelectAssetLibraryText = " is an asset library and cannot be selected for upload.";
 
         public const string UpdateAllText = "Update All";
         public const string UpdateAllToLatestActionText = "Update All To Latest";
@@ -265,7 +271,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string ShowInExplorerLabel = "Show in Explorer";
         public const string ChangeLocationLabel = "Change Location";
         public const string ResetDefaultLocation = "Reset to Default Location";
-        public const string CacheLocation = "Cache Location";
+        public const string CacheLocation = "Cache location";
         public const string CacheMaxSize = "Maximum cache size (GB)";
         public const string CacheSize = "Cache size is ";
         public const string CacheRefresh = "Refresh";
@@ -286,8 +292,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string DisableReimportModalToolTip = "When enabled, no conflict resolution modals will be shown when importing and \"replace\" will be applied to everything. \"Avoid rolling back versions of dependencies\" must be enabled to use this setting.";
 
         public const string ProjectWindowSettingsTitle = "Project Window Settings";
-        public const string ProjectWindowIconOverlayToggleLabel = "Enable icon overlay in the project window";
-        public const string ProjectWindowIconOverlayToggleTooltip = "Enable or disable the icon overlay in the project window. The icon overlay shows the status of Asset Manager assets relative to the cloud.";
+        public const string ProjectWindowIconOverlayToggleLabel = "Enable icon overlay in the Project Window";
+        public const string ProjectWindowIconOverlayToggleTooltip = "Enable or disable the icon overlay in the Project Window. The icon overlay shows the status of Asset Manager assets relative to the cloud.";
         public const string ProjectWindowIconOverlayPositionLabel = "Icon overlay position";
         public const string ProjectWindowIconOverlayPositionTooltip = "Choose the position of the icon overlay on the asset icon";
         public const string ProjectWindowIconOverlayDisplayTypeLabel = "Display detailed icon overlay";

@@ -14,5 +14,6 @@ namespace Unity.AssetManager.Core.Editor
 
         public List<string> Tags { get; set; }
         public List<IMetadata> Metadata { get; set; }
+        public StatusFlowIdentifier StatusFlowIdentifier { get; set; }
     }
 }

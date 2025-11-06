@@ -11,8 +11,18 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <summary>
         /// Retrieves the asset versions for a given asset given the criteria.
         /// </summary>
+        /// <param name="assetLibraryId">ID of the library. </param>
+        /// <param name="assetId">ID of the asset. </param>
+        /// <param name="parameters">The search parameters. </param>
+        /// <param name="cancellationToken"></param>
+        /// <returns>An async enumeration of assets that satisfy the criteria. </returns>
+        IAsyncEnumerable<IAssetData> ListAssetVersionsAsync(AssetLibraryId assetLibraryId, AssetId assetId, SearchRequestParameters parameters, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Retrieves the asset versions for a given asset given the criteria.
+        /// </summary>
         /// <param name="projectDescriptor">The object containing the necessary information to identify the project the asset belongs to.</param>
-        /// <param name="assetId">The asset to search in. </param>
+        /// <param name="assetId">ID of the asset. </param>
         /// <param name="parameters">The search parameters. </param>
         /// <param name="cancellationToken"></param>
         /// <returns>An async enumeration of assets that satisfy the criteria. </returns>

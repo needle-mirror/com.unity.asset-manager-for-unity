@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,5 +33,10 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task with no result. </returns>
         Task RemoveAsync(IEnumerable<string> keys, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Throws an <see cref="InvalidOperationException"/> if the given message indicates that the path is a library path.
+        /// </summary>
+        void ThrowIfPathToLibrary();
     }
 }

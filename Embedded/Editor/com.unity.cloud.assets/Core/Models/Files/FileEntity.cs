@@ -118,6 +118,42 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        public FileUpdateHistoryQueryBuilder QueryUpdateHistory()
+        {
+            ThrowIfPathToLibrary();
+
+            return new FileUpdateHistoryQueryBuilder(m_DataSource, Descriptor);
+        }
+
+        /// <inheritdoc />
+        public async Task<FileUpdateHistory> GetUpdateHistoryAsync(int sequenceNumber, CancellationToken cancellationToken)
+        {
+            ThrowIfPathToLibrary();
+
+            var count = await m_DataSource.GetMetadataHistoryCountAsync(Descriptor, cancellationToken);
+
+            if (sequenceNumber < 0 || sequenceNumber >= count)
+            {
+                throw new InvalidArgumentException($"The sequence number must be between 0 and {count}.");
+            }
+
+            var range = new Range(count - 1 - sequenceNumber, count - sequenceNumber);
+            var query = m_DataSource
+                .ListMetadataHistoryAsync(Descriptor, new PaginationData {Range = range}, cancellationToken)
+                .GetAsyncEnumerator(cancellationToken);
+
+            if (await query.MoveNextAsync())
+            {
+                if (query.Current.MetadataSequenceNumber == sequenceNumber)
+                {
+                    return query.Current.From(m_DataSource, Descriptor);
+                }
+            }
+
+            throw new NotFoundException($"History with sequence number {sequenceNumber} not found for file.");
+        }
+
+        /// <inheritdoc />
         public async Task RefreshAsync(CancellationToken cancellationToken)
         {
             if (CacheConfiguration.HasCachingRequirements)
@@ -136,7 +172,6 @@ namespace Unity.Cloud.AssetsEmbedded
             var linkedDataset = properties.LinkedDatasets.ToArray();
 
             var (start, length) = range.GetValidatedOffsetAndLength(linkedDataset.Length);
-
             for (var i = start; i < start + length; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -192,54 +227,42 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async Task UpdateAsync(IFileUpdate fileUpdate, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             await m_DataSource.UpdateFileAsync(Descriptor, fileUpdate.From(), cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task UpdateAsync(int updateHistorySequenceNumber, CancellationToken cancellationToken)
+        {
+            ThrowIfPathToLibrary();
+
+            return m_DataSource.RollbackMetadataHistoryAsync(Descriptor, updateHistorySequenceNumber, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task UploadAsync(Stream sourceStream, IProgress<HttpProgress> progress, CancellationToken cancellationToken)
         {
-            var result = Metadata.Query().ExecuteAsync(cancellationToken);
-            var metadata = new Dictionary<string, MetadataValue>();
-            await foreach (var item in result)
+            ThrowIfPathToLibrary();
+
+            var creationData = new FileCreateData
             {
-                metadata.Add(item.Key, item.Value);
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var datasets = new List<IDataset>();
-            var datasetList = GetLinkedDatasetsAsync(cancellationToken);
-
-            // Remove file from all datasets
-            await foreach (var dataset in datasetList)
-            {
-                datasets.Add(dataset);
-                await dataset.RemoveFileAsync(Descriptor.Path, cancellationToken);
-
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            // Reupload to dataset[0]
-            var fileCreation = new FileCreation(Descriptor.Path)
-            {
-                Description = Description,
-                Tags = Tags,
-                Metadata = metadata
+                SizeBytes = sourceStream.Length,
+                UserChecksum = await Utilities.CalculateMD5ChecksumAsync(sourceStream, cancellationToken)
             };
 
-            var newFileDescriptor = await datasets[0].UploadFileLiteAsync(fileCreation, sourceStream, progress, cancellationToken);
+            var uploadUrl = await m_DataSource.UpdateFileContentAsync(Descriptor, creationData, cancellationToken);
 
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Link to remaining datasets
-            var tasks = new List<Task>();
-            for (var i = 1; i < datasets.Count; ++i)
+            if (uploadUrl == null)
             {
-                var task = datasets[i].AddExistingFileAsync(newFileDescriptor.Path, newFileDescriptor.DatasetId, cancellationToken);
-                tasks.Add(task);
+                uploadUrl = await m_DataSource.GetFileUploadUrlAsync(Descriptor, null, cancellationToken);
             }
 
-            await Task.WhenAll(tasks);
+            if (uploadUrl != null)
+            {
+                await m_DataSource.UploadContentAsync(uploadUrl, sourceStream, progress, cancellationToken);
+                await m_DataSource.FinalizeFileUploadAsync(Descriptor, false, cancellationToken);
+            }
         }
 
         /// <summary>
@@ -260,6 +283,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public async Task<IEnumerable<GeneratedTag>> GenerateSuggestedTagsAsync(CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary("Cannot generate tags for library files.");
+
             var tags = await m_DataSource.GenerateFileTagsAsync(Descriptor, cancellationToken);
             return tags.Select(x => new GeneratedTag(x.Tag, x.Confidence));
         }
@@ -277,6 +302,14 @@ namespace Unity.Cloud.AssetsEmbedded
             }
 
             return file;
+        }
+
+        void ThrowIfPathToLibrary(string message = "Cannot modify a library file.")
+        {
+            if (Descriptor.IsPathToAssetLibrary())
+            {
+                throw new InvalidOperationException(message);
+            }
         }
     }
 }

@@ -72,6 +72,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc/>
         public Task UpdateAsync(IFieldDefinitionUpdate definitionUpdate, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.UpdateFieldDefinitionAsync(Descriptor, definitionUpdate.From(), cancellationToken);
         }
 
@@ -107,6 +109,14 @@ namespace Unity.Cloud.AssetsEmbedded
 
             // When there are no caching requirements, return the basic field definition entity, it will be safe to cast to a selection field definition if needed.
             return new FieldDefinitionEntity(dataSource, defaultCacheConfiguration, descriptor, configuration);
+        }
+
+        private protected void ThrowIfPathToLibrary(string message = "Cannot modify library field definitions.")
+        {
+            if (Descriptor.IsPathToAssetLibrary())
+            {
+                throw new InvalidOperationException(message);
+            }
         }
     }
 }

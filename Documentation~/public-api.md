@@ -1,4 +1,4 @@
-# AssetManager for Unity API
+# Asset Manager for Unity API
 
 ### Using the Asset Manager API
 
@@ -59,3 +59,24 @@ You can then gather the assets retrieved from this search and use them in your c
 For more information on how to install the Unity Cloud Assets, see [Install Unity Cloud Assets](https://docs.unity3d.com/Packages/com.unity.cloud.assets@1.7/manual/installation.html).
 
 For more details on how to use the Unity Cloud Assets search filtering, see [Search assets in a project](https://docs.unity3d.com/Packages/com.unity.cloud.assets@1.7/manual/use-case-search-assets.html) and [Search assets across projects](https://docs.unity3d.com/Packages/com.unity.cloud.assets@1.7/manual/use-case-search-across-projects-assets.html).
+
+## How do I programmatically set an asset's metadata during an upload?
+
+The Asset Manager API provides a way to programmatically set many of the asset's metadata, like the name, description, status, tags and custom metadata prior to the upload operation.
+
+In order to achieve this, you need to create a subclass of the `AssetManagerPostprocessor` class and override the `OnPostprocessUploadAsset` method.
+The example below shows how to create a custom post-processor that adds a new tag "Custom Material Tag" to all materials being uploaded."
+
+[!code-cs [behaviour-script](../Samples/Documentation/Manual/PublicApiUsage.cs#Example_Custom_AssetManagerPostprocessor)]
+
+### Details on the OnPostprocessUploadAsset method
+
+For each asset to be uploaded, the following operations will take place:
+1. Asset Manager for Unity will evaluate all assets to be uploaded, including dependencies.
+2. For each asset identified previously, default values for the metadata is calculated.
+3. Then for each asset:
+    1. Create a `UploadAsset` object that represent the asset to be uploaded.
+    2. Search for all derivations of the `AssetManagerPostprocessor` type.
+    3. Instantiate one object for each type found and order the objects based on their priority value.
+    4. For each object in the previous step, call `OnPostprocessUploadAsset`, giving the `UploadAsset` object representing the asset to be uploaded.
+4. The upload staging area is populated with the assets to be uploaded, using the metadata from the `UploadAsset` object after all post-processors have been executed.

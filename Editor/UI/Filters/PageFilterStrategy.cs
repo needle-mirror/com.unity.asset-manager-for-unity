@@ -313,7 +313,7 @@ namespace Unity.AssetManager.UI.Editor
             }
             else
             {
-                projects = new List<string> {m_ProjectOrganizationProvider.SelectedProject.Id};
+                projects = new List<string> {m_ProjectOrganizationProvider.SelectedProjectOrLibrary.Id};
             }
 
             return projects;

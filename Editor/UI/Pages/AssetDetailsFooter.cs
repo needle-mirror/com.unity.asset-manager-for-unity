@@ -12,6 +12,7 @@ namespace Unity.AssetManager.UI.Editor
     static partial class UssStyle
     {
         public const string DetailsPageFooterContainer = "details-page-footer-container";
+        public const string DetailsPageFooterHelpBox = "details-page-footer-helpbox";
     }
 
     class AssetDetailsFooter : IPageComponent
@@ -23,6 +24,8 @@ namespace Unity.AssetManager.UI.Editor
         readonly VisualElement m_FooterVisualElement;
         readonly IPageManager m_PageManager;
         readonly IAssetDataManager m_AssetDataManager;
+        readonly Button m_ShowInDashboardButton;
+        readonly HelpBox m_AssetLibraryHelpBox;
 
         public VisualElement ButtonsContainer { get; }
 
@@ -33,7 +36,8 @@ namespace Unity.AssetManager.UI.Editor
         public event Func<bool> RemoveOnlySelectedAsset;
         public event Func<bool> StopTracking;
         public event Func<bool> StopTrackingOnlySelected;
-        
+        public event Action OpenDashboard;
+
         AssetPreview.IStatus m_ImportStatus;
 
         public AssetDetailsFooter(VisualElement visualElement, IDialogManager dialogManager)
@@ -69,12 +73,20 @@ namespace Unity.AssetManager.UI.Editor
             };
             ButtonsContainer.Add(m_RemoveButton);
 
+            m_AssetLibraryHelpBox = new HelpBox(L10n.Tr(Constants.AssetLibraryFooterHelpBoxText), HelpBoxMessageType.Info);
+            m_AssetLibraryHelpBox.AddToClassList(UssStyle.DetailsPageFooterHelpBox);
+            ButtonsContainer.Add(m_AssetLibraryHelpBox);
+
+            m_ShowInDashboardButton = CreateBigButton(ButtonsContainer, Constants.OpenInBrowserText);
+            ButtonsContainer.Add(m_ShowInDashboardButton);
+
             m_ImportButton.RegisterCallback(BeginImport);
             m_ShowInProjectBrowserButton.clicked += ShowInProjectBrowser;
             m_RemoveButton.RemoveWithExclusiveDependencies += RemoveFromProject;
             m_RemoveButton.RemoveOnlySelected += RemoveOnlySelectedFromProject;
             m_RemoveButton.StopTracking += OnStopTracking;
             m_RemoveButton.StopTrackingOnlySelected += OnStopTrackingOnlySelected;
+            m_ShowInDashboardButton.clicked += ShowInDashboard;
         }
 
         public void OnSelection(BaseAssetData assetData) { }
@@ -90,15 +102,15 @@ namespace Unity.AssetManager.UI.Editor
             var isEnabled = enabled.IsImportAvailable();
 
             m_ImportStatus = assetData?.AssetDataAttributeCollection.GetStatusOfImport();
-            
+
             m_ImportButton.text = AssetDetailsPageExtensions.GetImportButtonLabel(operationInProgress, m_ImportStatus);
             m_ImportButton.tooltip = AssetDetailsPageExtensions.GetImportButtonTooltip(operationInProgress, enabled);
             m_ImportButton.SetEnabled(isEnabled);
 
-            var hasFiles = assetData?.GetFiles()?.Where(f 
+            var hasFiles = assetData?.GetFiles()?.Where(f
                 => !string.IsNullOrEmpty(f?.Path) && !AssetDataDependencyHelper.IsASystemFile(Path.GetExtension(f.Path)))
                 .Any() ?? false;
-            
+
             m_ShowInProjectBrowserButton.SetEnabled(enabled.HasFlag(UIEnabledStates.InProject) && hasFiles);
             m_ShowInProjectBrowserButton.tooltip = enabled.HasFlag(UIEnabledStates.InProject) && hasFiles
                 ? L10n.Tr(Constants.ShowInProjectButtonToolTip)
@@ -114,6 +126,12 @@ namespace Unity.AssetManager.UI.Editor
                 : L10n.Tr(Constants.RemoveFromProjectButtonDisabledToolTip);
 
             m_OperationProgressBar.Refresh(operationInProgress);
+
+            m_RemoveButton.style.display = assetData.Identifier.IsAssetFromLibrary() ? DisplayStyle.None : DisplayStyle.Flex;
+            m_ShowInProjectBrowserButton.style.display = assetData.Identifier.IsAssetFromLibrary() ? DisplayStyle.None : DisplayStyle.Flex;
+            m_ImportButton.style.display = assetData.Identifier.IsAssetFromLibrary() ? DisplayStyle.None : DisplayStyle.Flex;
+            m_ShowInDashboardButton.style.display = assetData.Identifier.IsAssetFromLibrary() ? DisplayStyle.Flex : DisplayStyle.None;
+            m_AssetLibraryHelpBox.style.display = assetData.Identifier.IsAssetFromLibrary() ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         public void UpdatePreviewStatus(IEnumerable<AssetPreview.IStatus> status)
@@ -146,7 +164,7 @@ namespace Unity.AssetManager.UI.Editor
         void BeginImport(string importLocation)
         {
             m_ImportButton.SetEnabled(false);
-            
+
             ImportTrigger trigger;
             DetailsButtonClickedEvent.ButtonType buttonType;
             if (m_ImportStatus == null || string.IsNullOrEmpty(m_ImportStatus.ActionText) || m_ImportStatus.ActionText == Constants.ImportActionText)
@@ -168,6 +186,11 @@ namespace Unity.AssetManager.UI.Editor
         void ShowInProjectBrowser()
         {
             HighlightAsset?.Invoke();
+        }
+
+        void ShowInDashboard()
+        {
+            OpenDashboard?.Invoke();
         }
 
         void RemoveFromProject()

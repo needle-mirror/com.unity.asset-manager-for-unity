@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -13,7 +14,8 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         readonly IAssetDataSource m_DataSource;
         readonly AssetRepositoryCacheConfiguration m_DefaultCacheConfiguration;
-        readonly ProjectDescriptor m_ProjectDescriptor;
+        readonly ProjectDescriptor m_ProjectDescriptor = new ProjectDescriptor(OrganizationId.None, ProjectId.None);
+        readonly AssetLibraryId m_AssetLibraryId = AssetLibraryId.None;
 
         AssetCollectionCacheConfiguration? m_AssetCollectionCacheConfiguration;
         Range m_Range = Range.All;
@@ -23,6 +25,13 @@ namespace Unity.Cloud.AssetsEmbedded
             m_DataSource = dataSource;
             m_DefaultCacheConfiguration = defaultCacheConfiguration;
             m_ProjectDescriptor = projectDescriptor;
+        }
+
+        internal CollectionQueryBuilder(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, AssetLibraryId assetLibraryId)
+        {
+            m_DataSource = dataSource;
+            m_DefaultCacheConfiguration = defaultCacheConfiguration;
+            m_AssetLibraryId = assetLibraryId;
         }
 
         /// <summary>
@@ -54,12 +63,25 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <returns>An async enumeration of <see cref="IAssetCollection"/>. </returns>
         public async IAsyncEnumerable<IAssetCollection> ExecuteAsync([EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var results = m_DataSource.ListCollectionsAsync(m_ProjectDescriptor, m_Range, cancellationToken);
-            await foreach (var data in results)
+            if (m_AssetLibraryId.IsPathToAssetLibraryValid())
             {
-                if (cancellationToken.IsCancellationRequested) yield break;
+                var results = m_DataSource.ListCollectionsAsync(m_AssetLibraryId, m_Range, cancellationToken);
+                await foreach (var data in results)
+                {
+                    if (cancellationToken.IsCancellationRequested) yield break;
 
-                yield return data.From(m_DataSource, m_DefaultCacheConfiguration, m_ProjectDescriptor, m_AssetCollectionCacheConfiguration);
+                    yield return data.From(m_DataSource, m_DefaultCacheConfiguration, m_AssetLibraryId, m_AssetCollectionCacheConfiguration);
+                }
+            }
+            else
+            {
+                var results = m_DataSource.ListCollectionsAsync(m_ProjectDescriptor, m_Range, cancellationToken);
+                await foreach (var data in results)
+                {
+                    if (cancellationToken.IsCancellationRequested) yield break;
+
+                    yield return data.From(m_DataSource, m_DefaultCacheConfiguration, m_ProjectDescriptor, m_AssetCollectionCacheConfiguration);
+                }
             }
         }
     }

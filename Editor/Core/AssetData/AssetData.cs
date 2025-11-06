@@ -36,6 +36,9 @@ namespace Unity.AssetManager.Core.Editor
         string m_Status;
 
         [SerializeField]
+        string m_StatusFlowId;
+
+        [SerializeField]
         string m_Description;
 
         [SerializeField]
@@ -86,6 +89,7 @@ namespace Unity.AssetManager.Core.Editor
         Task m_ThumbnailUrlTask;
         CachedTask m_LinkedProjectsTask;
         CachedTask m_LinkedCollectionsTask;
+        CachedTask m_ReachableStatusNamesTask;
 
         IThumbnailDownloader m_ThumbnailDownloader;
 
@@ -96,6 +100,7 @@ namespace Unity.AssetManager.Core.Editor
         public override string Name => m_Name;
         public override AssetType AssetType => m_AssetType;
         public override string Status => m_Status;
+        public override string StatusFlowId => m_StatusFlowId;
         public override string Description => m_Description;
         public override DateTime? Created => new DateTime(m_Created, DateTimeKind.Utc);
         public override DateTime? Updated => new DateTime(m_Updated, DateTimeKind.Utc);
@@ -128,6 +133,7 @@ namespace Unity.AssetManager.Core.Editor
             string name,
             AssetType assetType,
             string status,
+            string statusFlowId,
             string description,
             DateTime created,
             DateTime updated,
@@ -147,6 +153,7 @@ namespace Unity.AssetManager.Core.Editor
             m_Name = name;
             m_AssetType = assetType;
             m_Status = status;
+            m_StatusFlowId = statusFlowId;
             m_Description = description;
             m_Created = created.Ticks;
             m_Updated = updated.Ticks;
@@ -194,6 +201,7 @@ namespace Unity.AssetManager.Core.Editor
             string name,
             AssetType assetType,
             string status,
+            string statusFlowId,
             string description,
             DateTime created,
             DateTime updated,
@@ -214,7 +222,7 @@ namespace Unity.AssetManager.Core.Editor
                 new(k_Source, new List<string> {k_Source, k_NotSynced}, sourceAssetDataFiles)
             };
 
-            FillFromPersistence(assetIdentifier, sequenceNumber, parentSequenceNumber, changelog, name, assetType, status, description, created, updated, createdBy, updatedBy, previewFilePath, isFrozen, tags, datasets, dependencies, metadata);
+            FillFromPersistence(assetIdentifier, sequenceNumber, parentSequenceNumber, changelog, name, assetType, status, statusFlowId, description, created, updated, createdBy, updatedBy, previewFilePath, isFrozen, tags, datasets, dependencies, metadata);
         }
 #pragma warning restore S107
 
@@ -228,6 +236,7 @@ namespace Unity.AssetManager.Core.Editor
             string name,
             AssetType assetType,
             string status,
+            string statusFlowId,
             string description,
             DateTime created,
             DateTime updated,
@@ -247,6 +256,7 @@ namespace Unity.AssetManager.Core.Editor
             m_Name = name;
             m_AssetType = assetType;
             m_Status = status;
+            m_StatusFlowId = statusFlowId;
             m_Description = description;
             m_Created = created.Ticks;
             m_Updated = updated.Ticks;
@@ -274,6 +284,7 @@ namespace Unity.AssetManager.Core.Editor
             m_Name = other.Name;
             m_AssetType = other.AssetType;
             m_Status = other.Status;
+            m_StatusFlowId = other.StatusFlowId;
             m_Description = other.Description;
             m_Created = other.Created?.Ticks ?? 0;
             m_Updated = other.Updated?.Ticks ?? 0;
@@ -652,8 +663,39 @@ namespace Unity.AssetManager.Core.Editor
 
         async Task RefreshLinkedCollectionsInternalAsync(CancellationToken token = default)
         {
+            if (Identifier.IsAssetFromLibrary()) // Currently, we cannot fetch linked collections for library assets
+                return;
+
             var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
             LinkedCollections = await assetsSdkProvider.GetLinkedCollectionsAsync(this, token);
+        }
+
+        public override async Task RefreshReachableStatusNamesAsync(CancellationToken token = default)
+        {
+            m_ReachableStatusNamesTask ??= new CachedTask(RefreshReachableStatusNamesInternalAsync);
+
+            try
+            {
+                await m_ReachableStatusNamesTask.RunAsync(token, 25);
+            }
+            catch (HttpRequestException)
+            {
+                // Ignore unreachable host
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if the Asset is unavailable
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the Asset is not found
+            }
+        }
+
+        async Task RefreshReachableStatusNamesInternalAsync(CancellationToken token = default)
+        {
+            var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            ReachableStatusNames = await assetsSdkProvider.GetReachableStatusNamesAsync(Identifier, token);
         }
 
         bool TryCopyDataset(AssetDataset dataset, string targetSystemLabel)

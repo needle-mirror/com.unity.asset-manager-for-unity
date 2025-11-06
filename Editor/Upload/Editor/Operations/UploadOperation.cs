@@ -47,6 +47,14 @@ namespace Unity.AssetManager.Upload.Editor
             ReportStep(totalProgress);
         }
 
+        public void Report(string description, float? progress = null)
+        {
+            m_Description = description;
+            if(progress.HasValue)
+                m_Progress = progress.Value;
+            Report();
+        }
+
         public async Task FetchAssetDependenciesAsync(AssetData targetAssetData, IDictionary<AssetIdentifier, AssetData> identifierToAssetLookup,
             CancellationToken token = default)
         {
@@ -86,8 +94,14 @@ namespace Unity.AssetManager.Upload.Editor
 
         public async Task UpdateDependenciesAsync(AssetData targetAssetData, CancellationToken token = default)
         {
+            ReportStep("Updating dependencies");
+            ReportStep(-1);
+
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
             await assetsProvider.UpdateDependenciesAsync(targetAssetData.Identifier, m_Dependencies, m_ExistingDependencies, token);
+
+            ReportStep("Done updating dependencies. Waiting on others to finish..");
+            ReportStep(0.85f);
         }
 
         public async Task UploadAsync(AssetData targetAssetData, CancellationToken token = default)
@@ -122,10 +136,9 @@ namespace Unity.AssetManager.Upload.Editor
             // Finalize asset
 
             await ApplyThumbnailAsync(assetsProvider, targetAssetData, thumbnailFile, token);
-            await UpdateStatusAsync(assetsProvider, targetAssetData, token);
+            await UpdateStatusAsync(assetsProvider, targetAssetData, m_UploadAsset.Status, token);
             await FreezeAssetAsync(assetsProvider, targetAssetData, token);
 
-            ReportStep("Done");
 
             async Task UploadFile(string destinationPath, string sourcePath)
             {
@@ -134,6 +147,9 @@ namespace Unity.AssetManager.Upload.Editor
                 // If the thumbnail has not been set, select a file that is supported for preview
                 thumbnailFile ??= AssetDataTypeHelper.IsSupportingPreviewGeneration(Path.GetExtension(destinationPath)) ? file : null;
             }
+
+            ReportStep("Done uploading. Waiting on others to finish..");
+            ReportStep(0.75f);
         }
 
         void ReportStep(string description)
@@ -197,12 +213,42 @@ namespace Unity.AssetManager.Upload.Editor
             }
         }
 
-        static async Task UpdateStatusAsync(IAssetsProvider assetsProvider, AssetData targetAssetData, CancellationToken token)
+        async Task UpdateStatusAsync(IAssetsProvider assetsProvider, AssetData targetAssetData, string targetStatus, CancellationToken token)
         {
+            if (string.IsNullOrWhiteSpace(targetStatus))
+                return;
+
+            var warningMessage = $"Unable to update the status to {targetStatus} for asset '{targetAssetData.Name}'. Asset will stay in {targetAssetData.Status} status.";
+
             try
             {
-                await assetsProvider.UpdateStatusAsync(targetAssetData, AssetManagerCoreConstants.StatusInReview, token);
-                await assetsProvider.UpdateStatusAsync(targetAssetData, AssetManagerCoreConstants.StatusApproved, token);
+                var projectOrganizationProvider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
+                var statusFlowInfo = await projectOrganizationProvider.SelectedOrganization.GetStatusFlowInfoAsync(targetAssetData, token);
+
+                if (statusFlowInfo == null)
+                {
+                    Debug.LogWarning(warningMessage);
+                    return;
+                }
+
+                var currentStatus = targetAssetData.Status;
+                if (string.Equals(currentStatus, targetStatus, StringComparison.Ordinal))
+                    return;
+
+                // Get the transition path from the current status to the target status
+                var path = statusFlowInfo.GetTransitionPath(currentStatus, targetStatus);
+                if (path == null || path.Length == 0)
+                {
+                    Debug.LogWarning(warningMessage);
+                    return;
+                }
+
+                // Sequentially update the status of the asset through that path (skip the first, which is the current status)
+                ReportStep("Updating status");
+                for (var i = 1; i < path.Length; i++)
+                {
+                    await assetsProvider.UpdateStatusAsync(targetAssetData, path[i], token);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -210,7 +256,7 @@ namespace Unity.AssetManager.Upload.Editor
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"Unable to publish asset '{targetAssetData?.Name}'. Asset will stay in Draft status.");
+                Debug.LogWarning(warningMessage);
                 Utilities.DevLogException(e);
             }
         }

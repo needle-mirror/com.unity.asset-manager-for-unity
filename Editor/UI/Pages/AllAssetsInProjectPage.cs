@@ -24,9 +24,9 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.SelectProject(string.Empty);
         }
 
-        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        protected override void OnProjectSelectionChanged(ProjectOrLibraryInfo projectOrLibraryInfo, CollectionInfo collectionInfo)
         {
-            if (projectInfo == null)
+            if (projectOrLibraryInfo == null)
                 return;
 
             m_PageManager.SetActivePage<InProjectPage>();

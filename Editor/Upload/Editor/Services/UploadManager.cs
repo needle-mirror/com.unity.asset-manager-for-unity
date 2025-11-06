@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
+using AssetUpdate = Unity.AssetManager.Core.Editor.AssetUpdate;
 
 namespace Unity.AssetManager.Upload.Editor
 {
@@ -97,7 +98,7 @@ namespace Unity.AssetManager.Upload.Editor
                 }
 
                 // Prepare the IAssets
-                var createAssetTasks = await TaskUtils.RunAllTasksBatched(assetEntriesWithAllDependencies,
+                var createAssetTasks = await TaskUtils.RunAllTasksInQueue(assetEntriesWithAllDependencies,
                     (uploadEntry) =>
                     {
                         var operation = StartNewOperation(uploadEntry);
@@ -134,7 +135,7 @@ namespace Unity.AssetManager.Upload.Editor
                     });
 
                 // Upload the assets
-                var uploadTasks = await TaskUtils.RunAllTasksBatchedWithHandledExceptions(uploadEntryToAssetUploadInfoLookup,
+                var uploadTasks = await TaskUtils.RunAllTasksInQueue(uploadEntryToAssetUploadInfoLookup,
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
@@ -148,7 +149,7 @@ namespace Unity.AssetManager.Upload.Editor
                 }
 
                 // Update the dependencies after the upload
-                var updateTasks = await TaskUtils.RunAllTasksBatchedWithHandledExceptions(uploadEntryToAssetUploadInfoLookup,
+                var updateTasks = await TaskUtils.RunAllTasksInQueue(uploadEntryToAssetUploadInfoLookup,
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
@@ -162,10 +163,11 @@ namespace Unity.AssetManager.Upload.Editor
                 }
 
                 // Track the assets
-                await TaskUtils.RunAllTasksBatched(uploadEntryToAssetUploadInfoLookup,
+                await TaskUtils.RunAllTasksInQueue(uploadEntryToAssetUploadInfoLookup,
                     (entry) =>
                     {
-                        return TrackAsset(entry.Value.UploadAsset, entry.Value.TargetAssetData, token);
+                        var operation = uploadEntryToOperationLookup[entry.Key];
+                        return TrackAsset(entry.Value.UploadAsset, entry.Value.TargetAssetData, operation, token);
                     });
             }
             catch (OperationCanceledException e)
@@ -204,10 +206,12 @@ namespace Unity.AssetManager.Upload.Editor
             m_TokenSource?.Cancel();
         }
 
-        async Task TrackAsset(IUploadAsset uploadAsset, BaseAssetData asset, CancellationToken token)
+        async Task TrackAsset(IUploadAsset uploadAsset, BaseAssetData asset, UploadOperation operation, CancellationToken token)
         {
             try
             {
+                operation.Report("Tracking asset", -1);
+
                 IEnumerable<(string originalPath, string finalPath, string checksum)> assetPaths = new List<(string, string, string)>();
 
                 foreach (var f in uploadAsset.Files)
@@ -239,16 +243,21 @@ namespace Unity.AssetManager.Upload.Editor
                 }
 
                 await m_ImportTracker.TrackAssets(assetPaths, assetData);
+                operation.Finish(OperationStatus.Success);
             }
             catch (OperationCanceledException)
             {
+                operation.Finish(OperationStatus.Cancelled);
                 throw;
             }
             catch (Exception e)
             {
+                operation.Finish(OperationStatus.Error);
                 Debug.LogException(e);
                 throw;
             }
+
+            Debug.Log($"Done tracking asset {asset.Name}");
         }
 
         async Task<AssetUploadInfo> CreateOrRecycleAsset(BaseOperation operation, IUploadAsset uploadAsset,
@@ -344,8 +353,6 @@ namespace Unity.AssetManager.Upload.Editor
             try
             {
                 await operation.UploadAsync(assetUploadInfo.TargetAssetData, token);
-                operation.Finish(OperationStatus.Success);
-                AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.Ok));
             }
             catch (OperationCanceledException)
             {
@@ -400,7 +407,10 @@ namespace Unity.AssetManager.Upload.Editor
                 Collections = string.IsNullOrEmpty(targetCollection) ? null : new List<string> { new(targetCollection) },
                 Type = uploadAsset.AssetType,
                 Tags = uploadAsset.Tags.ToList(),
-                Metadata = uploadAsset.Metadata.ToList()
+                Metadata = uploadAsset.Metadata.ToList(),
+                StatusFlowIdentifier = string.IsNullOrWhiteSpace(uploadAsset.StatusFlowId)
+                    ? null
+                    : new StatusFlowIdentifier(uploadAsset.StatusFlowId, uploadAsset.TargetProject.OrganizationId),
             };
 
             return await m_AssetsProvider.CreateAssetAsync(uploadAsset.TargetProject, assetCreation, token);
@@ -422,6 +432,9 @@ namespace Unity.AssetManager.Upload.Editor
                 Description = uploadAsset.Description,
                 Type = uploadAsset.AssetType,
                 Tags = uploadAsset.Tags.ToList(),
+                StatusFlowIdentifier = string.IsNullOrWhiteSpace(uploadAsset.StatusFlowId)
+                    ? null
+                    : new StatusFlowIdentifier(uploadAsset.StatusFlowId, uploadAsset.TargetProject.OrganizationId),
             };
 
             // Only update metadata if it was considered modified in some way.

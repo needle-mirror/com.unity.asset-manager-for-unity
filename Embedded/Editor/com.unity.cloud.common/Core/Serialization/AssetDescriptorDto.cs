@@ -13,12 +13,16 @@ namespace Unity.Cloud.CommonEmbedded
 
         [DataMember(Name = "assetVersion")]
         public string AssetVersion { get; set; }
+        
+        [DataMember(Name = "libraryId")]
+        public string AssetLibraryId { get; set; }
 
         public AssetDescriptorDto(AssetDescriptor assetDescriptor)
         {
             ProjectDescriptor = new ProjectDescriptorDto(assetDescriptor.ProjectDescriptor);
             AssetId = assetDescriptor.AssetId.ToString();
             AssetVersion = assetDescriptor.AssetVersion.ToString();
+            AssetLibraryId = assetDescriptor.AssetLibraryId.ToString();
         }
     }
 }

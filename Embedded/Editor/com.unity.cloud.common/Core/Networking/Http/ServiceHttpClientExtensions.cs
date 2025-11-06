@@ -262,12 +262,12 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> PostAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options, HttpCompletionOption completionOption,
+        public static async Task<HttpResponseMessage> PostAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options, HttpCompletionOption completionOption,
             IProgress<HttpProgress> progress, CancellationToken cancellationToken)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Post, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Post, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, completionOption, progress, cancellationToken);
+            return await httpClient.SendAsync(request, options, completionOption, progress, cancellationToken);
         }
 
         /// <summary>
@@ -282,12 +282,12 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> PostAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options,
+        public static async Task<HttpResponseMessage> PostAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options,
             CancellationToken cancellationToken = default)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Post, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Post, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, cancellationToken);
+            return await httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, cancellationToken);
         }
 
         /// <summary>
@@ -301,11 +301,11 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> PostAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options)
+        public static async Task<HttpResponseMessage> PostAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Post, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Post, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, CancellationToken.None);
+            return await httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, CancellationToken.None);
         }
 
         /// <summary>
@@ -379,12 +379,12 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> PatchAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options, HttpCompletionOption completionOption,
+        public static async Task<HttpResponseMessage> PatchAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options, HttpCompletionOption completionOption,
             IProgress<HttpProgress> progress, CancellationToken cancellationToken)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpClientExtensions.HttpMethodPatch, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpClientExtensions.HttpMethodPatch, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, completionOption, progress, cancellationToken);
+            return await httpClient.SendAsync(request, options, completionOption, progress, cancellationToken);
         }
 
         /// <summary>
@@ -399,12 +399,12 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> PatchAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options,
+        public static async Task<HttpResponseMessage> PatchAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options,
             CancellationToken cancellationToken)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpClientExtensions.HttpMethodPatch, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpClientExtensions.HttpMethodPatch, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, cancellationToken);
+            return await httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, cancellationToken);
         }
 
         /// <summary>
@@ -418,11 +418,11 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> PatchAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options)
+        public static async Task<HttpResponseMessage> PatchAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpClientExtensions.HttpMethodPatch, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpClientExtensions.HttpMethodPatch, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, CancellationToken.None);
+            return await httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, CancellationToken.None);
         }
 
         /// <summary>
@@ -496,12 +496,12 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> PutAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options, HttpCompletionOption completionOption,
+        public static async Task<HttpResponseMessage> PutAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options, HttpCompletionOption completionOption,
             IProgress<HttpProgress> progress, CancellationToken cancellationToken)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Put, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Put, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, completionOption, progress, cancellationToken);
+            return await httpClient.SendAsync(request, options, completionOption, progress, cancellationToken);
         }
 
         /// <summary>
@@ -516,12 +516,12 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> PutAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options,
+        public static async Task<HttpResponseMessage> PutAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options,
             CancellationToken cancellationToken)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Put, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Put, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, cancellationToken);
+            return await httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, cancellationToken);
         }
 
         /// <summary>
@@ -535,11 +535,11 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> PutAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options)
+        public static async Task<HttpResponseMessage> PutAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Put, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Put, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, CancellationToken.None);
+            return await httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, CancellationToken.None);
         }
 
         /// <summary>
@@ -721,12 +721,12 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> DeleteAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options, HttpCompletionOption completionOption,
+        public static async Task<HttpResponseMessage> DeleteAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options, HttpCompletionOption completionOption,
             IProgress<HttpProgress> progress, CancellationToken cancellationToken)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Delete, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Delete, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, completionOption, progress, cancellationToken);
+            return await httpClient.SendAsync(request, options, completionOption, progress, cancellationToken);
         }
 
         /// <summary>
@@ -741,12 +741,12 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> DeleteAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options,
+        public static async Task<HttpResponseMessage> DeleteAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options,
             CancellationToken cancellationToken)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Delete, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Delete, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, cancellationToken);
+            return await httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, cancellationToken);
         }
 
         /// <summary>
@@ -760,11 +760,11 @@ namespace Unity.Cloud.CommonEmbedded
         /// <exception cref="HttpRequestException">Thrown when an HTTP response can't be obtained from the server.</exception>
         /// <exception cref="TaskCanceledException">Thrown when the request is cancelled by a cancellation token.</exception>
         /// <exception cref="TimeoutException">Thrown when the request failed due to timeout.</exception>
-        public static Task<HttpResponseMessage> DeleteAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options)
+        public static async Task<HttpResponseMessage> DeleteAsync(this IServiceHttpClient httpClient, Uri requestUri, HttpContent content, ServiceHttpClientOptions options)
         {
-            HttpRequestMessage request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Delete, requestUri);
+            using var request = HttpClientExtensions.CreateHttpRequestMessage(HttpMethod.Delete, requestUri);
             request.Content = content;
-            return httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, CancellationToken.None);
+            return await httpClient.SendAsync(request, options, HttpCompletionOption.ResponseContentRead, null, CancellationToken.None);
         }
 
         /// <summary>

@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Cloud.CommonEmbedded;
 
-[assembly: ApiSourceVersion("com.unity.cloud.app-linking", "1.2.0")]
+[assembly: ApiSourceVersion("com.unity.cloud.app-linking", "1.3.0")]
 [assembly: InternalsVisibleTo("Unity.Cloud.AppLinking.Editor")]
 [assembly: InternalsVisibleTo("Unity.Cloud.AppLinking.Tests")]
 [assembly: InternalsVisibleTo("Unity.Cloud.AppLinking.Tests.Runtime")]

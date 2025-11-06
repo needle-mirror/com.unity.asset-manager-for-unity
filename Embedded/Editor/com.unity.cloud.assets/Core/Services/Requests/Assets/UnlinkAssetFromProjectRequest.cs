@@ -11,7 +11,7 @@ namespace Unity.Cloud.AssetsEmbedded
     /// Represents an unlink asset from project request.
     /// </summary>
     [DataContract]
-    class UnlinkAssetFromProjectRequest : ProjectRequest
+    class UnlinkAssetFromProjectRequest : ProjectOrLibraryRequest
     {
         [DataMember(Name = "assetIds")]
         AssetId[] m_AssetIds;
@@ -20,7 +20,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// Unlink an Asset from a Project Request Object.
         /// </summary>
         /// <param name="projectId">ID of the project.</param>
-        /// <param name="assetId">The id of the asset the file is linked to.</param>
+        /// <param name="assetId">ID of the asset.</param>
         public UnlinkAssetFromProjectRequest(ProjectId projectId, AssetId assetId)
             : base(projectId)
         {
@@ -31,7 +31,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// Link an Asset to a Project Request Object.
         /// </summary>
         /// <param name="projectId">ID of the project.</param>
-        /// <param name="assetIds">The ids of the assets.</param>
+        /// <param name="assetIds">IDs of the assets.</param>
         public UnlinkAssetFromProjectRequest(ProjectId projectId, IEnumerable<AssetId> assetIds)
             : base(projectId)
         {

@@ -20,6 +20,8 @@ namespace Unity.AssetManager.UI.Editor
         {
             string versionText;
 
+            var isNewVersion = assetData.SequenceNumber == UploadAssetData.NewVersionSequenceNumber;
+
             if(!string.IsNullOrEmpty(versionLabel))
             {
                 versionText = L10n.Tr(versionLabel);
@@ -30,13 +32,11 @@ namespace Unity.AssetManager.UI.Editor
             }
             else
             {
-                versionText = assetData.SequenceNumber == UploadAssetData.NewVersionSequenceNumber
-                    ? L10n.Tr(Constants.NewVersionText)
-                    : L10n.Tr(Constants.PendingVersionText);
+                versionText = isNewVersion ? L10n.Tr(Constants.NewVersionText) : L10n.Tr(Constants.PendingVersionText);
             }
 
             label.text = versionText;
-            label.tooltip = assetData.Identifier.Version;
+            label.tooltip = isNewVersion ? Constants.NewVersionTooltip : assetData.Identifier.Version;
         }
 
         internal static Texture GetPackageIcon()

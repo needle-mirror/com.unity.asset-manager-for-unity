@@ -8,6 +8,11 @@ namespace Unity.Cloud.AssetsEmbedded
     /// </summary>
     class GroupableFieldValue
     {
+        /// <summary>
+        /// The name of the field that was grouped.
+        /// </summary>
+        public Groupable FieldName { get; }
+
         readonly object m_Value;
 
         /// <summary>
@@ -15,10 +20,11 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         public GroupableFieldValueType Type { get; }
 
-        internal GroupableFieldValue(GroupableFieldValueType type, object value)
+        internal GroupableFieldValue(GroupableFieldValueType type, object value, string fieldName)
         {
             Type = type;
             m_Value = value;
+            FieldName = new Groupable(fieldName);
         }
 
         /// <summary>

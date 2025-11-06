@@ -14,6 +14,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string DetailsPageEntryLabel = "details-page-entry-label";
         public const string DetailsPageEntryValue = "details-page-entry-value";
         public const string DetailsPageChipContainer = "details-page-chip-container";
+        public const string DetailsPageDropdown = "details-page-entry-dropdown";
         public const string DetailsPageEntryValueText = "details-page-entry-value-text";
         public const string DetailsPageEntryValueEdited = "details-page-entry-value-text--edited";
         public const string ClipboardButton = "ClipboardButton";

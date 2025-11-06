@@ -23,6 +23,11 @@ namespace Unity.Cloud.AssetsEmbedded
         public AssetProjectCacheConfiguration AssetProjectCacheConfiguration { get; set; }
 
         /// <summary>
+        /// Defines the cache configuration for asset libraries retrieved from the `IAssetRepository`.
+        /// </summary>
+        public AssetLibraryCacheConfiguration AssetLibraryCacheConfiguration { get; set; }
+        
+        /// <summary>
         /// Defines the cache configuration for asset collections retrieved from the `IAssetRepository`.
         /// </summary>
         public AssetCollectionCacheConfiguration AssetCollectionCacheConfiguration { get; set; }
@@ -42,6 +47,7 @@ namespace Unity.Cloud.AssetsEmbedded
             FieldDefinitionCacheConfiguration = FieldDefinitionCacheConfiguration.NoCaching,
             LabelCacheConfiguration = LabelCacheConfiguration.NoCaching,
             AssetProjectCacheConfiguration = AssetProjectCacheConfiguration.NoCaching,
+            AssetLibraryCacheConfiguration = AssetLibraryCacheConfiguration.NoCaching,
             AssetCollectionCacheConfiguration = AssetCollectionCacheConfiguration.NoCaching,
             AssetCacheConfiguration = AssetCacheConfiguration.NoCaching,
             TransformationCacheConfiguration = TransformationCacheConfiguration.NoCaching,
@@ -55,6 +61,7 @@ namespace Unity.Cloud.AssetsEmbedded
             FieldDefinitionCacheConfiguration = FieldDefinitionCacheConfiguration.Legacy,
             LabelCacheConfiguration = LabelCacheConfiguration.Legacy,
             AssetProjectCacheConfiguration = AssetProjectCacheConfiguration.Legacy,
+            AssetLibraryCacheConfiguration = AssetLibraryCacheConfiguration.Legacy,
             AssetCollectionCacheConfiguration = AssetCollectionCacheConfiguration.Legacy,
             AssetCacheConfiguration = AssetCacheConfiguration.Legacy,
             TransformationCacheConfiguration = TransformationCacheConfiguration.Legacy,

@@ -59,6 +59,9 @@ namespace Unity.AssetManager.Core.Editor
         IAsyncEnumerable<AssetIdentifier> SearchLiteAsync(string organizationId, IEnumerable<string> projectIds,
             AssetSearchFilter assetSearchFilter, SortField sortField, SortingOrder sortingOrder, int startIndex,
             int pageSize, CancellationToken token);
+        IAsyncEnumerable<AssetData> SearchLibraryAsync(string libraryId, AssetSearchFilter assetSearchFilter, SortField sortField, SortingOrder sortingOrder, int startIndex,
+            int pageSize, CancellationToken token);
+
         Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
             AssetSearchFilter assetSearchFilter, AssetSearchGroupBy groupBy, CancellationToken token);
         Task<List<string>> GetFilterSelectionsAsync(string organizationId, IEnumerable<string> projectIds,
@@ -81,6 +84,8 @@ namespace Unity.AssetManager.Core.Editor
 
         Task<IEnumerable<ProjectIdentifier>> GetLinkedProjectsAsync(AssetData assetData, CancellationToken token);
         Task<IEnumerable<CollectionIdentifier>> GetLinkedCollectionsAsync(AssetData assetData, CancellationToken token);
+
+        Task<IEnumerable<string>> GetReachableStatusNamesAsync(AssetIdentifier assetIdentifier, CancellationToken token);
 
         // Files
 
@@ -166,6 +171,38 @@ namespace Unity.AssetManager.Core.Editor
 
             await foreach (var asset in SearchAsync(new OrganizationId(organizationId), projectIds, assetSearchFilter,
                                sortField, sortingOrder, startIndex, pageSize, cacheConfiguration, token))
+            {
+                yield return await DataMapper.From(asset, token);
+            }
+        }
+
+        public async IAsyncEnumerable<AssetData> SearchLibraryAsync(string libraryId, AssetSearchFilter assetSearchFilter, SortField sortField, SortingOrder sortingOrder, int startIndex,
+            int pageSize, [EnumeratorCancellation] CancellationToken token)
+        {
+            // Ensure that page size stays within range
+            if (int.MaxValue - startIndex < pageSize)
+            {
+                pageSize = int.MaxValue - startIndex;
+            }
+
+            var range = new Range(startIndex, pageSize > 0 ? startIndex + pageSize : Math.Max(0, int.MaxValue - startIndex - pageSize));
+
+            var cacheConfiguration = new AssetCacheConfiguration
+            {
+                CacheProperties = true,
+                CacheDatasetList = true,
+                DatasetCacheConfiguration = new DatasetCacheConfiguration {CacheProperties = true}
+            };
+
+            var assetLibrary = await AssetRepository.GetAssetLibraryAsync(new AssetLibraryId(libraryId), token);
+
+            var query = assetLibrary.QueryAssets()
+                .SelectWhereMatchesFilter(Map(assetSearchFilter))
+                .WithCacheConfiguration(cacheConfiguration)
+                .OrderBy(sortField.ToString(), Map(sortingOrder))
+                .LimitTo(range);
+
+            await foreach (var asset in query.ExecuteAsync(token))
             {
                 yield return await DataMapper.From(asset, token);
             }
@@ -414,9 +451,6 @@ namespace Unity.AssetManager.Core.Editor
             var assetsByOrg = new Dictionary<string, List<BaseAssetData>>();
             foreach (var assetData in assetDatas)
             {
-                if (string.IsNullOrEmpty(assetData.Identifier.OrganizationId))
-                    continue;
-
                 if (!assetsByOrg.ContainsKey(assetData.Identifier.OrganizationId))
                 {
                     assetsByOrg.Add(assetData.Identifier.OrganizationId, new List<BaseAssetData>());
@@ -575,6 +609,11 @@ namespace Unity.AssetManager.Core.Editor
             var assetDescriptor = Map(assetIdentifier);
             var project = await AssetRepository.GetAssetProjectAsync(assetDescriptor.ProjectDescriptor, token);
 
+            if (assetIdentifier.IsAssetFromLibrary()) // Currently, dependencies for library assets are not supported
+            {
+                yield break;
+            }
+
             await foreach (var reference in GetDependenciesAsync(project, assetDescriptor, range,
                                AssetReferenceSearchFilter.Context.Source, token))
             {
@@ -682,7 +721,6 @@ namespace Unity.AssetManager.Core.Editor
         {
             var assetDescriptor = Map(assetIdentifier);
             var project = await AssetRepository.GetAssetProjectAsync(assetDescriptor.ProjectDescriptor, token);
-
             await foreach(var reference in GetDependenciesAsync(project, assetDescriptor, range, AssetReferenceSearchFilter.Context.Target, token))
             {
                 yield return new AssetIdentifier(assetIdentifier.OrganizationId,
@@ -749,7 +787,7 @@ namespace Unity.AssetManager.Core.Editor
             // We had dependencies using version label
             tasks.AddRange(assetDependenciesWithLabel.Where(ad => !string.IsNullOrEmpty(ad.VersionLabel)).Select(identifier => asset.AddReferenceAsync(new AssetId(identifier.AssetId), identifier.VersionLabel, token)));
 
-            await Task.WhenAll(tasks);
+            await TaskUtils.RunAllTasksInQueue(tasks);
         }
 
         async Task<List<string>> GetAssetVersionLabelsAsync(IAsset asset, CancellationToken token)
@@ -815,6 +853,33 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return collectionPaths.ToArray();
+        }
+
+        public async Task<IEnumerable<string>> GetReachableStatusNamesAsync(AssetIdentifier assetIdentifier, CancellationToken token)
+        {
+            if(assetIdentifier.IsAssetFromLibrary())
+                return Array.Empty<string>();
+
+            var asset = await InternalGetAssetAsync(assetIdentifier, token);
+            if (asset == null)
+                return Array.Empty<string>();
+
+            try
+            {
+                return await asset.GetReachableStatusNamesAsync(token);
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if we don't have access to the asset
+                // Don't log because this can be quite noisy when updating tracking
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the asset is not found
+                // Don't log because this can be quite noisy when updating tracking
+            }
+
+            return Array.Empty<string>();
         }
 
         async IAsyncEnumerable<IAsset> SearchAsync(OrganizationId organizationId, IEnumerable<string> projectIds,
@@ -1113,8 +1178,8 @@ namespace Unity.AssetManager.Core.Editor
                     CacheProperties = true
                 }
             };
-            var dataset = await GetDatasetAsync(assetIdentifier, assetDataset, cacheConfiguration, token);
 
+            var dataset = await GetDatasetAsync(assetIdentifier, assetDataset, cacheConfiguration, token);
             if (dataset == null)
             {
                 yield break;
@@ -1431,6 +1496,7 @@ namespace Unity.AssetManager.Core.Editor
                     asset.Name,
                     Map(asset.Type),
                     asset.StatusName,
+                    asset.StatusFlowDescriptor.StatusFlowId,
                     asset.Description,
                     asset.AuthoringInfo.Created,
                     asset.AuthoringInfo.Updated,
@@ -1568,10 +1634,12 @@ namespace Unity.AssetManager.Core.Editor
 
         static AssetIdentifier Map(AssetDescriptor descriptor)
         {
-            return new AssetIdentifier(descriptor.OrganizationId.ToString(),
+            var identifier = new AssetIdentifier(descriptor.OrganizationId.ToString(),
                 descriptor.ProjectId.ToString(),
                 descriptor.AssetId.ToString(),
                 descriptor.AssetVersion.ToString());
+            identifier.LibraryId = descriptor.AssetLibraryId.ToString();
+            return identifier;
         }
 
         static AssetDescriptor Map(AssetIdentifier assetIdentifier)
@@ -1580,6 +1648,13 @@ namespace Unity.AssetManager.Core.Editor
             {
                 throw new ArgumentNullException(nameof(assetIdentifier));
             }
+
+            if (assetIdentifier.IsAssetFromLibrary())
+            {
+                return new AssetDescriptor(new AssetLibraryId(assetIdentifier.LibraryId),
+                    new AssetId(assetIdentifier.AssetId), new AssetVersion(assetIdentifier.Version));
+            }
+
             return new AssetDescriptor(
                 new ProjectDescriptor(
                     new OrganizationId(assetIdentifier.OrganizationId),
@@ -1787,7 +1862,8 @@ namespace Unity.AssetManager.Core.Editor
                 Type = Map(assetCreation.Type),
                 Collections = assetCreation.Collections?.Select(x => new CollectionPath(x)).ToList(),
                 Tags = assetCreation.Tags,
-                Metadata = Map(assetCreation.Metadata)
+                Metadata = Map(assetCreation.Metadata),
+                StatusFlowDescriptor = Map(assetCreation.StatusFlowIdentifier)
             };
         }
 
@@ -1800,6 +1876,11 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return metadataDictionary;
+        }
+
+        static StatusFlowDescriptor? Map(StatusFlowIdentifier statusFlowIdentifier)
+        {
+            return statusFlowIdentifier == null ? null : new StatusFlowDescriptor(new OrganizationId(statusFlowIdentifier.OrganizationId), statusFlowIdentifier.StatusFlowId);
         }
 
         static MetadataValue Map(IMetadata metadata) => metadata.Type switch
@@ -1828,7 +1909,8 @@ namespace Unity.AssetManager.Core.Editor
                 Description = assetUpdate.Description,
                 Type = assetUpdate.Type.HasValue ? Map(assetUpdate.Type.Value) : null,
                 PreviewFile = assetUpdate.PreviewFile,
-                Tags = assetUpdate.Tags
+                Tags = assetUpdate.Tags,
+                StatusFlowDescriptor = Map(assetUpdate.StatusFlowIdentifier),
             };
         }
 
@@ -2036,6 +2118,7 @@ namespace Unity.AssetManager.Core.Editor
                     properties.Name,
                     Map(properties.Type),
                     properties.StatusName,
+                    properties.StatusFlowDescriptor.StatusFlowId,
                     properties.Description,
                     properties.AuthoringInfo.Created,
                     properties.AuthoringInfo.Updated,

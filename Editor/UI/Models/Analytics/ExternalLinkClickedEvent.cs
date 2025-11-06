@@ -11,6 +11,7 @@ namespace Unity.AssetManager.UI.Editor
             OpenDashboard,
             OpenAsset,
             UpgradeCloudStoragePlan,
+            OpenAssetLibrary
         }
 
         [Serializable]

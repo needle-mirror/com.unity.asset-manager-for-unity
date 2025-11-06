@@ -8,13 +8,19 @@ namespace Unity.Cloud.AssetsEmbedded
     readonly struct FieldDefinitionDescriptor
     {
         /// <summary>
-        /// The project's organization genesis ID.
+        /// The field definition's organization genesis identifier.
         /// </summary>
         public readonly OrganizationId OrganizationId;
 
         /// <summary>
-        /// A unique name for the field. Uniqueness is scoped to the organization.
+        /// The field definition's library identifier.
         /// </summary>
+        public readonly AssetLibraryId AssetLibraryId;
+
+        /// <summary>
+        /// A unique name for the field.
+        /// </summary>
+        /// <remarks>Uniqueness is scoped to the organization.</remarks>
         public readonly string FieldKey;
 
         /// <summary>
@@ -26,6 +32,19 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             OrganizationId = organizationId;
             FieldKey = fieldKey;
+            AssetLibraryId = AssetLibraryId.None;
+        }
+
+        /// <summary>
+        /// Creates an instance of the <see cref="FieldDefinitionDescriptor"/> struct.
+        /// </summary>
+        /// <param name="assetLibraryId">The project's organization genesis ID.</param>
+        /// <param name="fieldKey">The key of the field.</param>
+        public FieldDefinitionDescriptor(AssetLibraryId assetLibraryId, string fieldKey)
+        {
+            AssetLibraryId = assetLibraryId;
+            FieldKey = fieldKey;
+            OrganizationId = OrganizationId.None;
         }
 
         /// <summary>
@@ -39,6 +58,7 @@ namespace Unity.Cloud.AssetsEmbedded
         public bool Equals(FieldDefinitionDescriptor other)
         {
             return OrganizationId.Equals(other.OrganizationId) &&
+                AssetLibraryId.Equals(other.AssetLibraryId) &&
                 FieldKey.Equals(other.FieldKey);
         }
 
@@ -66,6 +86,7 @@ namespace Unity.Cloud.AssetsEmbedded
             unchecked
             {
                 var hashCode = OrganizationId.GetHashCode();
+                hashCode = (hashCode * 397) ^ AssetLibraryId.GetHashCode();
                 hashCode = (hashCode * 397) ^ FieldKey.GetHashCode();
                 return hashCode;
             }
@@ -102,6 +123,7 @@ namespace Unity.Cloud.AssetsEmbedded
             return JsonSerialization.Serialize(new FieldDefinitionDescriptorDto
             {
                 OrganizationId = OrganizationId.ToString(),
+                AssetLibraryId = AssetLibraryId.ToString(),
                 FieldKey = FieldKey
             });
         }
@@ -114,8 +136,16 @@ namespace Unity.Cloud.AssetsEmbedded
         public static FieldDefinitionDescriptor FromJson(string json)
         {
             var dto = JsonSerialization.Deserialize<FieldDefinitionDescriptorDto>(json);
+            if (string.IsNullOrEmpty(dto.AssetLibraryId) || dto.AssetLibraryId == AssetLibraryId.None.ToString())
+            {
+                // If the library ID is not set, we assume it's an organization field definition.
+                return new FieldDefinitionDescriptor(
+                    new OrganizationId(dto.OrganizationId),
+                    dto.FieldKey);
+            }
+
             return new FieldDefinitionDescriptor(
-                new OrganizationId(dto.OrganizationId),
+                new AssetLibraryId(dto.AssetLibraryId),
                 dto.FieldKey);
         }
     }

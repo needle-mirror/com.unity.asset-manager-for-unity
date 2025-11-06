@@ -59,6 +59,12 @@ namespace Unity.Cloud.AssetsEmbedded
             return data.From(assetDataSource, defaultCacheConfiguration, new FieldDefinitionDescriptor(organizationId, data.Name), localConfiguration);
         }
 
+        internal static IFieldDefinition From(this IFieldDefinitionData data, IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            AssetLibraryId assetLibraryId, FieldDefinitionCacheConfiguration? localConfiguration = null)
+        {
+            return data.From(assetDataSource, defaultCacheConfiguration, new FieldDefinitionDescriptor(assetLibraryId, data.Name), localConfiguration);
+        }
+
         internal static IFieldDefinitionBaseData From(this IFieldDefinitionUpdate update)
         {
             return new FieldDefinitionBaseData

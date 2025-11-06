@@ -64,6 +64,7 @@ namespace Unity.Cloud.AssetsEmbedded
         public StringSearchCriteria PreviewFile { get; } = new("PreviewFile", "previewFile");
 
         /// <inheritdoc cref="AssetProperties.SourceProject"/>
+        [Obsolete("Searching an asset by SourceProjectId is not supported; instead query the project(s) for assets directly.")]
         public SearchCriteria<string> SourceProjectId { get; } = new(nameof(AssetProperties.SourceProject), "sourceProjectId");
 
         /// <inheritdoc cref="AssetProperties.AuthoringInfo"/>

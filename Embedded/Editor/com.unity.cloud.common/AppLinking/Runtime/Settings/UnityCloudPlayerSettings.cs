@@ -13,27 +13,38 @@ namespace Unity.Cloud.AppLinkingEmbedded.Runtime
         /// <summary>
         /// The asset name for the <see cref="UnityCloudPlayerSettings"/> scriptable object.
         /// </summary>
+        [Obsolete("Property will be removed in future version.")]
         public const string k_AssetName = "UnityCloudPlayerSettings";
 
         /// <summary>
         /// The default app name.
         /// </summary>
+        [Obsolete("Property will be removed in future version.")]
         public const string k_DefaultAppName = "default";
 
         /// <summary>
         /// The default app display name.
         /// </summary>
+        [Obsolete("Property will be removed in future version.")]
         public const string k_DefaultAppDisplayName = "Default";
 
         /// <summary>
-        /// The default app display name.
+        /// The default app organization Id.
         /// </summary>
+        [Obsolete("Property will be removed in future version.")]
         public const string k_DefaultOrganizationID = "Default";
 
         /// <summary>
         /// The default app namespace.
         /// </summary>
+        [Obsolete("Property will be removed in future version.")]
         public const string k_DefaultNamespace = "com.unity.cloud";
+
+        static readonly string s_AssetName = "UnityCloudPlayerSettings";
+        internal static readonly string s_DefaultAppNamespace = "default";
+        internal static readonly string s_DefaultAppName = "Default";
+        internal static readonly string s_DefaultAppDisplayName = "Default";
+        internal static readonly string s_DefaultOrganizationID = "Default";
 
 #pragma warning disable S1104 // Make this field 'private' and encapsulate it in a 'public' property.
 
@@ -45,22 +56,23 @@ namespace Unity.Cloud.AppLinkingEmbedded.Runtime
         /// <summary>
         /// The Unity Cloud app name.
         /// </summary>
-        [ReadOnly] public string AppName = k_DefaultAppName;
+        [ReadOnly] public string AppName = s_DefaultAppName;
 
         /// <summary>
         /// The Unity Cloud app display name.
         /// </summary>
-        [ReadOnly] public string AppDisplayName = k_DefaultAppDisplayName;
+        [ReadOnly] public string AppDisplayName = s_DefaultAppDisplayName;
 
         /// <summary>
         /// The Unity Cloud app organization ID.
         /// </summary>
-        [ReadOnly] public string AppOrganizationID = k_DefaultOrganizationID;
+        [ReadOnly] public string AppOrganizationID = s_DefaultOrganizationID;
 
         /// <summary>
         /// The Unity Cloud namespace to uniquely identify the app on the device.
         /// </summary>
-        public string AppNamespace = k_DefaultNamespace;
+        /// <remarks>Please note that <see cref="AppNamespace"/> string value must respect basic RFC 3986 definition for URI scheme. Additionally, for safe URL transport purpose, usage of lower-case letters is recommended.</remarks>
+        public string AppNamespace = s_DefaultAppNamespace;
 
 #pragma warning restore S1104
 
@@ -76,7 +88,7 @@ namespace Unity.Cloud.AppLinkingEmbedded.Runtime
 #if UNITY_EDITOR
                 if (s_Instance == null)
                 {
-                    s_Instance = Resources.Load<UnityCloudPlayerSettings>(k_AssetName);
+                    s_Instance = Resources.Load<UnityCloudPlayerSettings>(s_AssetName);
 
                     if (s_Instance == null)
                     {
@@ -89,7 +101,7 @@ namespace Unity.Cloud.AppLinkingEmbedded.Runtime
                 {
                     if (s_Instance == null)
                     {
-                        s_Instance = Resources.Load<UnityCloudPlayerSettings>(k_AssetName);
+                        s_Instance = Resources.Load<UnityCloudPlayerSettings>(s_AssetName);
 
                         if (s_Instance == null)
                         {

@@ -16,7 +16,7 @@ namespace Unity.Cloud.AssetsEmbedded
         protected readonly IAssetDataSource m_DataSource;
         protected readonly MetadataDataSourceSpecification m_MetadataSpecification;
 
-        protected abstract OrganizationId OrganizationId { get; }
+        protected abstract AssetDescriptor AssetDescriptor { get; }
 
         private protected MetadataDataSource(IAssetDataSource dataSource, MetadataDataSourceSpecification type)
         {
@@ -34,7 +34,7 @@ namespace Unity.Cloud.AssetsEmbedded
                 case MetadataDataSourceSpecification.metadata:
                     filter?.MetadataFields.AddRange(keys);
                     data = await GetMetadataInfoAsync(filter, cancellationToken);
-                    return data.Metadata?.From(m_DataSource, OrganizationId) ?? new Dictionary<string, MetadataObject>();
+                    return data.Metadata?.From(m_DataSource, AssetDescriptor) ?? new Dictionary<string, MetadataObject>();
                 case MetadataDataSourceSpecification.systemMetadata:
                     filter?.SystemMetadataFields.AddRange(keys);
                     data = await GetMetadataInfoAsync(filter, cancellationToken);
@@ -63,5 +63,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A <see cref="IMetadataInfo"/>. </returns>
         protected abstract Task<IMetadataInfo> GetMetadataInfoAsync(FieldsFilter filter, CancellationToken cancellationToken);
+
+        /// <inheritdoc />
+        public abstract void ThrowIfPathToLibrary();
     }
 }

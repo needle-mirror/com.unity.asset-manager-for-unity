@@ -114,7 +114,15 @@ namespace Unity.AssetManager.UI.Editor
                 m_EditableEntries.Add(descriptionEntry);
             }
 
-            AddText(m_EntriesContainer, Constants.StatusText, assetData.Status, isSelectable: true);
+            if (!string.IsNullOrWhiteSpace(assetData.Status))
+            {
+                var assetId = (assetData as UploadAssetData)?.ExistingAssetIdentifier?.AssetId ?? assetData.Identifier.AssetId;
+                var statusEntry = AddEditableStatusDropdown(m_EntriesContainer, assetId, Constants.StatusText, assetData.Status, assetData.ReachableStatusNames);
+                statusEntry.EntryEdited += OnStatusEdited;
+                statusEntry.IsEntryEdited += IsStatusEdited;
+                statusEntry.EnableEditing(IsEditingEnabled);
+                m_EditableEntries.Add(statusEntry);
+            }
 
             var projectIds = GetProjectIdsDisplayList(assetData.Identifier.ProjectId, assetData.LinkedProjects);
             var projectEntryTitle = projectIds.Length > 1 ? Constants.ProjectsText : Constants.ProjectText;
@@ -294,6 +302,11 @@ namespace Unity.AssetManager.UI.Editor
             OnEntryEdited(EditField.Tags, editValue);
         }
 
+        void OnStatusEdited(object editValue)
+        {
+            OnEntryEdited(EditField.Status, editValue);
+        }
+
         bool IsDescriptionEdited(string assetId, object description)
         {
             var importedAssetData = m_AssetDataManager.GetImportedAssetInfo(assetId);
@@ -307,6 +320,12 @@ namespace Unity.AssetManager.UI.Editor
             var importedTags = importedAssetData?.AssetData?.Tags ?? Enumerable.Empty<string>();
 
             return !importedTags.SequenceEqual(tagsCollection);
+        }
+
+        bool IsStatusEdited(string assetId, object value)
+        {
+            var importedAssetData = m_AssetDataManager.GetImportedAssetInfo(assetId);
+            return !string.Equals(importedAssetData?.AssetData?.Status, value as string, StringComparison.Ordinal);
         }
 
         void OnEntryEdited(EditField fieldType, object editValue)

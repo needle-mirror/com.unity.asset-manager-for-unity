@@ -24,6 +24,7 @@ namespace Unity.AssetManager.UI.Editor
             m_SavedViewsToggle = this.Q<Toggle>();
             m_SavedViewsToggle.text = Constants.SidebarSavedViewsText;
             m_SavedViewsToggle.AddToClassList("SidebarContentTitle");
+            m_SavedViewsToggle.focusable = false;
 
             m_SaveCurrentFilterButton = new Button(OnSaveCurrentFilterClicked)
             {
@@ -52,6 +53,15 @@ namespace Unity.AssetManager.UI.Editor
         public void SetDisplay(bool isDisplayed)
         {
             UIElementsUtils.SetDisplay(this, isDisplayed);
+        }
+
+        public void Unselect()
+        {
+            m_SavedSearchFilterManager.ClearSelectedFilter();
+            foreach (var savedViewItem in m_SidebarSavedViewItems.Values)
+            {
+                savedViewItem.SetSelected(false);
+            }
         }
 
         void OnFilterSelected(SavedAssetSearchFilter filter, bool _)
@@ -116,7 +126,7 @@ namespace Unity.AssetManager.UI.Editor
 
         bool IsRenameValid(string targetFilterId, string newName)
         {
-            var any = m_SavedSearchFilterManager.Filters.Any(f => f.FilterName == newName && f.FilterId != targetFilterId);
+            var any = m_SavedSearchFilterManager.Filters.Any(f => f.OrganizationId == m_ProjectOrganizationProvider.SelectedOrganization?.Id && f.FilterName == newName && f.FilterId != targetFilterId);
             return !any;
         }
 

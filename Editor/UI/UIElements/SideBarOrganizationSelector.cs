@@ -14,12 +14,14 @@ namespace Unity.AssetManager.UI.Editor
     {
         const string k_UssClassName = "unity-org-selector";
         const string k_ButtonUssClassName = k_UssClassName + "-button";
+        const string k_ButtonDisabledUssClassName = k_ButtonUssClassName + "--disabled";
         const string k_OrganizationChoice = k_UssClassName + "-choice";
         const string k_OrganizationChoiceSeparatorLine = k_UssClassName + "-choice-separator-line";
         const string k_OrganizationChoiceText = k_UssClassName + "-choice-text";
         const string k_OrganizationChoiceRoleContainer = k_UssClassName + "-choice-role-container";
         const string k_OrganizationChoiceRole = k_OrganizationChoice + "-role";
         const string k_OrganizationChoiceSeatWarning = k_OrganizationChoice + "-seat-warning";
+        const string k_OrganizationChoiceCheckmark = k_OrganizationChoice + "-checkmark";
         const string k_DefaultOrgTooltip = "If configured, the Organization linked within " +
                                            "the Project Settings will display at the top of the Organization List.";
 
@@ -35,6 +37,16 @@ namespace Unity.AssetManager.UI.Editor
         IPopupManager m_PopupManager;
         Button m_OrganizationButton;
         TextElement m_OrganizationButtonText;
+        VisualElement m_Caret;
+
+        static bool IsSelectionEnabled
+        {
+            get
+            {
+                var privateCloudSettings = PrivateCloudSettings.Load();
+                return !privateCloudSettings.ServicesEnabled;
+            }
+        }
 
         Dictionary<string, NameAndId> m_OrganizationOptions = new();
         Dictionary<string, Role> m_OrganizationRoles = new();
@@ -55,7 +67,20 @@ namespace Unity.AssetManager.UI.Editor
             m_UnityConnectProxy.OrganizationIdChanged += RefreshDropdown;
             m_PopupManager = popupManager;
 
+            RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
+            RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
+
             InitializeUI();
+        }
+
+        void OnAttachToPanel(AttachToPanelEvent evt)
+        {
+            PrivateCloudSettings.SettingsUpdated += UpdateSelectionEnabled;
+        }
+
+        void OnDetachFromPanel(DetachFromPanelEvent evt)
+        {
+            PrivateCloudSettings.SettingsUpdated -= UpdateSelectionEnabled;
         }
 
         void OnAuthenticationStateChanged(AuthenticationState authenticationState)
@@ -69,6 +94,7 @@ namespace Unity.AssetManager.UI.Editor
                 ClearDropdown();
             }
 
+            UpdateSelectionEnabled();
         }
 
         void OnOrganizationChanged(OrganizationInfo _)
@@ -91,15 +117,15 @@ namespace Unity.AssetManager.UI.Editor
             };
             m_OrganizationButton.AddToClassList(k_ButtonUssClassName);
 
-            var caret = new VisualElement();
-            caret.AddToClassList("unity-org-selector-caret");
+            m_Caret = new VisualElement();
+            m_Caret.AddToClassList("unity-org-selector-caret");
 
             m_OrganizationButtonText = new TextElement();
             m_OrganizationButtonText.text = L10n.Tr(Constants.LoadingText);
             m_OrganizationButtonText.AddToClassList("unity-text-element");
             m_OrganizationButton.Add(m_OrganizationButtonText);
 
-            m_OrganizationButton.Add(caret);
+            m_OrganizationButton.Add(m_Caret);
             Add(m_OrganizationButton);
 
             if (m_PermissionsManager.AuthenticationState == AuthenticationState.LoggedIn)
@@ -107,7 +133,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_OrganizationButton.RegisterCallback<ClickEvent>( evt =>
             {
-                if (m_OrganizationOptions.Count <= 1)
+                if (!IsSelectionEnabled || m_OrganizationOptions.Count <= 1)
                     return;
 
                 BuildOrganizationSelection();
@@ -118,8 +144,10 @@ namespace Unity.AssetManager.UI.Editor
             m_PopupManager.Container.RegisterCallback<GeometryChangedEvent>(evt =>
             {
                 if (m_PopupManager.Container.style.display == DisplayStyle.None && string.IsNullOrEmpty(m_OrganizationButton.tooltip))
-                    m_OrganizationButton.tooltip = k_DefaultOrgTooltip;
+                    m_OrganizationButton.tooltip = IsSelectionEnabled ? k_DefaultOrgTooltip : null;
             });
+
+            UpdateSelectionEnabled();
         }
 
         void OnSelectionChanged(string organizationName)
@@ -167,11 +195,21 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_PopupManager.Clear();
             var organizationSelection = new ScrollView();
+            var selectedOrganizationName = m_ProjectOrganizationProvider.SelectedOrganization?.Name;
 
             if (!string.IsNullOrEmpty(m_LinkedOrganizationName))
             {
                 var linkedOrganizationChoice = new VisualElement();
                 linkedOrganizationChoice.AddToClassList(k_OrganizationChoice);
+
+                // Add checkmark or spacer for alignment
+                var checkmark = new VisualElement();
+                checkmark.AddToClassList(k_OrganizationChoiceCheckmark);
+                if (m_LinkedOrganizationName != selectedOrganizationName)
+                {
+                    checkmark.style.opacity = 0; // Invisible spacer for alignment
+                }
+                linkedOrganizationChoice.Add(checkmark);
 
                 var linkedOrganizationChoiceName = new TextElement();
                 linkedOrganizationChoiceName.AddToClassList(k_OrganizationChoiceText);
@@ -224,6 +262,15 @@ namespace Unity.AssetManager.UI.Editor
                 var organizationChoice = new VisualElement();
                 organizationChoice.AddToClassList(k_OrganizationChoice);
 
+                // Add checkmark or spacer for alignment
+                var checkmark = new VisualElement();
+                checkmark.AddToClassList(k_OrganizationChoiceCheckmark);
+                if (organizationName != selectedOrganizationName)
+                {
+                    checkmark.style.opacity = 0; // Invisible spacer for alignment
+                }
+                organizationChoice.Add(checkmark);
+
                 var organizationChoiceName = new TextElement();
                 organizationChoiceName.AddToClassList(k_OrganizationChoiceText);
                 organizationChoiceName.text = organizationName;
@@ -265,6 +312,22 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             m_PopupManager.Container.Add(organizationSelection);
+        }
+
+        void UpdateSelectionEnabled()
+        {
+            if (IsSelectionEnabled)
+            {
+                m_OrganizationButton.RemoveFromClassList(k_ButtonDisabledUssClassName);
+                m_Caret.style.display = DisplayStyle.Flex;
+                m_OrganizationButton.tooltip = k_DefaultOrgTooltip;
+            }
+            else
+            {
+                m_OrganizationButton.AddToClassList(k_ButtonDisabledUssClassName);
+                m_Caret.style.display = DisplayStyle.None;
+                m_OrganizationButton.tooltip = null;
+            }
         }
 
         void ClearDropdown()

@@ -9,7 +9,7 @@ namespace Unity.AssetManager.Core.Editor
         {
         }
 
-        const string k_EventName = AnalyticsSender.EventPrefix + "DependencyVersionSelectionToggled";
+        const string k_EventName = AnalyticsSender.EventPrefix + "DependencyVersionSelectToggled";
         const int k_EventVersion = 1;
 
         public override string EventName => k_EventName;

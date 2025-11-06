@@ -18,6 +18,9 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeField]
         string m_VersionLabel = string.Empty;
 
+        [SerializeField]
+        string m_LibraryId = string.Empty;
+
         public string AssetId => m_AssetId;
 
         public string Version
@@ -32,11 +35,18 @@ namespace Unity.AssetManager.Core.Editor
             internal set => m_VersionLabel = value;
         }
 
+        public string LibraryId
+        {
+            get => m_LibraryId;
+            internal set => m_LibraryId = value;
+        }
+
         public string OrganizationId => m_ProjectIdentifier.OrganizationId;
         public string ProjectId => m_ProjectIdentifier.ProjectId;
+
         public ProjectIdentifier ProjectIdentifier => m_ProjectIdentifier;
 
-        static readonly string k_LocalPrefix = "local";
+        internal static readonly string k_LocalPrefix = "local";
 
         public AssetIdentifier()
         {
@@ -145,6 +155,11 @@ namespace Unity.AssetManager.Core.Editor
                 m_AssetId,
                 m_Version,
                 m_VersionLabel);
+        }
+
+        public bool IsAssetFromLibrary()
+        {
+            return !string.IsNullOrEmpty(m_LibraryId) && m_LibraryId != Guid.Empty.ToString();
         }
     }
 }

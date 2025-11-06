@@ -33,6 +33,7 @@ namespace Unity.AssetManager.Editor
                 if (ContainsKey(key))
                 {
                     m_MetadataDictionary[key] = value;
+                    value.Key = key;
 
                     var index = m_Metadata.FindIndex(metadata => metadata.Key == key);
                     if (index != -1)

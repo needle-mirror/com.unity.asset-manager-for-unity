@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -13,7 +14,8 @@ namespace Unity.Cloud.AssetsEmbedded
     sealed class AssetLabelQueryBuilder
     {
         readonly IAssetDataSource m_DataSource;
-        readonly ProjectDescriptor m_ProjectDescriptor;
+        readonly ProjectDescriptor m_ProjectDescriptor = new(OrganizationId.None, ProjectId.None);
+        readonly AssetLibraryId m_AssetLibraryId = AssetLibraryId.None;
         readonly AssetId m_AssetId;
 
         bool? m_IsArchived;
@@ -23,6 +25,13 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             m_DataSource = dataSource;
             m_ProjectDescriptor = projectDescriptor;
+            m_AssetId = assetId;
+        }
+
+        internal AssetLabelQueryBuilder(IAssetDataSource dataSource, AssetLibraryId assetLibraryId, AssetId assetId)
+        {
+            m_DataSource = dataSource;
+            m_AssetLibraryId = assetLibraryId;
             m_AssetId = assetId;
         }
 
@@ -49,7 +58,7 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <summary>
-        /// Excetues the query and returns the list of label names associated to each version of the specified asset.
+        /// Executes the query and returns the list of label names associated to each version of the specified asset.
         /// </summary>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>An async enumeration of tuples of an <see cref="AssetDescriptor"/> and an enumeration of label names. </returns>
@@ -60,11 +69,22 @@ namespace Unity.Cloud.AssetsEmbedded
                 Range = m_Range
             };
 
-            var results = m_DataSource.ListLabelsAcrossAssetVersions(m_ProjectDescriptor, m_AssetId, pagination, cancellationToken);
-
-            await foreach (var result in results)
+            IAsyncEnumerable<AssetLabelsDto> results;
+            Func<AssetVersion, AssetDescriptor> getAssetDescriptor;
+            if (m_AssetLibraryId.IsPathToAssetLibraryValid())
             {
-                var assetDescriptor = new AssetDescriptor(m_ProjectDescriptor, m_AssetId, new AssetVersion(result.AssetVersion));
+                results = m_DataSource.ListLabelsAcrossAssetVersions(m_AssetLibraryId, m_AssetId, pagination, cancellationToken);
+                getAssetDescriptor = GetAssetDescriptorFromLibrary;
+            }
+            else
+            {
+                results = m_DataSource.ListLabelsAcrossAssetVersions(m_ProjectDescriptor, m_AssetId, pagination, cancellationToken);
+                getAssetDescriptor = GetAssetDescriptorFromProject;
+            }
+
+            await foreach (var result in results.WithCancellation(cancellationToken))
+            {
+                var assetDescriptor = getAssetDescriptor(new AssetVersion(result.AssetVersion));
                 var labelList = new List<string>();
 
                 if (!m_IsArchived.HasValue || !m_IsArchived.Value)
@@ -82,5 +102,8 @@ namespace Unity.Cloud.AssetsEmbedded
                 yield return (assetDescriptor, labelList);
             }
         }
+
+        AssetDescriptor GetAssetDescriptorFromLibrary(AssetVersion assetVersion) => new(m_AssetLibraryId, m_AssetId, assetVersion);
+        AssetDescriptor GetAssetDescriptorFromProject(AssetVersion assetVersion) => new(m_ProjectDescriptor, m_AssetId, assetVersion);
     }
 }

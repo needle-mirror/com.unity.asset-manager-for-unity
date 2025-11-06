@@ -73,6 +73,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly Action<string> SetPrimaryExtension;
         readonly Action<BaseAssetData> AssetDependenciesUpdated;
         readonly Action<BaseAssetData, bool> LocalStatusUpdated;
+        readonly Action<BaseAssetData, bool> StatusInformationUpdated;
         Action<Type, List<string>> ApplyFilter;
 
         public AssetDetailsPage(IAssetImporter assetImporter, IAssetOperationManager assetOperationManager,
@@ -100,6 +101,7 @@ namespace Unity.AssetManager.UI.Editor
             footer.RemoveOnlySelectedAsset += RemoveOnlyAssetFromProject;
             footer.StopTracking += StopTracking;
             footer.StopTrackingOnlySelected += StopTrackingOnlyAsset;
+            footer.OpenDashboard += LinkToDashboard;
             PreviewStatusUpdated += footer.UpdatePreviewStatus;
 
             var detailsTab = new AssetDetailsTab(m_ScrollView.contentContainer, IsAnyFilterActive, m_PageManager, m_StateManager, popupManager, settingsManager, projectOrganizationProvider, assetDataManager);
@@ -118,6 +120,7 @@ namespace Unity.AssetManager.UI.Editor
             SetPrimaryExtension += detailsTab.SetPrimaryExtension;
             AssetDependenciesUpdated += detailsTab.UpdateDependencyComponent;
             LocalStatusUpdated += header.RefreshUI;
+            StatusInformationUpdated += detailsTab.RefreshUI;
 
             var versionsTab = new AssetVersionsTab(m_ScrollView.contentContainer, m_DialogManager);
             versionsTab.CreateUserChip += CreateUserChip;
@@ -277,7 +280,9 @@ namespace Unity.AssetManager.UI.Editor
                 case EditField.Tags:
                     (SelectedAssetData as UploadAssetData)?.SetTags(assetFieldEdit.EditValue as IEnumerable<string>);
                     break;
-                // TODO: Status
+                case EditField.Status:
+                    (SelectedAssetData as UploadAssetData)?.SetStatus(assetFieldEdit.EditValue as string);
+                    break;
             }
 
             var uploadPage = m_PageManager.ActivePage as UploadPage;
@@ -453,6 +458,9 @@ namespace Unity.AssetManager.UI.Editor
                 case AssetDataEventType.LocalStatusChanged:
                     LocalStatusUpdated?.Invoke(SelectedAssetData, false);
                     break;
+                case AssetDataEventType.StatusInformationChanged:
+                    StatusInformationUpdated?.Invoke(SelectedAssetData, false);
+                    break;
             }
         }
 
@@ -519,7 +527,8 @@ namespace Unity.AssetManager.UI.Editor
                 SelectedAssetData.GetThumbnailAsync(),
                 SelectedAssetData.RefreshAssetDataAttributesAsync(),
                 SelectedAssetData.RefreshLinkedProjectsAsync(),
-                SelectedAssetData.RefreshLinkedCollectionsAsync()
+                SelectedAssetData.RefreshLinkedCollectionsAsync(),
+                SelectedAssetData.RefreshReachableStatusNamesAsync(),
             };
             if (requiresLoading)
             {
@@ -741,7 +750,7 @@ namespace Unity.AssetManager.UI.Editor
 
         async Task RefreshButtonsAsync(BaseAssetData assetData, BaseOperation importOperation, UIEnabledStates enabled)
         {
-            var hasPermissions = await m_PermissionsManager.CheckPermissionAsync(assetData?.Identifier.OrganizationId, assetData?.Identifier.ProjectId, Constants.ImportPermission);
+            var hasPermissions = assetData.Identifier.IsAssetFromLibrary() || await m_PermissionsManager.CheckPermissionAsync(assetData?.Identifier.OrganizationId, assetData?.Identifier.ProjectId, Constants.ImportPermission);
             enabled |= UIEnabledStates.HasPermissions.GetFlag(hasPermissions);
 
             foreach (var component in m_PageComponents)

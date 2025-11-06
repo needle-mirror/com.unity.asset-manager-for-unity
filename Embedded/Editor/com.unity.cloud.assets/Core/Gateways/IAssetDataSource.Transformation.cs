@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="datasetDescriptor">The object containing the necessary information to identify the dataset on which to start the transformation.</param>
         /// <param name="workflowType">The type of workflow that will be applied in the transformation.</param>
         /// <param name="inputFiles">The files to include in the transformation. </param>
+        /// <param name="parameters">Additional information to pass to the transformation. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>The ID of the transformation </returns>
         Task<TransformationId> StartTransformationAsync(DatasetDescriptor datasetDescriptor, string workflowType, string[] inputFiles, Dictionary<string, object> parameters, CancellationToken cancellationToken);
@@ -31,8 +33,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="projectDescriptor">A project to search in. </param>
         /// <param name="searchData">An object containing search criteria. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
-        /// <returns>A task whose result is an array of transformation DTOs satisfying the search. </returns>
-        Task<ITransformationData[]> GetTransformationsAsync(ProjectDescriptor projectDescriptor, TransformationSearchData searchData, CancellationToken cancellationToken);
+        /// <returns>A task whose result is an async enumeration of <see cref="ITransformationData"/>. </returns>
+        IAsyncEnumerable<ITransformationData> GetTransformationsAsync(ProjectDescriptor projectDescriptor, Range range, TransformationSearchData searchData, CancellationToken cancellationToken);
 
         /// <summary>
         /// Cancels a transformation.

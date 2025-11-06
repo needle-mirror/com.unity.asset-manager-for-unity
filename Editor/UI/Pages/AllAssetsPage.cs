@@ -40,12 +40,14 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void OnLoadMoreSuccessCallBack()
         {
+            if (!CheckConnection())
+                return;
+
             if (!AssetList.Any())
             {
                 if (!TrySetNoResultsPageMessage())
                 {
-                    SetPageMessage(new Message(L10n.Tr(Constants.EmptyAllAssetsText),
-                        RecommendedAction.OpenAssetManagerDashboardLink));
+                    SetPageMessage(Messages.EmptyAllAssetsMessage);
                 }
             }
             else
@@ -56,9 +58,9 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        protected override void OnProjectSelectionChanged(ProjectOrLibraryInfo projectOrLibraryInfo, CollectionInfo collectionInfo)
         {
-            if (projectInfo == null)
+            if (projectOrLibraryInfo == null)
                 return;
 
             m_PageManager.SetActivePage<CollectionPage>();

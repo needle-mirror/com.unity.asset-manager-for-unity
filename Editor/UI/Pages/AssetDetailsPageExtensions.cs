@@ -24,7 +24,7 @@ namespace Unity.AssetManager.UI.Editor
             return status != null && !string.IsNullOrEmpty(status.ActionText) ? L10n.Tr(status.ActionText) : L10n.Tr(Constants.ImportActionText);
         }
 
-        public static string GetImportButtonTooltip(BaseOperation operationInProgress, UIEnabledStates enabled)
+        public static string GetImportButtonTooltip(BaseOperation operationInProgress, UIEnabledStates enabled, bool versionIsImported = true)
         {
             var isEnabled = operationInProgress?.Status != OperationStatus.InProgress
                 && enabled.HasFlag(UIEnabledStates.HasPermissions)
@@ -32,7 +32,7 @@ namespace Unity.AssetManager.UI.Editor
 
             if (isEnabled)
             {
-                if ( enabled.HasFlag(UIEnabledStates.InProject) )
+                if (enabled.HasFlag(UIEnabledStates.InProject) && versionIsImported)
                 {
                     return L10n.Tr(Constants.ReimportButtonTooltip);
                 }

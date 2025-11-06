@@ -8,7 +8,7 @@ namespace Unity.Cloud.AssetsEmbedded
     readonly struct CollectionDescriptor
     {
         /// <summary>
-        /// The asset's project descriptor.
+        /// The collection's project descriptor.
         /// </summary>
         public readonly ProjectDescriptor ProjectDescriptor;
 
@@ -17,6 +17,11 @@ namespace Unity.Cloud.AssetsEmbedded
 
         /// <inheritdoc cref="ProjectDescriptor.ProjectId"/>
         public ProjectId ProjectId => ProjectDescriptor.ProjectId;
+
+        /// <summary>
+        /// The asset's library identifier.
+        /// </summary>
+        public readonly AssetLibraryId AssetLibraryId;
 
         /// <summary>
         /// The path to the collection.
@@ -32,6 +37,19 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             ProjectDescriptor = projectDescriptor;
             Path = path;
+            AssetLibraryId = AssetLibraryId.None;
+        }
+
+        /// <summary>
+        /// Creates an instance of the <see cref="CollectionDescriptor"/> struct.
+        /// </summary>
+        /// <param name="assetLibraryId">The collection's library id.</param>
+        /// <param name="path">The path to the collection.</param>
+        public CollectionDescriptor(AssetLibraryId assetLibraryId, CollectionPath path)
+        {
+            AssetLibraryId = assetLibraryId;
+            Path = path;
+            ProjectDescriptor = new ProjectDescriptor(OrganizationId.None, ProjectId.None);
         }
 
         /// <summary>
@@ -45,6 +63,7 @@ namespace Unity.Cloud.AssetsEmbedded
         public bool Equals(CollectionDescriptor other)
         {
             return ProjectDescriptor.Equals(other.ProjectDescriptor) &&
+                AssetLibraryId.Equals(other.AssetLibraryId) &&
                 Path.Equals(other.Path);
         }
 
@@ -73,6 +92,7 @@ namespace Unity.Cloud.AssetsEmbedded
             {
                 var hashCode = Path.GetHashCode();
                 hashCode = (hashCode * 397) ^ ProjectDescriptor.GetHashCode();
+                hashCode = (hashCode * 397) ^ AssetLibraryId.GetHashCode();
                 return hashCode;
             }
         }
@@ -108,7 +128,8 @@ namespace Unity.Cloud.AssetsEmbedded
             return JsonSerialization.Serialize(new CollectionDescriptorDto
             {
                 ProjectDescriptor = ProjectDescriptor.ToJson(),
-                CollectionPath = Path.ToString()
+                CollectionPath = Path.ToString(),
+                AssetLibraryId = AssetLibraryId.ToString()
             });
         }
 
@@ -120,8 +141,16 @@ namespace Unity.Cloud.AssetsEmbedded
         public static CollectionDescriptor FromJson(string json)
         {
             var dto = JsonSerialization.Deserialize<CollectionDescriptorDto>(json);
+            if (string.IsNullOrEmpty(dto.AssetLibraryId) || dto.AssetLibraryId == AssetLibraryId.None.ToString())
+            {
+                // If the library id is not set, we assume it is a project collection.
+                return new CollectionDescriptor(
+                    ProjectDescriptor.FromJson(dto.ProjectDescriptor),
+                    new CollectionPath(dto.CollectionPath));
+            }
+
             return new CollectionDescriptor(
-                ProjectDescriptor.FromJson(dto.ProjectDescriptor),
+                new AssetLibraryId(dto.AssetLibraryId),
                 new CollectionPath(dto.CollectionPath));
         }
     }

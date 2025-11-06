@@ -41,7 +41,7 @@ namespace Unity.Cloud.CommonEmbedded
         public static async Task<TModel> GetJsonAsync<TModel>(this IHttpClient httpClient, string requestUri, HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead,
             IProgress<HttpProgress> progress = default, CancellationToken cancellationToken = default)
         {
-            var response = await httpClient.GetAsync(requestUri, completionOption, progress, cancellationToken);
+            using var response = await httpClient.GetAsync(requestUri, completionOption, progress, cancellationToken);
             return await response.JsonDeserializeAsync<TModel>();
         }
 
@@ -85,7 +85,7 @@ namespace Unity.Cloud.CommonEmbedded
         public static async Task<TModel> PutJsonAsync<TModel>(this IHttpClient httpClient, string requestUri, object payload = null, HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead,
             IProgress<HttpProgress> progress = default, CancellationToken cancellationToken = default)
         {
-            var response = await httpClient.PutAsync(requestUri, GetJsonContent(payload), completionOption, progress, cancellationToken);
+            using var response = await httpClient.PutAsync(requestUri, GetJsonContent(payload), completionOption, progress, cancellationToken);
             return await response.JsonDeserializeAsync<TModel>();
         }
 
@@ -107,7 +107,7 @@ namespace Unity.Cloud.CommonEmbedded
         public static async Task<TModel> PatchJsonAsync<TModel>(this IHttpClient httpClient, string requestUri, object payload = null, HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead,
             IProgress<HttpProgress> progress = default, CancellationToken cancellationToken = default)
         {
-            var response = await httpClient.PatchAsync(requestUri, GetJsonContent(payload), completionOption, progress, cancellationToken);
+            using var response = await httpClient.PatchAsync(requestUri, GetJsonContent(payload), completionOption, progress, cancellationToken);
             return await response.JsonDeserializeAsync<TModel>();
         }
 
@@ -129,7 +129,7 @@ namespace Unity.Cloud.CommonEmbedded
         public static async Task<TModel> DeleteJsonAsync<TModel>(this IHttpClient httpClient, string requestUri, object payload = null, HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead,
             IProgress<HttpProgress> progress = default, CancellationToken cancellationToken = default)
         {
-            var response = await httpClient.DeleteAsync(requestUri, GetJsonContent(payload), completionOption, progress, cancellationToken);
+            using var response = await httpClient.DeleteAsync(requestUri, GetJsonContent(payload), completionOption, progress, cancellationToken);
             return await response.JsonDeserializeAsync<TModel>();
         }
 

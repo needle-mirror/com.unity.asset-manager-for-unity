@@ -12,7 +12,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IStateManager m_StateManager;
         readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly string m_ProjectId;
-        
+
         protected bool IsEnabled => m_UnityConnectProxy.AreCloudServicesReachable;
 
         public ProjectContextMenu(string projectId, IProjectOrganizationProvider projectOrganizationProvider,
@@ -57,9 +57,14 @@ namespace Unity.AssetManager.UI.Editor
             var newFoldout = new SideBarCollectionFoldout(m_StateManager, m_MessageManager, m_ProjectOrganizationProvider,
                 name, m_ProjectId, GetParentPath(), true);
             target.Add(newFoldout);
-            newFoldout.StartNaming();
+            newFoldout.StartNaming(() => OnNamingFailed(target, newFoldout));
         }
 
         protected virtual string GetParentPath() => string.Empty;
+
+        static void OnNamingFailed(VisualElement target, SideBarCollectionFoldout newFoldout)
+        {
+            target.Remove(newFoldout);
+        }
     }
 }

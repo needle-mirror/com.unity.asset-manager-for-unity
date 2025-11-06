@@ -8,14 +8,14 @@ namespace Unity.AssetManager.UI.Editor
     class ProjectChip : Chip
     {
         Image m_Icon;
-        ProjectInfo m_ProjectInfo;
+        ProjectOrLibraryInfo m_ProjectOrLibraryInfo;
 
-        internal event Action<ProjectInfo> ProjectChipClickAction;
+        internal event Action<ProjectOrLibraryInfo> ProjectChipClickAction;
 
-        public ProjectChip(ProjectInfo projectInfo)
-            : base(projectInfo.Name)
+        public ProjectChip(ProjectOrLibraryInfo projectOrLibraryInfo)
+            : base(projectOrLibraryInfo.Name)
         {
-            m_ProjectInfo = projectInfo;
+            m_ProjectOrLibraryInfo = projectOrLibraryInfo;
 
             m_Icon = new Image();
             m_Icon.style.backgroundColor = ProjectIconDownloader.DefaultColor;
@@ -23,7 +23,7 @@ namespace Unity.AssetManager.UI.Editor
             Add(m_Icon);
             m_Label.PlaceInFront(m_Icon);
 
-            tooltip = projectInfo.Name;
+            tooltip = projectOrLibraryInfo.Name;
 
             RegisterCallback<ClickEvent>(OnClick);
         }
@@ -37,13 +37,13 @@ namespace Unity.AssetManager.UI.Editor
             else
             {
                 m_Icon.AddToClassList("icon-default-project");
-                m_Icon.style.backgroundColor = ProjectIconDownloader.GetProjectIconColor(m_ProjectInfo.Id);
+                m_Icon.style.backgroundColor = ProjectIconDownloader.GetProjectIconColor(m_ProjectOrLibraryInfo.Id);
             }
         }
 
         void OnClick(ClickEvent evt)
         {
-            ProjectChipClickAction?.Invoke(m_ProjectInfo);
+            ProjectChipClickAction?.Invoke(m_ProjectOrLibraryInfo);
         }
     }
 }

@@ -60,7 +60,7 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<ILabel> WithCacheConfigurationAsync(LabelCacheConfiguration labelCacheConfiguration, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
-        /// Fetches the latest changes.
+        /// Retrieves and caches the label properties.
         /// </summary>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>

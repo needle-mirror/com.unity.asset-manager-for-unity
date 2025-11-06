@@ -33,10 +33,7 @@ namespace Unity.Cloud.AssetsEmbedded
             m_RequestUrl += $"/assets";
         }
 
-        /// <summary>
-        /// Provides an helper for constructing the request body.
-        /// </summary>
-        /// <returns>A </returns>
+        /// <inheritdoc />
         public override HttpContent ConstructBody()
         {
             var body = IsolatedSerialization.SerializeWithDefaultConverters(this);

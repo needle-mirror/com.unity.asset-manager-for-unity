@@ -269,7 +269,7 @@ namespace Unity.AssetManager.UI.Editor
                 m_IsClickedItemAlreadySelected =
                     m_PageManager.ActivePage.SelectedAssets.Contains(item.AssetData.Identifier);
 
-                if (IsContinuousSelection(e.modifiers) && m_PageManager.ActivePage.SelectedAssets.Any())
+                if (IsContinuousSelection(e.modifiers) && m_PageManager.ActivePage.SelectedAssets.Any() && m_ProjectOrganizationProvider.SelectedAssetLibrary == null)
                 {
                     var assetList = m_PageManager.ActivePage.AssetList.ToList();
 
@@ -412,6 +412,8 @@ namespace Unity.AssetManager.UI.Editor
                 {
                     evt.StopPropagation();
                     var page = m_PageManager.ActivePage;
+                    if (m_ProjectOrganizationProvider.SelectedAssetLibrary != null)
+                        return;
                     if (page?.AssetList != null && page.AssetList.Any())
                     {
                         page.SelectAssets(page.AssetList.Select(x => x.Identifier).ToList());

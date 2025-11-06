@@ -232,7 +232,7 @@ namespace Unity.AssetManager.UI.Editor
                     m_DependencyVersionButton.RegisterCallback<ClickEvent>(evt =>
                     {
                         BuildVersionSelection();
-                        m_PopupManager.Show(m_DependencyVersionButton, PopupContainer.PopupAlignment.BottomLeft);
+                        m_PopupManager.Show(m_DependencyVersionButton, PopupContainer.PopupAlignment.BottomRight);
                     });
                 }
             }
@@ -259,8 +259,12 @@ namespace Unity.AssetManager.UI.Editor
             SetStatuses(m_AssetData?.AssetDataAttributeCollection.GetOverallStatus());
 
             m_Icon.style.backgroundImage = AssetDataTypeHelper.GetIconForExtension(m_AssetData?.PrimaryExtension);
+            m_Icon.tooltip = m_AssetData?.PrimaryExtension;
 
             SetVersionNumber(m_AssetData);
+
+            if (CanSelectVersion())
+                UpdateVersionSelectionDisplayText();
         }
 
         void BuildVersionSelection()

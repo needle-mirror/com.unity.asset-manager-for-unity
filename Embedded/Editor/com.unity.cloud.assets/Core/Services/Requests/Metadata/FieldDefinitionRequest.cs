@@ -17,10 +17,7 @@ namespace Unity.Cloud.AssetsEmbedded
             m_Data = data;
         }
 
-        /// <summary>
-        /// Provides a helper for constructing the request body.
-        /// </summary>
-        /// <returns>A </returns>
+        /// <inheritdoc />
         public override HttpContent ConstructBody()
         {
             if (m_Data == null)

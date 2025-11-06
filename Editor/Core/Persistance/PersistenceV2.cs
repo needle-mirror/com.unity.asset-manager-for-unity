@@ -495,6 +495,7 @@ namespace Unity.AssetManager.Core.Editor
                 trackedAsset.name,
                 trackedAsset.assetType,
                 trackedAsset.status,
+                null,
                 trackedAsset.description,
                 DateTime.Parse(trackedAsset.created, DateTimeFormatInfo.CurrentInfo, DateTimeStyles.RoundtripKind),
                 DateTime.Parse(trackedAsset.updated, DateTimeFormatInfo.CurrentInfo, DateTimeStyles.RoundtripKind),

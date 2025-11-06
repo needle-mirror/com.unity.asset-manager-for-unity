@@ -10,7 +10,8 @@ namespace Unity.AssetManager.Core.Editor
     static class TaskUtils
     {
         //number based on half the back-end rate limit and to keep it the UI reactive when running batches of tasks
-        const int k_MaxConcurrentTasks = 40;
+        const int k_MaxConcurrentTasks = 60;
+        const int k_MaxConcurrentTasksInQueue = 30;
 
         public static void TrackException(Task task, Action<Exception> exceptionCallback = null)
         {
@@ -117,6 +118,55 @@ namespace Unity.AssetManager.Core.Editor
             {
                 await WaitForTasksWithHandleExceptions(batch);
             }
+            return allTasks;
+        }
+
+        public static async Task<IReadOnlyCollection<Task>> RunAllTasksInQueue<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation)
+        {
+            var queue = new Queue<T>(inputs);
+            var runningTasks = new List<Task>();
+            var allTasks = new List<Task>();
+
+            while (queue.Count > 0 || runningTasks.Count > 0)
+            {
+                // Start new tasks while under concurrency limit
+                while (queue.Count > 0 && runningTasks.Count < k_MaxConcurrentTasksInQueue)
+                {
+                    var item = queue.Dequeue();
+                    var task = taskCreation(item);
+                    runningTasks.Add(task);
+                    allTasks.Add(task);
+                }
+
+                // Wait for at least one task to complete before continuing
+                var completed = await Task.WhenAny(runningTasks);
+                runningTasks.Remove(completed);
+            }
+
+            return allTasks;
+        }
+
+        public static async Task<IEnumerable<Task>> RunAllTasksInQueue(List<Task> tasks)
+        {
+            var queue = new Queue<Task>(tasks);
+            var runningTasks = new List<Task>();
+            var allTasks = new List<Task>();
+
+            while (queue.Count > 0 || runningTasks.Count > 0)
+            {
+                // Start new tasks while under concurrency limit
+                while (queue.Count > 0 && runningTasks.Count < k_MaxConcurrentTasksInQueue)
+                {
+                    var task = queue.Dequeue();
+                    runningTasks.Add(task);
+                    allTasks.Add(task);
+                }
+
+                // Wait for at least one task to complete before continuing
+                var completed = await Task.WhenAny(runningTasks);
+                runningTasks.Remove(completed);
+            }
+
             return allTasks;
         }
 

@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Cloud.AssetsEmbedded;
+using Unity.Cloud.CommonEmbedded;
 using UnityEngine;
 
 namespace Unity.AssetManager.Core.Editor
@@ -19,6 +22,7 @@ namespace Unity.AssetManager.Core.Editor
         PropertiesChanged,
         LinkedProjectsChanged,
         LocalStatusChanged,
+        StatusInformationChanged,
     }
 
     [Serializable]
@@ -35,6 +39,7 @@ namespace Unity.AssetManager.Core.Editor
         public abstract string Changelog { get; }
         public abstract AssetType AssetType { get; }
         public abstract string Status { get; }
+        public abstract string StatusFlowId { get; }
         public abstract DateTime? Updated { get; }
         public abstract DateTime? Created { get; }
         public abstract IEnumerable<string> Tags { get; }
@@ -55,6 +60,7 @@ namespace Unity.AssetManager.Core.Editor
         public abstract Task RefreshDependenciesAsync(CancellationToken token = default);
         public abstract Task RefreshLinkedProjectsAsync(CancellationToken token = default);
         public abstract Task RefreshLinkedCollectionsAsync(CancellationToken token = default);
+        public abstract Task RefreshReachableStatusNamesAsync(CancellationToken token = default);
 
         public string PrimaryExtension => m_PrimarySourceFile?.Extension;
 
@@ -81,6 +87,9 @@ namespace Unity.AssetManager.Core.Editor
 
         [SerializeField]
         protected List<CollectionIdentifier> m_LinkedCollections = new();
+
+        [SerializeField]
+        protected List<string> m_ReachableStatusNames = new();
 
         public virtual Texture2D Thumbnail
         {
@@ -165,6 +174,16 @@ namespace Unity.AssetManager.Core.Editor
             {
                 m_LinkedCollections = value?.ToList() ?? new List<CollectionIdentifier>();
                 InvokeEvent(AssetDataEventType.LinkedProjectsChanged);
+            }
+        }
+
+        public virtual IEnumerable<string> ReachableStatusNames
+        {
+            get => m_ReachableStatusNames;
+            set
+            {
+                m_ReachableStatusNames = value?.ToList() ?? new List<string>();
+                InvokeEvent(AssetDataEventType.StatusInformationChanged);
             }
         }
 
@@ -257,7 +276,11 @@ namespace Unity.AssetManager.Core.Editor
                 AppendDetail($"Tags were modified", ref detailsMessage);
             }
 
-            // TODO: Status
+            if (!string.Equals(Status ?? string.Empty, other.Status ?? string.Empty, StringComparison.Ordinal))
+            {
+                dataModified = true;
+                AppendDetail($"Status was changed to: {Status}", ref detailsMessage);
+            }
 
             if (dataModified)
                 results.Add(new ComparisonDetails(ComparisonResults.DataModified, $"Asset data modified for {other.Name}: {detailsMessage}"));

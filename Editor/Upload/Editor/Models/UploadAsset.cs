@@ -18,6 +18,8 @@ namespace Unity.AssetManager.Upload.Editor
         string Name { get; }
         Core.Editor.AssetType AssetType { get; }
         string Description { get; }
+        string Status { get; }
+        string StatusFlowId { get; }
         IReadOnlyCollection<string> Tags { get; }
         IReadOnlyCollection<IUploadFile> Files { get; }
         IReadOnlyCollection<AssetIdentifier> Dependencies { get; }
@@ -69,6 +71,12 @@ namespace Unity.AssetManager.Upload.Editor
         string m_Description;
 
         [SerializeField]
+        string m_Status;
+
+        [SerializeField]
+        string m_StatusFlowId;
+
+        [SerializeField]
         AssetIdentifier m_LocalIdentifier;
 
         [SerializeField]
@@ -106,6 +114,8 @@ namespace Unity.AssetManager.Upload.Editor
         public AssetIdentifier LocalIdentifier => m_LocalIdentifier;
         public Core.Editor.AssetType AssetType => m_AssetType;
         public string Description => m_Description;
+        public string Status => m_Status;
+        public string StatusFlowId => m_StatusFlowId;
         public IReadOnlyCollection<string> Tags => m_Tags;
         public IReadOnlyCollection<IUploadFile> Files => m_Files;
         public IReadOnlyCollection<AssetIdentifier> Dependencies => m_Dependencies;
@@ -117,13 +127,15 @@ namespace Unity.AssetManager.Upload.Editor
         public string TargetCollection => m_TargetCollection;
 
 #pragma warning disable S107 // Disabling the warning regarding too many parameters.
-        public UploadAsset(string name, string description, string previewGuid, AssetIdentifier localIdentifier, Core.Editor.AssetType assetType,
+        public UploadAsset(string name, string description, string status, string statusFlowId, string previewGuid, AssetIdentifier localIdentifier, Core.Editor.AssetType assetType,
             IEnumerable<IUploadFile> files, IEnumerable<string> tags, IEnumerable<AssetIdentifier> dependencies,
             IEnumerable<IMetadata> metadata, AssetIdentifier originalAssetData, ComparisonResults comparisonResults,
             ProjectIdentifier targetProject, string targetCollection)
         {
             m_Name = name;
             m_Description = description;
+            m_Status = status;
+            m_StatusFlowId = statusFlowId;
             m_PreviewGuid = previewGuid;
             m_LocalIdentifier = localIdentifier;
             m_AssetType = assetType;

@@ -26,9 +26,11 @@ namespace Unity.Cloud.AssetsEmbedded
             return metadataContainer.Properties?.From();
         }
 
-        internal static Dictionary<string, MetadataObject> From(this IDictionary<string, object> dictionary, IAssetDataSource dataSource, OrganizationId organizationId)
+        internal static Dictionary<string, MetadataObject> From(this IDictionary<string, object> dictionary, IAssetDataSource dataSource, AssetDescriptor assetDescriptor)
         {
-            return dictionary.ToDictionary(pair => pair.Key, pair => From(pair.Value, dataSource, new FieldDefinitionDescriptor(organizationId, pair.Key)));
+            return assetDescriptor.IsPathToAssetLibrary()
+                ? dictionary.ToDictionary(pair => pair.Key, pair => From(pair.Value, dataSource, new FieldDefinitionDescriptor(assetDescriptor.AssetLibraryId, pair.Key)))
+                : dictionary.ToDictionary(pair => pair.Key, pair => From(pair.Value, dataSource, new FieldDefinitionDescriptor(assetDescriptor.OrganizationId, pair.Key)));
         }
 
         internal static Dictionary<string, MetadataObject> From(this IDictionary<string, object> dictionary)

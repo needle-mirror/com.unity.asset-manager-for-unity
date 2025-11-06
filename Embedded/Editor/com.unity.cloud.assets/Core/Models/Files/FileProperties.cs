@@ -16,10 +16,11 @@ namespace Unity.Cloud.AssetsEmbedded
 
         /// <summary>
         /// The status of the file.
-        /// Possible values are:
-        /// 'Draft' - The file is created, upload may be in progress.
-        /// 'Uploaded' - All bytes have been uploaded and the file is finalized.
         /// </summary>
+        /// <value>
+        /// <c>Draft</c> The file is created, upload may be in progress. <br/>
+        /// <c>Uploaded</c> All bytes have been uploaded and the file is finalized.
+        /// </value>
         public string StatusName { get; internal set; }
 
         /// <summary>

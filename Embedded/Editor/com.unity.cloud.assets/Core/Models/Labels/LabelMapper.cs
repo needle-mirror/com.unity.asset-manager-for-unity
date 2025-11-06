@@ -48,6 +48,12 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         internal static LabelEntity From(this ILabelData data, IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            AssetLibraryId assetLibraryId, LabelCacheConfiguration? cacheConfigurationOverride = null)
+        {
+            return data.From(assetDataSource, defaultCacheConfiguration, new LabelDescriptor(assetLibraryId, data.Name), cacheConfigurationOverride);
+        }
+
+        internal static LabelEntity From(this ILabelData data, IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
             LabelDescriptor labelDescriptor, LabelCacheConfiguration? cacheConfigurationOverride = null)
         {
             var label = new LabelEntity(assetDataSource, defaultCacheConfiguration, labelDescriptor, cacheConfigurationOverride);

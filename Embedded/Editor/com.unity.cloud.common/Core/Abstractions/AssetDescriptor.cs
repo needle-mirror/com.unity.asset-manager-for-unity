@@ -18,6 +18,11 @@ namespace Unity.Cloud.CommonEmbedded
         public ProjectId ProjectId => ProjectDescriptor.ProjectId;
 
         /// <summary>
+        /// The asset's library identifier.
+        /// </summary>
+        public readonly AssetLibraryId AssetLibraryId;
+
+        /// <summary>
         /// The asset's ID.
         /// </summary>
         public readonly AssetId AssetId;
@@ -31,13 +36,28 @@ namespace Unity.Cloud.CommonEmbedded
         /// Creates an instance of the <see cref="AssetDescriptor"/> struct.
         /// </summary>
         /// <param name="projectDescriptor">The asset's project descriptor.</param>
-        /// <param name="assetId">The asset's ID</param>
+        /// <param name="assetId">The asset's ID.</param>
         /// <param name="assetVersion">The asset's version.</param>
         public AssetDescriptor(ProjectDescriptor projectDescriptor, AssetId assetId, AssetVersion assetVersion)
         {
             ProjectDescriptor = projectDescriptor;
             AssetId = assetId;
             AssetVersion = assetVersion;
+            AssetLibraryId = AssetLibraryId.None;
+        }
+
+        /// <summary>
+        /// Creates an instance of the <see cref="AssetDescriptor"/> struct.
+        /// </summary>
+        /// <param name="assetLibraryId">The asset's library id.</param>
+        /// <param name="assetId">The asset's ID.</param>
+        /// <param name="assetVersion">The asset's version.</param>
+        public AssetDescriptor(AssetLibraryId assetLibraryId, AssetId assetId, AssetVersion assetVersion)
+        {
+            AssetLibraryId = assetLibraryId;
+            AssetId = assetId;
+            AssetVersion = assetVersion;
+            ProjectDescriptor = new  ProjectDescriptor(OrganizationId.None, ProjectId.None);
         }
 
         internal AssetDescriptor(AssetDescriptorDto dto)
@@ -45,6 +65,7 @@ namespace Unity.Cloud.CommonEmbedded
             ProjectDescriptor = new ProjectDescriptor(dto.ProjectDescriptor);
             AssetId = new AssetId(dto.AssetId);
             AssetVersion = new AssetVersion(dto.AssetVersion);
+            AssetLibraryId = new AssetLibraryId(dto.AssetLibraryId);
         }
 
         /// <summary>
@@ -58,6 +79,7 @@ namespace Unity.Cloud.CommonEmbedded
         public bool Equals(AssetDescriptor other)
         {
             return ProjectDescriptor.Equals(other.ProjectDescriptor) &&
+                AssetLibraryId.Equals(other.AssetLibraryId) &&
                 AssetId.Equals(other.AssetId) &&
                 AssetVersion.Equals(other.AssetVersion);
         }
@@ -87,6 +109,7 @@ namespace Unity.Cloud.CommonEmbedded
             {
                 var hashCode = AssetId.GetHashCode();
                 hashCode = (hashCode * 397) ^ ProjectDescriptor.GetHashCode();
+                hashCode = (hashCode * 397) ^ AssetLibraryId.GetHashCode();
                 hashCode = (hashCode * 397) ^ AssetVersion.GetHashCode();
                 return hashCode;
             }
@@ -124,7 +147,8 @@ namespace Unity.Cloud.CommonEmbedded
             {
                 ProjectDescriptor = new ProjectDescriptorDto(ProjectDescriptor),
                 AssetId = AssetId.ToString(),
-                AssetVersion = AssetVersion.ToString()
+                AssetVersion = AssetVersion.ToString(),
+                AssetLibraryId = AssetLibraryId.ToString()
             });
         }
 

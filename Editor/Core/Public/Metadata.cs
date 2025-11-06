@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.AssetManager.Core.Editor;
 using UnityEngine;
 
 namespace Unity.AssetManager.Editor
@@ -36,6 +37,131 @@ namespace Unity.AssetManager.Editor
             if (string.IsNullOrEmpty(m_Key))
             {
                 throw new InvalidOperationException("Key is null or empty.");
+            }
+        }
+
+        internal bool CastToBool()
+        {
+            switch (this)
+            {
+                case BooleanMetadata booleanMetadata:
+                    return booleanMetadata.Value;
+                case StringMetadata stringMetadata:
+                    if (bool.TryParse(stringMetadata.Value, out var boolValue))
+                    {
+                        return boolValue;
+                    }
+                    throw new ArgumentException($"Cannot convert string metadata value '{stringMetadata.Value}' to boolean for key: {Key}");
+                case NumberMetadata numberMetadata:
+                    return numberMetadata.Value != 0;
+                default:
+                    throw new ArgumentException($"Cannot convert metadata of type {GetType()} to boolean for key: {Key}");
+
+            }
+        }
+
+        internal double CastToNumber()
+        {
+            switch (this)
+            {
+                case NumberMetadata numberMetadata:
+                    return numberMetadata.Value;
+                case StringMetadata stringMetadata:
+                    if (double.TryParse(stringMetadata.Value, out var doubleValue))
+                    {
+                        return doubleValue;
+                    }
+                    throw new ArgumentException($"Cannot convert string metadata value '{stringMetadata.Value}' to double for key: {Key}");
+                case BooleanMetadata booleanMetadata:
+                    return booleanMetadata.Value ? 1 : 0;
+                default:
+                    throw new ArgumentException($"Cannot convert metadata of type {GetType()} to double for key: {Key}");
+
+            }
+        }
+
+        internal string CastToString()
+        {
+            switch (this)
+            {
+                case StringMetadata stringMetadata:
+                    return stringMetadata.Value;
+                case NumberMetadata numberMetadata:
+                    return numberMetadata.Value.ToString();
+                case BooleanMetadata booleanMetadata:
+                    return booleanMetadata.Value.ToString().ToLower();
+                case DateTimeMetadata dateTimeMetadata:
+                    return dateTimeMetadata.DateTime.ToString();
+                case DateTimeRangeMetadata dateTimeRangeMetadata:
+                    return $"{dateTimeRangeMetadata.StartDateTime} - {dateTimeRangeMetadata.EndDateTime}";
+                case MultiValueMetadata multiValueMetadata:
+                    return string.Join(", ", multiValueMetadata.Values);
+                default:
+                    throw new ArgumentException($"Cannot convert metadata of type {GetType()} to string for key: {Key}");
+
+            }
+        }
+
+        internal List<string> CastToMultiSelection()
+        {
+            switch (this)
+            {
+                case MultiValueMetadata multiValueMetadata:
+                    return multiValueMetadata.Values.ToList();
+                case StringMetadata stringMetadata:
+                    return new List<string> { stringMetadata.Value };
+                default:
+                    throw new ArgumentException($"Cannot convert metadata of type {GetType()} to string list for key: {Key}");
+            }
+        }
+
+        internal DateTimeEntry CastToDateTimeEntry()
+        {
+            switch (this)
+            {
+                case DateTimeMetadata dateTimeMetadata:
+                    return new DateTimeEntry(dateTimeMetadata.DateTime);
+                case StringMetadata stringMetadata:
+                    if (DateTime.TryParse(stringMetadata.Value, out var dateTimeValue))
+                    {
+                        return new DateTimeEntry(dateTimeValue);
+                    }
+                    throw new ArgumentException($"Cannot convert string metadata value '{stringMetadata.Value}' to DateTime for key: {Key}");
+                default:
+                    throw new ArgumentException($"Cannot convert metadata of type {GetType()} to DateTime for key: {Key}");
+            }
+        }
+
+        internal UriEntry CastToUriEntry()
+        {
+            switch (this)
+            {
+                case StringMetadata stringMetadata:
+                    var value = stringMetadata.Value;
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        throw new ArgumentException($"Cannot convert empty string metadata value to Uri for key: {Key}");
+                    }
+
+                    // Check for markdown link format [label](url)
+                    string url = value; // default as plain url
+                    string label = null;
+
+                    if (value.StartsWith("[") && value.Contains("](") && value.EndsWith(")"))
+                    {
+                        var endOfLabelIndex = value.IndexOf("](", StringComparison.Ordinal);
+                        label = value.Substring(1, endOfLabelIndex - 1);
+                        url = value.Substring(endOfLabelIndex + 2, value.Length - endOfLabelIndex - 3);
+                    }
+
+                    if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                    {
+                        return new UriEntry(uri, label);
+                    }
+                    throw new ArgumentException($"Cannot convert string metadata value '{stringMetadata.Value}' to Uri for key: {Key}");
+
+                default:
+                    throw new ArgumentException($"Cannot convert metadata of type {GetType()} to Uri for key: {Key}");
             }
         }
     }
@@ -285,4 +411,6 @@ namespace Unity.AssetManager.Editor
             m_Values = values?.ToArray() ?? Array.Empty<string>();
         }
     }
+
+
 }

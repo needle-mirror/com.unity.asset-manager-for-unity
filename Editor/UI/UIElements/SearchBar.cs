@@ -26,8 +26,8 @@ namespace Unity.AssetManager.UI.Editor
         bool m_Focused;
 
         Button m_ClearAllButton;
-        Button m_RefreshButton;
         VisualElement m_SearchChipsContainer;
+        ScrollView m_SearchChipsScrollView;
         TextField m_SearchTextField;
         ToolbarSearchField m_ToolbarSearchField;
 
@@ -54,17 +54,26 @@ namespace Unity.AssetManager.UI.Editor
                 m_ClearAllButton.name = k_SearchCancelUssName;
             }
 
+            m_SearchChipsScrollView = new ScrollView(ScrollViewMode.Horizontal);
+            m_SearchChipsScrollView.AddToClassList("search-chip-scroll-view");
+            m_SearchChipsScrollView.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+
             m_SearchChipsContainer = new VisualElement();
             m_SearchChipsContainer.AddToClassList("search-chip-container");
-            m_ToolbarSearchField.Insert(1, m_SearchChipsContainer);
 
-            m_TextInput = m_ToolbarSearchField.Q<TextField>().Q("unity-text-input");
+            m_SearchChipsScrollView.Add(m_SearchChipsContainer);
+            m_ToolbarSearchField.Insert(1, m_SearchChipsScrollView);
+
+
+            m_TextInput = m_SearchTextField.Q("unity-text-input");
 
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
 
             m_SearchTextField.AddToClassList(k_PlaceholderClass);
             ShowSearchTermsTextIfNeeded();
+
+            InitDisplay(pageManager.ActivePage);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
@@ -166,8 +175,9 @@ namespace Unity.AssetManager.UI.Editor
 
         void InitDisplay(IPage page)
         {
-            var display = m_ProjectOrganizationProvider.SelectedOrganization != null;
-            UIElementsUtils.SetDisplay(m_RefreshButton,  display);
+            var display = page != null
+                && m_ProjectOrganizationProvider.SelectedOrganization != null
+                && m_ProjectOrganizationProvider.SelectedOrganization.ProjectInfos.Any();
             UIElementsUtils.SetDisplay(m_ToolbarSearchField, display);
         }
 
@@ -183,8 +193,28 @@ namespace Unity.AssetManager.UI.Editor
                 m_SearchChipsContainer.Add(new SearchFilterChip(filter, DismissSearchFilter));
             }
 
+            var hasChips = PageFilterStrategy.SearchFilters.Any();
             ShowSearchTermsTextIfNeeded();
-            m_ClearAllButton.visible = PageFilterStrategy.SearchFilters.Any();
+            m_ClearAllButton.visible = hasChips;
+
+            if (hasChips)
+            {
+                m_ToolbarSearchField.AddToClassList("has-chips");
+                m_SearchChipsScrollView.contentContainer.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+
+                void OnGeometryChanged(GeometryChangedEvent evt)
+                {
+                    m_SearchChipsScrollView.scrollOffset = new Vector2(m_SearchChipsScrollView.contentContainer.layout.width, 0);
+                    m_SearchChipsScrollView.contentContainer.UnregisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+                }
+
+                m_SearchChipsScrollView.style.display = DisplayStyle.Flex;
+            }
+            else
+            {
+                m_ToolbarSearchField.RemoveFromClassList("has-chips");
+                m_SearchChipsScrollView.style.display = DisplayStyle.None;
+            }
         }
 
         void OnSearchCancelClick()
@@ -263,7 +293,9 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnOrganizationChanged(OrganizationInfo organizationInfo)
         {
-            Refresh(m_PageManager.ActivePage);
+            var activePage = m_PageManager.ActivePage;
+            Refresh(activePage);
+            InitDisplay(activePage);
         }
     }
 }

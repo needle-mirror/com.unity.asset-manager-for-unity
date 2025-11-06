@@ -8,6 +8,7 @@ namespace Unity.AssetManager.Core.Editor
         OpenAssetManagerDashboardLink,
         EnableProject,
         OpenAssetManagerDocumentationPage,
+        OpenUnityCloudConfigurationDocumentation,
         Retry,
         None
     }

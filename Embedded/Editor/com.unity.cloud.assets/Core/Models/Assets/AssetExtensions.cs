@@ -7,6 +7,9 @@ using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
+    /// <summary>
+    /// Extension methods for <see cref="IAsset"/>.
+    /// </summary>
     static class AssetExtensions
     {
         /// <summary>
@@ -56,6 +59,88 @@ namespace Unity.Cloud.AssetsEmbedded
             }
 
             return version;
+        }
+
+        /// <summary>
+        /// Returns the update histories of the asset.
+        /// </summary>
+        /// <param name="asset">The asset to query. </param>
+        /// <param name="range">The range of results to return. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>An async enumeration of <see cref="AssetUpdateHistory"/> in descending order of <see cref="AssetUpdateHistory.SequenceNumber"/>.</returns>
+        public static IAsyncEnumerable<AssetUpdateHistory> ListUpdateHistoriesAsync(this IAsset asset, Range range, CancellationToken cancellationToken)
+        {
+            return asset.QueryUpdateHistory()
+                .LimitTo(range)
+                .ExecuteAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Returns a dataset's update history.
+        /// </summary>
+        /// <param name="asset">The asset to query. </param>
+        /// <param name="datasetId">The <see cref="DatasetId"/>. </param>
+        /// <param name="updateHistorySequenceNumber">The update history sequence number of the asset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is a <see cref="DatasetUpdateHistory"/>. </returns>
+        public static async Task<DatasetUpdateHistory> GetUpdateHistoryAsync(this IAsset asset, DatasetId datasetId, int updateHistorySequenceNumber, CancellationToken cancellationToken)
+        {
+            asset = await asset.WithCacheConfigurationAsync(AssetCacheConfiguration.NoCaching, cancellationToken);
+            var dataset = await asset.GetDatasetAsync(datasetId, CancellationToken.None);
+            return await dataset.GetUpdateHistoryAsync(updateHistorySequenceNumber, CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Returns a dataset's update history.
+        /// </summary>
+        /// <param name="asset">The asset to query. </param>
+        /// <param name="datasetUpdateHistoryDescriptor">The <see cref="DatasetUpdateHistoryDescriptor"/> of the asset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is a <see cref="DatasetUpdateHistory"/>. </returns>
+        public static Task<DatasetUpdateHistory> GetUpdateHistoryAsync(this IAsset asset, DatasetUpdateHistoryDescriptor datasetUpdateHistoryDescriptor, CancellationToken cancellationToken)
+        {
+            return GetUpdateHistoryAsync(asset, datasetUpdateHistoryDescriptor.DatasetId, datasetUpdateHistoryDescriptor.SequenceNumber, cancellationToken);
+        }
+
+        /// <summary>
+        /// Returns a file's update history.
+        /// </summary>
+        /// <param name="asset">The asset to query. </param>
+        /// <param name="updateHistorySequenceNumber">The update history sequence number of the asset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <param name="datasetId">The <see cref="DatasetId"/>. </param>
+        /// <param name="filePath">The file path. </param>
+        /// <returns>A task whose result is a <see cref="FileUpdateHistory"/>. </returns>
+        public static async Task<FileUpdateHistory> GetUpdateHistoryAsync(this IAsset asset, DatasetId datasetId, string filePath, int updateHistorySequenceNumber, CancellationToken cancellationToken)
+        {
+            asset = await asset.WithCacheConfigurationAsync(AssetCacheConfiguration.NoCaching, cancellationToken);
+            var dataset = await asset.GetDatasetAsync(datasetId, CancellationToken.None);
+            var file = await dataset.GetFileAsync(filePath, CancellationToken.None);
+            return await file.GetUpdateHistoryAsync(updateHistorySequenceNumber, CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Returns a file's update history.
+        /// </summary>
+        /// <param name="asset">The asset to query. </param>
+        /// <param name="fileUpdateHistoryDescriptor">The <see cref="FileUpdateHistoryDescriptor"/> of the asset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is a <see cref="FileUpdateHistory"/>. </returns>
+        public static Task<FileUpdateHistory> GetUpdateHistoryAsync(this IAsset asset, FileUpdateHistoryDescriptor fileUpdateHistoryDescriptor, CancellationToken cancellationToken)
+        {
+            return GetUpdateHistoryAsync(asset, fileUpdateHistoryDescriptor.DatasetId, fileUpdateHistoryDescriptor.FilePath, fileUpdateHistoryDescriptor.SequenceNumber, cancellationToken);
+        }
+
+        /// <summary>
+        /// Updates the asset to the state it had at the specified update history sequence number.
+        /// </summary>
+        /// <param name="asset">The asset to query. </param>
+        /// <param name="assetUpdateHistory">The update history entry to which the asset should be updated. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task with no result.</returns>
+        public static Task UpdateAsync(this IAsset asset, AssetUpdateHistory assetUpdateHistory, CancellationToken cancellationToken)
+        {
+            return asset.UpdateAsync(assetUpdateHistory.SequenceNumber, cancellationToken);
         }
 
         /// <summary>

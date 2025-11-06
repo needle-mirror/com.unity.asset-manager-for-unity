@@ -13,5 +13,6 @@ namespace Unity.AssetManager.Core.Editor
         public List<string> Collections { get; set; } = new();
         public List<string> Tags { get; set; } = new();
         public List<IMetadata> Metadata { get; set; } = new();
+        public StatusFlowIdentifier StatusFlowIdentifier { get; set; }
     }
 }

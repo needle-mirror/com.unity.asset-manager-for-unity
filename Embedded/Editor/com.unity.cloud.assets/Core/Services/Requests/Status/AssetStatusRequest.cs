@@ -4,10 +4,10 @@ namespace Unity.Cloud.AssetsEmbedded
 {
     class AssetStatusRequest : AssetRequest
     {
-        AssetStatusRequest(ProjectId projectId, AssetId assetId, AssetVersion version, string action = null)
+        public AssetStatusRequest(ProjectId projectId, AssetId assetId, AssetVersion version, string action = null)
             : base(projectId, assetId, version)
         {
-            m_RequestUrl += $"/status";
+            m_RequestUrl += "/status";
 
             if (!string.IsNullOrEmpty(action))
             {

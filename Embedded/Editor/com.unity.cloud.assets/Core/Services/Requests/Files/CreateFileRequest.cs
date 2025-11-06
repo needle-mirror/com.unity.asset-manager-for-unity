@@ -31,10 +31,7 @@ namespace Unity.Cloud.AssetsEmbedded
             FileData = fileData;
         }
 
-        /// <summary>
-        /// Provides a helper for constructing the request body.
-        /// </summary>
-        /// <returns>A </returns>
+        /// <inheritdoc />
         public override HttpContent ConstructBody()
         {
             var body = IsolatedSerialization.Serialize(FileData, IsolatedSerialization.defaultSettings);

@@ -10,7 +10,7 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         readonly AssetDescriptor m_Descriptor;
 
-        protected override OrganizationId OrganizationId => m_Descriptor.OrganizationId;
+        protected override AssetDescriptor AssetDescriptor => m_Descriptor;
 
         internal AssetMetadataDataSource(AssetDescriptor assetDescriptor, IAssetDataSource dataSource, MetadataDataSourceSpecification specification)
             : base(dataSource, specification)
@@ -21,6 +21,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public override Task AddOrUpdateAsync(Dictionary<string, object> properties, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var data = new AssetUpdateData
             {
                 Metadata = properties
@@ -32,7 +34,18 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc />
         public override Task RemoveAsync(IEnumerable<string> keys, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.RemoveAssetMetadataAsync(m_Descriptor, m_MetadataSpecification.ToString(), keys, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public override void ThrowIfPathToLibrary()
+        {
+            if (m_Descriptor.IsPathToAssetLibrary())
+            {
+                throw new InvalidOperationException("Cannot modify the metadata of library assets.");
+            }
         }
 
         /// <inheritdoc />

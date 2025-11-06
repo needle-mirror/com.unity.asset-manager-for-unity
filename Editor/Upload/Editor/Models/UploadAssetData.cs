@@ -52,6 +52,12 @@ namespace Unity.AssetManager.Upload.Editor
         List<string> m_Tags;
 
         [SerializeField]
+        string m_Status;
+
+        [SerializeField]
+        string m_StatusFlowId;
+
+        [SerializeField]
         string m_Description;
 
         Task<Texture2D> m_GetThumbnailTask;
@@ -86,15 +92,14 @@ namespace Unity.AssetManager.Upload.Editor
         [SerializeReference]
         List<BaseAssetData> m_Versions = new();
 
-
         static bool s_UseAdvancedPreviewer = false;
 
         public override string Name => m_Name;
         public string Guid => m_AssetGuid;
         public override AssetIdentifier Identifier => m_Identifier;
 
-
         Task m_RefreshVersionsTask;
+        CachedTask m_ReachableStatusNamesTask;
 
         // Upload Asset Data Should have its own settings so it can rebuild itself. If settings are changed, it rebuilds itself. again mainly files
         // So you can then change the data from anywhere without going through the staging that lives in the upload page
@@ -126,7 +131,8 @@ namespace Unity.AssetManager.Upload.Editor
         public override int ParentSequenceNumber => -1;
         public override string Changelog => "";
         public override Core.Editor.AssetType AssetType => m_AssetType;
-        public override string Status => "Local";
+        public override string Status => m_Status;
+        public override string StatusFlowId => m_StatusFlowId;
         public override DateTime? Updated => null;
         public override DateTime? Created => null;
         public override IEnumerable<string> Tags => m_Tags;
@@ -209,6 +215,8 @@ namespace Unity.AssetManager.Upload.Editor
             }
         }
 
+        public ProjectIdentifier TargetProject => m_TargetProject;
+
         public UploadAssetData(AssetIdentifier localIdentifier,
             string assetGuid,
             IEnumerable<string> mainFileAssetGuids,
@@ -218,14 +226,14 @@ namespace Unity.AssetManager.Upload.Editor
             ProjectIdentifier targetProject,
             UploadFilePathMode filePathMode)
         {
-            Utilities.DevAssert(assetGuid != null);
-            Utilities.DevAssert(!string.IsNullOrEmpty(targetProject.OrganizationId));
-            Utilities.DevAssert(!string.IsNullOrEmpty(targetProject.ProjectId));
+            Utilities.DevAssert(assetGuid != null, "Asset GUID cannot be null");
+            Utilities.DevAssert(!string.IsNullOrEmpty(targetProject.OrganizationId), "Target project organization ID cannot be null or empty");
+            Utilities.DevAssert(!string.IsNullOrEmpty(targetProject.ProjectId), "Target project ID cannot be null or empty");
 
-            Utilities.DevAssert(localIdentifier.IsLocal());
-            Utilities.DevAssert(existingAssetData == null || !existingAssetData.Identifier.IsLocal());
-            Utilities.DevAssert(existingAssetData == null || existingAssetData.Identifier.OrganizationId == targetProject.OrganizationId);
-            Utilities.DevAssert(existingAssetData == null || existingAssetData.Identifier.ProjectId == targetProject.ProjectId);
+            Utilities.DevAssert(localIdentifier.IsLocal(), "Local identifier must be marked as local");
+            Utilities.DevAssert(existingAssetData == null || !existingAssetData.Identifier.IsLocal(), "Existing asset data identifier cannot be local");
+            Utilities.DevAssert(existingAssetData == null || existingAssetData.Identifier.OrganizationId == targetProject.OrganizationId, "Existing asset data organization ID must match target project organization ID");
+            Utilities.DevAssert(existingAssetData == null || existingAssetData.Identifier.ProjectId == targetProject.ProjectId, "Existing asset data project ID must match target project ID");
 
             m_AssetGuid = assetGuid;
             m_Identifier = localIdentifier;
@@ -234,7 +242,7 @@ namespace Unity.AssetManager.Upload.Editor
             var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
             m_AssetPath = assetDatabaseProxy.GuidToAssetPath(m_AssetGuid);
 
-            Utilities.DevAssert(!string.IsNullOrEmpty(m_AssetPath));
+            Utilities.DevAssert(!string.IsNullOrEmpty(m_AssetPath), $"Asset path cannot be empty for GUID: {m_AssetGuid}");
 
             // Dependencies
             if (dependencies != null)
@@ -259,6 +267,9 @@ namespace Unity.AssetManager.Upload.Editor
                 m_Name = existingAssetData.Name;
                 m_Description = existingAssetData.Description;
 
+                m_Status = existingAssetData.Status;
+                m_StatusFlowId = existingAssetData.StatusFlowId;
+
                 CopyMetadata(existingAssetData.Metadata);
 
                 tags = existingAssetData.Tags.ToHashSet();
@@ -270,6 +281,12 @@ namespace Unity.AssetManager.Upload.Editor
 
                 m_Name = Path.GetFileNameWithoutExtension(m_AssetPath);
                 m_Metadata = new MetadataContainer();
+
+                m_Status = null;
+                m_StatusFlowId = null;
+
+                // Refresh reachable status names to set default status and status flow id
+                TaskUtils.TrackException(RefreshReachableStatusNamesAsync());
 
                 tags.UnionWith(TagExtractor.ExtractFromAsset(m_AssetPath));
             }
@@ -283,7 +300,7 @@ namespace Unity.AssetManager.Upload.Editor
                 && m_ResolvedStatus != UploadAttribute.UploadStatus.Skip
                 && m_ResolvedStatus != UploadAttribute.UploadStatus.ErrorOutsideProject);
 
-            var uploadAsset = new UploadAsset(m_Name, m_Description, m_AssetGuid, m_Identifier, m_AssetType,
+            var uploadAsset = new UploadAsset(m_Name, m_Description, m_Status, m_StatusFlowId, m_AssetGuid, m_Identifier, m_AssetType,
                 GetFiles(x => x.IsSource).Cast<UploadAssetDataFile>().Select(f => f.GenerateUploadFile()),
                 m_Tags, ResolveDependencyIdentifiers(), m_Metadata,
                 m_ResolvedStatus == UploadAttribute.UploadStatus.Override ? m_ExistingAssetIdentifier : null,
@@ -362,7 +379,7 @@ namespace Unity.AssetManager.Upload.Editor
             {
                 m_ComparisonDetails = Core.Editor.ComparisonDetails.Merge(m_ComparisonDetails, new ComparisonDetails(ComparisonResults.FilesAdded, "Asset is being uploaded as a new."));
             }
-            
+
             AssetDataAttributeCollection = GetResolveStatusAttributes();
             InvokeEvent(AssetDataEventType.LocalStatusChanged);
         }
@@ -424,6 +441,67 @@ namespace Unity.AssetManager.Upload.Editor
         public override Task RefreshLinkedProjectsAsync(CancellationToken token = default) => Task.CompletedTask;
 
         public override Task RefreshLinkedCollectionsAsync(CancellationToken token = default) => Task.CompletedTask;
+
+        public override async Task RefreshReachableStatusNamesAsync(CancellationToken token = default)
+        {
+            m_ReachableStatusNamesTask ??= new CachedTask(RefreshReachableStatusNamesInternalAsync);
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(m_StatusFlowId) && m_ExistingAssetIdentifier != null)
+                    await RefreshStatusInfoAsync();
+
+                await m_ReachableStatusNamesTask.RunAsync(token, 25);
+            }
+            catch (HttpRequestException)
+            {
+                // Ignore unreachable host
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if the Asset is unavailable
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the Asset is not found
+            }
+
+            return;
+
+            async Task RefreshStatusInfoAsync()
+            {
+                if (m_ExistingAssetIdentifier == null)
+                    return;
+
+                var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+                var existingAsset = await assetsSdkProvider.GetAssetAsync(m_ExistingAssetIdentifier, token);
+
+                if (existingAsset != null)
+                {
+                    m_Status = existingAsset.Status;
+                    m_StatusFlowId = existingAsset.StatusFlowId;
+                }
+            }
+        }
+
+        async Task RefreshReachableStatusNamesInternalAsync(CancellationToken token = default)
+        {
+            // When uploading an asset, all statuses are valid. We use the status information from the
+            // OrganizationInfo class to populate the status information for the UploadAssetData
+            var projectOrganizationProvider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
+            var statusFlowInfo = await projectOrganizationProvider.SelectedOrganization.GetStatusFlowInfoAsync(this, token);
+            if (statusFlowInfo != null)
+            {
+
+                // If no status information is assigned, use the default values
+                if (string.IsNullOrWhiteSpace(m_Status))
+                    m_Status = statusFlowInfo.StartStatusName;
+                if (string.IsNullOrWhiteSpace(m_StatusFlowId))
+                    m_StatusFlowId = statusFlowInfo.FlowId;
+
+                ReachableStatusNames = statusFlowInfo.StatusNames;
+            }
+        }
 
         async Task<UploadAttribute.UploadStatus> ResolveSelfStatusInternalAsync(UploadAssetMode uploadMode, ImportAttribute.ImportStatus? cloudStatus, CancellationToken token)
         {
@@ -878,7 +956,13 @@ namespace Unity.AssetManager.Upload.Editor
 
         public void SetTags(IEnumerable<string> tags)
         {
-            m_Tags = tags.ToList();
+            m_Tags = tags?.Distinct().ToList() ?? new List<string>();
+            InvokeEvent(AssetDataEventType.PropertiesChanged);
+        }
+
+        public void SetStatus(string statusName)
+        {
+            m_Status = statusName;
             InvokeEvent(AssetDataEventType.PropertiesChanged);
         }
 
@@ -893,5 +977,36 @@ namespace Unity.AssetManager.Upload.Editor
         }
 
         public AssetIdentifier ExistingAssetIdentifier => m_ExistingAssetIdentifier;
+
+        public void TrySetProperties(string name, string description, AssetType assetType, string status, IEnumerable<string> tags, IEnumerable<IMetadata> metadata)
+        {
+            async Task ValidateStatusAsync(string status)
+            {
+                try
+                {
+                    await RefreshReachableStatusNamesAsync();
+                    if (!ReachableStatusNames.Contains(m_Status))
+                    {
+                        Debug.LogWarning( $"Status '{status}' is not valid for asset '{Name}'. Status '{m_Status}' will be used instead.");
+                        InvokeEvent(AssetDataEventType.PropertiesChanged); // Event only if status changed
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                }
+            }
+
+
+            m_Name = name;
+            m_Description = description;
+            m_AssetType = assetType;
+            m_Tags = tags.ToList();
+            SetMetadata(metadata);
+            InvokeEvent(AssetDataEventType.PropertiesChanged);
+
+            // Special case for status since we need to set a valid state
+            ValidateStatusAsync(status).ConfigureAwait(false); // Intentional fire and forget
+        }
     }
 }

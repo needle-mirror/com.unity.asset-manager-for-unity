@@ -15,6 +15,9 @@ namespace Unity.Cloud.CommonEmbedded
 
         /// <inheritdoc cref="ProjectDescriptor.ProjectId"/>
         public ProjectId ProjectId => DatasetDescriptor.ProjectId;
+        
+        /// <inheritdoc cref="AssetDescriptor.AssetLibraryId"/>
+        public AssetLibraryId AssetLibraryId => DatasetDescriptor.AssetLibraryId;
 
         /// <inheritdoc cref="AssetDescriptor.AssetId"/>
         public AssetId AssetId => DatasetDescriptor.AssetId;

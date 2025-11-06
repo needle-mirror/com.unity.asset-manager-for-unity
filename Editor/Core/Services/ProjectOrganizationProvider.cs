@@ -11,6 +11,7 @@ using Unity.Cloud.IdentityEmbedded;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
 
 namespace Unity.AssetManager.Core.Editor
@@ -27,6 +28,7 @@ namespace Unity.AssetManager.Core.Editor
             Id = id;
         }
     }
+
 
     [Serializable]
     class OrganizationInfo
@@ -48,10 +50,16 @@ namespace Unity.AssetManager.Core.Editor
             set => nameAndId.Name = value;
         }
 
-        public List<ProjectInfo> ProjectInfos = new();
+        public List<ProjectOrLibraryInfo> ProjectInfos = new();
 
         List<UserInfo> m_UserInfos;
         Task<List<UserInfo>> m_UserInfosTask;
+
+        List<StatusFlowInfo> m_StatusFlowInfos;
+        Task<List<StatusFlowInfo>> m_StatusFlowInfosTask;
+
+        StatusFlowInfo m_DefaultStatusFlowInfo;
+        Task<StatusFlowInfo> m_DefaultStatusFlowInfoTask;
 
         public async Task<string> GetUserNameAsync(string userId)
         {
@@ -75,10 +83,7 @@ namespace Unity.AssetManager.Core.Editor
                 return m_UserInfos;
             }
 
-            if (m_UserInfosTask == null)
-            {
-                m_UserInfosTask = GetUserInfosInternalAsync(cancellationToken);
-            }
+            m_UserInfosTask ??= GetUserInfosInternalAsync(cancellationToken);
 
             m_UserInfos = await m_UserInfosTask;
             m_UserInfosTask = null;
@@ -98,13 +103,78 @@ namespace Unity.AssetManager.Core.Editor
 
             return userInfos;
         }
+
+        public async Task<StatusFlowInfo> GetStatusFlowInfoAsync(string statusFlowId, CancellationToken cancellationToken = default)
+        {
+            var statusFlowInfos = await GetStatusFlowInfosAsync(cancellationToken: cancellationToken);
+            return statusFlowInfos?.FirstOrDefault(s => s.FlowId.Equals(statusFlowId));
+        }
+
+        public async Task<List<StatusFlowInfo>> GetStatusFlowInfosAsync(Action<List<StatusFlowInfo>> callback = null, CancellationToken cancellationToken = default)
+        {
+            if (m_StatusFlowInfos != null && m_StatusFlowInfos.Count != 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                callback?.Invoke(m_StatusFlowInfos);
+                return m_StatusFlowInfos;
+            }
+
+            m_StatusFlowInfosTask ??= GetStatusFlowInfosInternalAsync(cancellationToken);
+
+            m_StatusFlowInfos = await m_StatusFlowInfosTask;
+            m_StatusFlowInfosTask = null;
+
+            callback?.Invoke(m_StatusFlowInfos);
+            return m_StatusFlowInfos;
+        }
+
+        async Task<List<StatusFlowInfo>> GetStatusFlowInfosInternalAsync(CancellationToken cancellationToken)
+        {
+            var statusFlowInfos = new List<StatusFlowInfo>();
+            await foreach (var statusFlowInfo in ServicesContainer.instance.Resolve<IProjectOrganizationProvider>()
+                               .GetOrganizationStatusFlowsAsync(cancellationToken))
+            {
+                statusFlowInfos.Add(statusFlowInfo);
+            }
+
+            return statusFlowInfos;
+        }
+
+        public async Task<StatusFlowInfo> GetDefaultStatusFlowInfoAsync(Action<StatusFlowInfo> callback = null, CancellationToken cancellationToken = default)
+        {
+            if (m_DefaultStatusFlowInfo != null)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                callback?.Invoke(m_DefaultStatusFlowInfo);
+                return m_DefaultStatusFlowInfo;
+            }
+
+            m_DefaultStatusFlowInfoTask ??= GetDefaultStatusFlowInfoInternalAsync(cancellationToken);
+
+            m_DefaultStatusFlowInfo = await m_DefaultStatusFlowInfoTask;
+            m_DefaultStatusFlowInfoTask = null;
+
+            callback?.Invoke(m_DefaultStatusFlowInfo);
+            return m_DefaultStatusFlowInfo;
+        }
+
+        async Task<StatusFlowInfo> GetDefaultStatusFlowInfoInternalAsync(CancellationToken cancellationToken)
+        {
+            return await ServicesContainer.instance.Resolve<IProjectOrganizationProvider>()
+                .GetOrganizationDefaultStatusFlowAsync(cancellationToken);
+        }
     }
 
     [Serializable]
-    class ProjectInfo
+    class ProjectOrLibraryInfo
     {
         [SerializeField]
         List<CollectionInfo> m_CollectionInfos;
+
+        [SerializeField]
+        bool m_IsAssetLibrary;
 
         public NameAndId nameAndId;
 
@@ -112,10 +182,11 @@ namespace Unity.AssetManager.Core.Editor
 
         public string Name => nameAndId.Name;
 
-        public ProjectInfo(string id, string name = "")
+        public ProjectOrLibraryInfo(string id, string name = "", bool isAssetLibrary = false)
         {
             nameAndId.Id = id;
             nameAndId.Name = name;
+            m_IsAssetLibrary = isAssetLibrary;
         }
 
         public IEnumerable<CollectionInfo> CollectionInfos => m_CollectionInfos;
@@ -129,6 +200,9 @@ namespace Unity.AssetManager.Core.Editor
         {
             return m_CollectionInfos?.Find(c => c.GetFullPath() == collectionPath);
         }
+
+        public bool IsAssetLibrary => m_IsAssetLibrary;
+
     }
 
     [Serializable]
@@ -149,29 +223,82 @@ namespace Unity.AssetManager.Core.Editor
         }
     }
 
+    interface IPreferencesStorage
+    {
+        string GetValue(string key, string fallbackValue = null);
+        void SetValue(string key, string value);
+    }
+
+    class EditorPrefsStorage : IPreferencesStorage
+    {
+        public string GetValue(string key, string fallbackValue = null)
+        {
+            var projectSpecificKey = GenerateProjectSpecificKey(key);
+
+            if (EditorPrefs.HasKey(projectSpecificKey))
+            {
+                var savedValue = EditorPrefs.GetString(projectSpecificKey);
+                return string.IsNullOrWhiteSpace(savedValue) ? fallbackValue : savedValue;
+            }
+
+            // Migration: Check for old project-less key if project-specific key is not found
+            if (EditorPrefs.HasKey(key))
+            {
+                var savedValue = EditorPrefs.GetString(key);
+                if (!string.IsNullOrWhiteSpace(savedValue))
+                {
+                    // Migrate to new format and clean up old key
+                    EditorPrefs.SetString(projectSpecificKey, savedValue);
+                    EditorPrefs.DeleteKey(key);
+                    return savedValue;
+                }
+            }
+
+            return fallbackValue;
+        }
+
+        public void SetValue(string key, string value)
+        {
+            EditorPrefs.SetString(GenerateProjectSpecificKey(key), value);
+        }
+
+        static string GenerateProjectSpecificKey(string baseKey)
+        {
+            // Use the project path as a unique hash for this project
+            var projectPath = Application.dataPath;
+            var projectHash = projectPath.GetHashCode().ToString();
+            return $"{baseKey}.{projectHash}";
+        }
+    }
+
     interface IProjectOrganizationProvider : IService
     {
         OrganizationInfo SelectedOrganization { get; }
-        ProjectInfo SelectedProject { get; }
+        ProjectOrLibraryInfo SelectedProjectOrLibrary { get; }
+        ProjectOrLibraryInfo SelectedAssetLibrary { get; }
         CollectionInfo SelectedCollection { get; }
         bool IsLoading { get; }
         event Action<OrganizationInfo> OrganizationChanged;
         event Action<bool> LoadingStateChanged;
-        event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
-        event Action<ProjectInfo> ProjectInfoChanged;
+        event Action<ProjectOrLibraryInfo, CollectionInfo> ProjectSelectionChanged;
+        event Action<ProjectOrLibraryInfo> ProjectInfoChanged;
+        event Action<List<ProjectOrLibraryInfo>> AssetLibrariesProjectsLoaded;
 
         IAsyncEnumerable<UserInfo> GetOrganizationUsersAsync(string organizationId, Range range, CancellationToken token);
         Task<StorageUsage> GetStorageUsageAsync(string organizationId, CancellationToken token = default);
         void SelectOrganization(string organizationId);
         void SelectProject(string projectId, string collectionPath = null, bool updateProject = false);
         void EnableProjectForAssetManager();
-        ProjectInfo GetProject(string projectId);
+        ProjectOrLibraryInfo GetProject(string projectId);
         Task<Dictionary<string, string>> GetProjectIconUrlsAsync(string organizationId, CancellationToken token);
         Task CreateCollection(CollectionInfo collectionInfo);
         Task DeleteCollection(CollectionInfo collectionInfo);
         Task RenameCollection(CollectionInfo collectionInfo, string newName);
         IAsyncEnumerable<NameAndId> ListOrganizationsAsync();
         Task<List<string>> GetOrganizationVersionLabelsAsync();
+        Task<List<ProjectOrLibraryInfo>> GetAssetLibrariesProjectsAsync();
+        IAsyncEnumerable<StatusFlowInfo> GetOrganizationStatusFlowsAsync(CancellationToken token);
+        Task<StatusFlowInfo> GetOrganizationDefaultStatusFlowAsync(CancellationToken token = default);
     }
 
     [Serializable]
@@ -185,6 +312,11 @@ namespace Unity.AssetManager.Core.Editor
         OrganizationInfo m_OrganizationInfo;
 
         [SerializeField]
+        List<ProjectOrLibraryInfo> m_AssetLibrariesProjects;
+
+        Task m_AssetLibrariesLoadTask;
+
+        [SerializeField]
         string m_SelectedProjectId;
 
         [SerializeField]
@@ -196,51 +328,42 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeReference]
         IUnityConnectProxy m_UnityConnectProxy;
 
+        IPreferencesStorage m_PreferencesStorage;
+        IPreferencesStorage PreferencesStorage
+        {
+            get
+            {
+                m_PreferencesStorage ??= new EditorPrefsStorage();
+                return m_PreferencesStorage;
+            }
+        }
+
         internal static readonly string k_OrganizationPrefKey = "com.unity.asset-manager-for-unity.selectedOrganizationId";
         internal static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
         static readonly string k_CollectionPathPrefKey = "com.unity.asset-manager-for-unity.selectedCollectionPath";
         static readonly string k_DefaultCollectionDescription = "none";
 
-        private static readonly Message k_EmptyMessage = new(string.Empty,
-            RecommendedAction.Retry);
-
-        static readonly Message k_NoOrganizationMessage = new (
-            L10n.Tr("It seems your project is not linked to an organization. Please link your project to a Unity project ID to start using the Asset Manager service."),
-            RecommendedAction.OpenServicesSettingButton);
-
-        static readonly Message k_ErrorRetrievingOrganizationMessage = new(
-            L10n.Tr("It seems there was an error while trying to retrieve organization info."),
-            RecommendedAction.Retry);
-
-        private static readonly Message k_CurrentProjectNotEnabledMessage = new (
-            L10n.Tr("It seems your current project is not enabled for use in the Asset Manager."),
-            RecommendedAction.EnableProject);
-
-        private static readonly HelpBoxMessage k_NoConnectionMessage = new(
-            L10n.Tr("No network connection. Please check your internet connection."),
-            RecommendedAction.None, 0);
 
         string SavedOrganizationId
         {
-            set => EditorPrefs.SetString(k_OrganizationPrefKey, value);
+            set => PreferencesStorage.SetValue(k_OrganizationPrefKey, value);
             get
             {
-                var savedId = EditorPrefs.GetString(k_OrganizationPrefKey, null);
+                var savedId = PreferencesStorage.GetValue(k_OrganizationPrefKey);
                 return string.IsNullOrWhiteSpace(savedId) ? m_UnityConnectProxy.OrganizationId : savedId;
             }
-
         }
 
         string SavedProjectId
         {
-            set => EditorPrefs.SetString(k_ProjectPrefKey, value);
-            get => EditorPrefs.GetString(k_ProjectPrefKey, null);
+            set => PreferencesStorage.SetValue(k_ProjectPrefKey, value);
+            get => PreferencesStorage.GetValue(k_ProjectPrefKey);
         }
 
         string SavedCollectionPath
         {
-            set => EditorPrefs.SetString(k_CollectionPathPrefKey, value);
-            get => EditorPrefs.GetString(k_CollectionPathPrefKey, null);
+            set => PreferencesStorage.SetValue(k_CollectionPathPrefKey, value);
+            get => PreferencesStorage.GetValue(k_CollectionPathPrefKey);
         }
 
         Dictionary<string, List<string>> m_VersionLabels = new();
@@ -248,8 +371,9 @@ namespace Unity.AssetManager.Core.Editor
         object m_VersionLabelsLock = new();
 
         public event Action<OrganizationInfo> OrganizationChanged;
-        public event Action<ProjectInfo, CollectionInfo> ProjectSelectionChanged;
-        public event Action<ProjectInfo> ProjectInfoChanged;
+        public event Action<ProjectOrLibraryInfo, CollectionInfo> ProjectSelectionChanged;
+        public event Action<ProjectOrLibraryInfo> ProjectInfoChanged;
+        public event Action<List<ProjectOrLibraryInfo>> AssetLibrariesProjectsLoaded;
 
         public bool IsLoading => m_LoadOrganizationOperation?.IsLoading ?? false;
         bool IsCloudReachable => m_UnityConnectProxy.AreCloudServicesReachable;
@@ -260,17 +384,26 @@ namespace Unity.AssetManager.Core.Editor
         public OrganizationInfo SelectedOrganization =>
             IsLoading || string.IsNullOrEmpty(m_OrganizationInfo?.Id) ? null : m_OrganizationInfo;
 
-        public ProjectInfo SelectedProject
+        public ProjectOrLibraryInfo SelectedProjectOrLibrary
         {
-            get { return m_OrganizationInfo?.ProjectInfos?.Find(p => p.Id == m_SelectedProjectId); }
+            get
+            {
+                return m_OrganizationInfo?.ProjectInfos?.Find(p => p.Id == m_SelectedProjectId) ?? SelectedAssetLibrary;
+
+            }
+        }
+
+        public ProjectOrLibraryInfo SelectedAssetLibrary
+        {
+            get { return m_AssetLibrariesProjects?.Find(p => p.Id == m_SelectedProjectId); }
         }
 
         public CollectionInfo SelectedCollection
         {
             get
             {
-                var collection = SelectedProject?.GetCollection(m_CollectionPath);
-                return collection ?? new CollectionInfo(SelectedOrganization?.Id, SelectedProject?.Id, null);
+                var collection = SelectedProjectOrLibrary?.GetCollection(m_CollectionPath);
+                return collection ?? new CollectionInfo(SelectedOrganization?.Id, SelectedProjectOrLibrary?.Id, null);
             }
         }
 
@@ -303,9 +436,9 @@ namespace Unity.AssetManager.Core.Editor
         /// <summary>
         /// Sets parameter for testing
         /// </summary>
-        internal ProjectOrganizationProvider With(IMessageManager messageManager)
+        internal ProjectOrganizationProvider With(IPreferencesStorage preferencesStorage)
         {
-            m_MessageManager = messageManager;
+            m_PreferencesStorage = preferencesStorage;
             return this;
         }
 
@@ -357,11 +490,13 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             _ = TryLoadValidOrganizationAsync();
+            m_AssetLibrariesLoadTask = TryLoadAssetLibrariesAsync();
         }
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
             _ = TryLoadValidOrganizationAsync();
+            m_AssetLibrariesLoadTask = TryLoadAssetLibrariesAsync();
         }
 
         public async IAsyncEnumerable<UserInfo> GetOrganizationUsersAsync(string organizationId, Range range, [EnumeratorCancellation] CancellationToken token)
@@ -401,12 +536,14 @@ namespace Unity.AssetManager.Core.Editor
 
         public void SelectProject(string projectId, string collectionPath = null, bool updateProject = false)
         {
-            var currentProjectId = SelectedProject?.Id;
+            var currentProjectId = SelectedProjectOrLibrary?.Id;
 
             if (string.IsNullOrEmpty(projectId) && string.IsNullOrEmpty(currentProjectId))
                 return;
 
-            if (!string.IsNullOrEmpty(projectId) && m_OrganizationInfo?.ProjectInfos?.Exists(p => p.Id == projectId) == false)
+            if (!string.IsNullOrEmpty(projectId) &&
+                m_OrganizationInfo?.ProjectInfos?.Exists(p => p.Id == projectId) == false &&
+                (m_AssetLibrariesProjects == null || m_AssetLibrariesProjects?.Exists(p => p.Id == projectId) == false))
             {
                 Debug.LogWarning($"Project {projectId} is not part of the organization {m_OrganizationInfo.Name} '{m_OrganizationInfo.Id}'");
                 return;
@@ -418,7 +555,7 @@ namespace Unity.AssetManager.Core.Editor
             SavedProjectId = m_SelectedProjectId;
             SavedCollectionPath = m_CollectionPath;
 
-            ProjectSelectionChanged?.Invoke(SelectedProject, SelectedCollection);
+            ProjectSelectionChanged?.Invoke(SelectedProjectOrLibrary ?? SelectedAssetLibrary, SelectedCollection);
 
             if (updateProject)
             {
@@ -430,12 +567,24 @@ namespace Unity.AssetManager.Core.Editor
         {
             var projectDescriptor = new ProjectDescriptor(new OrganizationId(SavedOrganizationId),
                 new ProjectId(m_UnityConnectProxy.ProjectId));
-            await AssetRepository.EnableProjectForAssetManagerLiteAsync(projectDescriptor, CancellationToken.None);
 
-            await LoadOrganization(SavedOrganizationId);
+            try
+            {
+                await AssetRepository.EnableProjectForAssetManagerLiteAsync(projectDescriptor, CancellationToken.None);
+                await LoadOrganization(SavedOrganizationId);
+            }
+            catch (Exception e)
+            {
+                m_MessageManager?.SetHelpBoxMessage(new HelpBoxMessage(
+                    L10n.Tr("There was a problem enabling this project in the Asset Manager. Please ensure it has been configured for Unity Cloud and that you have the correct permissions."),
+                    RecommendedAction.OpenUnityCloudConfigurationDocumentation,
+                    HelpBoxMessageType.Error));
+
+                Utilities.DevLogException(e);
+            }
         }
 
-        public ProjectInfo GetProject(string projectId)
+        public ProjectOrLibraryInfo GetProject(string projectId)
         {
             return m_OrganizationInfo?.ProjectInfos.Find(p => p.Id == projectId);
         }
@@ -566,6 +715,39 @@ namespace Unity.AssetManager.Core.Editor
             return await m_VersionLabelsTask;
         }
 
+        public async IAsyncEnumerable<StatusFlowInfo> GetOrganizationStatusFlowsAsync([EnumeratorCancellation] CancellationToken token)
+        {
+            await foreach (var flow in AssetRepository.ListStatusFlowsAsync(new OrganizationId(m_OrganizationInfo.Id), Range.All, token))
+            {
+                var statuses = new List<IStatus>();
+                await foreach (var status in flow.ListStatusesAsync(Range.All, token))
+                    statuses.Add(status);
+
+                var statusTransitions = new List<IStatusTransition>();
+                await foreach (var transition in flow.ListTransitionsAsync(Range.All, token))
+                    statusTransitions.Add(transition);
+
+                yield return StatusFlowMapper.From(flow, statuses, statusTransitions);
+            }
+        }
+
+        public async Task<StatusFlowInfo> GetOrganizationDefaultStatusFlowAsync(CancellationToken token = default)
+        {
+            var defaultStatusFlow = await AssetRepository.GetDefaultStatusFlowAsync(new OrganizationId(m_OrganizationInfo.Id), token);
+            if (defaultStatusFlow == null)
+                return null;
+
+            var statuses = new List<IStatus>();
+            await foreach (var status in defaultStatusFlow.ListStatusesAsync(Range.All, token))
+                statuses.Add(status);
+
+            var statusTransitions = new List<IStatusTransition>();
+            await foreach (var transition in defaultStatusFlow.ListTransitionsAsync(Range.All, token))
+                statusTransitions.Add(transition);
+
+            return StatusFlowMapper.From(defaultStatusFlow, statuses, statusTransitions);
+        }
+
         async Task<List<string>> GetOrganizationVersionLabelsInternalAsync()
         {
             var query = AssetRepository.QueryLabels(new OrganizationId(m_OrganizationInfo.Id));
@@ -639,6 +821,67 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
+        internal async Task TryLoadAssetLibrariesAsync()
+        {
+            if (!IsCloudReachable || !IsLoggedIn)
+            {
+                return;
+            }
+
+            var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            var assetLibraries = (await ListAssetLibrariesAsync(default)).ToList();
+
+            if (assetLibraries.Count == 0)
+            {
+                return; // something went wrong in the refresh, we keep what was serialized instead
+            }
+
+            // we filter out Default Lite Asset Library as it's not meant to be shown and we don't have the flag yet in the asset sdk
+            var assetLibrariesProjectInfos = new List<ProjectOrLibraryInfo>();
+            foreach (var assetLibrary in assetLibraries)
+            {
+                var projectInfo = await DataMapper.From(assetLibrary, true, CancellationToken.None);
+                if (projectInfo == null || projectInfo.Name == "Default Lite Asset Library") continue;
+
+                assetLibrariesProjectInfos.Add(projectInfo);
+            }
+            m_AssetLibrariesProjects = assetLibrariesProjectInfos;
+
+            if (SelectedOrganization != null)
+                AssetLibrariesProjectsLoaded?.Invoke(m_AssetLibrariesProjects);
+        }
+
+        async Task<IEnumerable<IAssetLibrary>> ListAssetLibrariesAsync(CancellationToken token)
+        {
+            var queryBuilder = AssetRepository.QueryAssetLibraries();
+
+            var assetLibraryCacheConfiguration = new AssetLibraryCacheConfiguration { CacheProperties = true };
+
+            var results = queryBuilder
+                .WithCacheConfiguration(assetLibraryCacheConfiguration)
+                .LimitTo(Range.All)
+                .ExecuteAsync(token);
+
+            List<IAssetLibrary> libraries = new();
+            await foreach (var library in results.WithCancellation(token))
+            {
+                libraries.Add(library);
+            }
+
+            return libraries;
+        }
+
+        public async Task<List<ProjectOrLibraryInfo>> GetAssetLibrariesProjectsAsync()
+        {
+            if (m_AssetLibrariesProjects != null && m_AssetLibrariesProjects.Any()) //we use what was serialized
+                return m_AssetLibrariesProjects;
+
+            m_AssetLibrariesLoadTask ??= TryLoadAssetLibrariesAsync();
+            await m_AssetLibrariesLoadTask;
+
+            return m_AssetLibrariesProjects;
+        }
+
         Task LoadOrganization(string newOrgId)
         {
             if (!IsCloudReachable || !IsLoggedIn)
@@ -656,10 +899,9 @@ namespace Unity.AssetManager.Core.Editor
 
             Utilities.DevLog($"Fetching organization info for '{newOrgId}'...");
 
-            // If the organization is not set, show a message
+            // If the organization is not set, invoke change notification
             if (string.IsNullOrEmpty(newOrgId) || newOrgId == "none")
             {
-                RaiseOrganizationErrorMessage(k_NoOrganizationMessage);
                 InvokeOrganizationChanged();
                 return Task.CompletedTask;
             }
@@ -669,10 +911,7 @@ namespace Unity.AssetManager.Core.Editor
                 loadingStartCallback: () =>
                 {
                     LoadingStateChanged?.Invoke(true);
-
-                    m_MessageManager.SetGridViewMessage(k_EmptyMessage);
-
-                    InvokeOrganizationChanged(); // TODO Should use a different event
+                    InvokeOrganizationChanged();
                 },
                 cancelledCallback: () =>
                 {
@@ -682,9 +921,7 @@ namespace Unity.AssetManager.Core.Editor
                 exceptionCallback: e =>
                 {
                     Debug.LogException(e);
-
-                    RaiseOrganizationErrorMessage(k_ErrorRetrievingOrganizationMessage);
-                    InvokeOrganizationChanged(); // TODO Send exception event
+                    InvokeOrganizationChanged();
                 },
                 successCallback: result =>
                 {
@@ -693,14 +930,8 @@ namespace Unity.AssetManager.Core.Editor
 
                     InvokeOrganizationChanged();
 
-                    if (m_OrganizationInfo?.ProjectInfos.Any() == false)
-                    {
-                        m_MessageManager.SetGridViewMessage(k_CurrentProjectNotEnabledMessage);
-                    }
-                    else
-                    {
+                    if (m_OrganizationInfo?.ProjectInfos.Any() == true)
                         SelectProject(RestoreSelectedProjectId(), RestoreSelectedCollection());
-                    }
                 },
                 finallyCallback: () => { LoadingStateChanged?.Invoke(false); }
             );
@@ -819,17 +1050,6 @@ namespace Unity.AssetManager.Core.Editor
         }
 #endif
 
-        void RaiseOrganizationErrorMessage(Message message)
-        {
-            if (m_UnityConnectProxy.AreCloudServicesReachable)
-            {
-                m_MessageManager.SetGridViewMessage(message);
-            }
-            else
-            {
-                m_MessageManager.SetHelpBoxMessage(k_NoConnectionMessage);
-            }
-        }
 
         string RestoreSelectedProjectId()
         {
@@ -861,10 +1081,13 @@ namespace Unity.AssetManager.Core.Editor
             ProjectInfoChanged?.Invoke(projectInfo);
         }
 
-        async Task<ProjectInfo> GetProjectAsync(string projectId)
+        async Task<ProjectOrLibraryInfo> GetProjectAsync(string projectId)
         {
             if (string.IsNullOrEmpty(projectId))
                 return null;
+
+            if (m_AssetLibrariesProjects != null && m_AssetLibrariesProjects.Exists(p => p.Id == projectId))
+                return m_AssetLibrariesProjects.Find(p => p.Id == projectId);
 
             var projectInfo = await GetProjectInfoAsync(SelectedOrganization.Id, projectId, CancellationToken.None);
             if (projectInfo == null)
@@ -883,7 +1106,7 @@ namespace Unity.AssetManager.Core.Editor
             return projectInfo;
         }
 
-        async Task<ProjectInfo> GetProjectInfoAsync(string organizationId, string projectId, CancellationToken token)
+        async Task<ProjectOrLibraryInfo> GetProjectInfoAsync(string organizationId, string projectId, CancellationToken token)
         {
             try
             {
@@ -952,7 +1175,7 @@ namespace Unity.AssetManager.Core.Editor
         internal interface IDataMapper
         {
             [ExcludeFromCoverage]
-            async IAsyncEnumerable<ProjectInfo> ListProjectsAsync(AssetProjectQueryBuilder queryBuilder,
+            async IAsyncEnumerable<ProjectOrLibraryInfo> ListProjectsAsync(AssetProjectQueryBuilder queryBuilder,
                 [EnumeratorCancellation] CancellationToken token)
             {
                 await foreach (var project in queryBuilder.ExecuteAsync(token))
@@ -972,11 +1195,11 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             [ExcludeFromCoverage]
-            async Task<ProjectInfo> From(IAssetProject project, bool waitForCollections, CancellationToken token)
+            async Task<ProjectOrLibraryInfo> From(IAssetProject project, bool waitForCollections, CancellationToken token)
             {
                 var projectProperties = await project.GetPropertiesAsync(token);
 
-                var projectInfo = new ProjectInfo(
+                var projectInfo = new ProjectOrLibraryInfo(
                     project.Descriptor.ProjectId.ToString(),
                     projectProperties.Name
                 );
@@ -1004,6 +1227,42 @@ namespace Unity.AssetManager.Core.Editor
                 }
 
                 return projectInfo;
+            }
+
+            [ExcludeFromCoverage]
+            async Task<ProjectOrLibraryInfo> From(IAssetLibrary assetLibrary, bool waitForCollections, CancellationToken token)
+            {
+                var projectProperties = await assetLibrary.GetPropertiesAsync(token);
+
+                var libraryInfo = new ProjectOrLibraryInfo(
+                    assetLibrary.Id.ToString(),
+                    projectProperties.Name,
+                    true
+                );
+
+                if (!projectProperties.HasCollection)
+                    return libraryInfo;
+
+                var collectionTask = GetCollections(assetLibrary,
+                    projectProperties.Name,
+                    collections =>
+                    {
+                        libraryInfo.SetCollections(collections.Select(c => new CollectionInfo
+                        (
+                            string.Empty,
+                            assetLibrary.Id.ToString(),
+                            c.Name,
+                            c.ParentPath
+                        )));
+                    },
+                    token);
+
+                if (waitForCollections)
+                {
+                    await collectionTask;
+                }
+
+                return libraryInfo;
             }
 
             [ExcludeFromCoverage]
@@ -1037,6 +1296,18 @@ namespace Unity.AssetManager.Core.Editor
             {
                 var asyncLoad = new AsyncLoadOperation();
                 return asyncLoad.Start(t => project.ListCollectionsAsync(Range.All, CancellationTokenSource.CreateLinkedTokenSource(t, token).Token),
+                    null,
+                    successCallback,
+                    null,
+                    () => Utilities.DevLog($"Cancelled fetching collections for {projectName}."),
+                    ex => Utilities.DevLog($"Error fetching collections for {projectName}: {ex.Message}"));
+            }
+
+            [ExcludeFromCoverage]
+            static Task GetCollections(IAssetLibrary assetLibrary, string projectName, Action<IEnumerable<IAssetCollection>> successCallback, CancellationToken token)
+            {
+                var asyncLoad = new AsyncLoadOperation();
+                return asyncLoad.Start(t => assetLibrary.ListCollectionsAsync(Range.All, CancellationTokenSource.CreateLinkedTokenSource(t, token).Token),
                     null,
                     successCallback,
                     null,

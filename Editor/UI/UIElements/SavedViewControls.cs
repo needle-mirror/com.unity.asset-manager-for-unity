@@ -10,6 +10,7 @@ namespace Unity.AssetManager.UI.Editor
         const string k_UssClassName = "unity-saved-view-controls";
 
         ISavedAssetSearchFilterManager m_SavedAssetSearchFilterManager;
+        SaveViewButton m_SaveViewButton;
 
         public SavedViewControls(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
             ISavedAssetSearchFilterManager savedAssetSearchFilterManager)
@@ -27,8 +28,8 @@ namespace Unity.AssetManager.UI.Editor
             clearButton.focusable = false;
             Add(clearButton);
 
-            var saveButton = new SaveViewButton(m_PageManager, m_SavedAssetSearchFilterManager);
-            Add(saveButton);
+            m_SaveViewButton = new SaveViewButton(m_PageManager, m_SavedAssetSearchFilterManager);
+            Add(m_SaveViewButton);
         }
 
         void ClearCurrentFilter()
@@ -39,6 +40,7 @@ namespace Unity.AssetManager.UI.Editor
         protected override void OnActivePageChanged(IPage page)
         {
             InitDisplay(page);
+            UIElementsUtils.SetDisplay(m_SaveViewButton, m_ProjectOrganizationProvider.SelectedAssetLibrary == null);
         }
 
         protected override bool IsDisplayed(IPage page)

@@ -145,14 +145,14 @@ namespace Unity.AssetManager.UI.Editor
             else
             {
                 m_UploadStaging.SetOrganizationInfo(m_ProjectOrganizationProvider.SelectedOrganization);
-                m_UploadStaging.SetProjectId(m_ProjectOrganizationProvider.SelectedProject?.Id);
+                m_UploadStaging.SetProjectId(m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Id);
                 m_UploadStaging.SetCollectionPath(m_ProjectOrganizationProvider.SelectedCollection?.GetFullPath());
 
                 var status = m_UploadStaging.StagingStatus;
                 if (status != null)
                 {
                     if (status.TargetOrganizationId != m_ProjectOrganizationProvider.SelectedOrganization?.Id ||
-                        status.TargetProjectId != m_ProjectOrganizationProvider.SelectedProject?.Id)
+                        status.TargetProjectId != m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Id)
                     {
                         RefreshStagingStatus();
                     }
@@ -524,10 +524,17 @@ namespace Unity.AssetManager.UI.Editor
 
         protected override void OnLoadMoreSuccessCallBack()
         {
-            if (m_ProjectOrganizationProvider.SelectedProject == null)
+            if (!CheckConnection())
+                return;
+
+            if (m_ProjectOrganizationProvider.SelectedProjectOrLibrary == null)
             {
                 // If no project is selected (coming from AllAssets or AM window never was opened), show select project message
-                SetPageMessage(MissingSelectedProjectMessage);
+                SetPageMessage(Messages.MissingSelectedProjectMessage);
+            }
+            else if (m_ProjectOrganizationProvider.SelectedAssetLibrary != null)
+            {
+                SetPageMessage(new Message(L10n.Tr(m_ProjectOrganizationProvider.SelectedAssetLibrary.Name + Constants.CantSelectAssetLibraryText)));
             }
             else if (!AssetList.Any() || m_UploadStaging.UploadAssets.Count == 0)
             {
@@ -563,10 +570,10 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        protected override void OnProjectSelectionChanged(ProjectOrLibraryInfo projectOrLibraryInfo, CollectionInfo collectionInfo)
         {
             // Stay in upload page
-            m_UploadStaging.SetProjectId(projectInfo?.Id);
+            m_UploadStaging.SetProjectId(projectOrLibraryInfo?.Id);
             m_UploadStaging.SetCollectionPath(collectionInfo?.GetFullPath());
 
             // Changing the project or organization require to recompute the UploadAssetData because re-upload might change from one project to another
@@ -735,6 +742,10 @@ namespace Unity.AssetManager.UI.Editor
             if (!hasUploadPermission)
             {
                 tooltip = L10n.Tr(Constants.UploadNoPermissionTooltip);
+            }
+            else if (m_ProjectOrganizationProvider.SelectedAssetLibrary != null)
+            {
+                tooltip = L10n.Tr(Constants.UploadToAssetLibraryTooltip);
             }
             else if (string.IsNullOrEmpty(m_UploadStaging.ProjectId))
             {

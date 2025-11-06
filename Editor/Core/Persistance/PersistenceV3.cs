@@ -36,6 +36,9 @@ namespace Unity.AssetManager.Core.Editor
             public string status;
 
             [SerializeField]
+            public string statusFlowId;
+
+            [SerializeField]
             public string description;
 
             [SerializeField]
@@ -77,6 +80,9 @@ namespace Unity.AssetManager.Core.Editor
 
             [SerializeField]
             public string versionLabel;
+
+            [SerializeField]
+            public string libraryId;
         }
 
         [Serializable]
@@ -361,6 +367,7 @@ namespace Unity.AssetManager.Core.Editor
                 trackedAsset.name,
                 trackedAsset.assetType,
                 trackedAsset.status,
+                trackedAsset.statusFlowId,
                 trackedAsset.description,
                 DateTime.Parse(trackedAsset.created, DateTimeFormatInfo.CurrentInfo, DateTimeStyles.RoundtripKind),
                 DateTime.Parse(trackedAsset.updated, DateTimeFormatInfo.CurrentInfo, DateTimeStyles.RoundtripKind),
@@ -389,7 +396,8 @@ namespace Unity.AssetManager.Core.Editor
                 projectId = identifier.ProjectId,
                 assetId = identifier.AssetId,
                 versionId = identifier.Version,
-                versionLabel = identifier.VersionLabel
+                versionLabel = identifier.VersionLabel,
+                libraryId = identifier.LibraryId
             };
         }
 

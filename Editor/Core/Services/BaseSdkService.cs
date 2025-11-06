@@ -7,6 +7,7 @@ using Unity.Cloud.CommonEmbedded;
 using Unity.Cloud.CommonEmbedded.Runtime;
 using Unity.Cloud.IdentityEmbedded;
 using Unity.Cloud.IdentityEmbedded.Editor;
+using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEngine;
 
@@ -49,7 +50,7 @@ namespace Unity.AssetManager.Core.Editor
         {
             m_ServiceOverride = sdkServiceOverride;
         }
-        
+
         public async Task AuthenticationStateMoveNextAsync()
         {
             if (m_ServiceOverride == null)
@@ -151,7 +152,17 @@ namespace Unity.AssetManager.Core.Editor
 
             static void CreateServices()
             {
-                var pkgInfo = PackageInfo.FindForAssembly(Assembly.GetAssembly(typeof(Services)));
+                // Default name and version in case we cannot find the package info (for example when running in the AssetImportWorker)
+                string packageName = AssetManagerCoreConstants.PackageName;
+                string packageVersion = "0.0.0"; // unknown version
+
+                var pkgInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(Assembly.GetAssembly(typeof(Services)));
+                if (pkgInfo != null)
+                {
+                    packageName = pkgInfo.name;
+                    packageVersion = pkgInfo.version;
+                }
+
                 var httpClient = new UnityHttpClient();
                 IServiceHostResolver serviceHostResolver;
                 IServiceHttpClient serviceHttpClient;
@@ -166,7 +177,7 @@ namespace Unity.AssetManager.Core.Editor
                     s_PrivateCloudAuthenticator = new PrivateCloudAuthenticator();
                     serviceHttpClient =
                         new ServiceHttpClient(httpClient, s_PrivateCloudAuthenticator, new AppIdProvider())
-                            .WithApiSourceHeaders(pkgInfo.name, pkgInfo.version);
+                            .WithApiSourceHeaders(packageName, packageVersion);
 
                     UnityEditorServiceAuthorizer.instance.AuthenticationStateChanged -= OnAuthenticationStateChanged;
                     s_PrivateCloudAuthenticator.AuthenticationStateChanged += OnAuthenticationStateChanged;
@@ -176,7 +187,7 @@ namespace Unity.AssetManager.Core.Editor
                     serviceHostResolver = ServiceHostResolverFactory.Create();
                     serviceHttpClient =
                         new ServiceHttpClient(httpClient, UnityEditorServiceAuthorizer.instance, new AppIdProvider())
-                            .WithApiSourceHeaders(pkgInfo.name, pkgInfo.version);
+                            .WithApiSourceHeaders(packageName, packageVersion);
 
                     UnityEditorServiceAuthorizer.instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
                 }

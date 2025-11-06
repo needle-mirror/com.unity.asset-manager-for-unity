@@ -76,16 +76,9 @@ namespace Unity.Cloud.AssetsEmbedded
                 UserId = m_SearchFilter.UserId.GetValue() == UserId.None ? null : m_SearchFilter.UserId.GetValue().ToString()
             };
 
-            var (start, length) = m_Range.GetValidatedOffsetAndLength(int.MaxValue);
-
-            if (length == 0) yield break;
-
-            var results = await m_DataSource.GetTransformationsAsync(m_ProjectDescriptor, data, cancellationToken);
-            for (var i = start; i < results.Length && i < start + length; ++i)
+            await foreach(var transformation in m_DataSource.GetTransformationsAsync(m_ProjectDescriptor, m_Range, data, cancellationToken))
             {
-                if (cancellationToken.IsCancellationRequested) yield break;
-
-                yield return results[i].From(m_DataSource, m_DefaultCacheConfiguration, m_ProjectDescriptor, m_TransformationCacheConfiguration);
+                yield return transformation.From(m_DataSource, m_DefaultCacheConfiguration, m_ProjectDescriptor, m_TransformationCacheConfiguration);
             }
         }
     }

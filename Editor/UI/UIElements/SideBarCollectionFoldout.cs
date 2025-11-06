@@ -1,10 +1,34 @@
 using System;
+using System.Text.RegularExpressions;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine.UIElements;
 using Image = UnityEngine.UIElements.Image;
 
 namespace Unity.AssetManager.UI.Editor
 {
+    // Struct to hold the naming state of a Foldout in order to restore editing state after UI rebuilds
+    struct FoldoutNamingState
+    {
+        public bool IsNaming { get; }
+        public bool IsRenaming { get; }
+        public string NamingInput { get; }
+        public Action OnNamingFailed { get; set; }
+        public string CollectionId { get; }
+        public string ParentCollectionId { get; }
+
+        public FoldoutNamingState(bool isNaming, bool isRenaming, string namingInput, Action onNamingFailed, string collectionId = null, string parentCollectionId = null)
+        {
+            IsNaming = isNaming;
+            IsRenaming = isRenaming;
+            NamingInput = namingInput;
+            OnNamingFailed = onNamingFailed;
+            CollectionId = collectionId;
+            ParentCollectionId = parentCollectionId;
+        }
+
+        public bool IsInNamingMode => IsNaming || IsRenaming;
+    }
+
     class SideBarCollectionFoldout : SideBarFoldout
     {
         static readonly string k_IconFolderOpen = "icon-folder-open";
@@ -19,17 +43,49 @@ namespace Unity.AssetManager.UI.Editor
 
         string m_CollectionPath;
 
+        bool m_IsNaming;
+        bool m_IsRenaming;
+        Action m_OnNamingFailed;
+
+        bool m_IsAssetLibrary;
+
+        public string ProjectId => m_ProjectId;
+        public string CollectionPath => m_CollectionPath;
+
+        public FoldoutNamingState GetNamingState()
+        {
+            return new FoldoutNamingState(m_IsNaming, m_IsRenaming, m_TextField?.value ?? string.Empty,
+                m_OnNamingFailed, name, (parent as SideBarCollectionFoldout)?.name);
+        }
+
+        public void RestoreNamingState(FoldoutNamingState state)
+        {
+            if (state.IsNaming)
+            {
+                StartNaming(state.OnNamingFailed);
+                m_TextField.value = state.NamingInput;
+            }
+            else if (state.IsRenaming)
+            {
+                StartRenaming();
+                m_TextField.value = state.NamingInput;
+            }
+        }
+
         internal SideBarCollectionFoldout(IStateManager stateManager, IMessageManager messageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            string foldoutName, string projectId, string collectionPath, bool isPopulated)
+            string foldoutName, string projectId, string collectionPath, bool isPopulated, bool isAssetLibrary = false)
             : base(stateManager, messageManager, projectOrganizationProvider, foldoutName, isPopulated)
         {
             m_ProjectId = projectId;
             m_CollectionPath = collectionPath;
             name = GetCollectionId(m_ProjectId, m_CollectionPath);
 
-            var iconParent = this.Q(className: inputUssClassName);
-            m_Icon = iconParent.Q<Image>();
+            var foldoutContentParent = this.Q(className: inputUssClassName);
+            foldoutContentParent.style.flexShrink = 1;
+
+            m_Icon = foldoutContentParent.Q<Image>();
             m_Label = m_Toggle.Q<Label>();
+            m_Label.AddToClassList("sidebar-collection-foldout-label");
             m_TextField = new TextField();
             m_TextField.selectAllOnFocus = false;
             m_TextField.selectAllOnMouseUp = false;
@@ -39,6 +95,8 @@ namespace Unity.AssetManager.UI.Editor
 
             RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
             RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
+
+            m_IsAssetLibrary = isAssetLibrary;
         }
 
         public static string GetCollectionId(string projectId, string collectionPath)
@@ -48,6 +106,7 @@ namespace Unity.AssetManager.UI.Editor
 
         public void StartRenaming()
         {
+            m_IsRenaming = true;
             UIElementsUtils.Hide(m_Label);
             UIElementsUtils.Show(m_TextField);
             m_TextField.value = m_Label.text;
@@ -55,10 +114,15 @@ namespace Unity.AssetManager.UI.Editor
             m_TextField.SelectAll();
 
             m_TextField.RegisterCallback<FocusOutEvent>(Rename);
+
+            ScrollToThisElement();
         }
 
-        public void StartNaming()
+        public void StartNaming(Action onNamingFailed = null)
         {
+            m_IsNaming = true;
+            m_OnNamingFailed = onNamingFailed;
+
             UIElementsUtils.Hide(m_Label);
             UIElementsUtils.Show(m_TextField);
             m_TextField.value = m_Label.text;
@@ -66,6 +130,8 @@ namespace Unity.AssetManager.UI.Editor
             m_TextField.SelectAll();
 
             m_TextField.RegisterCallback<FocusOutEvent>(OnNameSet);
+
+            ScrollToThisElement();
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
@@ -75,9 +141,15 @@ namespace Unity.AssetManager.UI.Editor
                 Utilities.DevLog("Organization is not selected, cannot create collection foldout.");
                 return;
             }
-            
+
             RegisterEventForIconChange();
             RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
+            m_ProjectOrganizationProvider.ProjectInfoChanged += OnProjectInfoChanged;
+
+            SetIcon();
+
+            if (m_IsAssetLibrary)
+                return;
 
             if (m_ContextualMenuManipulator != null)
             {
@@ -101,7 +173,6 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             this.AddManipulator(m_ContextualMenuManipulator);
-            SetIcon();
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
@@ -111,6 +182,16 @@ namespace Unity.AssetManager.UI.Editor
 
             this.RemoveManipulator(m_ContextualMenuManipulator);
             m_ContextualMenuManipulator = null;
+
+            m_ProjectOrganizationProvider.ProjectInfoChanged -= OnProjectInfoChanged;
+        }
+
+        void OnProjectInfoChanged(ProjectOrLibraryInfo projectOrLibraryInfo)
+        {
+            if (projectOrLibraryInfo.Id != m_ProjectId)
+                return;
+
+            m_Label.text = projectOrLibraryInfo.Name;
         }
 
         void OnPointerDown(PointerDownEvent evt)
@@ -129,7 +210,7 @@ namespace Unity.AssetManager.UI.Editor
         public override void SetSelected(bool selected)
         {
             base.SetSelected(selected);
-            
+
             m_Toggle.EnableInClassList(k_UnityListViewItemSelected, selected);
 
             if (selected)
@@ -209,8 +290,30 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
+        void ScrollToThisElement()
+        {
+            var element = parent;
+            while (element != null)
+            {
+                if (element is SidebarContent sidebarContent)
+                {
+                    sidebarContent.ScrollToElement(this);
+                    return;
+                }
+                element = element.parent;
+            }
+        }
+
+        bool IsValidCollectionName(string collectionName)
+        {
+            return !string.IsNullOrWhiteSpace(collectionName) &&
+                   Regex.IsMatch(collectionName, @"^[^%]+$") &&
+                   collectionName.Trim() != ".";
+        }
+
         async void OnNameSet(FocusOutEvent evt)
         {
+            m_IsNaming = false;
             UIElementsUtils.Hide(m_TextField);
             UIElementsUtils.Show(m_Label);
             m_TextField.UnregisterCallback<FocusOutEvent>(OnNameSet);
@@ -219,6 +322,14 @@ namespace Unity.AssetManager.UI.Editor
                 return;
 
             var collectionName = m_TextField.value.Trim();
+
+            if (!IsValidCollectionName(collectionName))
+            {
+                m_MessageManager.SetHelpBoxMessage(new HelpBoxMessage("Collection name cannot contain '%' character or be a single '.' character.",
+                    RecommendedAction.None, messageType:HelpBoxMessageType.Error));
+                m_OnNamingFailed?.Invoke();
+                return;
+            }
 
             m_Label.text = collectionName;
 
@@ -246,6 +357,8 @@ namespace Unity.AssetManager.UI.Editor
                         messageType:HelpBoxMessageType.Error));
                 }
 
+                m_OnNamingFailed?.Invoke();
+
                 throw;
             }
             finally
@@ -256,6 +369,7 @@ namespace Unity.AssetManager.UI.Editor
 
         async void Rename(FocusOutEvent evt)
         {
+            m_IsRenaming = false;
             UIElementsUtils.Hide(m_TextField);
             UIElementsUtils.Show(m_Label);
             m_TextField.UnregisterCallback<FocusOutEvent>(Rename);
@@ -267,6 +381,13 @@ namespace Unity.AssetManager.UI.Editor
 
             if (string.IsNullOrWhiteSpace(m_TextField.value))
                 return;
+
+            if (!IsValidCollectionName(collectionName))
+            {
+                m_MessageManager.SetHelpBoxMessage(new HelpBoxMessage("Collection name cannot contain '%' character or be a single '.' character.",
+                    RecommendedAction.None, messageType:HelpBoxMessageType.Error));
+                return;
+            }
 
             m_Label.text = collectionName;
             var collectionInfo = CollectionInfo.CreateFromFullPath(

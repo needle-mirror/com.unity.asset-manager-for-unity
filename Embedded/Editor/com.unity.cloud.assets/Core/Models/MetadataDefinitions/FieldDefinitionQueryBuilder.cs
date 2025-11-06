@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -13,7 +15,9 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         readonly IAssetDataSource m_AssetDataSource;
         readonly AssetRepositoryCacheConfiguration m_DefaultCacheConfiguration;
-        readonly OrganizationId m_OrganizationId;
+        readonly OrganizationId m_OrganizationId = OrganizationId.None;
+        readonly AssetLibraryId m_AssetLibraryId = AssetLibraryId.None;
+        readonly IEnumerable<string> m_FieldDefinitionKeys;
 
         FieldDefinitionCacheConfiguration? m_FieldDefinitionCacheConfiguration;
         FieldDefinitionSearchFilter m_SearchFilter;
@@ -25,6 +29,20 @@ namespace Unity.Cloud.AssetsEmbedded
             m_AssetDataSource = assetDataSource;
             m_DefaultCacheConfiguration = defaultCacheConfiguration;
             m_OrganizationId = organizationId;
+        }
+
+        internal FieldDefinitionQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, AssetLibraryId assetLibraryId, IEnumerable<string> fieldDefinitionKeys)
+        {
+            m_AssetDataSource = assetDataSource;
+            m_DefaultCacheConfiguration = defaultCacheConfiguration;
+            m_AssetLibraryId = assetLibraryId;
+
+            if (fieldDefinitionKeys == null || !fieldDefinitionKeys.Any())
+            {
+                throw new ArgumentException("Field definition keys cannot be null or empty.", nameof(fieldDefinitionKeys));
+            }
+
+            m_FieldDefinitionKeys = fieldDefinitionKeys;
         }
 
         /// <summary>
@@ -54,7 +72,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <param name="sortingOrder">The sorting order (Ascending|Descending). </param>
         /// <returns>The calling <see cref="FieldDefinitionQueryBuilder"/>. </returns>
-        public FieldDefinitionQueryBuilder OrderByName(SortingOrder sortingOrder )
+        public FieldDefinitionQueryBuilder OrderByName(SortingOrder sortingOrder)
         {
             m_SortingOrder = sortingOrder;
             return this;
@@ -86,20 +104,32 @@ namespace Unity.Cloud.AssetsEmbedded
 
             m_SearchFilter ??= new FieldDefinitionSearchFilter();
 
-            var queryParameters = new Dictionary<string, string>()
+            var queryParameters = new Dictionary<string, string[]>
             {
-                { "IncludeDeleted", m_SearchFilter.Deleted.GetValue().ToString() }
+                {"IncludeDeleted", new[] {m_SearchFilter.Deleted.GetValue().ToString()}}
             };
             var fieldOrigin = m_SearchFilter.FieldOrigin.GetValue();
             if (fieldOrigin.HasValue)
             {
-                queryParameters.Add("FieldOrigin", fieldOrigin.ToString());
+                queryParameters.Add("FieldOrigin", new[] {fieldOrigin.ToString()});
             }
 
-            var enumerator = m_AssetDataSource.ListFieldDefinitionsAsync(m_OrganizationId, pagination, queryParameters, cancellationToken);
-            await foreach(var fieldDefinitionData in enumerator)
+            if (m_AssetLibraryId.IsPathToAssetLibraryValid())
             {
-                yield return fieldDefinitionData.From(m_AssetDataSource, m_DefaultCacheConfiguration, m_OrganizationId, m_FieldDefinitionCacheConfiguration);
+                queryParameters.Add("name", m_FieldDefinitionKeys.ToArray());
+                var enumerator = m_AssetDataSource.ListFieldDefinitionsAsync(m_AssetLibraryId, pagination, queryParameters, cancellationToken);
+                await foreach (var fieldDefinitionData in enumerator)
+                {
+                    yield return fieldDefinitionData.From(m_AssetDataSource, m_DefaultCacheConfiguration, m_AssetLibraryId, m_FieldDefinitionCacheConfiguration);
+                }
+            }
+            else
+            {
+                var enumerator = m_AssetDataSource.ListFieldDefinitionsAsync(m_OrganizationId, pagination, queryParameters, cancellationToken);
+                await foreach (var fieldDefinitionData in enumerator)
+                {
+                    yield return fieldDefinitionData.From(m_AssetDataSource, m_DefaultCacheConfiguration, m_OrganizationId, m_FieldDefinitionCacheConfiguration);
+                }
             }
         }
     }

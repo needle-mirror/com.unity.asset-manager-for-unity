@@ -16,7 +16,7 @@ namespace Unity.Cloud.AssetsEmbedded
             m_Data = data;
         }
 
-        /// <inheritdoc/>
+        /// <inheritdoc />
         public override HttpContent ConstructBody()
         {
             var body = IsolatedSerialization.SerializeWithConverters(m_Data);

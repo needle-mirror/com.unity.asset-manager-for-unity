@@ -7,6 +7,9 @@ using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
 {
+    /// <summary>
+    /// The interface representing an asset version's dataset.
+    /// </summary>
     interface IDataset
     {
         /// <summary>
@@ -87,7 +90,7 @@ namespace Unity.Cloud.AssetsEmbedded
             => throw new NotImplementedException();
 
         /// <summary>
-        /// Refreshes the dataset with the specified fields.
+        /// Retrieves and caches the dataset properties.
         /// </summary>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>
@@ -101,14 +104,34 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<DatasetProperties> GetPropertiesAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
+        /// Returns an object that can be used to query the dataset's update history.
+        /// </summary>
+        /// <returns>A <see cref="DatasetUpdateHistoryQueryBuilder"/>. </returns>
+        DatasetUpdateHistoryQueryBuilder QueryUpdateHistory() => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns the update history for the specified sequence number.
+        /// </summary>
+        /// <param name="sequenceNumber">The sequence number of the history entry. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is an <see cref="DatasetUpdateHistory"/>. </returns>
+        Task<DatasetUpdateHistory> GetUpdateHistoryAsync(int sequenceNumber, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
         /// Updates the dataset.
         /// </summary>
         /// <param name="datasetUpdate">The object containing the necessary information to update the dataset. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>
-        /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
-        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task UpdateAsync(IDatasetUpdate datasetUpdate, CancellationToken cancellationToken);
+        
+        /// <summary>
+        /// Updates the dataset to the state it had at the specified update history sequence number.
+        /// </summary>
+        /// <param name="updateHistorySequenceNumber">The sequence number of the update history entry to revert to. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task with no result. </returns>
+        Task UpdateAsync(int updateHistorySequenceNumber, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Creates and uploads a new file to the dataset.

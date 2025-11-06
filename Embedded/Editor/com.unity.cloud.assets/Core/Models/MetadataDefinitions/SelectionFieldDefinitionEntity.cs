@@ -45,6 +45,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc/>
         public Task SetSelectionValuesAsync(IEnumerable<string> acceptedValues, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var definitionUpdate = new FieldDefinitionBaseData
             {
                 AcceptedValues = acceptedValues.ToArray()
@@ -55,12 +57,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc/>
         public Task AddSelectionValuesAsync(IEnumerable<string> acceptedValues, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.AddAcceptedValuesToFieldDefinitionAsync(Descriptor, acceptedValues, cancellationToken);
         }
 
         /// <inheritdoc/>
         public Task RemoveSelectionValuesAsync(IEnumerable<string> acceptedValues, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_DataSource.RemoveAcceptedValuesFromFieldDefinitionAsync(Descriptor, acceptedValues, cancellationToken);
         }
     }

@@ -5,6 +5,9 @@
 /************************************************
 * General
 ************************************************/
+.collapsed-sidebar {
+    border-right-color: #7E7E7E;
+}
 
 .horizontal-separator {
     background-color: #7E7E7E;
@@ -298,6 +301,10 @@ TagChip:hover, ProjectChip:hover, UserChip:hover, CollectionChip:hover{
     background-color: #E7E7E7;
 }
 
+RoleChip {
+    border-color: #585858;
+}
+
 .details-page-chip__dismiss_button {
     background-color: #C6C6C6;
 }
@@ -334,7 +341,7 @@ TagChip:hover, ProjectChip:hover, UserChip:hover, CollectionChip:hover{
 ************************************************/
 
 .details-page-thumbnail-container {
-    background-color: #A5A5A5;
+    background-color: rgba(133, 133, 133, 1);
 }
 
 .details-page-tabs Button:focus{
@@ -442,10 +449,25 @@ TagChip:hover, ProjectChip:hover, UserChip:hover, CollectionChip:hover{
     border-color: #8A8A8A;
 }
 
-.toolbar-menu,
-.asset-manager-dropdown {
+.toolbar-menu {
     background-color: #E4E4E4;
     border-color: #939393;
+}
+
+.importLocationDropdownContainer:hover {
+    background-color: #D0D0D0;
+}
+
+.importLocationDropdownContainer:active {
+    background-color: #3A79BB;
+}
+
+.cacheLocationDropdownContainer:hover {
+    background-color: #D0D0D0;
+}
+
+.cacheLocationDropdownContainer:active {
+    background-color: #3A79BB;
 }
 
 /************************************************
@@ -511,4 +533,15 @@ PopupContainer {
 .blocking-progress-panel-container {
     background-color: #F0F0F0;
     border-color: #7E7E7E;
+}
+
+/************************************************
+* New Version Notification
+************************************************/
+.unity-new-version-notification-dropdown .unity-base-popup-field__input {
+    background-color: rgba(228, 228, 228, 255);
+}
+
+.unity-new-version-notification-dropdown:hover .unity-base-popup-field__input {
+    background-color: rgba(236, 236, 236, 255);
 }

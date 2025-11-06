@@ -7,7 +7,7 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         internal string Value { get; }
 
-        Groupable(string value)
+        internal Groupable(string value)
         {
             Value = value;
         }

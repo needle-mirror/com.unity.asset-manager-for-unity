@@ -5,6 +5,25 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-08-14
+
+### Added
+- Added support for new ID: `AssetLibraryId`.
+
+### Fixed
+- Fixed silent error when stream canceled before the download completes.
+- Fixed task hang when there is a connection error with the server.
+- Fixed `SingleReaderSingleWriterNativeStream` throwing an exception when a `ReadAsync` is canceled.
+- Dispose of HttpResponseMessage.
+
+## [1.2.1] - 2025-07-17
+
+### Changed
+- Unity Editor Player settings interface to edit and validate `UnityCloudPlayerSettings.AppNamespace` string value.
+
+### Fixed
+- `UnityCloudPlayerSettings.AppNamespace` string value sanitization for url transport.
+
 ## [1.2.0] - 2025-06-26
 
 ### Added

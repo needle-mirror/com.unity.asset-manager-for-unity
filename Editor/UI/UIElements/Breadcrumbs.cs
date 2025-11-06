@@ -37,6 +37,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_PageManager.ActivePageChanged += OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged += ProjectSelectionChanged;
+            m_ProjectOrganizationProvider.ProjectInfoChanged += ProjectInfoChanged;
             m_ProjectOrganizationProvider.OrganizationChanged += OrganizationChanged;
         }
 
@@ -44,6 +45,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_PageManager.ActivePageChanged -= OnActivePageChanged;
             m_ProjectOrganizationProvider.ProjectSelectionChanged -= ProjectSelectionChanged;
+            m_ProjectOrganizationProvider.ProjectInfoChanged -= ProjectInfoChanged;
             m_ProjectOrganizationProvider.OrganizationChanged -= OrganizationChanged;
         }
 
@@ -57,7 +59,12 @@ namespace Unity.AssetManager.UI.Editor
             Refresh();
         }
 
-        void ProjectSelectionChanged(ProjectInfo _, CollectionInfo __)
+        void ProjectSelectionChanged(ProjectOrLibraryInfo _, CollectionInfo __)
+        {
+            Refresh();
+        }
+
+        void ProjectInfoChanged(ProjectOrLibraryInfo _)
         {
             Refresh();
         }
@@ -71,8 +78,8 @@ namespace Unity.AssetManager.UI.Editor
             Clear();
 
             // Project breadcrumb
-            AddBreadcrumbItem(m_ProjectOrganizationProvider.SelectedProject?.Name ?? page.DefaultProjectName,
-                () => { m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject.Id); });
+            AddBreadcrumbItem(m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Name ?? page.DefaultProjectName,
+                () => { m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProjectOrLibrary.Id); });
 
             // Collection/subcollection breadcrumb
             var selectedCollectionPath = m_ProjectOrganizationProvider.SelectedCollection?.GetFullPath();
@@ -86,7 +93,7 @@ namespace Unity.AssetManager.UI.Editor
                     AddBreadcrumbItem(path,
                         () =>
                         {
-                            m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProject.Id,
+                            m_ProjectOrganizationProvider.SelectProject(m_ProjectOrganizationProvider.SelectedProjectOrLibrary.Id,
                                 collectionPath);
                         });
                 }

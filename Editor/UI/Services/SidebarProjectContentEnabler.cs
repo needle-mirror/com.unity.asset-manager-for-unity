@@ -60,7 +60,7 @@ namespace Unity.AssetManager.UI.Editor
                 // else it's a project
                 return m_AssetDataManager.ImportedAssetInfos
                     .Select(x => x.AssetData)
-                    .Any(x => ContainsLinkedProject(x, id));
+                    .Any(x => IsLinkedToProject(x, id));
             }
 
             return true;
@@ -82,9 +82,9 @@ namespace Unity.AssetManager.UI.Editor
             m_AssetDataManager.ImportedAssetInfoChanged -= OnAssetDataChanged;
         }
 
-        static bool ContainsLinkedProject(BaseAssetData assetData, string id)
+        static bool IsLinkedToProject(BaseAssetData assetData, string projectId)
         {
-            return assetData.LinkedProjects != null && assetData.LinkedProjects.Any(p => p.ProjectId == id);
+            return assetData.Identifier.ProjectId == projectId || assetData.LinkedProjects != null && assetData.LinkedProjects.Any(p => p != null && p.ProjectId == projectId);
         }
 
         static bool ContainsLinkedCollection(BaseAssetData assetData, string projectId, string collectionPath)

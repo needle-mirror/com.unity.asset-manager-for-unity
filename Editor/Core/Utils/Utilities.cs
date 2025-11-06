@@ -12,6 +12,7 @@ namespace Unity.AssetManager.Core.Editor
     static class Utilities
     {
         static readonly string[] k_SizeSuffixes = {"B", "Kb", "Mb", "Gb", "Tb"};
+        internal const string k_DevLogPrefix = "<color=#00CED1>[AM4U_DEV]</color>";
 
         internal static string BytesToReadableString(double bytes)
         {
@@ -70,7 +71,7 @@ namespace Unity.AssetManager.Core.Editor
         [System.Diagnostics.Conditional("AM4U_DEV")]
         public static void DevLog(string message)
         {
-            Debug.Log(message);
+            Debug.Log($"{k_DevLogPrefix} {message}");
         }
 
         [System.Diagnostics.Conditional("AM4U_DEV")]
@@ -78,29 +79,30 @@ namespace Unity.AssetManager.Core.Editor
         {
             if (string.IsNullOrEmpty(message))
             {
-                Debug.Assert(condition);
+                Debug.Assert(condition, k_DevLogPrefix);
             }
             else
             {
-                Debug.Assert(condition, message);
+                Debug.Assert(condition, $"{k_DevLogPrefix} {message}");
             }
         }
 
         [System.Diagnostics.Conditional("AM4U_DEV")]
         public static void DevLogError(string message)
         {
-            Debug.LogError(message);
+            Debug.LogError($"{k_DevLogPrefix} {message}");
         }
 
         [System.Diagnostics.Conditional("AM4U_DEV")]
         public static void DevLogWarning(string message)
         {
-            Debug.LogWarning(message);
+            Debug.LogWarning($"{k_DevLogPrefix} {message}");
         }
 
         [System.Diagnostics.Conditional("AM4U_DEV")]
         public static void DevLogException(Exception e)
         {
+            Debug.LogError($"{k_DevLogPrefix} Exception: {e.GetType().Name}");
             Debug.LogException(e);
         }
 

@@ -31,6 +31,9 @@ namespace Unity.AssetManager.UI.Editor
         static readonly string k_UploadIgnoredFoldoutTitle = "Ignored Dependencies";
         static readonly string k_UploadIncludedFoldoutTitle = "Included Dependencies";
 
+        [SerializeReference]
+        IUnityConnectProxy m_UnityConnectProxy;
+
         readonly AssetDataSelection m_SelectedAssetsData = new();
         bool m_IsEditingEnabled = false;
 
@@ -59,7 +62,7 @@ namespace Unity.AssetManager.UI.Editor
                 permissionsManager, dialogManager)
         {
             BuildUxmlDocument();
-
+            m_UnityConnectProxy = unityConnectProxy;
             m_SelectedAssetsData.AssetDataChanged += OnAssetDataEvent;
         }
 
@@ -290,6 +293,7 @@ namespace Unity.AssetManager.UI.Editor
             RefreshFoldoutUI();
             RefreshTitleAndButtons();
             RefreshUploadMetadataContainer();
+            RefreshMultiSelectionFoldoutButtonState();
         }
 
         void RefreshFoldoutUI()
@@ -348,6 +352,20 @@ namespace Unity.AssetManager.UI.Editor
 
             PopulateFoldout(FoldoutName.Unimported, m_SelectedAssetsData.Selection.Where(x => !m_AssetDataManager.IsInProject(x.Identifier)));
             PopulateFoldout(FoldoutName.Imported, m_SelectedAssetsData.Selection.Where(x => m_AssetDataManager.IsInProject(x.Identifier)));
+        }
+
+        void RefreshMultiSelectionFoldoutButtonState()
+        {
+            var cloudServiceReachable = m_UnityConnectProxy.AreCloudServicesReachable;
+
+            foreach (var foldout in m_Foldouts)
+            {
+                foldout.Value.SetButtonEnable(cloudServiceReachable);
+            }
+
+            // Special case: disable Imported (reimport) foldout button if at least one asset is deleted from the cloud
+            var containDeletedAssets = m_SelectedAssetsData.Selection.Any(a => a.AssetDataAttributeCollection?.GetAttribute<ImportAttribute>()?.Status == ImportAttribute.ImportStatus.ErrorSync);
+            m_Foldouts[FoldoutName.Imported].SetButtonEnable(!containDeletedAssets && cloudServiceReachable);
         }
 
         void RefreshUploadPageFoldoutUI()

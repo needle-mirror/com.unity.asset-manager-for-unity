@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,12 +73,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc/>
         public Task UpdateAsync(ILabelUpdate labelUpdate, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_AssetDataSource.UpdateLabelAsync(Descriptor, labelUpdate.From(), cancellationToken);
         }
 
         /// <inheritdoc/>
         public async Task RenameAsync(string labelName, CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             var labelUpdate = new LabelBaseData {Name = labelName};
             await m_AssetDataSource.UpdateLabelAsync(Descriptor, labelUpdate, cancellationToken);
 
@@ -88,12 +93,16 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <inheritdoc/>
         public Task ArchiveAsync(CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_AssetDataSource.UpdateLabelStatusAsync(Descriptor, true, cancellationToken);
         }
 
         /// <inheritdoc/>
         public Task UnarchiveAsync(CancellationToken cancellationToken)
         {
+            ThrowIfPathToLibrary();
+
             return m_AssetDataSource.UpdateLabelStatusAsync(Descriptor, false, cancellationToken);
         }
 
@@ -110,6 +119,14 @@ namespace Unity.Cloud.AssetsEmbedded
             }
 
             return label;
+        }
+
+        void ThrowIfPathToLibrary(string message = "Cannot modify library labels.")
+        {
+            if (Descriptor.IsPathToAssetLibrary())
+            {
+                throw new InvalidOperationException(message);
+            }
         }
     }
 }

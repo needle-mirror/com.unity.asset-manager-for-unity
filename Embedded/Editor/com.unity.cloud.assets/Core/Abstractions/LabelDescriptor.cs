@@ -8,9 +8,14 @@ namespace Unity.Cloud.AssetsEmbedded
     readonly struct LabelDescriptor
     {
         /// <summary>
-        /// The label's organization genesis ID.
+        /// The label's organization genesis identifier.
         /// </summary>
         public readonly OrganizationId OrganizationId;
+
+        /// <summary>
+        /// The label's library identifier.
+        /// </summary>
+        public readonly AssetLibraryId AssetLibraryId;
 
         /// <summary>
         /// A unique name for the label. Uniqueness is scoped to the organization.
@@ -20,12 +25,25 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <summary>
         /// Creates an instance of the <see cref="LabelDescriptor"/> struct.
         /// </summary>
-        /// <param name="organizationId">The label's organization genesis ID.</param>
+        /// <param name="organizationId">The label's organization genesis id.</param>
         /// <param name="labelName">The unique name of the label.</param>
         public LabelDescriptor(OrganizationId organizationId, string labelName)
         {
             OrganizationId = organizationId;
             LabelName = labelName;
+            AssetLibraryId = AssetLibraryId.None;
+        }
+
+        /// <summary>
+        /// Creates an instance of the <see cref="LabelDescriptor"/> struct.
+        /// </summary>
+        /// <param name="assetLibraryId">The label's library id.</param>
+        /// <param name="labelName">The unique name of the label.</param>
+        public LabelDescriptor(AssetLibraryId assetLibraryId, string labelName)
+        {
+            AssetLibraryId = assetLibraryId;
+            LabelName = labelName;
+            OrganizationId = OrganizationId.None;
         }
 
         /// <summary>
@@ -39,6 +57,7 @@ namespace Unity.Cloud.AssetsEmbedded
         public bool Equals(LabelDescriptor other)
         {
             return OrganizationId.Equals(other.OrganizationId) &&
+                AssetLibraryId.Equals(other.AssetLibraryId) &&
                 LabelName.Equals(other.LabelName);
         }
 
@@ -66,6 +85,7 @@ namespace Unity.Cloud.AssetsEmbedded
             unchecked
             {
                 var hashCode = OrganizationId.GetHashCode();
+                hashCode = (hashCode * 397) ^ AssetLibraryId.GetHashCode();
                 hashCode = (hashCode * 397) ^ LabelName.GetHashCode();
                 return hashCode;
             }

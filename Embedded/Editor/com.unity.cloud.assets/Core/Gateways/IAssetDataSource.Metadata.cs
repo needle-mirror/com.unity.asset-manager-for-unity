@@ -9,14 +9,24 @@ namespace Unity.Cloud.AssetsEmbedded
     partial interface IAssetDataSource
     {
         /// <summary>
-        /// Retrieves the field definitions in an organization.
+        /// Retrieves the field definitions in a library.
         /// </summary>
-        /// <param name="organizationId">The id of the organization. </param>
+        /// <param name="assetLibraryId">ID of the organization. </param>
         /// <param name="pagination">An object containing the necessary information return a range of field definitions.</param>
         /// <param name="queryParameters">Optional query parameters.</param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task whose result is an async enumeration of field definitions. </returns>
-        IAsyncEnumerable<IFieldDefinitionData> ListFieldDefinitionsAsync(OrganizationId organizationId, PaginationData pagination, Dictionary<string, string> queryParameters, CancellationToken cancellationToken);
+        IAsyncEnumerable<IFieldDefinitionData> ListFieldDefinitionsAsync(AssetLibraryId assetLibraryId, PaginationData pagination, Dictionary<string, string[]> queryParameters, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Retrieves the field definitions in an organization.
+        /// </summary>
+        /// <param name="organizationId">ID of the organization. </param>
+        /// <param name="pagination">An object containing the necessary information return a range of field definitions.</param>
+        /// <param name="queryParameters">Optional query parameters.</param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>A task whose result is an async enumeration of field definitions. </returns>
+        IAsyncEnumerable<IFieldDefinitionData> ListFieldDefinitionsAsync(OrganizationId organizationId, PaginationData pagination, Dictionary<string, string[]> queryParameters, CancellationToken cancellationToken);
 
         /// <summary>
         /// Retrieves the specified field definition.

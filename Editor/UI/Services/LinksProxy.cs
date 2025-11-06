@@ -11,7 +11,7 @@ namespace Unity.AssetManager.UI.Editor
         AssetManager,
         PrivateCloudServices
     }
-    
+
     interface ILinksProxy : IService
     {
         bool CanOpenAssetManagerDashboard { get; }
@@ -19,6 +19,7 @@ namespace Unity.AssetManager.UI.Editor
         void OpenAssetManagerDashboard();
         void OpenAssetManagerDashboard(AssetIdentifier assetIdentifier);
         void OpenAssetManagerDocumentationPage(string page);
+        void OpenUnityCloudConfigurationDocumentation();
         void OpenProjectSettings(ProjectSettingsMenu menu);
         void OpenPreferences();
         void OpenCloudStorageUpgradePlan();
@@ -85,14 +86,23 @@ namespace Unity.AssetManager.UI.Editor
             var assetId = assetIdentifier?.AssetId;
             var assetVersion = assetIdentifier?.Version;
 
-            if (!string.IsNullOrEmpty(projectId) && !string.IsNullOrEmpty(assetId))
+            if (assetIdentifier != null && assetIdentifier.IsAssetFromLibrary() && m_ProjectOrganizationProvider?.SelectedOrganization != null)
             {
-                if (m_UrlProvider.TryGetAssetManagerDashboardUrl(out var url,
+                if (!m_UrlProvider.TryGetAssetManagerDashboardUrl(out var url,
+                        $"/organizations/{m_ProjectOrganizationProvider.SelectedOrganization.Id}/assets/libraries/{assetIdentifier.LibraryId}?assetId={assetId}:{assetVersion}"))
+                    return;
+
+                m_ApplicationProxy.OpenUrl(url);
+                AnalyticsSender.SendEvent(new ExternalLinkClickedEvent(ExternalLinkClickedEvent.ExternalLinkType.OpenAssetLibrary));
+            }
+            else if (!string.IsNullOrEmpty(projectId) && !string.IsNullOrEmpty(assetId))
+            {
+                if (!m_UrlProvider.TryGetAssetManagerDashboardUrl(out var url,
                         $"/organizations/{organizationId}/projects/{projectId}/assets?assetId={assetId}:{assetVersion}"))
-                {
-                    m_ApplicationProxy.OpenUrl(url);
-                    AnalyticsSender.SendEvent(new ExternalLinkClickedEvent(ExternalLinkClickedEvent.ExternalLinkType.OpenAsset));
-                }
+                    return;
+
+                m_ApplicationProxy.OpenUrl(url);
+                AnalyticsSender.SendEvent(new ExternalLinkClickedEvent(ExternalLinkClickedEvent.ExternalLinkType.OpenAsset));
             }
             else
             {
@@ -113,6 +123,11 @@ namespace Unity.AssetManager.UI.Editor
                 m_ApplicationProxy.OpenUrl(url);
                 AnalyticsSender.SendEvent(new MenuItemSelectedEvent(MenuItemSelectedEvent.MenuItemType.GotoSubscriptions));
             }
+        }
+
+        public void OpenUnityCloudConfigurationDocumentation()
+        {
+            m_ApplicationProxy.OpenUrl("https://docs.unity.com/en-us/cloud/projects/configure-project-for-unity-cloud");
         }
 
         public void OpenProjectSettings(ProjectSettingsMenu menu)
@@ -140,10 +155,10 @@ namespace Unity.AssetManager.UI.Editor
                 return false;
 
             var organizationId = m_ProjectOrganizationProvider?.SelectedOrganization?.Id;
-            var projectId = m_ProjectOrganizationProvider?.SelectedProject?.Id;
+            var projectId = m_ProjectOrganizationProvider?.SelectedProjectOrLibrary?.Id;
             var collectionPath = m_ProjectOrganizationProvider?.SelectedCollection?.GetFullPath();
             var isProjectSelected = m_PageManager.ActivePage is CollectionPage or UploadPage;
-            
+
             if (limitUrlLength)
             {
                 if (organizationId != null)

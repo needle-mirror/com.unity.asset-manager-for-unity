@@ -26,6 +26,7 @@ namespace Unity.AssetManager.UI.Editor
         const string k_ImportLocationPath = "importLocationPath";
         const string k_ImportLocationErrorBox = "importLocationErrorBox";
         const string k_ImportLocationDropdown = "importLocationDropdown";
+        const string k_ImportLocationDropdownContainer = "importLocationDropdownContainer";
         const string k_ImportDefaultLocationLabel = "importSettingsDefaultLocationLabel";
         const string k_ImportCreateSubFolderLabel = "importSettingsCreateSubfolderLabel";
         const string k_ImportKeepHigherVersionLabel = "importSettingsKeepHigherVersionLabel";
@@ -34,6 +35,7 @@ namespace Unity.AssetManager.UI.Editor
 
         const string k_CacheSettingsFoldout = "cacheSettingsFoldout";
         const string k_CacheLocationDropdown = "cacheLocationDropdown";
+        const string k_CacheLocationDropdownContainer = "cacheLocationDropdownContainer";
         const string k_AssetManagerCachePath = "assetManagerCachePath";
         const string k_DisabledErrorBox = "disabledErrorBox";
         const string k_CleanCache = "cleanCache";
@@ -409,11 +411,23 @@ namespace Unity.AssetManager.UI.Editor
             });
             cacheLocationDropDown.menu.AppendAction(L10n.Tr(Constants.ResetDefaultLocation),
                 a => { ResetCacheLocationToDefault(); });
+
+            var cacheLocationContainer = rootElement.Q<Button>(k_CacheLocationDropdownContainer);
+            if (cacheLocationContainer == null) return;
+            
+            // Disable pointer events on the dropdown itself so the container handles all clicks
+            cacheLocationDropDown.pickingMode = PickingMode.Ignore;
+
+            cacheLocationContainer.clicked += () =>
+            {
+                cacheLocationDropDown.ShowMenu();
+            };
         }
 
         void SetupImportLocationToolbarButton(VisualElement rootElement)
         {
             var importLocationDropdown = rootElement.Q<ToolbarMenu>(k_ImportLocationDropdown);
+
             importLocationDropdown.menu.AppendAction(GetShowInExplorerLabel(),
                 a => { m_EditorUtilityProxy.RevealInFinder(m_SettingsManager.DefaultImportLocation); });
             importLocationDropdown.menu.AppendAction(L10n.Tr(Constants.ChangeLocationLabel), a =>
@@ -433,6 +447,18 @@ namespace Unity.AssetManager.UI.Editor
             });
             importLocationDropdown.menu.AppendAction(L10n.Tr(Constants.ResetDefaultLocation),
                 a => { ResetImportLocationToDefault(); });
+
+            var importLocationContainer = rootElement.Q<Button>(k_ImportLocationDropdownContainer);
+            if (importLocationContainer != null)
+            {
+                // Disable pointer events on the dropdown itself so the container handles all clicks
+                importLocationDropdown.pickingMode = PickingMode.Ignore;
+
+                importLocationContainer.clicked += () =>
+                {
+                    importLocationDropdown.ShowMenu();
+                };
+            }
         }
 
         string GetShowInExplorerLabel()

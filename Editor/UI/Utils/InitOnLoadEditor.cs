@@ -132,10 +132,10 @@ namespace Unity.AssetManager.UI.Editor
 
             var switchProject = false;
 
-            if (m_ProjectProvider.SelectedProject?.Id != m_AssetIdentifier.ProjectId)
+            if (m_ProjectProvider.SelectedProjectOrLibrary?.Id != m_AssetIdentifier.ProjectId)
             {
                 switchProject = m_SelectProject
-                    || string.IsNullOrEmpty(m_ProjectProvider.SelectedProject?.Id)
+                    || string.IsNullOrEmpty(m_ProjectProvider.SelectedProjectOrLibrary?.Id)
                     || m_PageManager.ActivePage is not CollectionPage;
             }
 
@@ -150,7 +150,7 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        void SelectAsset(ProjectInfo _, CollectionInfo __)
+        void SelectAsset(ProjectOrLibraryInfo _, CollectionInfo __)
         {
             m_ProjectProvider.ProjectSelectionChanged -= SelectAsset;
             var collectionPage = (CollectionPage)m_PageManager.ActivePage;

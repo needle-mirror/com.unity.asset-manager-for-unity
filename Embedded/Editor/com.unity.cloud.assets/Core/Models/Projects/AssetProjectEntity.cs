@@ -120,6 +120,12 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             return new VersionQueryBuilder(m_DataSource, m_DefaultCacheConfiguration, Descriptor, assetId);
         }
+        
+        /// <inheritdoc />
+        public AssetLabelQueryBuilder QueryAssetLabels(AssetId assetId)
+        {
+            return new AssetLabelQueryBuilder(m_DataSource, Descriptor, assetId);
+        }
 
         /// <inheritdoc />
         public AssetReferenceQueryBuilder QueryAssetReferences(AssetId assetId)

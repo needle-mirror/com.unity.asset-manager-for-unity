@@ -52,7 +52,7 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
 
             TaskUtils.TrackException(SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id,
-                m_ProjectOrganizationProvider.SelectedProject?.Id));
+                m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Id));
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
@@ -64,12 +64,11 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
         }
 
-        async void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo _)
+        async void OnProjectSelectionChanged(ProjectOrLibraryInfo projectOrLibraryInfo, CollectionInfo _)
         {
-            if (projectInfo != null)
-            {
-                await SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id, projectInfo.Id);
-            }
+            if (projectOrLibraryInfo == null) return;
+
+            await SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id, projectOrLibraryInfo.Id);
         }
 
         void OnOrganizationChanged(OrganizationInfo organization)
@@ -80,14 +79,14 @@ namespace Unity.AssetManager.UI.Editor
         void OnActivePageChanged(IPage page)
         {
             TaskUtils.TrackException(SetProjectRole(m_ProjectOrganizationProvider.SelectedOrganization?.Id,
-                m_ProjectOrganizationProvider.SelectedProject?.Id));
+                m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Id));
         }
 
         async Task SetProjectRole(string organizationId, string projectId)
         {
             m_IsShown = false;
             UIElementsUtils.Hide(this);
-            if (string.IsNullOrEmpty(projectId))
+            if (string.IsNullOrEmpty(projectId) || m_ProjectOrganizationProvider.SelectedProjectOrLibrary.IsAssetLibrary)
                 return;
 
             var role = await m_PermissionsManager.GetRoleAsync(organizationId, projectId);

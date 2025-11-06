@@ -11,7 +11,7 @@ namespace Unity.Cloud.AssetsEmbedded
     /// Represents a link an asset to project request.
     /// </summary>
     [DataContract]
-    class LinkAssetToProjectRequest : ProjectRequest
+    class LinkAssetToProjectRequest : ProjectOrLibraryRequest
     {
         [DataMember(Name = "assetIds")]
         AssetId[] m_AssetIds;
@@ -20,8 +20,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// Link an Asset to a Project Request Object.
         /// </summary>
         /// <param name="projectId">ID of the project.</param>
-        /// <param name="destinationProjectId">The destination project id</param>
-        /// <param name="assetId">The id of the asset.</param>
+        /// <param name="destinationProjectId">ID of the destination project.</param>
+        /// <param name="assetId">ID of the asset.</param>
         public LinkAssetToProjectRequest(ProjectId projectId, ProjectId destinationProjectId, AssetId assetId)
             : base(projectId)
         {
@@ -32,8 +32,8 @@ namespace Unity.Cloud.AssetsEmbedded
         /// Link an Asset to a Project Request Object.
         /// </summary>
         /// <param name="projectId">ID of the project.</param>
-        /// <param name="destinationProjectId">The destination project id</param>
-        /// <param name="assetIds">The ids of the assets.</param>
+        /// <param name="destinationProjectId">ID of the destination project.</param>
+        /// <param name="assetIds">IDs of the assets.</param>
         public LinkAssetToProjectRequest(ProjectId projectId, ProjectId destinationProjectId, IEnumerable<AssetId> assetIds)
             : base(projectId)
         {

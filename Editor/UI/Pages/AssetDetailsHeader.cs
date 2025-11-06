@@ -71,6 +71,9 @@ namespace Unity.AssetManager.UI.Editor
 
         bool HasValidLink(AssetIdentifier assetIdentifier)
         {
+            if (assetIdentifier.IsAssetFromLibrary())
+                return true;
+
             return (CanOpenDashboard?.Invoke() ?? false) &&
                 !(string.IsNullOrEmpty(assetIdentifier.OrganizationId) ||
                     string.IsNullOrEmpty(assetIdentifier.ProjectId) ||

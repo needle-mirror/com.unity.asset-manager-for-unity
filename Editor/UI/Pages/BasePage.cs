@@ -126,11 +126,6 @@ namespace Unity.AssetManager.UI.Editor
         public AssetIdentifier LastSelectedAssetId => m_SelectedAssets.LastOrDefault();
         public IReadOnlyCollection<BaseAssetData> AssetList => m_AssetList;
 
-        public static readonly Message MissingSelectedProjectMessage = new(L10n.Tr("Select the destination cloud project for the upload."));
-
-        public static readonly Message ErrorRetrievingAssetsMessage =
-            new(L10n.Tr("It seems there was an error while trying to retrieve assets."),
-                RecommendedAction.Retry);
 
         protected BasePage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
             IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
@@ -219,7 +214,7 @@ namespace Unity.AssetManager.UI.Editor
             if (LastSelectedAssetId?.IsIdValid() != true && !asset.IsIdValid())
                 return;
 
-            if (!additive)
+            if (!additive || m_ProjectOrganizationProvider.SelectedAssetLibrary != null)
             {
                 m_SelectedAssets.Clear();
             }
@@ -285,7 +280,7 @@ namespace Unity.AssetManager.UI.Editor
                 exceptionCallback: e =>
                 {
                     Debug.LogException(e);
-                    SetPageMessage(ErrorRetrievingAssetsMessage);
+                    SetPageMessage(Messages.ErrorRetrievingAssetsMessage);
                 },
                 successCallback: results =>
                 {
@@ -313,7 +308,7 @@ namespace Unity.AssetManager.UI.Editor
             );
         }
 
-        protected virtual void Clear()
+        protected virtual void Clear(bool clearMessages = true)
         {
             CancelAndClearLoadMoreOperations();
 
@@ -326,7 +321,9 @@ namespace Unity.AssetManager.UI.Editor
             m_CanLoadMoreItems = true;
             m_SearchRequest = null;
             m_NextStartIndex = 0;
-            m_MessageManager.ClearAllMessages();
+
+            if (clearMessages)
+                m_MessageManager.ClearAllMessages();
         }
 
         public VisualElement GetCustomUISection()
@@ -336,7 +333,7 @@ namespace Unity.AssetManager.UI.Editor
 
         protected internal abstract IAsyncEnumerable<BaseAssetData> LoadMoreAssets(CancellationToken token);
         protected abstract void OnLoadMoreSuccessCallBack();
-        protected abstract void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo);
+        protected abstract void OnProjectSelectionChanged(ProjectOrLibraryInfo projectOrLibraryInfo, CollectionInfo collectionInfo);
 
         protected async IAsyncEnumerable<BaseAssetData> LoadMoreAssets(CollectionInfo collectionInfo,
             [EnumeratorCancellation] CancellationToken token)
@@ -410,7 +407,7 @@ namespace Unity.AssetManager.UI.Editor
 #endif
 
             var count = 0;
-            while (count < Constants.DefaultPageSize && await MoveNextAsync())
+            while (!token.IsCancellationRequested && count < Constants.DefaultPageSize && await MoveNextAsync())
             {
                 if (m_SearchRequest == null)
                     break;
@@ -420,6 +417,7 @@ namespace Unity.AssetManager.UI.Editor
                 // If an asset was imported, we need to display it's state and not the one from the cloud
                 var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(cloudAssetData?.Identifier);
                 var assetData = importedAssetInfo != null ? importedAssetInfo.AssetData : cloudAssetData;
+
 
                 if (await FilteringUtils.IsDiscardedByLocalFilter(assetData, m_PageFilterStrategy.SelectedLocalFilters, token))
                     continue;
@@ -458,6 +456,7 @@ namespace Unity.AssetManager.UI.Editor
                     isFaulted = true;
                     m_SearchRequest = null; // Clear the request so it can be tried again
                     Utilities.DevLogException(e);
+                    return false;
                 }
 
                 return false;
@@ -480,12 +479,24 @@ namespace Unity.AssetManager.UI.Editor
                     return;
                 }
 
+                var isSearchingInAssetLibrary = projectIds != null && projectIds.Count() == 1 && m_ProjectOrganizationProvider.SelectedAssetLibrary != null &&
+                                                  projectIds.First() == m_ProjectOrganizationProvider.SelectedAssetLibrary.Id;
+
                 assetSearchFilter.Collection = new List<string> {collectionPath};
                 assetSearchFilter.Searches = m_PageFilterStrategy.SearchFilters?.ToList();
 
-                m_SearchRequest = m_AssetsProvider.SearchAsync(organizationId, projectIds, assetSearchFilter,
-                        m_PageManager.SortField, m_PageManager.SortingOrder, m_NextStartIndex, 0, token)
-                    .GetAsyncEnumerator(token);
+                if(isSearchingInAssetLibrary)
+                {
+                    m_SearchRequest = m_AssetsProvider.SearchLibraryAsync(projectIds.First(), assetSearchFilter,
+                            m_PageManager.SortField, m_PageManager.SortingOrder, m_NextStartIndex, 0, token)
+                        .GetAsyncEnumerator(token);
+                }
+                else
+                {
+                    m_SearchRequest = m_AssetsProvider.SearchAsync(organizationId, projectIds, assetSearchFilter,
+                            m_PageManager.SortField, m_PageManager.SortingOrder, m_NextStartIndex, 0, token)
+                        .GetAsyncEnumerator(token);
+                }
             }
         }
 
@@ -522,8 +533,57 @@ namespace Unity.AssetManager.UI.Editor
             m_LoadMoreAssetsOperations.Clear();
         }
 
+        public bool CheckConnection(bool showMessageForInvalid = true)
+        {
+            // Check if cloud services are not reachable
+            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
+            if (!unityConnectProxy.AreCloudServicesReachable)
+            {
+                if (showMessageForInvalid)
+                    m_MessageManager.SetHelpBoxMessage(Messages.NoConnectionMessage);
+                return false;
+            }
+
+            // Check if organization is not set or invalid
+            if (string.IsNullOrEmpty(m_ProjectOrganizationProvider.SelectedOrganization?.Id))
+            {
+                // Check if the organization ID from Unity Connect is missing
+                if (!unityConnectProxy.HasValidOrganizationId)
+                {
+                    if (showMessageForInvalid)
+                        SetPageMessage(Messages.NoOrganizationMessage);
+                    return false;
+                }
+
+                // If we're not loading and still have no organization, there was an error
+                if (!m_ProjectOrganizationProvider.IsLoading)
+                {
+                    if (showMessageForInvalid)
+                        SetPageMessage(Messages.ErrorRetrievingOrganizationMessage);
+                    return false;
+                }
+            }
+
+            // Check if the current project is not enabled for Asset Manager
+            if (m_ProjectOrganizationProvider.SelectedOrganization != null &&
+                m_ProjectOrganizationProvider.SelectedOrganization.ProjectInfos?.Any() != true)
+            {
+                if (showMessageForInvalid)
+                    SetPageMessage(Messages.CurrentProjectNotEnabledMessage);
+                return false;
+            }
+
+            return true;
+        }
+
         protected bool TrySetNoResultsPageMessage()
         {
+            // Check for system-level issues first (these take precedence)
+            if (!CheckConnection())
+            {
+                return true;
+            }
+
             // If there are search filters, show a message indicating no results found.
             // This is different from the empty state message which is shown when there are no assets at all.
             var hasSearchFilters = m_PageFilterStrategy.SearchFilters.Any();

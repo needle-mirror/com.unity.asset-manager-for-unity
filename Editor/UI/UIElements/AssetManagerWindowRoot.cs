@@ -66,6 +66,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IStateManager m_StateManager;
         readonly IUnityConnectProxy m_UnityConnect;
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
+        readonly IPackageVersionService m_PackageVersionService;
         readonly ILinksProxy m_LinksProxy;
         readonly IAssetDatabaseProxy m_AssetDatabaseProxy;
         readonly IProjectIconDownloader m_ProjectIconDownloader;
@@ -107,6 +108,7 @@ namespace Unity.AssetManager.UI.Editor
             IDialogManager dialogManager,
             ISettingsManager settingsManager,
             ISavedAssetSearchFilterManager savedSearchFilterManager,
+            IPackageVersionService packageVersionService,
             IAssetsProvider assetsProvider)
         {
             m_PageManager = pageManager;
@@ -128,6 +130,7 @@ namespace Unity.AssetManager.UI.Editor
             m_DialogManager = dialogManager;
             m_SettingsManager = settingsManager;
             m_SavedSearchFilterManager = savedSearchFilterManager;
+            m_PackageVersionService = packageVersionService;
             m_AssetsProvider = assetsProvider;
         }
 
@@ -227,6 +230,11 @@ namespace Unity.AssetManager.UI.Editor
 
             // Schedule storage info to be refreshed each 30 seconds
             m_StorageInfoRefreshScheduledItem = storageInfoHelpBox.schedule.Execute(storageInfoHelpBox.RefreshCloudStorageAsync).Every(k_CloudStorageUsageRefreshMs);
+
+            var newVersionNotification = new NewVersionNotification(m_PackageVersionService, m_UnityConnect);
+
+            m_SearchContentSplitViewContainer.Add(newVersionNotification);
+
             var topContainer = new VisualElement();
             topContainer.AddToClassList("unity-top-container");
 
@@ -411,11 +419,10 @@ namespace Unity.AssetManager.UI.Editor
 
                 // Show only the first page that is visible
                 var inspectorPageToShow = m_SelectionInspectorPages.Find(page => page.IsVisible(validAssets.Count));
+                inspectorPageToShow?.EnableEditing(m_PageManager.ActivePage is UploadPage);
+
                 TaskUtils.TrackException(inspectorPageToShow?.SelectedAsset(validAssets));
                 UIElementsUtils.Show(inspectorPageToShow);
-
-                var isPageEditable = m_PageManager.ActivePage is UploadPage;
-                inspectorPageToShow?.EnableEditing(isPageEditable);
             }
             else
             {
@@ -443,8 +450,6 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.SetDisplay(m_SavedViewControls, basePage.DisplaySavedViewControls);
             UIElementsUtils.SetDisplay(m_Sort, basePage.DisplaySort);
 
-            if(m_SeatWarningVisibilityTask is { IsCompleted: false })
-                m_SeatWarningVisibilityTask.Dispose();
             m_SeatWarningVisibilityTask = SetSeatWarningVisibilityAsync();
 
             if (basePage.DisplaySideBar)

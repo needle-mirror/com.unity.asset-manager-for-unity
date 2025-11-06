@@ -34,10 +34,10 @@ namespace Unity.Cloud.AssetsEmbedded
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var request = new ListProjectsRequest(organizationId, pageNumber, pageSize);
-                var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(),
+                using var response = await m_ServiceHttpClient.GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(),
                     cancellationToken);
 
-                var jsonContent = await response.GetContentAsString();
+                var jsonContent = await response.GetContentAsStringAsync();
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var projectPageDto = IsolatedSerialization.DeserializeWithDefaultConverters<ProjectPageDto>(jsonContent);
@@ -64,23 +64,23 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var request = ProjectRequest.GetProjectRequset(projectDescriptor.ProjectId);
-            var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(),
+            var request = ProjectOrLibraryRequest.GetProjectRequest(projectDescriptor.ProjectId);
+            using var response = await m_ServiceHttpClient.GetAsync(GetPublicRequestUri(request), ServiceHttpClientOptions.Default(),
                 cancellationToken);
 
-            var jsonContent = await response.GetContentAsString();
+            var jsonContent = await response.GetContentAsStringAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
             return IsolatedSerialization.DeserializeWithDefaultConverters<ProjectData>(jsonContent);
         }
 
         /// <inheritdoc/>
-        public Task EnableProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        public async Task EnableProjectAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var request = ProjectRequest.GetEnableProjectRequest(projectDescriptor.ProjectId);
-            return RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
+            var request = ProjectOrLibraryRequest.GetEnableProjectRequest(projectDescriptor.ProjectId);
+            using var _ = await m_ServiceHttpClient.PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
         }
 
@@ -90,10 +90,10 @@ namespace Unity.Cloud.AssetsEmbedded
             cancellationToken.ThrowIfCancellationRequested();
 
             var request = new CreateProjectRequest(organizationId, projectCreation);
-            var response = await RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
+            using var response = await m_ServiceHttpClient.PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
                 ServiceHttpClientOptions.Default(), cancellationToken);
 
-            var jsonContent = await response.GetContentAsString();
+            var jsonContent = await response.GetContentAsStringAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
             var projectDto = IsolatedSerialization.DeserializeWithDefaultConverters<CreatedProjectDto>(jsonContent);
@@ -106,26 +106,31 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var request = ProjectRequest.GetCollectionCountRequest(projectDescriptor.ProjectId);
-            var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request),
+            var request = ProjectOrLibraryRequest.GetCollectionCountRequest(projectDescriptor.ProjectId);
+            using var response = await m_ServiceHttpClient.GetAsync(GetPublicRequestUri(request),
                 ServiceHttpClientOptions.Default(), cancellationToken);
 
-            var jsonContent = await response.GetContentAsString();
+            var jsonContent = await response.GetContentAsStringAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
             return IsolatedSerialization.DeserializeWithDefaultConverters<CounterDto>(jsonContent).Count;
         }
 
         /// <inheritdoc/>
-        public async Task<int> GetAssetCountAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        public Task<int> GetAssetCountAsync(ProjectDescriptor projectDescriptor, CancellationToken cancellationToken)
+        {
+            var request = ProjectOrLibraryRequest.GetAssetCountRequest(projectDescriptor.ProjectId);
+            return GetAssetCountAsync(request, cancellationToken);
+        }
+
+        async Task<int> GetAssetCountAsync(ApiRequest request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var request = ProjectRequest.GetAssetCountRequest(projectDescriptor.ProjectId);
-            var response = await RateLimitedServiceClient(request, HttpMethod.Get).GetAsync(GetPublicRequestUri(request),
+            using var response = await m_ServiceHttpClient.GetAsync(GetPublicRequestUri(request),
                 ServiceHttpClientOptions.Default(), cancellationToken);
 
-            var jsonContent = await response.GetContentAsString();
+            var jsonContent = await response.GetContentAsStringAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
             return IsolatedSerialization.DeserializeWithDefaultConverters<CounterDto>(jsonContent).Count;
@@ -143,22 +148,35 @@ namespace Unity.Cloud.AssetsEmbedded
             return SplitRequest(assetIds, ids => new UnlinkAssetFromProjectRequest(sourceProject.ProjectId, ids), cancellationToken);
         }
 
-        Task SplitRequest(IEnumerable<AssetId> assetIds, Func<IEnumerable<AssetId>, ApiRequest> buildRequest, CancellationToken cancellationToken)
+        async Task SplitRequest(IEnumerable<AssetId> assetIds, Func<IEnumerable<AssetId>, ApiRequest> buildRequest, CancellationToken cancellationToken)
         {
             const int maxPageSize = 50;
 
             var assetIdArray = assetIds.ToArray();
 
-            var tasks = new List<Task>();
+            var tasks = new List<Task<HttpResponseMessage>>();
             for (var i = 0; i * maxPageSize < assetIdArray.Length; ++i)
             {
                 var request = buildRequest(assetIdArray.Skip(i * maxPageSize).Take(maxPageSize));
-                var task = RateLimitedServiceClient(request, HttpMethod.Post).PostAsync(GetPublicRequestUri(request), request.ConstructBody(),
-                    ServiceHttpClientOptions.Default(), cancellationToken);
+                var task = m_ServiceHttpClient.PostAsync(GetPublicRequestUri(request), request.ConstructBody(), ServiceHttpClientOptions.Default(), cancellationToken);
                 tasks.Add(task);
             }
 
-            return Task.WhenAll(tasks);
+            HttpResponseMessage[] responses = null;
+            try
+            {
+                responses = await Task.WhenAll(tasks);
+            }
+            finally
+            {
+                if (responses != null)
+                {
+                    foreach (var response in responses)
+                    {
+                        response.Dispose();
+                    }
+                }
+            }
         }
     }
 }

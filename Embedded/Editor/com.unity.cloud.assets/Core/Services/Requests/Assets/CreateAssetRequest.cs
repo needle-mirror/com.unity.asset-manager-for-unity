@@ -7,7 +7,7 @@ namespace Unity.Cloud.AssetsEmbedded
     /// <summary>
     /// Represents a create asset request.
     /// </summary>
-    class CreateAssetRequest : ProjectRequest
+    class CreateAssetRequest : ProjectOrLibraryRequest
     {
         /// <summary>
         /// The asset to create.
@@ -28,10 +28,7 @@ namespace Unity.Cloud.AssetsEmbedded
             m_RequestUrl += "/assets";
         }
 
-        /// <summary>
-        /// Helper for constructing the request body.
-        /// </summary>
-        /// <returns>A </returns>
+        /// <inheritdoc />
         public override HttpContent ConstructBody()
         {
             var body = IsolatedSerialization.SerializeWithDefaultConverters(Asset);

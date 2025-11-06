@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.Cloud.AssetsEmbedded
@@ -14,8 +15,9 @@ namespace Unity.Cloud.AssetsEmbedded
     {
         readonly IAssetDataSource m_AssetDataSource;
         readonly CacheConfigurationWrapper m_CacheConfiguration;
-        readonly OrganizationId m_OrganizationId;
+        readonly OrganizationId m_OrganizationId = OrganizationId.None;
         readonly List<ProjectId> m_ProjectIds = new();
+        readonly AssetLibraryId m_AssetLibraryId = AssetLibraryId.None;
 
         IAssetSearchFilter m_AssetSearchFilter;
         Range m_Range = Range.All;
@@ -28,17 +30,17 @@ namespace Unity.Cloud.AssetsEmbedded
             m_CacheConfiguration = new CacheConfigurationWrapper(defaultCacheConfiguration);
         }
 
+        internal AssetQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, OrganizationId organizationId)
+            : this(assetDataSource, defaultCacheConfiguration)
+        {
+            m_OrganizationId = organizationId;
+        }
+
         internal AssetQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, ProjectDescriptor projectDescriptor)
             : this(assetDataSource, defaultCacheConfiguration)
         {
             m_OrganizationId = projectDescriptor.OrganizationId;
             m_ProjectIds.Add(projectDescriptor.ProjectId);
-        }
-
-        internal AssetQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, OrganizationId organizationId)
-            : this(assetDataSource, defaultCacheConfiguration)
-        {
-            m_OrganizationId = organizationId;
         }
 
         internal AssetQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, IEnumerable<ProjectDescriptor> projectDescriptors)
@@ -60,6 +62,12 @@ namespace Unity.Cloud.AssetsEmbedded
             }
 
             m_ProjectIds.AddRange(projects.Select(descriptor => descriptor.ProjectId));
+        }
+
+        internal AssetQueryBuilder(IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, AssetLibraryId assetLibraryId)
+            : this(assetDataSource, defaultCacheConfiguration)
+        {
+            m_AssetLibraryId = assetLibraryId;
         }
 
         /// <summary>
@@ -122,40 +130,48 @@ namespace Unity.Cloud.AssetsEmbedded
 
             var projectIds = m_ProjectIds.ToArray();
 
-            switch (projectIds.Length)
+            if (m_AssetLibraryId.IsPathToAssetLibraryValid())
             {
-                case 1:
+                var parameters = new SearchRequestParameters(includeFields)
                 {
-                    var parameters = new SearchRequestParameters(includeFields)
-                    {
-                        Filter = m_AssetSearchFilter?.From(),
-                        Pagination = pagination,
-                        PaginationRange = m_Range
-                    };
-                    var descriptor = new ProjectDescriptor(m_OrganizationId, projectIds[0]);
-                    var enumerator = m_AssetDataSource.ListAssetsAsync(descriptor, parameters, cancellationToken);
-                    await foreach (var assetData in enumerator)
-                    {
-                        yield return assetData.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, descriptor, includeFields, m_CacheConfiguration.AssetConfiguration);
-                    }
-
-                    break;
+                    Filter = m_AssetSearchFilter?.From(),
+                    Pagination = pagination,
+                    PaginationRange = m_Range
+                };
+                var enumerator = m_AssetDataSource.ListAssetsAsync(m_AssetLibraryId, parameters, cancellationToken);
+                await foreach (var assetData in enumerator)
+                {
+                    yield return assetData.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, m_AssetLibraryId, includeFields, m_CacheConfiguration.AssetConfiguration);
                 }
-                default:
+            }
+            else if (projectIds.Length == 1)
+            {
+                var parameters = new SearchRequestParameters(includeFields)
                 {
-                    var parameters = new AcrossProjectsSearchRequestParameters(projectIds, includeFields)
-                    {
-                        Filter = m_AssetSearchFilter?.From(),
-                        Pagination = pagination,
-                        PaginationRange = m_Range
-                    };
-                    var enumerator = m_AssetDataSource.ListAssetsAsync(m_OrganizationId, projectIds, parameters, cancellationToken);
-                    await foreach (var assetData in enumerator)
-                    {
-                        yield return assetData.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, m_OrganizationId, projectIds, includeFields, m_CacheConfiguration.AssetConfiguration);
-                    }
+                    Filter = m_AssetSearchFilter?.From(),
+                    Pagination = pagination,
+                    PaginationRange = m_Range
+                };
+                var descriptor = new ProjectDescriptor(m_OrganizationId, projectIds[0]);
 
-                    break;
+                var enumerator = m_AssetDataSource.ListAssetsAsync(descriptor, parameters, cancellationToken);
+                await foreach (var assetData in enumerator)
+                {
+                    yield return assetData.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, descriptor, includeFields, m_CacheConfiguration.AssetConfiguration);
+                }
+            }
+            else
+            {
+                var parameters = new AcrossProjectsSearchRequestParameters(projectIds, includeFields)
+                {
+                    Filter = m_AssetSearchFilter?.From(),
+                    Pagination = pagination,
+                    PaginationRange = m_Range
+                };
+                var enumerator = m_AssetDataSource.ListAssetsAsync(m_OrganizationId, projectIds, parameters, cancellationToken);
+                await foreach (var assetData in enumerator)
+                {
+                    yield return assetData.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, m_OrganizationId, projectIds, includeFields, m_CacheConfiguration.AssetConfiguration);
                 }
             }
         }

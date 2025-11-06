@@ -1,8 +1,9 @@
-using System.IO;
-using System.Threading.Tasks;
-using System.Threading;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Unity.Collections;
 
 namespace Unity.Cloud.CommonEmbedded.Runtime
@@ -14,6 +15,9 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
     /// Supports a single producer and a single consumer. The producer can
     /// write while the consumer reads concurrently. Two producers cannot
     /// write at the same time, nor consumers can read at the same time.
+    /// The stream is considered infinite. When all the data is received,
+    /// <see cref="CloseWriteChannelIfOpen"/> must be invoked to let the reader
+    /// complete properly.
     /// </remarks>
     class SingleReaderSingleWriterNativeStream : Stream
     {
@@ -24,8 +28,8 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
         long m_WriterIndex;
         long m_ReaderIndex;
-        bool m_EndOfStream;
-        bool m_Disposed;
+        bool m_WriteCompleted;
+        bool m_WriteStreamClosed;
 
         AsyncAutoResetEvent m_Sync = new();
 
@@ -36,10 +40,10 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
         protected override void Dispose(bool disposing)
         {
-            if (m_Disposed)
+            if (IsDisposed)
                 return;
 
-            m_Disposed = true;
+            IsDisposed = true;
 
             if (disposing)
             {
@@ -53,9 +57,11 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             base.Dispose(disposing);
         }
 
-        public override bool CanRead { get; } = true;
-        public override bool CanSeek { get; } = false;
-        public override bool CanWrite { get; } = true;
+        public bool IsDisposed { get; private set; }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
         public override long Length => throw new NotSupportedException();
         public override long Position
         {
@@ -63,23 +69,57 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             set => throw new NotSupportedException();
         }
 
-        public void SignalEndOfStream()
+        public void CloseWriteChannelIfOpen(bool writeCompleted)
         {
-            m_EndOfStream = true;
+            if (IsDisposed)
+                throw new ObjectDisposedException(nameof(SingleReaderSingleWriterNativeStream));
+
+            if (m_WriteStreamClosed)
+                return;
+
+            m_WriteCompleted = writeCompleted;
+            m_WriteStreamClosed = true;
             m_Sync.Set();
         }
 
         public override void Flush()
         {
+            // Nothing to do
+        }
+
+        public override async Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+        {
+            var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+            try
+            {
+                int bytesRead;
+                while ((bytesRead = await ReadAsync(new Memory<byte>(buffer), cancellationToken).ConfigureAwaitFalse()) != 0)
+                {
+                    await destination.WriteAsync(new ReadOnlyMemory<byte>(buffer, 0, bytesRead), cancellationToken).ConfigureAwaitFalse();
+                }
+            }
+            catch (Exception)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                throw;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            if (m_Disposed)
+            if (IsDisposed)
                 throw new ObjectDisposedException(nameof(SingleReaderSingleWriterNativeStream));
 
-            if (!m_EndOfStream && !TaskExtensions.MultithreadingEnabled)
-                throw new InvalidOperationException($"Cannot use {nameof(Read)} method on incomplete streams on platforms that don't support multithreading since it's going to freeze the app.");
+            if (!m_WriteStreamClosed && !TaskExtensions.MultithreadingEnabled)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot use {nameof(Read)} method on incomplete streams on platforms " +
+                    $"that don't support multithreading since it's going to freeze the app.");
+            }
 
             return ReadAsync(buffer, offset, count, CancellationToken.None).Result;
         }
@@ -91,15 +131,14 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            if (m_Disposed)
+            if (IsDisposed)
                 throw new ObjectDisposedException(nameof(SingleReaderSingleWriterNativeStream));
 
             while (true)
             {
-                if (m_Disposed)
-                    return 0;
+                cancellationToken.ThrowIfCancellationRequested();
 
-                if (m_ReaderIndex == m_WriterIndex && !m_EndOfStream)
+                if (m_ReaderIndex == m_WriterIndex && !m_WriteStreamClosed)
                     await m_Sync.WaitAsync(cancellationToken).ConfigureAwaitFalse();
                 else
                     break;
@@ -110,6 +149,12 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
         int ReadToBuffer(Memory<byte> buffer)
         {
+            if (IsDisposed)
+                throw new IOException("Stream disposed during a read operation.");
+
+            if (m_WriteStreamClosed && !m_WriteCompleted)
+                throw new IOException("The writer stream closed without writing all data.");
+
             var readerIndex = m_ReaderIndex;
             var writerIndex = m_WriterIndex;
             var read = 0;
@@ -155,8 +200,14 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
         public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
         public override void Write(ReadOnlySpan<byte> buffer)
         {
-            if (m_Disposed)
+            if (IsDisposed)
                 throw new ObjectDisposedException(nameof(SingleReaderSingleWriterNativeStream));
+
+            if (m_WriteStreamClosed)
+                throw new InvalidOperationException("Cannot write to stream when the writer stream is closed.");
+
+            if (m_WriteCompleted)
+                throw new InvalidOperationException("Cannot write to stream when the writer stream is completed.");
 
             var writerIndex = m_WriterIndex;
             var written = 0;
@@ -205,9 +256,15 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
             readonly Queue<(TaskCompletionSource<bool> Source, CancellationTokenRegistration Ctr)> m_PendingSources = new();
 
             bool m_Signaled;
+            bool m_IsDisposed;
 
             public void Dispose()
             {
+                if (m_IsDisposed)
+                    return;
+
+                m_IsDisposed = true;
+
                 foreach (var (s, c) in m_PendingSources)
                 {
                     s.TrySetCanceled();
@@ -217,6 +274,9 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
             public Task WaitAsync(CancellationToken token = default)
             {
+                if (m_IsDisposed)
+                    throw new ObjectDisposedException(nameof(AsyncAutoResetEvent));
+
                 lock (m_PendingSources)
                 {
                     token.ThrowIfCancellationRequested();
@@ -236,18 +296,32 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
             public void Set()
             {
-                (TaskCompletionSource<bool> Source, CancellationTokenRegistration Ctr) toRelease = default;
+                if (m_IsDisposed)
+                    throw new ObjectDisposedException(nameof(AsyncAutoResetEvent));
+
+                while (!TrySignal())
+                {
+                    // Nothing
+                }
+            }
+
+            bool TrySignal()
+            {
+                (TaskCompletionSource<bool> Source, CancellationTokenRegistration Ctr) toRelease;
 
                 lock (m_PendingSources)
                 {
-                    if (m_PendingSources.Count > 0)
-                        toRelease = m_PendingSources.Dequeue();
-                    else if (!m_Signaled)
+                    if (m_PendingSources.Count == 0)
+                    {
                         m_Signaled = true;
+                        return true;
+                    }
+
+                    toRelease = m_PendingSources.Dequeue();
                 }
 
                 toRelease.Ctr.Dispose();
-                toRelease.Source?.SetResult(true);
+                return toRelease.Source.TrySetResult(true);
             }
         }
     }

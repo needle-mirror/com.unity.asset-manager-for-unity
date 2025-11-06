@@ -16,6 +16,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
         Task UpdateFileAsync(FileDescriptor fileDescriptor, IFileBaseData fileUpdate, CancellationToken cancellationToken);
 
+        Task<Uri> UpdateFileContentAsync(FileDescriptor fileDescriptor, IFileCreateData fileCreate, CancellationToken cancellationToken);
+
         Task<Uri> GetFileDownloadUrlAsync(FileDescriptor fileDescriptor, int? maxDimension, CancellationToken cancellationToken);
 
         Task<Uri> GetFileUploadUrlAsync(FileDescriptor fileDescriptor, IFileData fileData, CancellationToken cancellationToken);

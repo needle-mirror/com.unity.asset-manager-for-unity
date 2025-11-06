@@ -58,6 +58,7 @@ namespace Unity.AssetManager.UI.Editor
             this.AddManipulator(contextualMenuManipulator);
 
             RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
+            m_Label.RegisterCallback<GeometryChangedEvent>(OnLabelGeometryChanged);
         }
 
         public void SetSelected(bool isSelected)
@@ -98,6 +99,7 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             m_Label.text = filterName;
+            UpdateTooltip();
             RenameFilter?.Invoke(m_SavedAssetSearchFilter, filterName);
         }
 
@@ -119,6 +121,25 @@ namespace Unity.AssetManager.UI.Editor
             // The radio button itself is visual, the selection logic is controlled by this entire element's
             // pointer-down event. Thus maintain the value of the radio button to the selection state of this item
             SetSelected(m_IsSelected);
+        }
+
+        void OnLabelGeometryChanged(GeometryChangedEvent evt)
+        {
+            if (evt.oldRect.width == evt.newRect.width)
+                return;
+
+            UpdateTooltip();
+        }
+
+        void UpdateTooltip()
+        {
+            if (m_Label.layout.width <= 0)
+                return;
+
+            var textSize = m_Label.MeasureTextSize(m_Label.text, 0, MeasureMode.Undefined, 0, MeasureMode.Undefined);
+            var isTruncated = textSize.x > m_Label.layout.width;
+
+            m_Label.tooltip = isTruncated ? m_Label.text : string.Empty;
         }
     }
 }

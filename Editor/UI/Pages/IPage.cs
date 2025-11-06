@@ -26,6 +26,7 @@ namespace Unity.AssetManager.UI.Editor
         public void ToggleAsset(AssetIdentifier assetIdentifier, bool checkState);
         void LoadMore(bool clear, bool clearSelection);
         void ClearSelection();
+        bool CheckConnection(bool showMessageForInvalid = true);
 
         // Called after the page is created, and after a domain reload
         void OnEnable();

@@ -9,9 +9,20 @@ namespace Unity.Cloud.AssetsEmbedded
     partial interface IAssetDataSource
     {
         /// <summary>
+        /// Lists the labels for the specified library.
+        /// </summary>
+        /// <param name="assetLibraryId">ID of the library. </param>
+        /// <param name="pagination">The range and order of results. </param>
+        /// <param name="archived">Whether the results include archived labels. </param>
+        /// <param name="systemLabels">Whether the results will include system labels. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>An async enumeration of <see cref="ILabelData"/>. </returns>
+        IAsyncEnumerable<ILabelData> ListLabelsAsync(AssetLibraryId assetLibraryId, PaginationData pagination, bool? archived, bool? systemLabels, CancellationToken cancellationToken);
+
+        /// <summary>
         /// Lists the labels for the specified organization.
         /// </summary>
-        /// <param name="organizationId">The id of the organization. </param>
+        /// <param name="organizationId">ID of the organization. </param>
         /// <param name="pagination">The range and order of results. </param>
         /// <param name="archived">Whether the results include archived labels. </param>
         /// <param name="systemLabels">Whether the results will include system labels. </param>
@@ -57,8 +68,18 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <summary>
         /// Lists the labels for the asset by asset version.
         /// </summary>
+        /// <param name="assetLibraryId">ID of the library. </param>
+        /// <param name="assetId">ID of the asset. </param>
+        /// <param name="pagination">The range and order of results. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
+        /// <returns>An async enumeration of <see cref="AssetLabelsDto"/>. </returns>
+        IAsyncEnumerable<AssetLabelsDto> ListLabelsAcrossAssetVersions(AssetLibraryId assetLibraryId, AssetId assetId, PaginationData pagination, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Lists the labels for the asset by asset version.
+        /// </summary>
         /// <param name="projectDescriptor">The object containing the necessary information to identify the project. </param>
-        /// <param name="assetId">The id of the asset. </param>
+        /// <param name="assetId">ID of the asset. </param>
         /// <param name="pagination">The range and order of results. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>An async enumeration of <see cref="AssetLabelsDto"/>. </returns>

@@ -53,7 +53,7 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<IAssetCollection> WithCacheConfigurationAsync(AssetCollectionCacheConfiguration assetCollectionCacheConfiguration, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
-        /// Refreshes the collection properties.
+        /// Retrieves and caches the collection properties.
         /// </summary>
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task with no result. </returns>
@@ -65,6 +65,22 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task whose result is the <see cref="AssetCollectionProperties"/> of the collection. </returns>
         Task<AssetCollectionProperties> GetPropertiesAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns the number of collections nested within the collection.
+        /// </summary>
+        /// <param name="traverseRecursively">Whether to recursively include subcollections. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the number of nested collections in the collection. </returns>
+        Task<int> CountNestedCollectionsAsync(bool traverseRecursively, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
+        /// Returns the number of assets in the collection.
+        /// </summary>
+        /// <param name="includeSubcollections">Whether to include subcollections when counting assets. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the number of assets in the collection. </returns>
+        Task<int> CountAssetsAsync(bool includeSubcollections, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
         /// Updates the collection.

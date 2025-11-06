@@ -68,11 +68,11 @@ namespace Unity.AssetManager.UI.Editor
             LoadMore(clear: true, clearSelection: clearSelection);
         }
 
-        protected override void Clear()
+        protected override void Clear(bool clearMessages = true)
         {
             m_GetFilteredImportedAssetsTask = null;
 
-            base.Clear();
+            base.Clear(clearMessages);
         }
 
         protected internal override async IAsyncEnumerable<BaseAssetData> LoadMoreAssets([EnumeratorCancellation] CancellationToken token)
@@ -145,6 +145,10 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_PageFilterStrategy.EnableFilters(AssetList.Any());
 
+            if (m_ProjectOrganizationProvider.SelectedAssetLibrary != null)
+            {
+                SetPageMessage(new Message(L10n.Tr(Constants.CantSelectAssetLibraryText)));
+            }
             if (!AssetList.Any())
             {
                 SetPageMessage(new Message(L10n.Tr(Constants.EmptyInProjectText)));
@@ -169,9 +173,9 @@ namespace Unity.AssetManager.UI.Editor
             return Task.CompletedTask;
         }
 
-        protected override void OnProjectSelectionChanged(ProjectInfo projectInfo, CollectionInfo collectionInfo)
+        protected override void OnProjectSelectionChanged(ProjectOrLibraryInfo projectOrLibraryInfo, CollectionInfo collectionInfo)
         {
-            if (projectInfo == null)
+            if (projectOrLibraryInfo == null)
                 return;
 
             m_PageManager.SetActivePage<InProjectPage>(true);
@@ -192,7 +196,7 @@ namespace Unity.AssetManager.UI.Editor
 
         ImportedAssetInfo[] FilterByActiveProject(IEnumerable<ImportedAssetInfo> importedAssets)
         {
-            var selectedProjectId = m_ProjectOrganizationProvider.SelectedProject?.Id;
+            var selectedProjectId = m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Id;
             if (!string.IsNullOrEmpty(selectedProjectId))
             {
                 var selectedCollection = m_ProjectOrganizationProvider.SelectedCollection;
@@ -271,7 +275,7 @@ namespace Unity.AssetManager.UI.Editor
             Utilities.DevLog("Updating project lists for imported asset(s) for selected project or collection...");
 
             var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
-            if (unityConnectProxy.AreCloudServicesReachable)
+            if (unityConnectProxy.AreCloudServicesReachable && m_ProjectOrganizationProvider.SelectedAssetLibrary == null)
             {
                 var assetDatas = importedAssets.Select(x => x.AssetData).Where(x => x != null);
                 await FilteringUtils.UpdateLinkedProjectsAndCollectionsForSelectionAsync(m_ProjectOrganizationProvider, m_AssetsProvider, assetDatas, token);

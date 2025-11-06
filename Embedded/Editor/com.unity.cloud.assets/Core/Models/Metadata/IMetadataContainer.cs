@@ -20,9 +20,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="metadataObjects">A collection of metadata values to add or update. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task with no result.</returns>
-        /// <exception cref="ArgumentException">If the type of a dictionary value is not recognized as valid metadata type. </exception>
-        /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
-        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
+        /// <exception cref="ArgumentException">If the type of the dictionary value is not recognized as valid metadata type. </exception>
         Task AddOrUpdateAsync(IReadOnlyDictionary<string, MetadataValue> metadataObjects, CancellationToken cancellationToken);
 
         /// <summary>
@@ -33,8 +31,6 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task with no result.</returns>
         /// <exception cref="ArgumentException">If <paramref name="metadataValue"/> type is not a valid metadata type. </exception>
-        /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
-        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task AddOrUpdateAsync(string key, MetadataValue metadataValue, CancellationToken cancellationToken);
 
         /// <summary>
@@ -43,8 +39,6 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="keys">The keys to remove from this dictionary. </param>
         /// <param name="cancellationToken">A token that can be used to cancel the request.</param>
         /// <returns>A task with no result.</returns>
-        /// <exception cref="InvalidArgumentException">If this version of the asset is frozen, because it cannot be modified. </exception>
-        /// <remarks>Can only be called if the version of the asset is unfrozen. </remarks>
         Task RemoveAsync(IEnumerable<string> keys, CancellationToken cancellationToken);
     }
 }

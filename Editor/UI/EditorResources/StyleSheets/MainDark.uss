@@ -5,6 +5,9 @@
 /************************************************
 * General
 ************************************************/
+.collapsed-sidebar {
+    border-right-color: #202020;
+}
 
 .horizontal-separator {
     background-color: #202020;
@@ -416,10 +419,25 @@ RoleChip:hover {
     border-color: #191919;
 }
 
-.toolbar-menu,
-.asset-manager-dropdown {
+.toolbar-menu {
     background-color: #585858;
     border-color: #191919;
+}
+
+.importLocationDropdownContainer:hover {
+    background-color: #656565;
+}
+
+.importLocationDropdownContainer:active {
+    background-color: #2B5D86;
+}
+
+.cacheLocationDropdownContainer:hover {
+    background-color: #656565;
+}
+
+.cacheLocationDropdownContainer:active {
+    background-color: #2B5D86;
 }
 
 /************************************************
@@ -486,4 +504,14 @@ PopupContainer {
 .blocking-progress-panel-container {
     background-color: #2D2D2D;
     border-color: #515151;
+}
+
+/************************************************
+* New Version Notification
+************************************************/
+.unity-new-version-notification-dropdown .unity-base-popup-field__input {
+    background-color: rgba(88, 88, 88, 255);
+}
+.unity-new-version-notification-dropdown:hover .unity-base-popup-field__input {
+    background-color: rgba(103, 103, 103, 255);
 }

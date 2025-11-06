@@ -35,5 +35,8 @@ namespace Unity.Cloud.AssetsEmbedded
 
         /// <inheritdoc />
         public IEnumerable<FileData> Files { get; set; }
+
+        /// <inheritdoc />
+        public string VcsMappingId { get; set; }
     }
 }

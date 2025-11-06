@@ -26,6 +26,12 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         internal static AssetCollection From(this IAssetCollectionData data, IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            AssetLibraryId assetLibraryId, AssetCollectionCacheConfiguration? cacheConfigurationOverride = null)
+        {
+            return data.From(dataSource, defaultCacheConfiguration, new CollectionDescriptor(assetLibraryId, data.GetFullCollectionPath()), cacheConfigurationOverride);
+        }
+
+        internal static AssetCollection From(this IAssetCollectionData data, IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
             CollectionDescriptor collectionDescriptor, AssetCollectionCacheConfiguration? cacheConfigurationOverride = null)
         {
             var collection = new AssetCollection(dataSource, defaultCacheConfiguration, collectionDescriptor, cacheConfigurationOverride);

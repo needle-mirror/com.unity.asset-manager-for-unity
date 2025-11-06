@@ -14,8 +14,9 @@ namespace Unity.Cloud.AssetsEmbedded
     class GroupAndCountAssetsQueryBuilder
     {
         readonly IAssetDataSource m_AssetDataSource;
-        readonly OrganizationId m_OrganizationId;
+        readonly OrganizationId m_OrganizationId = OrganizationId.None;
         readonly List<ProjectId> m_ProjectIds = new();
+        readonly AssetLibraryId m_AssetLibraryId = AssetLibraryId.None;
 
         IAssetSearchFilter m_AssetSearchFilter;
         int? m_Limit;
@@ -23,6 +24,12 @@ namespace Unity.Cloud.AssetsEmbedded
         GroupAndCountAssetsQueryBuilder(IAssetDataSource assetDataSource)
         {
             m_AssetDataSource = assetDataSource;
+        }
+
+        internal GroupAndCountAssetsQueryBuilder(IAssetDataSource assetDataSource, OrganizationId organizationId)
+            : this(assetDataSource)
+        {
+            m_OrganizationId = organizationId;
         }
 
         internal GroupAndCountAssetsQueryBuilder(IAssetDataSource assetDataSource, ProjectDescriptor projectDescriptor)
@@ -53,10 +60,10 @@ namespace Unity.Cloud.AssetsEmbedded
             m_ProjectIds.AddRange(projects.Select(descriptor => descriptor.ProjectId));
         }
 
-        internal GroupAndCountAssetsQueryBuilder(IAssetDataSource assetDataSource, OrganizationId organizationId)
+        internal GroupAndCountAssetsQueryBuilder(IAssetDataSource assetDataSource, AssetLibraryId assetLibraryId)
             : this(assetDataSource)
         {
-            m_OrganizationId = organizationId;
+            m_AssetLibraryId = assetLibraryId;
         }
 
         /// <summary>
@@ -175,6 +182,13 @@ namespace Unity.Cloud.AssetsEmbedded
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                if(aggregations[i].Value is string) //meaning there was only one group by field
+                {
+                    var groupValue = await ParseGroupValueAsync(groupBy[0], aggregations[i].Value, metadataFieldTypes, cancellationToken);
+                    yield return new KeyValuePair<IEnumerable<GroupableFieldValue>, int>(new[] { groupValue }, aggregations[i].Count);
+                    continue;
+                }
+
                 var groupValues = new List<GroupableFieldValue>();
 
                 var value = IsolatedSerialization.ToObjectDictionary(aggregations[i].Value) ?? new Dictionary<string, object>();
@@ -199,6 +213,16 @@ namespace Unity.Cloud.AssetsEmbedded
             }
 
             var projectIds = m_ProjectIds.ToArray();
+
+            if (m_AssetLibraryId.IsPathToAssetLibraryValid())
+            {
+                var parameters = new SearchAndAggregateRequestParameters(aggregateBy)
+                {
+                    Filter = m_AssetSearchFilter?.From(),
+                    MaximumNumberOfItems = m_Limit,
+                };
+                return await m_AssetDataSource.GetAssetAggregateAsync(m_AssetLibraryId, parameters, cancellationToken);
+            }
 
             switch (projectIds.Length)
             {
@@ -241,12 +265,16 @@ namespace Unity.Cloud.AssetsEmbedded
             {
                 if (!metadataFieldTypes.TryGetValue(metadataFieldKey, out var metadataValueType))
                 {
-                    metadataValueType = await m_AssetDataSource.GetMetadataValueTypeAsync(new FieldDefinitionDescriptor(m_OrganizationId, metadataFieldKey), cancellationToken);
+                    var fieldDefinitionDescriptor = m_AssetLibraryId.IsPathToAssetLibraryValid()
+                        ? new FieldDefinitionDescriptor(m_AssetLibraryId, metadataFieldKey)
+                        : new FieldDefinitionDescriptor(m_OrganizationId, metadataFieldKey);
+
+                    metadataValueType = await m_AssetDataSource.GetMetadataValueTypeAsync(fieldDefinitionDescriptor, cancellationToken);
                     metadataFieldTypes.Add(metadataFieldKey, metadataValueType);
                 }
 
                 var metadataValue = new MetadataObject(metadataValueType, value.ToString());
-                return new GroupableFieldValue(GroupableFieldValueType.MetadataValue, metadataValue);
+                return new GroupableFieldValue(GroupableFieldValueType.MetadataValue, metadataValue, key);
             }
 
             // Else
@@ -257,22 +285,22 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             if (key.EndsWith("createdBy") || key.EndsWith("updatedBy"))
             {
-                return new GroupableFieldValue(GroupableFieldValueType.UserId, new UserId(AsString(value)));
+                return new GroupableFieldValue(GroupableFieldValueType.UserId, new UserId(AsString(value)), key);
             }
 
             return key switch
             {
-                "assetId" => new GroupableFieldValue(GroupableFieldValueType.AssetId, new AssetId(AsString(value))),
-                "assetVersion" => new GroupableFieldValue(GroupableFieldValueType.AssetVersion, new AssetVersion(AsString(value))),
-                "datasetId" => new GroupableFieldValue(GroupableFieldValueType.DatasetId, new DatasetId(AsString(value))),
-                "collections" => new GroupableFieldValue(GroupableFieldValueType.CollectionDescriptor, AsCollectionDescriptor(value)),
+                "assetId" => new GroupableFieldValue(GroupableFieldValueType.AssetId, new AssetId(AsString(value)), key),
+                "assetVersion" => new GroupableFieldValue(GroupableFieldValueType.AssetVersion, new AssetVersion(AsString(value)), key),
+                "datasetId" => new GroupableFieldValue(GroupableFieldValueType.DatasetId, new DatasetId(AsString(value)), key),
+                "collections" => new GroupableFieldValue(GroupableFieldValueType.CollectionDescriptor, AsCollectionDescriptor(value), key),
                 "primaryType" => value.ToString().TryGetAssetTypeFromString(out var assetType)
-                    ? new GroupableFieldValue(GroupableFieldValueType.AssetType, assetType)
-                    : new GroupableFieldValue(GroupableFieldValueType.String, AsString(value)),
+                    ? new GroupableFieldValue(GroupableFieldValueType.AssetType, assetType, key)
+                    : new GroupableFieldValue(GroupableFieldValueType.String, AsString(value), key),
                 "datasets.primaryType" => value.ToString().TryGetAssetTypeFromString(out var assetType)
-                    ? new GroupableFieldValue(GroupableFieldValueType.AssetType, assetType)
-                    : new GroupableFieldValue(GroupableFieldValueType.String, AsString(value)),
-                _ => new GroupableFieldValue(GroupableFieldValueType.String, AsString(value))
+                    ? new GroupableFieldValue(GroupableFieldValueType.AssetType, assetType, key)
+                    : new GroupableFieldValue(GroupableFieldValueType.String, AsString(value), key),
+                _ => new GroupableFieldValue(GroupableFieldValueType.String, AsString(value), key)
             };
         }
 

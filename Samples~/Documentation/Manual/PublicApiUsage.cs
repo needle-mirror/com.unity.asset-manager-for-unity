@@ -7,7 +7,6 @@ using Unity.AssetManager.Editor;
 using Unity.Cloud.AssetsEmbedded;
 using Unity.Cloud.CommonEmbedded;
 using UnityEngine;
-using AssetType = Unity.Cloud.AssetsEmbedded.AssetType;
 
 namespace Samples.Documentation.AssetManager
 {
@@ -60,7 +59,7 @@ namespace Samples.Documentation.AssetManager
             // This filter will search for assets containing "blue" in their name, of type Prefab, and with at least 2 tags from the specified list.
             var assetSearchFilter = new AssetSearchFilter();
             assetSearchFilter.Include().Name.WithValue("*blue*");
-            assetSearchFilter.Include().Type.WithValue(AssetType.Prefab);
+            assetSearchFilter.Include().Type.WithValue(Unity.Cloud.AssetsEmbedded.AssetType.Prefab);
             assetSearchFilter.Any().Tags.WithValue("tag1", "tag2", "tag3", "tag4", "tag5");
             assetSearchFilter.Any().WhereMinimumMatchEquals(2);
 
@@ -83,10 +82,26 @@ namespace Samples.Documentation.AssetManager
                     ConflictResolutionOverride = ConflictResolutionOverride.PreventAssetVersionRollbackAndShowConflictResolver
                 },
                 cancellationToken);
-            
+
             Debug.Log($"Imported {importResult.ImportedAssetIds?.Count()} assets.");
         }
 
         #endregion
     }
+
+    #region Example_Custom_AssetManagerPostprocessor
+    public class MyCustomAssetManagerPostprocessor : AssetManagerPostprocessor
+    {
+        public override int GetPostprocessOrder() => 0;
+
+        public override void OnPostprocessUploadAsset(UploadAsset asset)
+        {
+            if (asset.AssetType == Unity.AssetManager.Editor.AssetType.Material)
+            {
+                Array.Resize(ref asset.Tags, asset.Tags.Length + 1);
+                asset.Tags[^1] = "Custom Material Tag";
+            }
+        }
+    }
+    #endregion
 }

@@ -51,6 +51,7 @@ namespace Unity.AssetManager.UI.Editor
             m_PopupManager = popupManager;
 
             // We need this to hide/show the draggable line between the panes.
+            m_CategoriesSplitView = categoriesSplitView;
             m_DraglineAnchor = categoriesSplitView.Q("unity-dragline-anchor");
             m_DragLineHorizontalPosition = categoriesSplitView.fixedPaneInitialDimension;
 
@@ -161,7 +162,17 @@ namespace Unity.AssetManager.UI.Editor
 
             UIElementsUtils.Hide(m_CollapsedSidebar);
             UIElementsUtils.Show(m_DraglineAnchor);
-            m_DraglineAnchor.style.left = new Length(m_DragLineHorizontalPosition, LengthUnit.Pixel);
+
+            // Get the minimum buffer space from the SearchContentSplitView stylesheet
+            var searchContentElement = m_CategoriesSplitView.Q(className: "SearchContentSplitView");
+            var expandedBuffer = searchContentElement?.resolvedStyle.minWidth.value ?? 130f;
+
+            var windowWidth = panel?.visualTree?.resolvedStyle.width ?? float.MaxValue;
+            var maxAllowedWidth = windowWidth - expandedBuffer;
+            var constrainedPosition = Mathf.Min(m_DragLineHorizontalPosition, maxAllowedWidth);
+
+            m_DraglineAnchor.style.left = new Length(constrainedPosition, LengthUnit.Pixel);
+            m_CategoriesSplitView.fixedPaneInitialDimension = constrainedPosition;
 
             AddToClassList("expanded-sidebar");
             RemoveFromClassList("collapsed-sidebar");
