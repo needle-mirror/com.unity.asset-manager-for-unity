@@ -342,7 +342,7 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        async void OnUpdateClicked()
+        void OnUpdateClicked()
         {
             try
             {

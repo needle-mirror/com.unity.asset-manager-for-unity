@@ -113,13 +113,11 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        async Task RefreshEnabledState(SideBarFoldout foldout)
+        Task RefreshEnabledState(SideBarFoldout foldout)
         {
-            var isEnabled = await m_SidebarContentEnabler.IsEntryEnabledAsync(foldout.name, CancellationToken.None);
-
-            m_StateManager.SetCollectionFoldoutPopulatedState(foldout.name, isEnabled);
-
-            foldout.SetPopulatedState(isEnabled);
+            m_StateManager.SetCollectionFoldoutPopulatedState(foldout.name, true);
+            foldout.SetPopulatedState(true);
+            return Task.CompletedTask;
         }
 
         public void Refresh()

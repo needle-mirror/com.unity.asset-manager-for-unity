@@ -10,6 +10,7 @@ namespace Unity.AssetManager.UI.Editor
         void Repaint();
     }
 
+    [Serializable]
     class ProjectWindowProxy : BaseService<IProjectWindowProxy>, IProjectWindowProxy
     {
         EditorWindow m_ProjectWindow;

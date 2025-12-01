@@ -182,8 +182,6 @@ namespace Unity.AssetManager.UI.Editor
                 m_ReTriggerSearchAfterDomainReload = false;
                 LoadMore(clear: false, clearSelection: false);
             }
-
-            TryStartUpdateAssetAttributesTask(forceRestart: true);
         }
 
         public virtual void OnDisable()
@@ -372,9 +370,9 @@ namespace Unity.AssetManager.UI.Editor
             var token = GetUpdateAssetAttributesCancellationToken();
 
             var tasks = m_AssetDataManager.ImportedAssetInfos
-                .Select(i => i.AssetData.RefreshAssetDataAttributesAsync(token)).ToList();
+                .Select(i => (Func<Task>)(() => i.AssetData.RefreshAssetDataAttributesAsync(token)));
 
-            return Task.WhenAll(tasks);
+            return TaskUtils.RunAllTasksInQueue(tasks, TaskUtils.BackgroundRefreshQueueSize);
         }
 
         protected CancellationToken GetUpdateAssetAttributesCancellationToken()
@@ -383,6 +381,7 @@ namespace Unity.AssetManager.UI.Editor
             m_UpdateAssetAttributesCancellation?.Dispose();
             m_UpdateAssetAttributesCancellation = new CancellationTokenSource();
             return m_UpdateAssetAttributesCancellation.Token;
+
         }
 
         protected void TryStartUpdateAssetAttributesTask(bool forceRestart = false)

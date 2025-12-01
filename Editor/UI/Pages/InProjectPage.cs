@@ -21,7 +21,6 @@ namespace Unity.AssetManager.UI.Editor
         public override string Title => L10n.Tr(Constants.InProjectTitle);
         public override bool SupportsUpdateAll => true;
 
-        static CachedTask m_UpdateLinkedProjectsTask;
         Task m_UpdateLinkedProjectsForSelectionTask;
         Task<IEnumerable<ImportedAssetInfo>> m_GetFilteredImportedAssetsTask;
 
@@ -49,15 +48,13 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnOrganizationChanged(OrganizationInfo _)
         {
-            // Force an update of linked projects and collections when the organization changes
-            m_UpdateLinkedProjectsTask = null;
+            // Do nothing
         }
 
         void OnImportedAssetInfoChanged(AssetChangeArgs args)
         {
             // Force an update of linked projects and collections if any imported data has changed
             m_UpdateLinkedProjectsForSelectionTask = null;
-            m_UpdateLinkedProjectsTask = null;
 
             if (!m_PageManager.IsActivePage(this))
                 return;
@@ -84,21 +81,9 @@ namespace Unity.AssetManager.UI.Editor
             t.Start();
 #endif
 
-            if (m_UpdateLinkedProjectsForSelectionTask == null)
-            {
-                m_UpdateLinkedProjectsForSelectionTask = UpdateLinkedProjectsAndCollectionsForSelectionAsync(m_AssetDataManager.ImportedAssetInfos, token);
-            }
-
+            m_UpdateLinkedProjectsForSelectionTask ??=
+                UpdateLinkedProjectsAndCollectionsForSelectionAsync(m_AssetDataManager.ImportedAssetInfos, token);
             await m_UpdateLinkedProjectsForSelectionTask;
-
-            if (m_UpdateLinkedProjectsTask == null)
-            {
-                m_UpdateLinkedProjectsTask = new CachedTask(cancellationToken =>
-                    UpdateLinkedProjectsAndCollectionsAsync(m_AssetDataManager.ImportedAssetInfos, OnAssetDatasUpdated, cancellationToken));
-            }
-
-            // Non-blocking global update of linked projects and collections
-            _ = m_UpdateLinkedProjectsTask.RunAsync(token, 25);
 
             token.ThrowIfCancellationRequested();
 
@@ -279,19 +264,6 @@ namespace Unity.AssetManager.UI.Editor
             {
                 var assetDatas = importedAssets.Select(x => x.AssetData).Where(x => x != null);
                 await FilteringUtils.UpdateLinkedProjectsAndCollectionsForSelectionAsync(m_ProjectOrganizationProvider, m_AssetsProvider, assetDatas, token);
-            }
-        }
-
-        async Task UpdateLinkedProjectsAndCollectionsAsync(IEnumerable<ImportedAssetInfo> importedAssets, Action onCompleted, CancellationToken token)
-        {
-            Utilities.DevLog("Updating project lists for imported asset(s)...");
-
-            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
-            if (unityConnectProxy.AreCloudServicesReachable)
-            {
-                var assetDatas = importedAssets.Select(x => x.AssetData).Where(x => x != null);
-                await FilteringUtils.UpdateLinkedProjectsAndCollectionsAsync(m_ProjectOrganizationProvider, m_AssetsProvider, assetDatas, token);
-                onCompleted?.Invoke();
             }
         }
 

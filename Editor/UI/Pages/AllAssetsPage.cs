@@ -9,6 +9,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.UI.Editor
 {
+    [Serializable]
     class AllAssetsPage : BasePage
     {
         public AllAssetsPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
@@ -5,6 +6,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.UI.Editor
 {
+    [Serializable]
     class MultiSelectionMetadataFilter : CustomMetadataFilter
     {
         [SerializeReference]

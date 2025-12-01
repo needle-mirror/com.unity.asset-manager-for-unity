@@ -463,8 +463,10 @@ namespace Unity.AssetManager.Core.Editor
             {
                 Utilities.DevLog("Initiating search in multiple organizations.");
             }
+            var tasksCreations = assetsByOrg.Select(kvp => (Func<Task<ImportStatuses>>)(() => GatherImportStatusesAsync(kvp.Key, kvp.Value, token))).ToList();
 
-            var results = await Task.WhenAll(assetsByOrg.Select(kvp => GatherImportStatusesAsync(kvp.Key, kvp.Value, token)));
+            var tasks = await TaskUtils.RunAllTasksInQueue(tasksCreations);
+            var results = tasks.Select(t => t.Result);
             return new ImportStatuses(results);
         }
 
@@ -755,7 +757,7 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
 
-            var tasks = new List<Task>();
+            var tasks = new List<Func<Task>>();
 
             // Remove all dependencies that are not explicitly ignored.
             // This will remove d1 from assetDependenciesList
@@ -777,22 +779,24 @@ namespace Unity.AssetManager.Core.Editor
 
                 if (nb == 0)
                 {
-                    tasks.Add(asset.RemoveReferenceAsync(existingDependency.ReferenceId, token));
+                    tasks.Add(() => asset.RemoveReferenceAsync(existingDependency.ReferenceId, token));
                 }
             }
 
             // Add any remaining dependencies
             // d4 will be added
-            tasks.AddRange(assetDependenciesList.Select(dependencyDescriptor => asset.AddReferenceAsync(dependencyDescriptor.AssetId, dependencyDescriptor.AssetVersion, token)));
+            tasks.AddRange(assetDependenciesList.Select(dependencyDescriptor => (Func<Task>)(() => asset.AddReferenceAsync(dependencyDescriptor.AssetId, dependencyDescriptor.AssetVersion, token))));
             // We had dependencies using version label
-            tasks.AddRange(assetDependenciesWithLabel.Where(ad => !string.IsNullOrEmpty(ad.VersionLabel)).Select(identifier => asset.AddReferenceAsync(new AssetId(identifier.AssetId), identifier.VersionLabel, token)));
+            tasks.AddRange(assetDependenciesWithLabel.Where(ad => !string.IsNullOrEmpty(ad.VersionLabel)).Select(identifier => (Func<Task>)(()=> asset.AddReferenceAsync(new AssetId(identifier.AssetId), identifier.VersionLabel, token))));
 
             await TaskUtils.RunAllTasksInQueue(tasks);
         }
 
         async Task<List<string>> GetAssetVersionLabelsAsync(IAsset asset, CancellationToken token)
         {
+#pragma warning disable CS0618
             var query = asset.QueryLabels();
+#pragma warning restore CS0618
             query.WhereIsArchivedEquals(false);
 
             var labelsAsync = query.ExecuteAsync(token);

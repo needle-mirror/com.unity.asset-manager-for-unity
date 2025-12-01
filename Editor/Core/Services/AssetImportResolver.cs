@@ -188,15 +188,15 @@ namespace Unity.AssetManager.Core.Editor
             if (resolutionInfos.Count == 0)
                 return;
 
-            var tasks = new List<Task>();
+            var tasks = new List<Func<Task>>();
             foreach (var assetDataInfo in resolutionInfos)
             {
-                tasks.Add(assetDataInfo.GatherFileConflictsAsync(m_AssetDataManager, token));
+                tasks.Add(() => assetDataInfo.GatherFileConflictsAsync(m_AssetDataManager, token));
             }
 
             // TODO in the future, this could also check upward dependencies
 
-            await Task.WhenAll(tasks);
+            await TaskUtils.RunAllTasksInQueue(tasks);
         }
 
         async Task<HashSet<BaseAssetData>> GetUpdatedAssetDataAndDependenciesAsync(
@@ -218,13 +218,13 @@ namespace Unity.AssetManager.Core.Editor
                 dependencies[BuildDependencyKey(assetData)] = new DependencyNode(assetData);
             }
 
-            var depTasks = new List<Task>();
+            var depTasks = new List<Func<Task>>();
             foreach (var asset in assetDatas)
             {
-                depTasks.Add(GetDependenciesRecursivelyAsync(ImportOperation.ImportType.Import, asset, dependencies, token));
+                depTasks.Add(() => GetDependenciesRecursivelyAsync(ImportOperation.ImportType.Import, asset, dependencies, token));
             }
 
-            await Task.WhenAll(depTasks);
+            await TaskUtils.RunAllTasksInQueue(depTasks);
 
 #if AM4U_DEV
             t.Stop();
@@ -310,14 +310,14 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             // Start tasks to traverse each dependency
-            var tasks = new List<Task>();
+            var tasks = new List<Func<Task>>();
 
             foreach (var dependency in dependencies)
             {
-                tasks.Add(GetDependenciesRecursivelyAsync(importType, dependency, assetDatas, token));
+                tasks.Add(() => GetDependenciesRecursivelyAsync(importType, dependency, assetDatas, token));
             }
 
-            await Task.WhenAll(tasks);
+            await TaskUtils.RunAllTasksInQueue(tasks);
         }
 
         async Task<IEnumerable<BaseAssetData>> GetUpdatedAssetDataAsync(IEnumerable<AssetIdentifier> assetIdentifiers,
@@ -335,17 +335,17 @@ namespace Unity.AssetManager.Core.Editor
             t.Restart();
 #endif
 
-            var updateTasks = new List<Task>();
+            var updateTasks = new List<Func<Task>>();
             foreach (var asset in assetDatas)
             {
                 // Updates asset file list
-                updateTasks.Add(asset.ResolveDatasetsAsync(token));
+                updateTasks.Add(() => asset.ResolveDatasetsAsync(token));
 
                 // Updates dependency list
-                updateTasks.Add(asset.RefreshDependenciesAsync(token));
+                updateTasks.Add(() => asset.RefreshDependenciesAsync(token));
             }
 
-            await Task.WhenAll(updateTasks);
+            await TaskUtils.RunAllTasksInQueue(updateTasks);
 
 #if AM4U_DEV
             t.Stop();
@@ -379,17 +379,17 @@ namespace Unity.AssetManager.Core.Editor
                 Utilities.DevLog("Initiating search in multiple organizations.");
             }
 
-            var tasks = assetsByOrg
-                .Select(kvp => SearchUpdatedAssetDataAsync(kvp.Key, kvp.Value, importType, token))
-                .ToArray();
+            var tasksCreations = assetsByOrg
+                .Select(kvp => (Func<Task<IEnumerable<BaseAssetData>>>)(() => SearchUpdatedAssetDataAsync(kvp.Key, kvp.Value, importType, token)))
+                .ToList();
 
-            await Task.WhenAll(tasks);
+            var tasks =await TaskUtils.RunAllTasksInQueue(tasksCreations);
 
             var targetAssetDatas = new List<BaseAssetData>();
 
             foreach (var task in tasks)
             {
-                targetAssetDatas.AddRange(task.Result);
+                targetAssetDatas.AddRange(await task); // Await to get the result, we know the task is completed
             }
 
             return targetAssetDatas;
@@ -414,7 +414,7 @@ namespace Unity.AssetManager.Core.Editor
 
             // Split the asset list into chunks for multiple searches.
 
-            var tasks = new List<Task<IEnumerable<BaseAssetData>>>();
+            var tasksCreation = new List<Func<Task<IEnumerable<BaseAssetData>>>>();
             var startIndex = 0;
             while (startIndex < assetIdentifiers.Count)
             {
@@ -422,19 +422,19 @@ namespace Unity.AssetManager.Core.Editor
 
                 var assetIdentifierRange = assetIdentifiers.GetRange(startIndex, maxCount);
                 var searchFilter = BuildSearchFilter(assetIdentifierRange, importType);
-                tasks.Add(SearchUpdatedAssetDataAsync(m_AssetsProvider, organizationId, searchFilter,
+                tasksCreation.Add(() => SearchUpdatedAssetDataAsync(m_AssetsProvider, organizationId, searchFilter,
                     assetIdentifierRange, token));
 
                 startIndex += m_AssetsProvider.DefaultSearchPageSize;
             }
 
-            await Task.WhenAll(tasks);
+            var tasks = await TaskUtils.RunAllTasksInQueue(tasksCreation);
 
             var targetAssetDatas = new List<BaseAssetData>();
 
             foreach (var task in tasks)
             {
-                targetAssetDatas.AddRange(task.Result);
+                targetAssetDatas.AddRange(await task); // Await to get the result, we know the task is completed
             }
 
             return targetAssetDatas;

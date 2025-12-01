@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.UI.Editor
 {
+    [Serializable]
     abstract class CloudFilter : BaseFilter
     {
         List<FilterSelection> m_CachedSelections = new();

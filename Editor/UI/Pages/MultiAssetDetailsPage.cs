@@ -31,9 +31,6 @@ namespace Unity.AssetManager.UI.Editor
         static readonly string k_UploadIgnoredFoldoutTitle = "Ignored Dependencies";
         static readonly string k_UploadIncludedFoldoutTitle = "Included Dependencies";
 
-        [SerializeReference]
-        IUnityConnectProxy m_UnityConnectProxy;
-
         readonly AssetDataSelection m_SelectedAssetsData = new();
         bool m_IsEditingEnabled = false;
 
@@ -62,7 +59,6 @@ namespace Unity.AssetManager.UI.Editor
                 permissionsManager, dialogManager)
         {
             BuildUxmlDocument();
-            m_UnityConnectProxy = unityConnectProxy;
             m_SelectedAssetsData.AssetDataChanged += OnAssetDataEvent;
         }
 
@@ -356,7 +352,7 @@ namespace Unity.AssetManager.UI.Editor
 
         void RefreshMultiSelectionFoldoutButtonState()
         {
-            var cloudServiceReachable = m_UnityConnectProxy.AreCloudServicesReachable;
+            var cloudServiceReachable = m_UnityConnectProxy?.AreCloudServicesReachable ?? false;
 
             foreach (var foldout in m_Foldouts)
             {

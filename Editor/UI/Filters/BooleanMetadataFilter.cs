@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -6,6 +7,7 @@ using UnityEngine;
 
 namespace Unity.AssetManager.UI.Editor
 {
+    [Serializable]
     class BooleanMetadataFilter : CustomMetadataFilter
     {
         static readonly FilterSelection[] k_Selections =
@@ -53,6 +55,7 @@ namespace Unity.AssetManager.UI.Editor
             m_BooleanMetadata.Value = bool.Parse(selectedFilters?[0] ?? "false");
             base.IncludeFilter(selectedFilters);
         }
+
 
         protected override Task<List<FilterSelection>> GetSelectionsAsync()
         {

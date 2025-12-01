@@ -7,6 +7,8 @@ using Unity.AssetManager.Core.Editor;
 
 namespace Unity.AssetManager.UI.Editor
 {
+
+    [Serializable]
     class LocalImportStatusFilter : LocalFilter
     {
         static readonly FilterSelection[] k_Selections =

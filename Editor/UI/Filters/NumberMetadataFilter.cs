@@ -1,9 +1,11 @@
+using System;
 using System.Collections.Generic;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
 
 namespace Unity.AssetManager.UI.Editor
 {
+    [Serializable]
     class NumberMetadataFilter : CustomMetadataFilter
     {
         [SerializeReference]

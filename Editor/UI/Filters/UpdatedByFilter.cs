@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -6,6 +7,7 @@ using UnityEditor;
 
 namespace Unity.AssetManager.UI.Editor
 {
+    [Serializable]
     class UpdatedByFilter : CloudFilter
     {
         public override string DisplayName => L10n.Tr(Constants.LastEditByText);

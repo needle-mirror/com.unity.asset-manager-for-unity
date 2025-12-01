@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "unity": "2022.3",
   "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.\n\nTo open the Asset Manager for Unity window once the package is installed, go to the top left menu bar, select <b>Window > Asset Manager</b>.",
   "keywords": [
@@ -20,18 +20,18 @@
     "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.9.0"
+    "com.unity.asset-manager-for-unity.tests": "1.9.1"
   },
   "_upm": {
-    "changelog": "[Added]\n- Added a help box message and documentation link when enabling a project in Asset Manager from the editor fails.\n- New public class AssetManagerPostprocessor. When overriden, it allows to programmatically set and modify the assets' metadata during an Upload. Further customization can still be done in the Upload staging area as usual.\n- Added the ability to browse the external asset libraries and open the assets in the dashboard to add to projects.\n- Added a banner to notify when a new version of the com.unity.asset-manager-for-unity package is available.\n\n[Fixed]\n- Fixed a bug where the first asset selected in the upload page did not show editable description.\n- Fixed the \"show in project\" button still active after removing an empty asset from a project.\n- Reimport button is now greyed out when internet is down or the cloud services are unreachable.\n- Fixed reimport being clikable when the reimport selection contains a deleted asset.\n- Fixed projects and collections appearing gray in the \"In Project\" tab even when they contains some assets.\n- Fixed multiple issues where text was truncated and not fully visible in the window.\n- Tooltips were added for truncated text in chips for versions and labels.\n- Fixed multiple colour issues with text and icons where they were difficult to read due to contrast with the chosen theme.\n- Fixed issue arising from resizing the window or panes, where they could be scaled beyond normal limits.\n- Fixed various styling issues in the Preferences window.\n- Fixed not being able to scroll the search term chips when they exceeded the window's dimensions.\n- Saved views can now have the same name across different organizations. Saved view names must only be unique within the same organization.\n- The currently selected organization is now indicated with a checkmark in the organization selector.\n- When creating new collections, the new addition will be scrolled to if it is outside the scroll view bounds.\n- Fixed various typos in the window and documentation.\n- Fixing blocked loading screen when deleting a search filter while the search is ongoing.\n- Fixed an AssetImportWorker crash that happens when both Asset Manager For Unity and Asset Tranformer packages are used together."
+    "changelog": "[Fixed]\n- Reduce occurence of the TooManyRequestsException exception.\n\n[Removed]\n- Temporarily disable the feature \"Grey-out empty projects in the In Project tab\" until performance impact is reduced."
   },
   "upmCi": {
-    "footprint": "8c865830fb03a81bf2e1dde6de0e8912d6568ee0"
+    "footprint": "7807e24b587e044414c481bf2583307a32137d8c"
   },
   "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.9/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "b3dc9d108f6d39630ea5988f710655d53e6adeca"
+    "revision": "5811c5a6ba5c09cdd6ed696e02f81d7084b2fccc"
   }
 }
