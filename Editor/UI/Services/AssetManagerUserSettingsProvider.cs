@@ -48,6 +48,8 @@ namespace Unity.AssetManager.UI.Editor
         const string k_SizeLabel = "cacheManagementSizeLabel";
 
         const string k_UploadSettingsFoldout = "uploadSettingsFoldout";
+        const string k_DisableAllTagGenerationLabel = "disableAllTagGenerationLabel";
+        const string k_DisableAllTagGenerationToggle = "disableAllTagGenerationToggle";
         const string k_TagsCreationUploadLabel = "tagsCreationUploadLabel";
         const string k_TagsCreationUploadToggle = "tagsCreationUploadToggle";
         const string k_TagsCreationUploadConfidenceLabel = "tagsCreationUploadConfidenceLabel";
@@ -244,31 +246,55 @@ namespace Unity.AssetManager.UI.Editor
             var uploadSettingsFoldout = rootElement.Q<Foldout>(k_UploadSettingsFoldout);
             uploadSettingsFoldout.text = L10n.Tr(Constants.UploadSettingsTitle);
 
-            // Setup tags creation confidence threshold
+            // Setup tags creation confidence threshold (declare first for use in callbacks)
             var tagsCreationConfidenceLabel = rootElement.Q<Label>(k_TagsCreationUploadConfidenceLabel);
             tagsCreationConfidenceLabel.text = L10n.Tr(Constants.TagsCreationConfidenceLevel);
             tagsCreationConfidenceLabel.tooltip = L10n.Tr(Constants.TagsCreationConfidenceLevelTooltip);
-            tagsCreationConfidenceLabel.SetEnabled(m_SettingsManager.IsTagsCreationUploadEnabled);
             var tagsCreationConfidenceValue = rootElement.Q<SliderInt>(k_TagsCreationUploadConfidenceValue);
-            tagsCreationConfidenceValue.SetEnabled(m_SettingsManager.IsTagsCreationUploadEnabled);
             tagsCreationConfidenceValue.value = m_SettingsManager.TagsConfidenceThresholdPercent;
             tagsCreationConfidenceValue.RegisterValueChangedCallback(evt =>
             {
                 m_SettingsManager.SetTagsCreationConfidenceThresholdPercent(evt.newValue);
             });
 
-            // Setup tags creation on upload toggle
+            // Setup tags creation on upload toggle (declare before disable all toggle for use in callback)
             var tagsCreationUploadLabel = rootElement.Q<Label>(k_TagsCreationUploadLabel);
             tagsCreationUploadLabel.text = L10n.Tr(Constants.TagsCreation);
             var tagsCreationUpload = rootElement.Q<Toggle>(k_TagsCreationUploadToggle);
             tagsCreationUpload.value = m_SettingsManager.IsTagsCreationUploadEnabled;
+            var isAllTagGenerationDisabled = m_SettingsManager.IsAllTagGenerationDisabled;
+            tagsCreationUpload.SetEnabled(!isAllTagGenerationDisabled);
+            tagsCreationUploadLabel.SetEnabled(!isAllTagGenerationDisabled);
             tagsCreationUpload.RegisterCallback<ChangeEvent<bool>>(evt =>
             {
                 m_SettingsManager.SetIsTagsCreationUploadEnabled(evt.newValue);
 
-                tagsCreationConfidenceValue.SetEnabled(evt.newValue);
-                tagsCreationConfidenceLabel.SetEnabled(evt.newValue);
+                var isDisabled = m_SettingsManager.IsAllTagGenerationDisabled;
+                tagsCreationConfidenceValue.SetEnabled(evt.newValue && !isDisabled);
+                tagsCreationConfidenceLabel.SetEnabled(evt.newValue && !isDisabled);
             });
+
+            // Setup disable all tag generation toggle
+            var disableAllTagGenerationLabel = rootElement.Q<Label>(k_DisableAllTagGenerationLabel);
+            disableAllTagGenerationLabel.text = L10n.Tr(Constants.DisableAllTagGeneration);
+            disableAllTagGenerationLabel.tooltip = L10n.Tr(Constants.DisableAllTagGenerationTooltip);
+            var disableAllTagGenerationToggle = rootElement.Q<Toggle>(k_DisableAllTagGenerationToggle);
+            disableAllTagGenerationToggle.value = m_SettingsManager.IsAllTagGenerationDisabled;
+            disableAllTagGenerationToggle.RegisterCallback<ChangeEvent<bool>>(evt =>
+            {
+                m_SettingsManager.SetIsAllTagGenerationDisabled(evt.newValue);
+                
+                // Disable/enable the preview image tag generation toggle based on this setting
+                var isDisabled = evt.newValue;
+                tagsCreationUpload.SetEnabled(!isDisabled);
+                tagsCreationUploadLabel.SetEnabled(!isDisabled);
+                tagsCreationConfidenceValue.SetEnabled(!isDisabled && m_SettingsManager.IsTagsCreationUploadEnabled);
+                tagsCreationConfidenceLabel.SetEnabled(!isDisabled && m_SettingsManager.IsTagsCreationUploadEnabled);
+            });
+
+            // Set initial enabled state for confidence controls
+            tagsCreationConfidenceLabel.SetEnabled(m_SettingsManager.IsTagsCreationUploadEnabled && !isAllTagGenerationDisabled);
+            tagsCreationConfidenceValue.SetEnabled(m_SettingsManager.IsTagsCreationUploadEnabled && !isAllTagGenerationDisabled);
 
             // Setup upload dependencies with latest toggle
             var uploadDependenciesWithLatestLabelLabel = rootElement.Q<Label>(k_UploadDependenciesWithLatestLabelLabel);

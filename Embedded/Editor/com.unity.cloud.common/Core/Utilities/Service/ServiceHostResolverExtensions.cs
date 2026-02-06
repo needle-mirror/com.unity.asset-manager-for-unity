@@ -82,7 +82,7 @@ namespace Unity.Cloud.CommonEmbedded
             if (domainResolverOverride == null)
                 throw new ArgumentNullException(nameof(domainResolverOverride));
 
-            return new ServiceHostResolver(serviceHostResolver.GetResolvedServiceHost(), domainResolverOverride);
+            return new ServiceHostResolver(serviceHostResolver, domainResolverOverride);
         }
 
         /// <summary>

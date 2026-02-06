@@ -92,7 +92,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string UploadAssetsExistsTooltip = "All assets already exist in the cloud";
         public const string UploadAssetsNotModifiedTooltip = "All assets are unchanged";
         public const string UploadToAssetLibraryTooltip = "Cannot upload assets to an Asset Library project";
-        public const string UploadOutsideProjectTooltip = "One of more assets contain files outside the Assets folder";
+        public const string UploadOutsideProjectTooltip = "One or more assets contain files outside the Assets folder";
         public const string DirtyAssetsDialogTitle = "Warning";
         public const string DirtyAssetsDialogMessage = "You are trying to upload assets that have unsaved changes.\nAre you sure you want to proceed?";
         public const string DirtyAssetsDialogOk = "Save and Continue";
@@ -167,6 +167,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string StatusText = "Status";
         public const string SourceFilesText = "Source Files";
         public const string NoFilesText = "No files were found in this asset.";
+        public const string OfflineMessageText = "Unable to connect to Asset Manager services. Asset information may be incomplete or unavailable.";
         public const string SameFileNamesText = "Files of the same name were found in this asset. Unity does not support files with the same name.";
         public const string DependenciesText = "Dependencies";
         public const string NoDependenciesText = "This asset has no dependencies";
@@ -215,6 +216,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string RemoveFromProjectButtonToolTip = "Removes the asset and its exclusive dependencies from your Unity project";
         public const string RemoveFromProjectButtonDisabledToolTip = "There is nothing to remove from the project.";
         public const string ImportButtonDisabledToolTip = "There is nothing to import.";
+        public const string ImportNoFilesTooltip = "This asset has no files to import.";
         public const string ImportNoPermissionMessage = "You don’t have permissions to import this asset. \nSee your role from the project settings page on \nthe Asset Manager dashboard.";
         public const string FilteredAssetOutdatedWarning = "Asset is not up to date. Update your asset to see the latest asset details.";
         public const string AssetLibraryFooterHelpBoxText = "Add this asset to your own Asset Manager project on the dashboard. It will then be available to import into your project.";
@@ -241,7 +243,9 @@ namespace Unity.AssetManager.UI.Editor
 
         // Reimport Window
         public const string ReimportWindowConflictsTitle = "Some files have conflicts. To complete import, choose how to resolve them.";
-        public const string ReimportWindowConflictsWarning = "Warning: replacing files will overwrite local copies.";
+        public const string ReimportWindowConflictsWarning = "Replacing files will overwrite local copies.";
+        public const string ReimportFoldoutTrackingOverlapHeader = "The following files are already tracked by another asset. Their tracking will be overridden:";
+        public const string AssetInspectorTrackingOverlapWarning = "Some files in this asset are also tracked by other assets. Their tracking may conflict or be incomplete.";
         public const string ReimportWindowDependentsTitle = "The following dependent assets have updates:";
         public const string ReimportWindowUpwardDependenciesTitle = "The following assets have dependencies on updated assets. They might also be affected:";
         public const string ReimportWindowCancel = Cancel;
@@ -282,6 +286,8 @@ namespace Unity.AssetManager.UI.Editor
         public const string TagsCreation = "Generate tags automatically based on preview image";
         public const string TagsCreationConfidenceLevel = "Confidence level for automatic tags generation";
         public const string TagsCreationConfidenceLevelTooltip = "The higher the value, the more accurate the tags will be.";
+        public const string DisableAllTagGeneration = "Disable all tag generation";
+        public const string DisableAllTagGenerationTooltip = "When enabled, no tags will be automatically generated for assets, including tags from preview images, asset metadata, or other sources.";
         public const string UploadDependenciesUsingLatestLabel = "Pin dependencies to 'Latest' version label during upload";
         public const string UploadDependenciesUsingLatestTooltip = "Enable this option to map asset dependencies to their latest versions during upload, ensuring the latest versions are used during import. ";
         public const string UploadDependenciesUsingLatestHelpText = "The last two settings only apply when dependencies are set to \"Separate\". They don't affect uploads with dependencies set to \"Embedded\" or \"Ignore\".";

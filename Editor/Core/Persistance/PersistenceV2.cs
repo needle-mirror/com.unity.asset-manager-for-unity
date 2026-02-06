@@ -440,6 +440,12 @@ namespace Unity.AssetManager.Core.Editor
             return SerializeEntry(trackedAsset);
         }
 
+        public string SerializeEntryForFile(AssetData assetData, ImportedFileInfo fileInfo)
+        {
+            // V2 doesn't support per-Unity-file format
+            return null;
+        }
+
         static AssetIdentifier ExtractAssetIdentifier(TrackedAssetPersisted trackedAsset)
         {
             return new AssetIdentifier(trackedAsset.organizationId, trackedAsset.projectId, trackedAsset.assetId,
@@ -626,7 +632,7 @@ namespace Unity.AssetManager.Core.Editor
                 checksum = fileInfo?.Checksum,
                 timestamp = fileInfo?.Timestamp ?? 0L,
                 metaFileChecksum = fileInfo?.MetaFileChecksum,
-                metaFileTimestamp = fileInfo?.MetalFileTimestamp ?? 0L
+                metaFileTimestamp = fileInfo?.MetaFileTimestamp ?? 0L
             };
         }
 

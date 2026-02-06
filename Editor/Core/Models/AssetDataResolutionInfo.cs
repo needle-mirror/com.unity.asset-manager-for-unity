@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -10,12 +9,20 @@ using Object = UnityEngine.Object;
 
 namespace Unity.AssetManager.Core.Editor
 {
+    class TrackingOverlapInfo
+    {
+        public string FilePath;
+        public string ConflictingAssetName;
+        public string ConflictingAssetId;
+    }
+
     class AssetDataResolutionInfo
     {
         static readonly List<string> k_IgnoreExtensions = new() {".meta", ".am4u_dep", ".am4u_guid"};
 
         readonly List<BaseAssetDataFile> m_FileConflicts = new();
         readonly List<Object> m_DirtyObjects = new();
+        readonly List<TrackingOverlapInfo> m_TrackingOverlaps = new();
 
         public BaseAssetData AssetData { get; }
 
@@ -29,9 +36,14 @@ namespace Unity.AssetManager.Core.Editor
 
         public int ConflictCount => m_FileConflicts.Count;
 
+        public bool HasTrackingOverlap => m_TrackingOverlaps.Count > 0;
+
+        public IReadOnlyList<TrackingOverlapInfo> TrackingOverlaps => m_TrackingOverlaps;
+
         public IEnumerable<Object> DirtyObjects => m_DirtyObjects;
 
-        public AssetDataResolutionInfo(BaseAssetData assetData, IEnumerable<BaseAssetDataFile> existingFiles, IAssetDataManager assetDataManager)
+        public AssetDataResolutionInfo(BaseAssetData assetData, IEnumerable<BaseAssetDataFile> existingFiles,
+            IAssetDataManager assetDataManager, string importDestination = null)
         {
             AssetData = assetData;
             Existed = assetDataManager.IsInProject(assetData.Identifier);
@@ -39,6 +51,8 @@ namespace Unity.AssetManager.Core.Editor
             if (existingFiles != null)
             {
                 m_FileConflicts.AddRange(existingFiles);
+                if (!string.IsNullOrEmpty(importDestination))
+                    m_TrackingOverlaps.AddRange(DetectTrackingOverlap(assetData, m_FileConflicts, assetDataManager, importDestination));
             }
 
             var currentAssetData = assetDataManager.GetAssetData(AssetData.Identifier);
@@ -141,6 +155,53 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return modifiedFiles;
+        }
+
+        static List<TrackingOverlapInfo> DetectTrackingOverlap(BaseAssetData assetData, IEnumerable<BaseAssetDataFile> existingFiles,
+            IAssetDataManager assetDataManager, string importDestination)
+        {
+            var result = new List<TrackingOverlapInfo>();
+            var assetDatabase = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
+            var effectiveDestination = GetEffectiveImportDestination(importDestination, assetData.Name);
+
+            foreach (var file in existingFiles)
+            {
+                if (file?.Path == null)
+                    continue;
+
+                var fullPath = Path.Combine(effectiveDestination, file.Path);
+                var guid = assetDatabase.AssetPathToGuid(fullPath);
+                if (string.IsNullOrEmpty(guid))
+                    continue;
+
+                var trackedAssets = assetDataManager.GetImportedAssetInfosFromFileGuid(guid);
+                if (trackedAssets == null || trackedAssets.Count == 0)
+                    continue;
+
+                foreach (var info in trackedAssets)
+                {
+                    if (info?.Identifier == null || TrackedAssetIdentifier.IsFromSameAsset(info.Identifier, assetData.Identifier))
+                        continue;
+
+                    result.Add(new TrackingOverlapInfo
+                    {
+                        FilePath = file.Path,
+                        ConflictingAssetName = info.AssetData?.Name ?? string.Empty,
+                        ConflictingAssetId = info.Identifier.AssetId ?? string.Empty
+                    });
+                }
+            }
+
+            return result;
+        }
+
+        static string GetEffectiveImportDestination(string importDestination, string assetName)
+        {
+            var settingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
+            if (settingsManager.IsSubfolderCreationEnabled)
+                return Path.Combine(importDestination, PathUtils.SanitizeAssetName(assetName));
+
+            return importDestination;
         }
     }
 }

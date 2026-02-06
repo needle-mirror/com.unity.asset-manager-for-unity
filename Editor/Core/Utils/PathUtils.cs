@@ -1,11 +1,24 @@
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace Unity.AssetManager.Core.Editor
 {
     static class PathUtils
     {
+        static readonly Regex k_InvalidPathCharsRegex =
+            new Regex(@"[\\\/:*?""<>|]", RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+
+        /// <summary>
+        /// Removes characters invalid in file paths from the asset name and trims. Used for subfolder creation.
+        /// </summary>
+        public static string SanitizeAssetName(string assetName)
+        {
+            if (string.IsNullOrEmpty(assetName)) return string.Empty;
+            return k_InvalidPathCharsRegex.Replace(assetName, "").Trim();
+        }
+
         public static string Combine(string path1, string path2)
         {
           if (path1 == null)

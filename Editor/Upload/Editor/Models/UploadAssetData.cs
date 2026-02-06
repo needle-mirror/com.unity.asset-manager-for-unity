@@ -75,7 +75,7 @@ namespace Unity.AssetManager.Upload.Editor
         [SerializeField]
         UploadAttribute.UploadStatus m_ResolvedStatus; // This is the status of the asset in relation to dependencies
 
-        public UploadAttribute.UploadStatus? UploadStatus => AssetDataAttributeCollection.GetAttribute<UploadAttribute>()?.Status;
+        public UploadAttribute.UploadStatus? UploadStatus => AssetDataAttributeCollection?.GetAttribute<UploadAttribute>()?.Status;
 
         [SerializeField]
         int m_ExistingSequenceNumber;
@@ -161,6 +161,8 @@ namespace Unity.AssetManager.Upload.Editor
             }
         }
 
+        public string AssetPath => m_AssetPath;
+
         public void NotifyIgnoredChanged()
         {
             InvokeEvent(AssetDataEventType.ToggleValueChanged);
@@ -216,6 +218,8 @@ namespace Unity.AssetManager.Upload.Editor
         }
 
         public ProjectIdentifier TargetProject => m_TargetProject;
+
+        public UploadAssetData(){}
 
         public UploadAssetData(AssetIdentifier localIdentifier,
             string assetGuid,
@@ -280,6 +284,10 @@ namespace Unity.AssetManager.Upload.Editor
                 m_ExistingSequenceNumber = -1;
 
                 m_Name = Path.GetFileNameWithoutExtension(m_AssetPath);
+                if (char.IsWhiteSpace(m_Name[^1]))
+                {
+                    m_Name = m_Name.TrimEnd();
+                }
                 m_Metadata = new MetadataContainer();
 
                 m_Status = null;
@@ -288,7 +296,11 @@ namespace Unity.AssetManager.Upload.Editor
                 // Refresh reachable status names to set default status and status flow id
                 TaskUtils.TrackException(RefreshReachableStatusNamesAsync());
 
-                tags.UnionWith(TagExtractor.ExtractFromAsset(m_AssetPath));
+                var settingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
+                if (!settingsManager.IsAllTagGenerationDisabled)
+                {
+                    tags.UnionWith(TagExtractor.ExtractFromAsset(m_AssetPath));
+                }
             }
 
             m_Tags = tags.ToList();
@@ -658,7 +670,7 @@ namespace Unity.AssetManager.Upload.Editor
                 var metaPath = MetafilesHelper.AssetMetaFile(path);
                 if (ioProxy.FileExists(metaPath))
                 {
-                    result = await fileUtility.FileWasModified(metaPath, importedFileInfo.MetalFileTimestamp, importedFileInfo.MetaFileChecksum, token);
+                    result = await fileUtility.FileWasModified(metaPath, importedFileInfo.MetaFileTimestamp, importedFileInfo.MetaFileChecksum, token);
                     if (result.Results != ComparisonResults.None)
                     {
                         results.Add(result);
@@ -985,7 +997,11 @@ namespace Unity.AssetManager.Upload.Editor
                 try
                 {
                     await RefreshReachableStatusNamesAsync();
-                    if (!ReachableStatusNames.Contains(m_Status))
+                    if (ReachableStatusNames.Contains(m_Status))
+                    {
+                        m_Status = status;
+                    }
+                    else
                     {
                         Debug.LogWarning( $"Status '{status}' is not valid for asset '{Name}'. Status '{m_Status}' will be used instead.");
                         InvokeEvent(AssetDataEventType.PropertiesChanged); // Event only if status changed

@@ -33,6 +33,9 @@ namespace Unity.AssetManager.Core.Editor
         bool PingAssetByGuid(string guid);
         bool CanPingAssetByGuid(string guid);
         IEnumerable<string> GetAssetsInFolder(string folder);
+        void ReleaseCachedFileHandles();
+        string MoveAsset(string oldPath, string newPath);
+        string CreateFolder(string parentFolder, string newFolderName);
     }
 
     [Serializable]
@@ -71,7 +74,7 @@ namespace Unity.AssetManager.Core.Editor
         public string GetTextMetaFilePathFromAssetPath(string fileName) => AssetDatabase.GetTextMetaFilePathFromAssetPath(fileName);
 
         public string[] GetDependencies(string assetPath, bool recursive) => AssetDatabase.GetDependencies(assetPath, recursive);
-        
+
         public void SaveAssetIfDirty(string assetPath)
         {
             var asset = LoadAssetAtPath(assetPath);
@@ -141,5 +144,13 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
         }
+		
+        public void ReleaseCachedFileHandles()
+        {
+            AssetDatabase.ReleaseCachedFileHandles();
+        }
+		
+		public string MoveAsset(string oldPath, string newPath) => AssetDatabase.MoveAsset(oldPath, newPath);
+        public string CreateFolder(string parentFolder, string newFolderName) => AssetDatabase.CreateFolder(parentFolder, newFolderName);
     }
 }

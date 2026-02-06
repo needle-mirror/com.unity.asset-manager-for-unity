@@ -30,6 +30,9 @@ namespace Unity.Cloud.CommonEmbedded
         /// </summary>
         internal static string SystemOverrideDomainProviderVariableName => "UNITY_CLOUD_SERVICES_DOMAIN_PROVIDER";
 
+#if UNITY_EDITOR
+        static readonly string[] m_CommandLineArgs = Environment.GetCommandLineArgs();
+#endif
         static readonly UCLogger s_Logger = LoggerProvider.GetLogger(typeof(ServiceHostResolver).FullName);
 
         readonly ServiceEnumOverride<ServiceEnvironment> m_EnvironmentOverride = new();
@@ -37,6 +40,14 @@ namespace Unity.Cloud.CommonEmbedded
 
         readonly IServiceDomainResolver m_DomainResolver;
         readonly IHttpRequestUriModifier m_HttpRequestUriModifier;
+
+        internal ServiceHostResolver(ServiceHostResolver other, IServiceDomainResolver overrideDomainResolver)
+        {
+            m_EnvironmentOverride = other.m_EnvironmentOverride;
+            m_ProviderOverride = other.m_ProviderOverride;
+            m_DomainResolver = overrideDomainResolver;
+            m_HttpRequestUriModifier = other.m_HttpRequestUriModifier;
+        }
 
         internal ServiceHostResolver(ServiceHost? applicationOverride = null, IServiceDomainResolver domainResolver = null)
             : this(ReadSystemOverrides(), applicationOverride ?? new ServiceHost(), domainResolver ?? new ServiceDomainResolver())
@@ -60,6 +71,21 @@ namespace Unity.Cloud.CommonEmbedded
 
         static ServiceHost ReadSystemOverrides()
         {
+#if UNITY_EDITOR
+            // If the editor is executed with -cloudEnvironment staging, it takes precedence in all executing context.
+            for (var i = 1; i < m_CommandLineArgs.Length - 1; i++)
+            {
+                if (m_CommandLineArgs[i] == "-cloudEnvironment" && m_CommandLineArgs[i + 1] == "staging")
+                {
+                    s_Logger.LogInformation($"ServiceHostResolver will target the staging environment, because the Editor was launched with -cloudEnvironment 'staging' arguments.");
+                    return new ServiceHost
+                    {
+                        EnvironmentValue = "staging",
+                        ProviderValue = Environment.GetEnvironmentVariable(SystemOverrideDomainProviderVariableName)
+                    };
+                }
+            }
+#endif
             return new ServiceHost()
             {
                 EnvironmentValue = Environment.GetEnvironmentVariable(SystemOverrideEnvironmentVariableName),

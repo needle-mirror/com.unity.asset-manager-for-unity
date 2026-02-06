@@ -1,5 +1,4 @@
 using System;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Core.Editor
@@ -12,8 +11,8 @@ namespace Unity.AssetManager.Core.Editor
         public HelpBoxMessageType MessageType => m_MessageType;
 
         public HelpBoxMessage(string content, RecommendedAction recommendedAction = RecommendedAction.None,
-            HelpBoxMessageType messageType = HelpBoxMessageType.None)
-            : base(content, recommendedAction)
+            HelpBoxMessageType messageType = HelpBoxMessageType.None, bool dismissable = false)
+            : base(content, recommendedAction, dismissable)
         {
             m_MessageType = messageType;
         }

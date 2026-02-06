@@ -328,7 +328,7 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             // If any of the imported assets are part of the selection, mark the page as dirty
-            if (!dirty && importedAssets.Select(assetDatabaseProxy.AssetPathToGuid).Any(guid => m_UploadStaging.IsSelected(guid)))
+            if (!dirty && importedAssets.Select(assetDatabaseProxy.AssetPathToGuid).Any(guid => m_UploadStaging.ContainsAsset(guid)))
             {
                 dirty = true;
             }

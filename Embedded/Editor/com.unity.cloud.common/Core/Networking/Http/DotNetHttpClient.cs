@@ -24,7 +24,9 @@ namespace Unity.Cloud.CommonEmbedded
         /// </summary>
         public DotNetHttpClient()
         {
-            m_HttpClient = new System.Net.Http.HttpClient();
+            var handler = new HttpClientHandler();
+            handler.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
+            m_HttpClient = new HttpClient(handler);
         }
 
         /// <inheritdoc/>

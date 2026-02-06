@@ -1,5 +1,6 @@
 :root{
     --icon-tint-color: #555555;
+    --hover-highlight-color: #3A79BB;
 }
 
 /************************************************
@@ -61,7 +62,11 @@
 }
 
 .unity-list-view__item:hover {
-    background-color: #E7E7E7;
+    background-color: var(--hover-highlight-color);
+}
+
+.unity-org-selector-choice:hover {
+    color: white;
 }
 
 .collections-top-level-folder > Toggle > VisualElement{
@@ -385,6 +390,22 @@ RoleChip {
  }
 
 .no-files-warning-box > Label{
+    color: #090909;
+}
+
+.offline-warning-box {
+    background-color: rgba(198, 198, 198, 1);
+}
+
+.offline-warning-box > Label {
+    color: #090909;
+}
+
+.tracking-overlap-warning-box {
+    background-color: rgba(198, 198, 198, 1);
+}
+
+.tracking-overlap-warning-box > Label {
     color: #090909;
 }
 

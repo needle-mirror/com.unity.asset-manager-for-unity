@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -150,7 +149,7 @@ namespace Unity.AssetManager.Core.Editor
             foreach (var asset in assetsAndDependencies)
             {
                 var existingFiles = asset.GetFiles().Where(f => Exists(importDestination, asset, f));
-                var resolutionInfo = new AssetDataResolutionInfo(asset, existingFiles, m_AssetDataManager);
+                var resolutionInfo = new AssetDataResolutionInfo(asset, existingFiles, m_AssetDataManager, importDestination);
 
                 isFoundAtLeastOne |= resolutionInfo.HasConflicts;
 
@@ -172,11 +171,7 @@ namespace Unity.AssetManager.Core.Editor
         bool Exists(string destinationPath, BaseAssetData assetData, BaseAssetDataFile file)
         {
             if (m_SettingsManager.IsSubfolderCreationEnabled)
-            {
-                var regex = new Regex(@"[\\\/:*?""<>|]", RegexOptions.None, TimeSpan.FromMilliseconds(100));
-                var sanitizedAssetName = regex.Replace(assetData.Name, "");
-                destinationPath = Path.Combine(destinationPath, $"{sanitizedAssetName.Trim()}");
-            }
+                destinationPath = Path.Combine(destinationPath, PathUtils.SanitizeAssetName(assetData.Name));
 
             var filePath = Path.Combine(destinationPath, file.Path);
             return m_IOProxy.FileExists(filePath);

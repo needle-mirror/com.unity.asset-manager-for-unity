@@ -280,6 +280,17 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
                     throw new HttpRequestException(errorMessage);
                 }
+
+                if (request.result == UnityWebRequest.Result.ProtocolError &&
+                    request.downloadHandler is NativeDownloadHandler handler)
+                {
+                    // When there is a 4xx or 5xx status code, Unity, by design, does not
+                    // invoke DownloadHandlerScript.CompleteContent(). This causes our system
+                    // to be unaware if the body is received or is partial. To solve this problem,
+                    // it's safe to assume that the body is received if the request completed
+                    // with a status code, so we force the completion.
+                    handler.ForceCompleteContent();
+                }
             }
 
             SetHeaders(state);

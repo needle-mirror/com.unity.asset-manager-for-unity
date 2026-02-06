@@ -9,10 +9,24 @@ using UnityEngine;
 
 namespace Unity.AssetManager.Core.Editor
 {
+    /// <summary>
+    /// Highlight color for info-level dev logs (green/cyan = added/modified, yellow = corrected/migration, red = removed).
+    /// </summary>
+    internal enum DevLogHighlightColor
+    {
+        None,
+        Cyan,   // added/modified (info)
+        Yellow, // corrected event, migration detection
+        Red     // removed
+    }
+
     static class Utilities
     {
         static readonly string[] k_SizeSuffixes = {"B", "Kb", "Mb", "Gb", "Tb"};
         internal const string k_DevLogPrefix = "<color=#00CED1>[AM4U_DEV]</color>";
+        const string k_DevLogHighlightColor = "#00CED1";   // cyan — info highlight
+        const string k_DevLogWarningHighlightColor = "#FFD700"; // yellow/gold — warning highlight
+        const string k_DevLogErrorHighlightColor = "#FF0000";   // red — error highlight
 
         internal static string BytesToReadableString(double bytes)
         {
@@ -68,10 +82,35 @@ namespace Unity.AssetManager.Core.Editor
             return Regex.Replace(input, "(\\B[A-Z])", " $1");
         }
 
+        /// <summary>
+        /// Logs a dev message. Use <see cref="DevLogWarning"/> or <see cref="DevLogError"/> for the appropriate severity.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
+        /// <param name="highlight">When true, colors the message (cyan) for priority information.</param>
         [System.Diagnostics.Conditional("AM4U_DEV")]
-        public static void DevLog(string message)
+        public static void DevLog(string message, bool highlight = false)
         {
-            Debug.Log($"{k_DevLogPrefix} {message}");
+            var body = highlight ? $"<color={k_DevLogHighlightColor}>{message}</color>" : message;
+            Debug.Log($"{k_DevLogPrefix} {body}");
+        }
+
+        /// <summary>
+        /// Logs a dev message at info level with a highlight color (e.g. red for removed, yellow for migration/corrected, cyan for added/modified).
+        /// Use for informational file/move/migration messages that should not appear as warnings or errors.
+        /// </summary>
+        [System.Diagnostics.Conditional("AM4U_DEV")]
+        public static void DevLog(string message, DevLogHighlightColor highlightColor)
+        {
+            if (highlightColor == DevLogHighlightColor.None)
+            {
+                Debug.Log($"{k_DevLogPrefix} {message}");
+                return;
+            }
+            var color = highlightColor == DevLogHighlightColor.Red ? k_DevLogErrorHighlightColor
+                : highlightColor == DevLogHighlightColor.Yellow ? k_DevLogWarningHighlightColor
+                : k_DevLogHighlightColor;
+            var body = $"<color={color}>{message}</color>";
+            Debug.Log($"{k_DevLogPrefix} {body}");
         }
 
         [System.Diagnostics.Conditional("AM4U_DEV")]
@@ -87,16 +126,28 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
+        /// <summary>
+        /// Logs a dev error message.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
+        /// <param name="highlight">When true, colors the message (red) for priority information.</param>
         [System.Diagnostics.Conditional("AM4U_DEV")]
-        public static void DevLogError(string message)
+        public static void DevLogError(string message, bool highlight = false)
         {
-            Debug.LogError($"{k_DevLogPrefix} {message}");
+            var body = highlight ? $"<color={k_DevLogErrorHighlightColor}>{message}</color>" : message;
+            Debug.LogError($"{k_DevLogPrefix} {body}");
         }
 
+        /// <summary>
+        /// Logs a dev warning message.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
+        /// <param name="highlight">When true, colors the message (yellow) for priority information.</param>
         [System.Diagnostics.Conditional("AM4U_DEV")]
-        public static void DevLogWarning(string message)
+        public static void DevLogWarning(string message, bool highlight = false)
         {
-            Debug.LogWarning($"{k_DevLogPrefix} {message}");
+            var body = highlight ? $"<color={k_DevLogWarningHighlightColor}>{message}</color>" : message;
+            Debug.LogWarning($"{k_DevLogPrefix} {body}");
         }
 
         [System.Diagnostics.Conditional("AM4U_DEV")]

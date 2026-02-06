@@ -6,6 +6,7 @@ namespace Unity.AssetManager.Core.Editor
     {
         public const string PackageName = "com.unity.asset-manager-for-unity";
         public const string AssetsFolderName = "Assets";
+        public const string TrackedFolderName = "uam";
         public const string AssetManagerCacheLocationFolderName = "AssetManager";
         public const string CacheThumbnailsFolderName = "Thumbnails";
         public const string CacheTexturesFolderName = "Textures";

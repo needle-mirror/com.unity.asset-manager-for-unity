@@ -4,9 +4,29 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [1.9.2] - 2026-02-19
+## [1.10.0] - 2026-02-06
+
+[Added]
+- Added a toggle to disable all automatic tag generation on upload, including those from file types.
+
+[Changed]
+- Tracking files under `<ProjectPath>/ProjectSettings/Packages/com.unity.asset-manager-for-unity/ImportedAssetInfo` are named according to their corresponding Unity asset's name and migrated to the `<ProjectPath>/uam` directory.
+- Tracking file contents have been reduced and are stored in human-readable json format.
+- Importing assets with no files is no longer supported.
 
 [Fixed]
+- Fix renaming or moving an asset when being staged for upload causing the upload to fail.
+- Fix uploads cancellation not being responsive and allowing operations to go on.
+- Fix upload failures with Unity 6.3+.
+- Avoid regenerating Unity guid for files that has moved between 2 asset's versions.
+- Added the clipboard button to allow copying the status field for the selected asset.
+- Fixed issue where selecting a different asset would discard current edits on the current asset in the upload page.
+- Fixed creations not reverting when one of many asset failed being created during upload.
+- Fixed whitespace at the end of asset' names causing a `BadRequest` exception. Asset names are now trimmed of their trailing whitespaces at their creation.
+- Prevent folders from being staged as dependencies.
+- Fixed issue where the default value in certain custom metadata fields was not set until re-selected.
+- Various selection and hover styling inconsistencies.
+- Fixed issue where dependencies existing outside of the Assets folder were silently ignored on upload. The dependencies will now be show with a warning stating they cannot be uploaded.
 - Remove an internal obsolete API usage (ProjectBrowserDropHandler). Only affects Unity 6.4 and newer.
 
 ## [1.9.1] - 2025-12-01
@@ -42,7 +62,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - When creating new collections, the new addition will be scrolled to if it is outside the scroll view bounds.
 - Fixed various typos in the window and documentation.
 - Fixing blocked loading screen when deleting a search filter while the search is ongoing.
-- Fixed an AssetImportWorker crash that happens when both Asset Manager For Unity and Asset Tranformer packages are used together.
 
 ## [1.8.0] - 2025-10-03
 

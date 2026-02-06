@@ -275,6 +275,45 @@ namespace Unity.AssetManager.Core.Editor
         }
 #pragma warning restore S107
 
+        /// <summary>
+        /// Fills AssetData with only the essential fields stored in tracking files.
+        /// This method is used when reading from per-Unity-file tracking format (V4+),
+        /// where only minimal tracking data is stored on disk.
+        /// 
+        /// Additional fields (status, dependencies, metadata, etc.) are not stored in tracking files
+        /// and will be populated from the UI cache when needed.
+        /// </summary>
+        /// <param name="assetIdentifier">The asset identifier</param>
+        /// <param name="sequenceNumber">The sequence number for staleness detection</param>
+        /// <param name="name">The asset name</param>
+        /// <param name="updated">The last updated timestamp</param>
+        public void FillFromTracking(AssetIdentifier assetIdentifier, int sequenceNumber, string name, DateTime updated)
+        {
+            m_Identifier = assetIdentifier;
+            m_SequenceNumber = sequenceNumber;
+            m_Name = name;
+            m_Updated = updated.Ticks;
+
+            // All other fields remain at default/empty values and will be populated from UI cache
+            m_ParentSequenceNumber = 0;
+            m_Changelog = string.Empty;
+            m_AssetType = AssetType.Other;
+            m_Status = string.Empty;
+            m_StatusFlowId = string.Empty;
+            m_Description = string.Empty;
+            m_Created = DateTime.MinValue.Ticks;
+            m_CreatedBy = string.Empty;
+            m_UpdatedBy = string.Empty;
+            m_PreviewFilePath = string.Empty;
+            m_IsFrozen = false;
+            m_Tags = new List<string>();
+            m_Dependencies = new List<AssetIdentifier>();
+            m_Metadata = new MetadataContainer();
+            m_Datasets = new List<AssetDataset>();
+
+            ResolvePrimaryExtension();
+        }
+
         void FillFromOther(AssetData other)
         {
             m_Identifier = other.Identifier;
@@ -301,6 +340,122 @@ namespace Unity.AssetManager.Core.Editor
             foreach (var dataset in other.Datasets)
             {
                 _ = AssetDataset.k_PrimaryDatasetSystemTags.FirstOrDefault(x => TryCopyDataset(dataset, x));
+            }
+        }
+
+        /// <summary>
+        /// Populates display-oriented fields from an AssetDataCache entry.
+        /// Can override tracking file data with fresher cached data.
+        /// Note: This method directly sets backing fields to avoid triggering multiple events.
+        /// </summary>
+        public void PopulateFromAssetDataCache(AssetDataCacheEntry entry)
+        {
+            if (entry == null)
+                return;
+
+            // Core properties - only override if cache has non-empty values
+            if (!string.IsNullOrEmpty(entry.name))
+                m_Name = entry.name;
+
+            if (!string.IsNullOrEmpty(entry.description))
+                m_Description = entry.description;
+
+            if (!string.IsNullOrEmpty(entry.status))
+                m_Status = entry.status;
+
+            if (!string.IsNullOrEmpty(entry.statusFlowId))
+                m_StatusFlowId = entry.statusFlowId;
+
+            if (!string.IsNullOrEmpty(entry.changelog))
+                m_Changelog = entry.changelog;
+
+            if (!string.IsNullOrEmpty(entry.createdBy))
+                m_CreatedBy = entry.createdBy;
+
+            if (!string.IsNullOrEmpty(entry.updatedBy))
+                m_UpdatedBy = entry.updatedBy;
+
+            if (!string.IsNullOrEmpty(entry.previewFilePath))
+                m_PreviewFilePath = entry.previewFilePath;
+
+            m_IsFrozen = entry.isFrozen;
+
+            if (entry.tags != null && entry.tags.Count > 0)
+                m_Tags = entry.tags.ToList();
+
+            if (!string.IsNullOrEmpty(entry.created) && DateTime.TryParse(entry.created, null, System.Globalization.DateTimeStyles.RoundtripKind, out var created))
+                m_Created = created.Ticks;
+
+
+            // Linked projects (set directly to backing field to avoid event)
+            if (entry.linkedProjects != null && entry.linkedProjects.Count > 0)
+            {
+                m_LinkedProjects = entry.linkedProjects
+                    .Where(p => !string.IsNullOrEmpty(p.projectId))
+                    .Select(p => new ProjectIdentifier(p.organizationId, p.projectId))
+                    .ToList();
+            }
+
+            // Linked collections (set directly to backing field to avoid event)
+            if (entry.linkedCollections != null && entry.linkedCollections.Count > 0)
+            {
+                m_LinkedCollections = entry.linkedCollections
+                    .Where(c => !string.IsNullOrEmpty(c.collectionPath))
+                    .Select(c => new CollectionIdentifier(
+                        new ProjectIdentifier(c.organizationId, c.projectId),
+                        c.collectionPath))
+                    .ToList();
+            }
+
+            // Metadata - populate from cache if present
+            var metadata = AssetDataCacheConverter.ConvertMetadataFromCache(entry.metadata);
+            if (metadata.Any())
+                SetMetadata(metadata);
+
+            // Populate parentSequenceNumber if available in cache
+            if (entry.parentSequenceNumber != 0)
+                m_ParentSequenceNumber = entry.parentSequenceNumber;
+
+            // Update identifier with versionLabel and libraryId if available
+            if (m_Identifier != null && (!string.IsNullOrEmpty(entry.versionLabel) || !string.IsNullOrEmpty(entry.libraryId)))
+            {
+                var newIdentifier = new AssetIdentifier(
+                    m_Identifier.OrganizationId,
+                    m_Identifier.ProjectId,
+                    m_Identifier.AssetId,
+                    m_Identifier.Version,
+                    entry.versionLabel ?? m_Identifier.VersionLabel);
+
+                // Set libraryId via internal setter
+                if (!string.IsNullOrEmpty(entry.libraryId))
+                    newIdentifier.LibraryId = entry.libraryId;
+                else if (!string.IsNullOrEmpty(m_Identifier.LibraryId))
+                    newIdentifier.LibraryId = m_Identifier.LibraryId;
+                
+                m_Identifier = newIdentifier;
+            }
+
+            // Populate dependencies if available in cache
+            if (entry.dependencyAssets != null && entry.dependencyAssets.Count > 0)
+            {
+                m_Dependencies = entry.dependencyAssets
+                    .Where(d => !string.IsNullOrEmpty(d.assetId))
+                    .Select(d => new AssetIdentifier(
+                        d.organizationId,
+                        d.projectId,
+                        d.assetId,
+                        d.versionId,
+                        d.versionLabel))
+                    .ToList();
+
+                // Set libraryId for each dependency
+                for (int i = 0; i < m_Dependencies.Count && i < entry.dependencyAssets.Count; i++)
+                {
+                    if (!string.IsNullOrEmpty(entry.dependencyAssets[i].libraryId))
+                    {
+                        m_Dependencies[i].LibraryId = entry.dependencyAssets[i].libraryId;
+                    }
+                }
             }
         }
 
@@ -479,7 +634,9 @@ namespace Unity.AssetManager.Core.Editor
 
             if (sourceDataset == null)
             {
-                Utilities.DevLogWarning($"Source dataset not set for asset {Name}");
+                // Expected when asset was loaded from tracking file only (e.g. VCS-synced); dataset info
+                // comes from cloud/cache. Use placeholder until cache refresh or cloud fetch populates it.
+                Utilities.DevLog($"Source dataset not set for asset {Name}; using placeholder until cache/cloud data is available");
 
                 sourceDataset = new AssetDataset(k_Source, new List<string> {k_Source, k_NotSynced}, null);
                 Datasets = new List<AssetDataset> {sourceDataset};

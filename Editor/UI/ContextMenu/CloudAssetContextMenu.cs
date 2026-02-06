@@ -62,7 +62,7 @@ namespace Unity.AssetManager.UI.Editor
             var enabled = UIEnabledStates.HasPermissions.GetFlag(importPermission);
             enabled |= UIEnabledStates.ServicesReachable.GetFlag(m_UnityConnectProxy.AreCloudServicesReachable);
             enabled |= UIEnabledStates.IsImporting.GetFlag(IsImporting);
-            enabled |= UIEnabledStates.CanImport.GetFlag(true); // We unfortunately don't have a way to check instantly if the asset is not empty, so we need to assume it is.
+            enabled |= UIEnabledStates.CanImport.GetFlag(TargetAssetData.HasImportableFiles());
 
             var selectedAssetData = m_PageManager.ActivePage.SelectedAssets.Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
 
@@ -81,7 +81,7 @@ namespace Unity.AssetManager.UI.Editor
             var status = AssetDataStatus.GetStatusOfImport(TargetAssetData?.AssetDataAttributeCollection);
             states |= UIEnabledStates.ValidStatus.GetFlag(status == null || !string.IsNullOrEmpty(status.ActionText));
 
-            var text = AssetDetailsPageExtensions.GetImportButtonLabel(null, status);
+            var text = AssetInspectorUIElementHelper.GetImportButtonLabel(null, status);
 
             ImportTrigger trigger;
             if (status == null || string.IsNullOrEmpty(status.ActionText))
@@ -119,10 +119,19 @@ namespace Unity.AssetManager.UI.Editor
 
             states |= UIEnabledStates.ValidStatus.GetFlag(!isContainedInvalidStatus);
 
+            var importableAssetData = selectedAssetData.Where(ad => ad.HasImportableFiles()).ToList();
+
+            // Override CanImport for multi-select: base it on whether any selected asset has importable files,
+            // not just the right-clicked target asset.
+            if (importableAssetData.Any())
+                states |= UIEnabledStates.CanImport;
+            else
+                states &= ~UIEnabledStates.CanImport;
+
             AddMenuEntry(evt, L10n.Tr(Constants.ImportAllSelectedActionText), states.IsImportAvailable(),
                 _ =>
                 {
-                    m_AssetImporter.StartImportAsync(ImportTrigger.ImportAllContextMenu, selectedAssetData, new ImportSettings {Type = ImportOperation.ImportType.UpdateToLatest});
+                    m_AssetImporter.StartImportAsync(ImportTrigger.ImportAllContextMenu, importableAssetData, new ImportSettings {Type = ImportOperation.ImportType.UpdateToLatest});
                     AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(GridContextMenuItemSelectedEvent
                         .ContextMenuItemType.ImportAll));
                 });

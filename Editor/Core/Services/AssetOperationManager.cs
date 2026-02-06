@@ -32,7 +32,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public AssetDataOperation GetAssetOperation(AssetIdentifier identifier)
         {
-            return m_Operations.GetValueOrDefault(new TrackedAssetIdentifier(identifier));
+            return identifier == null ? null : m_Operations.GetValueOrDefault(new TrackedAssetIdentifier(identifier));
         }
 
         public void PauseAllOperations()

@@ -17,7 +17,9 @@ namespace Unity.AssetManager.UI.Editor
             ServicesContainer.instance.TryInitializeServices(
                 new DialogManager(),
                 new FileUtility(),
-                new SavedAssetSearchFilterManager());
+                new SavedAssetSearchFilterManager(),
+                new PersistenceManager(),
+                new AssetDataCacheManager());
         }
 
         public static void ResetServices()
@@ -48,8 +50,10 @@ namespace Unity.AssetManager.UI.Editor
                 new AssetsSdkProvider(),
                 new ProjectOrganizationProvider(),
                 new AssetDataManager(),
+                new AssetDataCacheManager(),
                 new ProjectIconDownloader(),
                 new AssetDatabaseProxy(),
+                new PersistenceManager(),
                 new ImportedAssetsTracker(),
                 new EditorUtilityProxy(),
                 new AssetImporter(),

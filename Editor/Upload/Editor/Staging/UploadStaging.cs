@@ -78,9 +78,9 @@ namespace Unity.AssetManager.Upload.Editor
             m_UploadEdits.AddToSelection(guid);
         }
 
-        public bool IsSelected(string guid)
+        public bool ContainsAsset(string guid)
         {
-            return m_UploadEdits.IsSelected(guid);
+            return m_UploadAssets.Any(asset => asset.Guid == guid);
         }
 
         public bool IsEmpty()

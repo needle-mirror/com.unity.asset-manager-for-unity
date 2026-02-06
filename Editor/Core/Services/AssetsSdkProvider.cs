@@ -170,8 +170,9 @@ namespace Unity.AssetManager.Core.Editor
             };
 
             await foreach (var asset in SearchAsync(new OrganizationId(organizationId), projectIds, assetSearchFilter,
-                               sortField, sortingOrder, startIndex, pageSize, cacheConfiguration, token))
+                sortField, sortingOrder, startIndex, pageSize, cacheConfiguration, token))
             {
+                token.ThrowIfCancellationRequested();
                 yield return await DataMapper.From(asset, token);
             }
         }
@@ -1243,7 +1244,7 @@ namespace Unity.AssetManager.Core.Editor
 
         async Task GenerateAndAssignTags(IFile file, CancellationToken token)
         {
-            if (!m_SettingsManager.IsTagsCreationUploadEnabled)
+            if (m_SettingsManager.IsAllTagGenerationDisabled || !m_SettingsManager.IsTagsCreationUploadEnabled)
                 return;
 
             IEnumerable<GeneratedTag> generatedTags;
@@ -1638,8 +1639,26 @@ namespace Unity.AssetManager.Core.Editor
 
         static AssetIdentifier Map(AssetDescriptor descriptor)
         {
+            var projectId = descriptor.ProjectId.ToString();
+
             var identifier = new AssetIdentifier(descriptor.OrganizationId.ToString(),
-                descriptor.ProjectId.ToString(),
+                projectId,
+                descriptor.AssetId.ToString(),
+                descriptor.AssetVersion.ToString());
+            identifier.LibraryId = descriptor.AssetLibraryId.ToString();
+            return identifier;
+        }
+
+        static AssetIdentifier Map(AssetDescriptor descriptor, AssetProperties properties)
+        {
+            var projectId = descriptor.ProjectId.ToString();
+            if (string.IsNullOrEmpty(projectId) && properties.LinkedProjects != null && properties.LinkedProjects.Any())
+            {
+                projectId = properties.LinkedProjects?.FirstOrDefault().ProjectId.ToString() ?? string.Empty;
+            }
+
+            var identifier = new AssetIdentifier(descriptor.OrganizationId.ToString(),
+                projectId,
                 descriptor.AssetId.ToString(),
                 descriptor.AssetVersion.ToString());
             identifier.LibraryId = descriptor.AssetLibraryId.ToString();
@@ -2115,7 +2134,7 @@ namespace Unity.AssetManager.Core.Editor
             static AssetData From(AssetDescriptor descriptor, AssetProperties properties)
             {
                 return new AssetData(
-                    Map(descriptor),
+                    Map(descriptor, properties),
                     properties.FrozenSequenceNumber,
                     properties.ParentFrozenSequenceNumber,
                     properties.Changelog,

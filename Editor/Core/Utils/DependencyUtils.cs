@@ -124,7 +124,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public static bool IsPathInsideAssetsFolder(string assetPath)
         {
-            return assetPath.Replace('\\', '/').ToLower().StartsWith("assets/");
+            return !string.IsNullOrEmpty(assetPath) && assetPath.Replace('\\', '/').StartsWith("assets/", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

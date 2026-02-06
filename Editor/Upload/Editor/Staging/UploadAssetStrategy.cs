@@ -145,6 +145,9 @@ namespace Unity.AssetManager.Upload.Editor
                                     new ProjectIdentifier(settings.OrganizationId, settings.ProjectId);
 
             var assetUploadEntry = new UploadAssetData(new AssetIdentifier(guid), guid, mainFileGuids, additionalFileGuids, deps, existingAssetData, projectIdentifier, settings.FilePathMode);
+            var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
+            if (assetDatabaseProxy.IsValidFolder(assetUploadEntry.AssetPath))
+                return null;
 
             // NO SONAR
             cache[guid] = assetUploadEntry;

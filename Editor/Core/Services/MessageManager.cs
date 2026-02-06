@@ -1,6 +1,4 @@
 using System;
-using UnityEngine;
-using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -11,9 +9,11 @@ namespace Unity.AssetManager.Core.Editor
 
         void SetHelpBoxMessage(HelpBoxMessage helpBoxMessage);
         void ClearHelpBoxMessage();
+        void DismissHelpBoxMessage();
 
         void SetGridViewMessage(Message message);
         void ClearGridViewMessage();
+        void DismissGridViewMessage();
 
         void ClearAllMessages();
 
@@ -48,6 +48,17 @@ namespace Unity.AssetManager.Core.Editor
 
         public void ClearHelpBoxMessage()
         {
+            // Don't clear dismissable messages - they must be explicitly dismissed by user
+            if (m_HelpBoxMessage != null && m_HelpBoxMessage.Dismissable)
+                return;
+
+            m_HelpBoxMessage = null;
+
+            HelpBoxMessageCleared?.Invoke();
+        }
+
+        public void DismissHelpBoxMessage()
+        {
             m_HelpBoxMessage = null;
 
             HelpBoxMessageCleared?.Invoke();
@@ -61,6 +72,17 @@ namespace Unity.AssetManager.Core.Editor
         }
 
         public void ClearGridViewMessage()
+        {
+            // Don't clear dismissable messages - they must be explicitly dismissed by user
+            if (m_GridViewMessage != null && m_GridViewMessage.Dismissable)
+                return;
+
+            m_GridViewMessage = null;
+
+            GridViewMessageCleared?.Invoke();
+        }
+
+        public void DismissGridViewMessage()
         {
             m_GridViewMessage = null;
 

@@ -24,6 +24,11 @@
     -unity-background-image-tint-color: #FF554A;
 }
 
+.no-files-warning-icon {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Warning.png');
+    -unity-background-image-tint-color: #F5A623;
+}
+
 .flex-row {
     flex-direction: row;
 }
@@ -179,7 +184,12 @@ SideBarFoldout Toggle {
     margin-right: 0;
 }
 
-SideBarAllAssetsFoldout Image {
+#SidebarAllAssetsButton {
+    display: flex;
+    flex-direction: row;
+}
+
+#SidebarAllAssetsButton Image {
     width: 16px;
     height: 16px;
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/All-Assets.png');
@@ -635,7 +645,7 @@ PageTitle {
 }
 
 .unity-filters-popup-filter-selection:hover {
-    background-color: rgb(43, 93, 134);
+    background-color: var(--hover-highlight-color);
 }
 
 .unity-filters-popup-filter-selection-checkmark {
@@ -869,7 +879,7 @@ PageTitle {
 }
 
 .unity-org-selector-choice:hover {
-    background-color: rgb(43, 93, 134);
+    background-color: var(--hover-highlight-color);
 }
 
 .unity-org-selector-choice-text{
@@ -1691,6 +1701,48 @@ HelpBox > Button {
     align-self: flex-end;
 }
 
+.action-helpbox-dismiss-button {
+    align-self: flex-start;
+    margin-left: auto;
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    font-size: 16px;
+    -unity-font-style: bold;
+    border-width: 0;
+    background-color: transparent;
+    padding: 0;
+    margin-top: 0;
+    margin-right: 0;
+    flex-shrink: 0;
+}
+
+.action-helpbox-dismiss-button:hover {
+    background-color: rgba(128, 128, 128, 0.3);
+    border-radius: 2px;
+}
+
+.grid-message-dismiss-button {
+    align-self: flex-start;
+    margin-left: auto;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    font-size: 18px;
+    -unity-font-style: bold;
+    border-width: 0;
+    background-color: transparent;
+    padding: 0;
+    margin-top: 0;
+    margin-right: 0;
+    flex-shrink: 0;
+}
+
+.grid-message-dismiss-button:hover {
+    background-color: rgba(128, 128, 128, 0.3);
+    border-radius: 2px;
+}
+
 .HelpBoxContainer {
     flex-shrink: 0;
 }
@@ -1827,7 +1879,7 @@ MultiAssetDetailsPage {
 * Details Page Container
 ************************************************/
 
-AssetDetailsPage {
+AssetInspector {
     height: 100%;
     position: absolute;
     left: 0;
@@ -2120,6 +2172,18 @@ AssetDetailsPage {
     overflow: hidden;
 }
 
+.offline-warning-box {
+    width: auto;
+    height: 55px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    border-width: 1px;
+    flex-direction: row;
+    overflow: hidden;
+}
+
 .same-files-warning-box {
     width: auto;
     height: 55px;
@@ -2174,6 +2238,58 @@ AssetDetailsPage {
     -unity-text-align: middle-left;
     overflow: visible;
     white-space: normal;
+}
+
+.offline-warning-box > Image {
+    width: 25px;
+    height: 25px;
+    margin-top: auto;
+    margin-bottom: auto;
+    margin-left: 10px;
+    flex-shrink: 0;
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Common/Warning.png');
+}
+
+.offline-warning-box > Label {
+    height: 25px;
+    margin-top: auto;
+    margin-bottom: auto;
+    padding-left: 10px;
+    margin-right: 10px;
+    color: white;
+    flex-shrink: 1;
+    -unity-text-align: middle-left;
+    overflow: visible;
+    white-space: normal;
+}
+
+.tracking-overlap-warning-box {
+    width: auto;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    border-width: 1px;
+    flex-direction: row;
+    align-items: center;
+    padding: 8px;
+}
+
+.tracking-overlap-warning-box > Image {
+    width: 25px;
+    height: 25px;
+    flex-shrink: 0;
+    margin-right: 8px;
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Common/Warning.png');
+}
+
+.tracking-overlap-warning-box > Label {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    white-space: normal;
+    overflow: hidden;
+    -unity-text-align: middle-left;
 }
 
 .same-files-warning-box > Image {
@@ -2398,7 +2514,7 @@ AssetDetailsPage {
 }
 
 .import-popup-import-to:hover {
-    background-color: rgb(43, 93, 134);
+    background-color: var(--hover-highlight-color);
 }
 
 .import-popup-import-to > Image {
@@ -2451,7 +2567,7 @@ AssetDetailsPage {
 }
 
 .details-page-dependency-item:hover {
-    background-color: rgb(43, 93, 134);
+    background-color: var(--hover-highlight-color);
 }
 
 .details-page-dependency-item-info {
@@ -2748,7 +2864,7 @@ AssetDetailsPage {
 }
 
 .custom-field-list-item:hover {
-    background-color: rgb(43, 93, 134);
+    background-color: var(--hover-highlight-color);
 }
 
 .custom-field-list-item-icon {
@@ -3225,6 +3341,15 @@ PopupContainer {
     margin-top: 10px;
     border-width: 1px;
     align-items: center;
+    padding: 4px;
+}
+
+.reimport-window-warning-container Label {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    white-space: normal;
+    overflow: hidden;
 }
 
 .reimport-window-dependents-title {
@@ -3237,6 +3362,14 @@ PopupContainer {
     flex-shrink: 0;
     margin: 4px;
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Common/Warning.png');
+}
+
+.reimport-window-info-icon {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    margin: 4px;
+    background-image: resource('console.infoicon');
 }
 
 .reimport-window-gap {

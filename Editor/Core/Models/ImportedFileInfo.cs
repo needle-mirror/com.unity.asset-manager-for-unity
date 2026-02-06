@@ -13,11 +13,11 @@ namespace Unity.AssetManager.Core.Editor
         public long Timestamp;
 
         public string MetaFileChecksum;
-        public long MetalFileTimestamp;
+        public long MetaFileTimestamp;
 
         public ImportedFileInfo(string datasetId, string guid, string originalPath,
             string checksum = null, long timestamp = 0,
-            string metaFileChecksum = null, long metalFileTimestamp = 0)
+            string metaFileChecksum = null, long metaFileTimestamp = 0)
         {
             DatasetId = datasetId;
             Guid = guid;
@@ -25,7 +25,7 @@ namespace Unity.AssetManager.Core.Editor
             Checksum = checksum;
             Timestamp = timestamp;
             MetaFileChecksum = metaFileChecksum;
-            MetalFileTimestamp = metalFileTimestamp;
+            MetaFileTimestamp = metaFileTimestamp;
         }
     }
 }

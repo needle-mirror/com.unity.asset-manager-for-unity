@@ -47,6 +47,10 @@ It's the maximum amount of disk space the Asset Manager uses to store cached ass
 
 ## Upload Settings
 
+### Disable all tag generation
+
+When enabled, no tags will be automatically generated for assets, including tags from preview images, asset metadata, or other sources. This setting takes precedence over all other tag generation settings.
+
 ### Generate tags automatically based on preview image
 
 When enabled, the Asset Manager automatically generates AI tags for assets based on the preview image.

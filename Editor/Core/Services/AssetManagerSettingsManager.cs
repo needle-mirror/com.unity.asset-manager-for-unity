@@ -18,6 +18,7 @@ namespace Unity.AssetManager.Core.Editor
         bool IsTagsCreationUploadEnabled { get; }
         int TagsConfidenceThresholdPercent { get; }
         float TagsConfidenceThreshold { get; }
+        bool IsAllTagGenerationDisabled { get; }
         bool IsUploadDependenciesUsingLatestLabel { get; }
         bool IsReimportModalDisabled { get; }
         bool IsProjectWindowIconOverlayEnabled { get; }
@@ -34,6 +35,7 @@ namespace Unity.AssetManager.Core.Editor
         void SetMaxCacheSize(int cacheSize);
         void SetIsTagsCreationUploadEnabled(bool value);
         void SetTagsCreationConfidenceThresholdPercent(int value);
+        void SetIsAllTagGenerationDisabled(bool value);
 
         string ResetCacheLocation();
         string ResetImportLocation();
@@ -73,6 +75,7 @@ namespace Unity.AssetManager.Core.Editor
         const string k_ProjectWindowIconOverlayType = "AM4U.projectWindowIconOverlayType";
         const string k_DependencyVersionSelectionEnabledKey = "AM4U.dependencyVersionSelectionEnabled";
         const string k_DebugLogsEnabled = "AM4U.debugLogsEnabled";
+        const string k_IsAllTagGenerationDisabledKey = "AM4U.isAllTagGenerationDisabled";
 
         enum ProjectIconOverlayPosition
         {
@@ -129,6 +132,8 @@ namespace Unity.AssetManager.Core.Editor
         public bool IsDependencyVersionSelectionEnabled => Instance.Get(k_DependencyVersionSelectionEnabledKey, SettingsScope.User, false);
 
         public bool IsDebugLogsEnabled => Instance.Get(k_DebugLogsEnabled, SettingsScope.User, false);
+
+        public bool IsAllTagGenerationDisabled => Instance.Get(k_IsAllTagGenerationDisabledKey, SettingsScope.User, false);
 
         public PrivateCloudSettings PrivateCloudSettings => PrivateCloudSettings.Load(Instance);
         public SavedAssetSearchFilterSettings SavedAssetSearchFilterSettings => SavedAssetSearchFilterSettings.Load(Instance);
@@ -295,6 +300,11 @@ namespace Unity.AssetManager.Core.Editor
         public void SetDebugLogsEnabled(bool value)
         {
             Instance.Set(k_DebugLogsEnabled, value, SettingsScope.User);
+        }
+
+        public void SetIsAllTagGenerationDisabled(bool value)
+        {
+            Instance.Set(k_IsAllTagGenerationDisabledKey, value, SettingsScope.User);
         }
     }
 }

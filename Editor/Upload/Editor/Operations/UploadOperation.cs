@@ -202,10 +202,13 @@ namespace Unity.AssetManager.Upload.Editor
                 ReportStep("Applying thumbnail");
 
                 var existingTags = targetAssetData.Tags ?? new List<string>();
+                var settingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
                 var assetUpdate = new AssetUpdate
                 {
-                    // Bubble up the generated tags from the thumbnail to the asset
-                    Tags = existingTags.Union(thumbnailFile.Tags ?? Array.Empty<string>()).ToList(),
+                    // Bubble up the generated tags from the thumbnail to the asset (unless all tag generation is disabled)
+                    Tags = settingsManager.IsAllTagGenerationDisabled 
+                        ? existingTags.ToList() 
+                        : existingTags.Union(thumbnailFile.Tags ?? Array.Empty<string>()).ToList(),
                     PreviewFile = thumbnailFile.Path
                 };
 

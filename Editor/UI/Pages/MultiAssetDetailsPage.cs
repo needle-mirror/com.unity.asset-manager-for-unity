@@ -359,9 +359,18 @@ namespace Unity.AssetManager.UI.Editor
                 foldout.Value.SetButtonEnable(cloudServiceReachable);
             }
 
-            // Special case: disable Imported (reimport) foldout button if at least one asset is deleted from the cloud
             var containDeletedAssets = m_SelectedAssetsData.Selection.Any(a => a.AssetDataAttributeCollection?.GetAttribute<ImportAttribute>()?.Status == ImportAttribute.ImportStatus.ErrorSync);
-            m_Foldouts[FoldoutName.Imported].SetButtonEnable(!containDeletedAssets && cloudServiceReachable);
+
+            // Disable foldout buttons when all assets in that foldout have no files,
+            // and also disable Imported foldout if at least one asset is deleted from the cloud.
+            var unimportedAssets = m_SelectedAssetsData.Selection.Where(x => !m_AssetDataManager.IsInProject(x.Identifier)).ToList();
+            var importedAssets = m_SelectedAssetsData.Selection.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
+
+            var unimportedHasAnyWithFiles = unimportedAssets.Any(a => a.HasImportableFiles());
+            var importedHasAnyWithFiles = importedAssets.Any(a => a.HasImportableFiles());
+
+            m_Foldouts[FoldoutName.Unimported].SetButtonEnable(cloudServiceReachable && unimportedHasAnyWithFiles);
+            m_Foldouts[FoldoutName.Imported].SetButtonEnable(!containDeletedAssets && cloudServiceReachable && importedHasAnyWithFiles);
         }
 
         void RefreshUploadPageFoldoutUI()
@@ -420,26 +429,50 @@ namespace Unity.AssetManager.UI.Editor
 
         void ImportUnimportedAssetsAsync()
         {
-            var unimportedAssets = m_PageManager.ActivePage.SelectedAssets.Where(x => !m_AssetDataManager.IsInProject(x))
+            var allUnimported = m_PageManager.ActivePage.SelectedAssets.Where(x => !m_AssetDataManager.IsInProject(x))
                 .Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
 
-            AnalyticsSender.SendEvent(unimportedAssets.Count > 1
+            var importable = allUnimported.Where(ad => ad.HasImportableFiles()).ToList();
+            var skipped = allUnimported.Where(ad => !ad.HasImportableFiles()).ToList();
+
+            if (skipped.Any())
+            {
+                var names = string.Join(", ", skipped.Select(a => a.Name));
+                Debug.LogWarning($"The following assets were skipped because they have no files: {names}");
+            }
+
+            if (!importable.Any())
+                return;
+
+            AnalyticsSender.SendEvent(importable.Count > 1
                 ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.ImportAll)
                 : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Import));
 
-            ImportListAsync(unimportedAssets, false);
+            ImportListAsync(importable, false);
         }
 
         void ReImportAssetsAsync()
         {
-            var importedAssets = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x))
+            var allImported = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x))
                 .Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
 
-            AnalyticsSender.SendEvent(importedAssets.Count > 1
+            var importable = allImported.Where(ad => ad.HasImportableFiles()).ToList();
+            var skipped = allImported.Where(ad => !ad.HasImportableFiles()).ToList();
+
+            if (skipped.Any())
+            {
+                var names = string.Join(", ", skipped.Select(a => a.Name));
+                Debug.LogWarning($"The following assets were skipped because they have no files: {names}");
+            }
+
+            if (!importable.Any())
+                return;
+
+            AnalyticsSender.SendEvent(importable.Count > 1
                 ? new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.ReImportAll)
                 : new DetailsButtonClickedEvent(DetailsButtonClickedEvent.ButtonType.Reimport));
 
-            ImportListAsync(importedAssets, true);
+            ImportListAsync(importable, true);
         }
 
         void RemoveAllFromLocalProject()

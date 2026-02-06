@@ -13,6 +13,7 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
     class UnityHttpClient : IHttpClient
     {
         const long k_DefaultMaximumUploadSizeForMemoryStorageBytes = 1_000_000;
+        const int k_CopyToTempFileBufferSize = 1024 * 1024;
 
         readonly LegacyRequestHandler m_RequestHandler;
         readonly long m_MaximumUploadSizeForMemoryStorage;
@@ -68,10 +69,12 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
                     }
                     else if (requestContent.Headers.ContentLength > m_MaximumUploadSizeForMemoryStorage)
                     {
-                        tempFilepath = Path.GetTempPath() + Guid.NewGuid();
+                        tempFilepath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
-                        await using var destination = File.OpenWrite(tempFilepath);
-                        await source.CopyToAsync(destination, cancellationToken);
+                        {
+                            await using var destination = File.OpenWrite(tempFilepath);
+                            await source.CopyToAsync(destination, k_CopyToTempFileBufferSize, cancellationToken);
+                        }
 
                         uploadHandler = new UploadHandlerFile(tempFilepath);
                     }

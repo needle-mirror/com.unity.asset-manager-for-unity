@@ -280,19 +280,19 @@ namespace Unity.AssetManager.Upload.Editor
     [Serializable]
     class AssetEdits
     {
-        [SerializeReference]
+        [SerializeField]
         public AssetEditDictionary<string> Names = new();
 
-        [SerializeReference]
+        [SerializeField]
         public AssetEditDictionary<string> Descriptions = new();
 
-        [SerializeReference]
+        [SerializeField]
         public AssetEditDictionary<string> Statuses = new();
 
-        [SerializeReference]
+        [SerializeField]
         public AssetEditDictionary<TagCollection> Tags = new();
 
-        [SerializeReference]
+        [SerializeField]
         public AssetEditDictionary<IMetadataContainer> CustomMetadata = new();
 
         public void Clear()

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -23,52 +22,46 @@ namespace Unity.AssetManager.Core.Editor
         IAssetDatabaseProxy m_AssetDatabaseProxy;
 
         [SerializeReference]
-        IApplicationProxy m_ApplicationProxy;
-
-        [SerializeReference]
         IAssetDataManager m_AssetDataManager;
 
         [SerializeReference]
-        IIOProxy m_IOProxy;
-        
-        [SerializeReference]
         IFileUtility m_FileUtility;
 
-        const string k_ImportedAssetFolderName = "ImportedAssetInfo";
-
-        string m_ImportedAssetInfoFolderPath;
+        [SerializeReference]
+        IPersistenceManager m_PersistenceManager;
 
         [ServiceInjection]
-        public void Inject(IIOProxy ioProxy, IApplicationProxy applicationProxy, IAssetDatabaseProxy assetDatabaseProxy, IAssetDataManager assetDataManager, IFileUtility fileUtility)
+        public void Inject(IAssetDatabaseProxy assetDatabaseProxy, IAssetDataManager assetDataManager, IFileUtility fileUtility, IPersistenceManager persistenceManager)
         {
-            m_IOProxy = ioProxy;
-            m_ApplicationProxy = applicationProxy;
             m_AssetDatabaseProxy = assetDatabaseProxy;
             m_AssetDataManager = assetDataManager;
             m_FileUtility = fileUtility;
+            m_PersistenceManager = persistenceManager;
         }
 
         public override void OnEnable()
         {
             base.OnEnable();
 
-            m_ImportedAssetInfoFolderPath = Path.Combine(m_ApplicationProxy.DataPath, "..", "ProjectSettings", "Packages",
-                AssetManagerCoreConstants.PackageName, k_ImportedAssetFolderName);
             if (!m_InitialImportedAssetInfoLoaded)
             {
-                m_AssetDataManager.SetImportedAssetInfos(ReadAllImportedAssetInfosFromDisk());
+                var entries = m_PersistenceManager.ReadAllEntries();
+                m_AssetDataManager.SetImportedAssetInfos(entries);
+
                 m_InitialImportedAssetInfoLoaded = true;
             }
 
             m_AssetDatabaseProxy.PostprocessAllAssets += OnPostprocessAllAssets;
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
+            m_PersistenceManager.AssetEntryModified += OnAssetEntryModified;
+            m_PersistenceManager.AssetEntryRemoved += OnAssetEntryRemoved;
         }
 
         protected override void ValidateServiceDependencies()
         {
             base.ValidateServiceDependencies();
 
-            m_ApplicationProxy ??= ServicesContainer.instance.Get<IApplicationProxy>();
+            m_PersistenceManager ??= ServicesContainer.instance.Get<IPersistenceManager>();
             m_FileUtility ??= ServicesContainer.instance.Get<IFileUtility>();
         }
 
@@ -93,119 +86,72 @@ namespace Unity.AssetManager.Core.Editor
                     checksum = await m_FileUtility.CalculateMD5ChecksumAsync(assetPath, default);
                 }
 
-                var timestamp = m_FileUtility.GetTimestamp(assetPath);
+                var timestamp = m_FileUtility.GetTimestamp(assetPath) ?? 0L;
 
                 var metafilePath = MetafilesHelper.AssetMetaFile(assetPath);
 
-                var metaFileTimestamp = 0L;
+                var metaFileTimestamp = m_FileUtility.GetTimestamp(metafilePath);
                 string metaFileChecksum = null;
 
-                if (m_IOProxy.FileExists(metafilePath))
+                if (metaFileTimestamp.HasValue)
                 {
                     // Ideally run this task in parallel to the one above
-                    (metaFileTimestamp, metaFileChecksum) = await ExtractTimestampAndChecksum(metafilePath);
+                    metaFileChecksum = await m_FileUtility.CalculateMD5ChecksumAsync(metafilePath, default);
                 }
 
                 var datasetId = assetData.Datasets.FirstOrDefault(x => x.Files.Any(f => f.Path == item.originalPath))?.Id;
 
-                var fileInfo = new ImportedFileInfo(datasetId, guid, item.originalPath, checksum, timestamp, metaFileChecksum, metaFileTimestamp);
+                var fileInfo = new ImportedFileInfo(datasetId, guid, item.originalPath, checksum, timestamp, metaFileChecksum, metaFileTimestamp ?? 0L);
                 fileInfos.Add(fileInfo);
             }
 
-            WriteToDisk(assetData, fileInfos);
-            m_AssetDataManager.AddOrUpdateGuidsToImportedAssetInfo(assetData, fileInfos);
-        }
-
-        async Task<(long, string)> ExtractTimestampAndChecksum(string assetPath)
-        {
-            var timestamp = m_FileUtility.GetTimestamp(assetPath);
-            var checksum = await m_FileUtility.CalculateMD5ChecksumAsync(assetPath, default);
-
-            return (timestamp, checksum);
+            try
+            {
+                WriteTrackedAsset(assetData, fileInfos);
+                // All files written successfully - add all to memory
+                m_AssetDataManager.AddOrUpdateGuidsToImportedAssetInfo(assetData, fileInfos);
+            }
+            catch (TrackingFilePathTooLongException ex)
+            {
+                // Some files failed to write - only add successfully written files to memory
+                if (ex.SuccessfullyWrittenFileInfos.Count > 0)
+                {
+                    m_AssetDataManager.AddOrUpdateGuidsToImportedAssetInfo(assetData, ex.SuccessfullyWrittenFileInfos);
+                }
+                // Exception has already been logged and displayed by PersistenceManager
+            }
         }
 
         public void UntrackAsset(AssetIdentifier identifier)
         {
-            UntrackAsset(new TrackedAssetIdentifier(identifier));
+            RemoveTrackedAsset(new TrackedAssetIdentifier(identifier));
         }
 
-        void UntrackAsset(TrackedAssetIdentifier identifier)
+        void WriteTrackedAsset(BaseAssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
+        {
+            m_PersistenceManager.WriteEntry(assetData as AssetData, fileInfos);
+        }
+
+        void RemoveTrackedAsset(TrackedAssetIdentifier identifier)
         {
             if (identifier == null)
-            {
                 return;
-            }
 
-            Persistence.RemoveEntry(m_IOProxy, identifier.AssetId);
+            m_PersistenceManager.RemoveEntry(identifier.AssetId);
         }
 
         void OnImportedAssetInfoChanged(AssetChangeArgs assetChangeArgs)
         {
             foreach (var id in assetChangeArgs.Removed)
-            {
-                UntrackAsset(id);
-            }
+                RemoveTrackedAsset(id);
         }
 
         public override void OnDisable()
         {
             m_AssetDatabaseProxy.PostprocessAllAssets -= OnPostprocessAllAssets;
             m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
-        }
-
-        IReadOnlyCollection<ImportedAssetInfo> ReadAllImportedAssetInfosFromDisk()
-        {
-            try
-            {
-                var result = new Dictionary<AssetIdentifier, ImportedAssetInfo>();
-                var importedAssetInfos = Persistence.ReadAllEntries(m_IOProxy);
-                foreach (var importedAssetInfo in importedAssetInfos)
-                {
-                    var assetData = importedAssetInfo?.AssetData;
-
-                    if (assetData != null)
-                    {
-                        result[assetData.Identifier] = importedAssetInfo;
-                    }
-                }
-
-                return result.Values;
-            }
-            catch (Exception e)
-            {
-                Debug.Log($"Couldn't load imported asset infos from disk:\n{e}.");
-                return Array.Empty<ImportedAssetInfo>();
-            }
-        }
-
-        void WriteToDisk(BaseAssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
-        {
-            Persistence.WriteEntry(m_IOProxy, assetData as AssetData, fileInfos);
-        }
-
-        bool RemoveFromDisk(string assetGuid)
-        {
-            if (string.IsNullOrEmpty(assetGuid))
-            {
-                return false;
-            }
-
-            var importInfoFilePath = Path.Combine(GetIndexFolderPath(assetGuid), assetGuid);
-            try
-            {
-                m_IOProxy.DeleteFile(importInfoFilePath, true);
-                return true;
-            }
-            catch (IOException e)
-            {
-                Debug.Log($"Couldn't remove imported asset info from {importInfoFilePath} :\n{e}.");
-                return false;
-            }
-        }
-
-        string GetIndexFolderPath(string guidString)
-        {
-            return Path.Combine(m_ImportedAssetInfoFolderPath, guidString.Substring(0, 2));
+            m_PersistenceManager.AssetEntryModified -= OnAssetEntryModified;
+            m_PersistenceManager.AssetEntryRemoved -= OnAssetEntryRemoved;
         }
 
         void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets,
@@ -213,7 +159,7 @@ namespace Unity.AssetManager.Core.Editor
         {
             var guidsToUntrack = new List<string>();
 
-            // A list of deleted paths
+            // Handle deleted assets
             foreach (var assetPath in deletedAssets)
             {
                 //Get an assetid from the deleted path // paths will be file id's in the context of am4u
@@ -222,10 +168,47 @@ namespace Unity.AssetManager.Core.Editor
                     continue;
 
                 guidsToUntrack.Add(guid);
-                RemoveFromDisk(guid);
             }
 
             m_AssetDataManager.RemoveFilesFromImportedAssetInfos(guidsToUntrack);
         }
+
+        void OnAssetEntryModified(object sender, ImportedAssetInfo importedAssetInfo)
+        {
+            if (importedAssetInfo == null)
+            {
+                return;
+            }
+
+            Utilities.DevLog($"Asset entry modified: {importedAssetInfo.AssetData?.Identifier.AssetId}", highlight: true);
+            // Tracking file was added/modified (e.g. FileWatcher); skip cache update so we don't overwrite with tracking-only data.
+            m_AssetDataManager.AddOrUpdateGuidsToImportedAssetInfo(importedAssetInfo.AssetData, importedAssetInfo.FileInfos, shouldUpdateCache: false);
+        }
+
+        void OnAssetEntryRemoved(object sender, string assetId)
+        {
+            if (string.IsNullOrEmpty(assetId))
+                return;
+
+            Utilities.DevLog($"Asset entry removed: {assetId}", DevLogHighlightColor.Red);
+
+            var importedAssetInfo = m_AssetDataManager.GetImportedAssetInfo(assetId);
+            if (importedAssetInfo == null)
+            {
+                // Asset info not found - this is expected if it was already removed or never existed in the manager.
+                // The file system event still fires even if the asset info was already cleaned up.
+                Utilities.DevLog($"OnAssetEntryRemoved: importedAssetInfo not found for assetId {assetId} (may have been already removed)");
+                return;
+            }
+
+            if (importedAssetInfo.Identifier == null)
+            {
+                Utilities.DevLogWarning($"OnAssetEntryRemoved: importedAssetInfo.Identifier is null for assetId {assetId}", highlight: true);
+                return;
+            }
+
+            m_AssetDataManager.RemoveImportedAssetInfo(new[] { importedAssetInfo.Identifier });
+        }
+
     }
 }

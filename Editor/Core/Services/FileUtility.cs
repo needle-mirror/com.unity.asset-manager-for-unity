@@ -13,7 +13,7 @@ namespace Unity.AssetManager.Core.Editor
     {
         bool IsFileDirty(string path);
         Task<ComparisonDetails> FileWasModified(string path, long expectedTimestamp, string expectedChecksum, CancellationToken token);
-        long GetTimestamp(string path);
+        long? GetTimestamp(string path);
         Task<string> CalculateMD5ChecksumAsync(string path, CancellationToken cancellationToken);
     }
 
@@ -128,8 +128,11 @@ namespace Unity.AssetManager.Core.Editor
             return timestamp == GetTimestamp(path);
         }
 
-        public long GetTimestamp(string path)
+        public long? GetTimestamp(string path)
         {
+            if (!m_IOProxy.FileExists(path))
+                return null;
+
             return ((DateTimeOffset) m_IOProxy.GetFileLastWriteTimeUtc(path)).ToUnixTimeSeconds();
         }
 

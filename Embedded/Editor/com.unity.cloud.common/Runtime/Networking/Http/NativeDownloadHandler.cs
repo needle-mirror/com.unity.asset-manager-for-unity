@@ -51,6 +51,8 @@ namespace Unity.Cloud.CommonEmbedded.Runtime
 
         public bool HasContent { get; private set; }
 
+        public void ForceCompleteContent() => CompleteContent();
+
         protected override float GetProgress()
         {
             var length = GetContentLength();

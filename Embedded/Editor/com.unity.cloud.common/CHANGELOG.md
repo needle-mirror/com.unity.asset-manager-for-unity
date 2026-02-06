@@ -5,6 +5,32 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2025-12-09
+
+### Changed
+- `DotNetHttpClient` now supports automatic decompression for `Deflate` and `GZip`.
+- `ServiceHostResolver` supports staging cloud environment override from Unity Editor launch argument.
+
+### Fixed
+- Fixed `ServiceHostResolver` internal copy not copying the original service host options.
+
+## [1.5.0] - 2025-10-15
+
+### Changed
+- InstanceId implementation of IEquatable.
+- Http error 429 added to the retryable http codes.
+
+### Fixed
+- Fixed the UnityHttpClient that was throwing an exception on Windows when trying to upload a Stream that is not a FileStream that was larger than 1MB.
+
+## [1.4.0] - 2025-09-29
+
+### Added
+- Added Authentication Service framework dependency in iOS post-build step.
+
+### Fixed
+- Fixed stream read failure when 4xx and 5xx http status codes happen.
+
 ## [1.3.0] - 2025-08-14
 
 ### Added

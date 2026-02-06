@@ -95,16 +95,18 @@ namespace Unity.AssetManager.Core.Editor
             return allTasks;
         }
 
-        public static async Task<IReadOnlyCollection<Task>> RunAllTasksInQueue<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation, int maxConcurrentTasks = k_MaxConcurrentTasksInQueue)
+        public static async Task<IReadOnlyCollection<Task>> RunAllTasksInQueue<T>(IEnumerable<T> inputs, Func<T, Task> taskCreation, int maxConcurrentTasks = k_MaxConcurrentTasksInQueue, CancellationToken cancellationToken = default)
         {
             var queue = new Queue<T>(inputs);
             var runningTasks = new List<Task>();
             var allTasks = new List<Task>();
+            var cancelTask = Task.Delay(Timeout.Infinite, cancellationToken);
+            runningTasks.Add(cancelTask);
 
-            while (queue.Count > 0 || runningTasks.Count > 0)
+            while (queue.Count > 0 || runningTasks.Count > 1)
             {
-                // Start new tasks while under concurrency limit
-                while (queue.Count > 0 && runningTasks.Count < maxConcurrentTasks)
+                // Start new tasks while under concurrency limit (reserve one slot for cancelTask)
+                while (queue.Count > 0 && runningTasks.Count < maxConcurrentTasks + 1)
                 {
                     var item = queue.Dequeue();
                     var task = taskCreation(item);
@@ -112,24 +114,31 @@ namespace Unity.AssetManager.Core.Editor
                     allTasks.Add(task);
                 }
 
-                // Wait for at least one task to complete before continuing
+                // Wait for at least one task to complete (or cancellation)
                 var completed = await Task.WhenAny(runningTasks);
                 runningTasks.Remove(completed);
+
+                if (completed != cancelTask) continue;
+                // Allow already running tasks to complete, handling exceptions
+                await WaitForTasksWithHandleExceptions(runningTasks);
+                break;
             }
 
             return allTasks;
         }
 
-        public static async Task<IEnumerable<Task>> RunAllTasksInQueue(IEnumerable<Func<Task>> taskCreations, int maxConcurrentTasks = k_MaxConcurrentTasksInQueue)
+        public static async Task<IEnumerable<Task>> RunAllTasksInQueue(IEnumerable<Func<Task>> taskCreations, int maxConcurrentTasks = k_MaxConcurrentTasksInQueue, CancellationToken cancellationToken = default)
         {
             var queue = new Queue<Func<Task>>(taskCreations);
             var runningTasks = new List<Task>();
             var allTasks = new List<Task>();
+            var cancelTask = Task.Delay(Timeout.Infinite, cancellationToken);
+            runningTasks.Add(cancelTask);
 
-            while (queue.Count > 0 || runningTasks.Count > 0)
+            while (queue.Count > 0 || runningTasks.Count > 1)
             {
-                // Start new tasks while under concurrency limit
-                while (queue.Count > 0 && runningTasks.Count < maxConcurrentTasks)
+                // Start new tasks while under concurrency limit (reserve one slot for cancelTask)
+                while (queue.Count > 0 && runningTasks.Count < maxConcurrentTasks + 1)
                 {
                     var taskCreation = queue.Dequeue();
                     var task = taskCreation();
@@ -137,24 +146,31 @@ namespace Unity.AssetManager.Core.Editor
                     allTasks.Add(task);
                 }
 
-                // Wait for at least one task to complete before continuing
+                // Wait for at least one task to complete (or cancellation)
                 var completed = await Task.WhenAny(runningTasks);
                 runningTasks.Remove(completed);
+
+                if (completed != cancelTask) continue;
+                // Allow already running tasks to complete, handling exceptions
+                await WaitForTasksWithHandleExceptions(runningTasks);
+                break;
             }
 
             return allTasks;
         }
 
-        public static async Task<IEnumerable<Task<T>>> RunAllTasksInQueue<T>(IEnumerable<Func<Task<T>>> taskCreations, int maxConcurrentTasks = k_MaxConcurrentTasksInQueue)
+        public static async Task<IEnumerable<Task<T>>> RunAllTasksInQueue<T>(IEnumerable<Func<Task<T>>> taskCreations, int maxConcurrentTasks = k_MaxConcurrentTasksInQueue, CancellationToken cancellationToken = default)
         {
             var queue = new Queue<Func<Task<T>>>(taskCreations);
-            var runningTasks = new List<Task<T>>();
+            var runningTasks = new List<Task>(); // List<Task> so we can include cancelTask
             var allTasks = new List<Task<T>>();
+            var cancelTask = Task.Delay(Timeout.Infinite, cancellationToken);
+            runningTasks.Add(cancelTask);
 
-            while (queue.Count > 0 || runningTasks.Count > 0)
+            while (queue.Count > 0 || runningTasks.Count > 1)
             {
-                // Start new tasks while under concurrency limit
-                while (queue.Count > 0 && runningTasks.Count < maxConcurrentTasks)
+                // Start new tasks while under concurrency limit (reserve one slot for cancelTask)
+                while (queue.Count > 0 && runningTasks.Count < maxConcurrentTasks + 1)
                 {
                     var taskCreation = queue.Dequeue();
                     var task = taskCreation();
@@ -162,9 +178,14 @@ namespace Unity.AssetManager.Core.Editor
                     allTasks.Add(task);
                 }
 
-                // Wait for at least one task to complete before continuing
+                // Wait for at least one task to complete (or cancellation)
                 var completed = await Task.WhenAny(runningTasks);
                 runningTasks.Remove(completed);
+
+                if (completed != cancelTask) continue;
+                // Allow already running tasks to complete, handling exceptions
+                await WaitForTasksWithHandleExceptions(runningTasks);
+                break;
             }
 
             return allTasks;

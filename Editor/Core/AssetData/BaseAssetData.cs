@@ -197,7 +197,7 @@ namespace Unity.AssetManager.Core.Editor
             AssetDataChanged?.Invoke(this, eventType);
         }
 
-        public IEnumerable<BaseAssetDataFile> GetFiles(Func<AssetDataset, bool> predicate = null)
+        public virtual IEnumerable<BaseAssetDataFile> GetFiles(Func<AssetDataset, bool> predicate = null)
         {
             if (predicate != null)
                 return Datasets?.Where(predicate).SelectMany(d => d.Files) ?? Array.Empty<BaseAssetDataFile>();

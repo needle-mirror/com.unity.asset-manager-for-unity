@@ -115,6 +115,12 @@ namespace Unity.AssetManager.Core.Editor
             return null;
         }
 
+        public string SerializeEntryForFile(AssetData assetData, ImportedFileInfo fileInfo)
+        {
+            // Legacy doesn't support per-Unity-file format
+            return null;
+        }
+
         static string MapTypes(string jsonString)
         {
             if (string.IsNullOrEmpty(jsonString))

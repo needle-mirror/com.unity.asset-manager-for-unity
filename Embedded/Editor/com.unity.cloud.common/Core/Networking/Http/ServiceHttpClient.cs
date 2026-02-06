@@ -243,7 +243,7 @@ namespace Unity.Cloud.CommonEmbedded
 
         Task<bool> ResponseValidatorNoErrorProcessing(HttpResponseMessage response)
         {
-            return Task.FromResult(response.StatusCode == HttpStatusCode.RequestTimeout || (int)response.StatusCode == 503 || (int)response.StatusCode == 504);
+            return Task.FromResult(response.StatusCode == HttpStatusCode.RequestTimeout || (int)response.StatusCode == 503 || (int)response.StatusCode == 504 || (int)response.StatusCode == 429);
         }
 
         async Task<HttpResponseMessage> SendWithErrorProcessingAsync(HttpRequestMessage request, HttpCompletionOption completionOption, ServiceHttpClientOptions options,

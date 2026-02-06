@@ -296,7 +296,7 @@ namespace Unity.AssetManager.Core.Editor
         Task RenameCollection(CollectionInfo collectionInfo, string newName);
         IAsyncEnumerable<NameAndId> ListOrganizationsAsync();
         Task<List<string>> GetOrganizationVersionLabelsAsync();
-        Task<List<ProjectOrLibraryInfo>> GetAssetLibrariesProjectsAsync();
+        Task<List<ProjectOrLibraryInfo>> GetAssetLibrariesAsync();
         IAsyncEnumerable<StatusFlowInfo> GetOrganizationStatusFlowsAsync(CancellationToken token);
         Task<StatusFlowInfo> GetOrganizationDefaultStatusFlowAsync(CancellationToken token = default);
     }
@@ -527,6 +527,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public void SelectOrganization(string organizationId)
         {
+            Utilities.DevLog("Selecting organization: " + organizationId);
             if (string.IsNullOrEmpty(organizationId))
                 return;
 
@@ -536,6 +537,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public void SelectProject(string projectId, string collectionPath = null, bool updateProject = false)
         {
+            Utilities.DevLog("Selecting project: " + projectId + " with collection path: " + collectionPath);
             var currentProjectId = SelectedProjectOrLibrary?.Id;
 
             if (string.IsNullOrEmpty(projectId) && string.IsNullOrEmpty(currentProjectId))
@@ -644,7 +646,13 @@ namespace Unity.AssetManager.Core.Editor
                 return;
 
             var collections = projectInfo.CollectionInfos?.ToList();
-            collections?.RemoveAll(c => c.GetFullPath().Contains(collectionInfo.GetFullPath()));
+            var deletedPath = collectionInfo.GetFullPath();
+            // Remove the deleted collection and any child collections (path starts with "deletedPath/")
+            // Using StartsWith with "/" suffix to avoid matching sibling collections with similar names
+            // e.g., deleting "New Collection" should not remove "New Collection (1)"
+            collections?.RemoveAll(c =>
+                c.GetFullPath() == deletedPath ||
+                c.GetFullPath().StartsWith(deletedPath + "/"));
             projectInfo.SetCollections(collections ?? new List<CollectionInfo>());
             ProjectInfoChanged?.Invoke(projectInfo);
         }
@@ -871,7 +879,7 @@ namespace Unity.AssetManager.Core.Editor
             return libraries;
         }
 
-        public async Task<List<ProjectOrLibraryInfo>> GetAssetLibrariesProjectsAsync()
+        public async Task<List<ProjectOrLibraryInfo>> GetAssetLibrariesAsync()
         {
             if (m_AssetLibrariesProjects != null && m_AssetLibrariesProjects.Any()) //we use what was serialized
                 return m_AssetLibrariesProjects;

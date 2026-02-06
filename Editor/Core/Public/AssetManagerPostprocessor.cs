@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+#if UNITY_6000_5_OR_NEWER
+using UnityEngine.Assemblies;
+#endif
 
 namespace Unity.AssetManager.Editor
 {
@@ -27,7 +30,11 @@ namespace Unity.AssetManager.Editor
         public static AssetManagerPostprocessor[] InstantiateAllAssetManagerPostprocessorsAndOrder()
         {
             var baseType = typeof(AssetManagerPostprocessor);
+#if UNITY_6000_5_OR_NEWER
+            var derivedTypes = CurrentAssemblies.GetLoadedAssemblies()
+#else
             var derivedTypes = AppDomain.CurrentDomain.GetAssemblies()
+#endif
                 .SelectMany(a => a.GetTypes())
                 .Where(t => t.IsClass && !t.IsAbstract && baseType.IsAssignableFrom(t) && t != baseType);
 

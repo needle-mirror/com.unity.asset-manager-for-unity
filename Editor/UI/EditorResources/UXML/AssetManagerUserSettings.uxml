@@ -54,6 +54,10 @@
             </ui:Foldout>
             <ui:Foldout name="uploadSettingsFoldout" class="settings-foldout">
                 <ui:VisualElement class="flex-row">
+                    <ui:Label name="disableAllTagGenerationLabel" class="settings-label" />
+                    <ui:Toggle name="disableAllTagGenerationToggle" class="upload-settings-toggle" />
+                </ui:VisualElement>
+                <ui:VisualElement class="flex-row">
                     <ui:Label name="tagsCreationUploadLabel" class="settings-label" />
                     <ui:Toggle name="tagsCreationUploadToggle" class="upload-settings-toggle" />
                 </ui:VisualElement>

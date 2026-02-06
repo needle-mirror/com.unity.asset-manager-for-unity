@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
+using Unity.AssetManager.Editor;
 using UnityEngine;
 using AssetUpdate = Unity.AssetManager.Core.Editor.AssetUpdate;
 
@@ -97,6 +98,8 @@ namespace Unity.AssetManager.Upload.Editor
                     AddDependencies(uploadEntry, assetEntriesWithAllDependencies, database);
                 }
 
+                token.ThrowIfCancellationRequested();
+
                 // Prepare the IAssets
                 var createAssetTasks = await TaskUtils.RunAllTasksInQueue(assetEntriesWithAllDependencies,
                     (uploadEntry) =>
@@ -104,25 +107,36 @@ namespace Unity.AssetManager.Upload.Editor
                         var operation = StartNewOperation(uploadEntry);
                         uploadEntryToOperationLookup[uploadEntry] = operation;
 
-                        // Intentionally not cancellable in order to retrieve the AssetUploadInfo
+                        // Intentionally not cancellable: we must run creations to completion so that
+                        // uploadEntryToAssetUploadInfoLookup is fully populated. Otherwise
+                        // RevertCreationsAsync would receive an empty lookup on cancel and could not remove
+                        // the assets already created, leaving them orphaned on the server.
                         return CreateOrRecycleAsset(operation, uploadEntry, CancellationToken.None);
-                    });
+                    }, cancellationToken:token);
 
+                var anyAssetCreationFailed = false;
                 foreach (var task in createAssetTasks)
                 {
-                    var assetUploadInfo = ((Task<AssetUploadInfo>)task).Result;
+                    var assetUploadInfo = await (Task<AssetUploadInfo>)task;
 
-                    if (assetUploadInfo == null) // Something went wrong during asset creation and the error was already reported
+                    if (assetUploadInfo == null)
+                    {
+                        // we don't throw an exception here since we need to know the successfull uploads to remove them
+                        anyAssetCreationFailed = true;
                         continue;
+                    }
 
                     var uploadEntry = assetUploadInfo.UploadAsset;
-
                     uploadEntryToAssetUploadInfoLookup[uploadEntry] = assetUploadInfo;
                     identifierToAssetLookup[uploadEntry.LocalIdentifier] = assetUploadInfo.TargetAssetData;
                 }
 
-                // Since we don't check the cancellation token during the creation of the asset to ensure they complete,
-                // let's check if cancel was requested here before moving on
+                if (anyAssetCreationFailed)
+                {
+                    throw new AssetManagerException(
+                        "One or more creation(s) failed. Upload process will be cancelled and created assets will be removed.");
+                }
+
                 token.ThrowIfCancellationRequested();
 
                 // Prepare a cloud asset for every asset entry that we want to upload
@@ -130,9 +144,12 @@ namespace Unity.AssetManager.Upload.Editor
                     (entry) =>
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
-                        return FetchAssetDependenciesAsync(operation, entry.Value.TargetAssetData, identifierToAssetLookup,
+                        return FetchAssetDependenciesAsync(operation, entry.Value.TargetAssetData,
+                            identifierToAssetLookup,
                             token);
                     });
+
+                token.ThrowIfCancellationRequested();
 
                 // Upload the assets
                 var uploadTasks = await TaskUtils.RunAllTasksInQueue(uploadEntryToAssetUploadInfoLookup,
@@ -140,12 +157,16 @@ namespace Unity.AssetManager.Upload.Editor
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
                         return UploadAssetAsync(entry.Value, operation, token);
-                    });
+                    },
+                    cancellationToken: token);
+
+                // We check first for cancellation to give it priority over faults
+                token.ThrowIfCancellationRequested();
 
                 if (uploadTasks.Any(t => t.IsFaulted))
                 {
-                    Debug.LogWarning("Some uploads failed. Upload process will be cancelled and created assets will be removed.");
-                    throw new OperationCanceledException(); // we throw a cancel exception to re-use the cleanup code in the catch block
+                    throw new AssetManagerException(
+                        "One or more upload(s) failed. Upload process will be cancelled and created assets will be removed.");
                 }
 
                 // Update the dependencies after the upload
@@ -154,12 +175,16 @@ namespace Unity.AssetManager.Upload.Editor
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
                         return UpdateDependenciesAsync(operation, entry.Value.TargetAssetData, token);
-                    });
+                    },
+                    cancellationToken: token);
+
+                // We check first for cancellation to give it priority over faults
+                token.ThrowIfCancellationRequested();
 
                 if (updateTasks.Any(t => t.IsFaulted))
                 {
-                    Debug.LogWarning("Some dependencies update failed. Upload process will be cancelled and created assets will be removed.");
-                    throw new OperationCanceledException(); // we throw a cancel exception to re-use the cleanup code in the catch block
+                    throw new AssetManagerException(
+                        "One or more dependencies update failed. Upload process will be cancelled and created assets will be removed.");
                 }
 
                 // Track the assets
@@ -168,28 +193,29 @@ namespace Unity.AssetManager.Upload.Editor
                     {
                         var operation = uploadEntryToOperationLookup[entry.Key];
                         return TrackAsset(entry.Value.UploadAsset, entry.Value.TargetAssetData, operation, token);
-                    });
+                    },
+                    cancellationToken: token);
+
+                token.ThrowIfCancellationRequested();
+            }
+            catch (AssetManagerException e)
+            {
+                uploadEndedStatus = UploadEndedStatus.Error;
+                Debug.LogError(e.Message);
+                await RevertCreationsAsync(uploadEntryToAssetUploadInfoLookup, uploadEntryToOperationLookup);
             }
             catch (OperationCanceledException e)
             {
                 uploadEndedStatus = UploadEndedStatus.Cancelled;
 
-                await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup.Values,
-                    assetUploadInfo => RemoveAttemptedUploadAssetAsync(assetUploadInfo));
-
-                foreach (var (_, operation) in uploadEntryToOperationLookup)
-                {
-                    if (operation.Status is not OperationStatus.Error)
-                    {
-                        operation.Finish(OperationStatus.Cancelled);
-                    }
-                }
+                await RevertCreationsAsync(uploadEntryToAssetUploadInfoLookup, uploadEntryToOperationLookup);
 
                 AnalyticsSender.SendEvent(new UploadEndEvent(UploadEndStatus.Cancelled, e.Message));
             }
             catch (Exception)
             {
                 uploadEndedStatus = UploadEndedStatus.Error;
+                await RevertCreationsAsync(uploadEntryToAssetUploadInfoLookup, uploadEntryToOperationLookup);
             }
             finally
             {
@@ -198,6 +224,20 @@ namespace Unity.AssetManager.Upload.Editor
                 m_TokenSource?.Dispose();
                 m_TokenSource = null;
                 UploadEnded?.Invoke(uploadEndedStatus);
+            }
+        }
+
+        async Task RevertCreationsAsync(Dictionary<IUploadAsset, AssetUploadInfo> uploadEntryToAssetUploadInfoLookup,
+            Dictionary<IUploadAsset, UploadOperation> uploadEntryToOperationLookup)
+        {
+            await TaskUtils.RunAllTasks(uploadEntryToAssetUploadInfoLookup.Values, RemoveAttemptedUploadAssetAsync);
+
+            foreach (var (_, operation) in uploadEntryToOperationLookup)
+            {
+                if (operation.Status is not OperationStatus.Error)
+                {
+                    operation.Finish(OperationStatus.Cancelled);
+                }
             }
         }
 

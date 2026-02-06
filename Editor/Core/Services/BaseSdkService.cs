@@ -1,5 +1,11 @@
+#if UNITY_6000_3_OR_NEWER
+#define AM4U_USE_DOTNET_HTTP_CLIENT
+#endif
+
 using System;
+using System.Net.Http;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.AppLinkingEmbedded;
 using Unity.Cloud.AssetsEmbedded;
@@ -7,9 +13,8 @@ using Unity.Cloud.CommonEmbedded;
 using Unity.Cloud.CommonEmbedded.Runtime;
 using Unity.Cloud.IdentityEmbedded;
 using Unity.Cloud.IdentityEmbedded.Editor;
-using UnityEditor;
-using UnityEditor.PackageManager;
 using UnityEngine;
+
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -163,7 +168,14 @@ namespace Unity.AssetManager.Core.Editor
                     packageVersion = pkgInfo.version;
                 }
 
+
+#if AM4U_USE_DOTNET_HTTP_CLIENT
+                // At this time, Unity 6.3.x has a bug where UnityWebRequest fails to upload in parallel large files.
+                // As a temporary workaround, we use the .NET HttpClient on this version.
+                var httpClient = new DotNetHttpClient();
+#else
                 var httpClient = new UnityHttpClient();
+#endif
                 IServiceHostResolver serviceHostResolver;
                 IServiceHttpClient serviceHttpClient;
 
@@ -192,6 +204,10 @@ namespace Unity.AssetManager.Core.Editor
                     UnityEditorServiceAuthorizer.instance.AuthenticationStateChanged += OnAuthenticationStateChanged;
                 }
 
+#if AM4U_USE_DOTNET_HTTP_CLIENT
+                serviceHttpClient = new ServiceHttpClientRequestsLoadedIntoBuffer(serviceHttpClient);
+#endif
+
                 s_AssetRepository = AssetRepositoryFactory.Create(serviceHttpClient, serviceHostResolver, AssetRepositoryCacheConfiguration.NoCaching);
                 s_WebAppUrlComposer = new WebAppUrlComposer(serviceHostResolver, serviceHttpClient);
 
@@ -219,6 +235,44 @@ namespace Unity.AssetManager.Core.Editor
                     return new AppId();
                 }
             }
+
+#if AM4U_USE_DOTNET_HTTP_CLIENT
+            // Temporary workaround for Unity 6.3.x where UnityWebRequest fails to upload large files in parallel.
+            // This class ensures that the HttpContent of requests are fully loaded into memory before sending the request.
+            // It is necessary because the .NET HttpClient does not support re-sending requests with non-buffered content.
+            // Using a IServiceHttpClient decorator to avoid modifying AssetDataSource in Assets SDK.
+            class ServiceHttpClientRequestsLoadedIntoBuffer: IServiceHttpClient
+            {
+                IServiceHttpClient m_ServiceHttpClient;
+
+                public ServiceHttpClientRequestsLoadedIntoBuffer(IServiceHttpClient mServiceHttpClient)
+                {
+                    m_ServiceHttpClient = mServiceHttpClient;
+                }
+
+                public TimeSpan Timeout
+                {
+                    get => m_ServiceHttpClient.Timeout;
+                    set => m_ServiceHttpClient.Timeout = value;
+                }
+
+                public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, HttpCompletionOption completionOption, IProgress<HttpProgress> progress,
+                    CancellationToken cancellationToken)
+                {
+                    if (request != null && request.Content != null)
+                        await request.Content.LoadIntoBufferAsync();
+                    return await m_ServiceHttpClient.SendAsync(request, completionOption, progress, cancellationToken);
+                }
+
+                public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, ServiceHttpClientOptions options, HttpCompletionOption completionOption,
+                    IProgress<HttpProgress> progress, CancellationToken cancellationToken)
+                {
+                    if (request != null && request.Content != null)
+                        await request.Content.LoadIntoBufferAsync();
+                    return await m_ServiceHttpClient.SendAsync(request, options, completionOption, progress, cancellationToken);
+                }
+            }
+#endif
         }
     }
 }

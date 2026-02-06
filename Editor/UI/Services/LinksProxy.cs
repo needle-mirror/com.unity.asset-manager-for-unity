@@ -19,6 +19,7 @@ namespace Unity.AssetManager.UI.Editor
         void OpenAssetManagerDashboard();
         void OpenAssetManagerDashboard(AssetIdentifier assetIdentifier);
         void OpenAssetManagerDocumentationPage(string page);
+        void OpenPackageDocumentationPage(string page);
         void OpenUnityCloudConfigurationDocumentation();
         void OpenProjectSettings(ProjectSettingsMenu menu);
         void OpenPreferences();
@@ -123,6 +124,12 @@ namespace Unity.AssetManager.UI.Editor
                 m_ApplicationProxy.OpenUrl(url);
                 AnalyticsSender.SendEvent(new MenuItemSelectedEvent(MenuItemSelectedEvent.MenuItemType.GotoSubscriptions));
             }
+        }
+
+        public void OpenPackageDocumentationPage(string page)
+        {
+            var url = PackageDocumentation.GetPackageManualPageUrl(page);
+            m_ApplicationProxy.OpenUrl(url);
         }
 
         public void OpenUnityCloudConfigurationDocumentation()

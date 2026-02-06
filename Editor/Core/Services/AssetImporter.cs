@@ -56,6 +56,21 @@ namespace Unity.AssetManager.Core.Editor
         {
             return ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().GetTextMetaFilePathFromAssetPath(fileName);
         }
+
+        /// <summary>
+        /// Parses the GUID from a Unity .meta file content.
+        /// Unity .meta files contain a line like: "guid: abc123def456..."
+        /// </summary>
+        /// <param name="metaFileContent">The content of the .meta file</param>
+        /// <returns>The GUID string, or null if not found</returns>
+        public static string ParseGuidFromMetaContent(string metaFileContent)
+        {
+            if (string.IsNullOrEmpty(metaFileContent))
+                return null;
+
+            var match = Regex.Match(metaFileContent, @"guid:\s*([a-fA-F0-9]+)");
+            return match.Success ? match.Groups[1].Value : null;
+        }
     }
 
     [Serializable]
@@ -236,6 +251,14 @@ namespace Unity.AssetManager.Core.Editor
                     var result = await m_Resolver.Resolve(assets, mappedImportSettings, token);
                     resolutions = result?.ToArray() ?? Array.Empty<BaseAssetData>();
 
+                    var emptyAssets = resolutions.Where(a => !a.HasImportableFiles()).ToArray();
+                    if (emptyAssets.Length > 0)
+                    {
+                        var names = string.Join(", ", emptyAssets.Select(a => $"\"{a.Name}\""));
+                        Debug.LogWarning($"Import skipped for assets with no importable files: {names}");
+                        resolutions = resolutions.Where(a => a.HasImportableFiles()).ToArray();
+                    }
+
                     if (IsDebugLogEnabled())
                     {
                         if (resolutions.Length == 0)
@@ -387,7 +410,7 @@ namespace Unity.AssetManager.Core.Editor
 
                 if (importedInfo != null)
                 {
-                    // Order is from least usable to most usable
+                    // Order is from least usable to most usable; try to ping by matching cloud path first
                     var files = importedInfo.AssetData?
                         .GetFiles(d => d.CanBeImported)?
                         .FilterUsableFilesAsPrimaryExtensions()
@@ -398,6 +421,13 @@ namespace Unity.AssetManager.Core.Editor
                     {
                         var fileInfo = importedInfo.FileInfos.Find(f => Utilities.ComparePaths(f.OriginalPath, files[i].Path));
                         if (fileInfo != null && m_AssetDatabaseProxy.PingAssetByGuid(fileInfo.Guid))
+                            return;
+                    }
+
+                    // Fallback: ping by GUID without path matching (e.g. if paths diverged after move or "Import To")
+                    foreach (var fileInfo in importedInfo.FileInfos)
+                    {
+                        if (fileInfo != null && !string.IsNullOrEmpty(fileInfo.Guid) && m_AssetDatabaseProxy.PingAssetByGuid(fileInfo.Guid))
                             return;
                     }
                 }
@@ -493,7 +523,7 @@ namespace Unity.AssetManager.Core.Editor
 
                 foreach (var identifier in identifiers)
                 {
-                    var files = FindAssetsAndLeftoverFolders(identifier);
+                    var files = GetRemovablePathsFor(identifier);
 
                     if (files.Length == 0)
                     {
@@ -603,7 +633,26 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             var filesToTrack = new Dictionary<ImportOperation, List<(string originalPath, string finalPath, string downloadPath)>>();
+
+            // Create all required folders BEFORE StartAssetEditing (CreateFolder doesn't work inside StartAssetEditing block)
+            foreach (var import in imports)
+            {
+                if (import.Status != OperationStatus.Success)
+                    continue;
+
+                var relocatedFiles = DetectRelocatedFiles(import);
+                foreach (var (guid, (oldPath, newPath)) in relocatedFiles)
+                {
+                    var parentDir = Path.GetDirectoryName(newPath);
+                    if (!string.IsNullOrEmpty(parentDir))
+                    {
+                        EnsureFolderExists(parentDir);
+                    }
+                }
+            }
+
             m_AssetDatabaseProxy.StartAssetEditing();
+            m_AssetDatabaseProxy.ReleaseCachedFileHandles();
 
             try
             {
@@ -685,32 +734,74 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     CleanupAssetsAndLeftoverFolders(importOperation);
                 }
-
-                foreach (var downloadRequest in importOperation.DownloadRequests)
+                else
                 {
-                    var downloadPath = downloadRequest.DownloadPath;
+                    // Build a map of relocated files (files that moved to a different folder between versions)
+                    // This is needed to use MoveAsset instead of delete+copy, which preserves GUIDs
+                    var relocatedFiles = DetectRelocatedFiles(importOperation);
 
-                    var finalPath = Path.GetRelativePath(importOperation.TempDownloadPath, downloadPath);
-
-                    if (m_IOProxy.FileExists(downloadPath))
+                    foreach (var downloadRequest in importOperation.DownloadRequests)
                     {
-                        // If multiple requests are targeting the same asset, we should only clean it up once, otherwise we run the risk of deleting newly downloaded files
-                        if (cleanedUpAssets.Add(importOperation.Identifier))
+                        var downloadPath = downloadRequest.DownloadPath;
+                        var finalPath = Path.GetRelativePath(importOperation.TempDownloadPath, downloadPath).Replace("\\", "/");
+
+                        if (m_IOProxy.FileExists(downloadPath))
                         {
-                            CleanupAssetsAndLeftoverFolders(importOperation);
+                            // If multiple requests are targeting the same asset, we should only clean it up once, otherwise we run the risk of deleting newly downloaded files
+                            if (cleanedUpAssets.Add(importOperation.Identifier))
+                            {
+                                // Cleanup files that were NOT relocated (i.e., files removed in new version).
+                                // Relocated file are moved to ensure guid are preserved.a
+                                CleanupAssetsAndLeftoverFolders(importOperation, excludePaths: relocatedFiles.Values.Select(x => x.oldPath));
+                            }
+
+                            // If this file was relocated, use MoveAsset to preserve GUIDs
+                            // Note: Parent folders are created before StartAssetEditing (CreateFolder doesn't work inside StartAssetEditing block)
+                            if(IsFileRelocated(finalPath, relocatedFiles))
+                            {
+                                var relocationInfo = relocatedFiles.Values.FirstOrDefault(r => r.newPath == finalPath);
+                                if (!string.IsNullOrEmpty(relocationInfo.oldPath))
+                                {
+                                    var error = m_AssetDatabaseProxy.MoveAsset(relocationInfo.oldPath, relocationInfo.newPath);
+                                    if (!string.IsNullOrEmpty(error))
+                                    {
+                                        Debug.LogWarning( $"Failed to move asset from '{relocationInfo.oldPath}' to '{relocationInfo.newPath}': {error}. Guid might be lost for {relocationInfo.newPath}");
+                                        m_IOProxy.DeleteFile(relocationInfo.oldPath);
+                                    }
+                                }
+                            }
+
+                            try
+                            {
+                                // Delete existing file at final path (may be the moved file with old content, or nothing)
+                                m_IOProxy.DeleteFile(finalPath);
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.LogError($"File: '{finalPath}' could not be deleted because of exception {ex.GetType().Name} with message: {ex.Message}");
+                                throw;
+                            }
+                            
+                            try
+                            {
+                                // Move downloaded file to final location
+                                m_IOProxy.FileMove(downloadPath, finalPath);
+							}
+	                        catch (Exception ex)
+	                        {
+                                Debug.LogError($"File: '{downloadPath}' cannot be moved to '{finalPath}' because of exception {ex.GetType().Name} with message: {ex.Message}");
+	                            throw;
+	                        }
+
+                            // Only refresh import of non-metadata files.
+                            if (!finalPath.EndsWith(MetafilesHelper.MetaFileExtension))
+                            {
+                                m_AssetDatabaseProxy.ImportAsset(finalPath);
+                            }
                         }
 
-                        m_IOProxy.DeleteFile(finalPath);
-                        m_IOProxy.FileMove(downloadPath, finalPath);
-
-                        // Only refresh import of non-metadata files.
-                        if (!finalPath.EndsWith(MetafilesHelper.MetaFileExtension))
-                        {
-                            m_AssetDatabaseProxy.ImportAsset(finalPath);
-                        }
+                        filesToTrack.Add((downloadRequest.OriginalPath, finalPath, downloadPath));
                     }
-
-                    filesToTrack.Add((downloadRequest.OriginalPath, finalPath, downloadPath));
                 }
             }
             catch (Exception e)
@@ -727,11 +818,82 @@ namespace Unity.AssetManager.Core.Editor
             return filesToTrack;
         }
 
-        void CleanupAssetsAndLeftoverFolders(ImportOperation importOperation)
+        /// <summary>
+        /// Detects files that have been relocated (moved to a different folder) between asset versions.
+        /// These files need special handling via MoveAsset to preserve their GUIDs.
+        /// </summary>
+        /// <returns>Dictionary mapping GUID to (oldPath, newPath) for relocated files</returns>
+        Dictionary<string, (string oldPath, string newPath)> DetectRelocatedFiles(ImportOperation importOperation)
         {
-            var assetsAndFolders = FindAssetsAndLeftoverFolders(importOperation.Identifier);
+            var relocatedFiles = new Dictionary<string, (string oldPath, string newPath)>();
+
+            foreach (var downloadRequest in importOperation.DownloadRequests)
+            {
+                var downloadPath = downloadRequest.DownloadPath;
+
+                // Skip meta files - we process them along with their asset files
+                if (downloadPath.EndsWith(MetafilesHelper.MetaFileExtension))
+                    continue;
+
+                // Check if there's a downloaded meta file for this asset
+                var metaDownloadPath = downloadPath + MetafilesHelper.MetaFileExtension;
+                if (!m_IOProxy.FileExists(metaDownloadPath))
+                    continue;
+
+                try
+                {
+                    // Read and parse the GUID from the downloaded meta file
+                    var metaContent = m_IOProxy.FileReadAllText(metaDownloadPath);
+                    var downloadedGuid = MetafilesHelper.ParseGuidFromMetaContent(metaContent);
+
+                    if (string.IsNullOrEmpty(downloadedGuid))
+                        continue;
+
+                    // Check if this GUID exists in the project at a different path
+                    var existingPath = m_AssetDatabaseProxy.GuidToAssetPath(downloadedGuid);
+                    var newPath = Path.GetRelativePath(importOperation.TempDownloadPath, downloadPath);
+
+                    // Normalize paths for comparison
+                    existingPath = existingPath?.Replace('\\', '/');
+                    newPath = newPath?.Replace('\\', '/');
+
+                    if (!string.IsNullOrEmpty(existingPath) && m_IOProxy.FileExists(existingPath) && existingPath != newPath)
+                    {
+                        // This file has been relocated - it exists at a different path
+                        relocatedFiles[downloadedGuid] = (existingPath, newPath);
+                        Utilities.DevLog($"Detected relocated file: GUID={downloadedGuid}, '{existingPath}' -> '{newPath}'");
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"Failed to detect relocation for '{downloadPath}': {e.Message}");
+                }
+            }
+
+            return relocatedFiles;
+        }
+
+        /// <summary>
+        /// Checks if a file path corresponds to a relocated file (or its meta file).
+        /// </summary>
+        bool IsFileRelocated(string finalPath, Dictionary<string, (string oldPath, string newPath)> relocatedFiles)
+        {
+            var pathWithoutMeta = MetafilesHelper.RemoveMetaExtension(finalPath);
+            return relocatedFiles.Values.Any(r =>
+                r.newPath == pathWithoutMeta ||
+                r.newPath == finalPath);
+        }
+
+        void CleanupAssetsAndLeftoverFolders(ImportOperation importOperation, IEnumerable<string> excludePaths = null)
+        {
+            var exclusions = excludePaths != null ? new HashSet<string>(excludePaths) : null;
+
+            var assetsAndFolders = GetRemovablePathsFor(importOperation.Identifier);
             foreach (var path in assetsAndFolders)
             {
+                if (exclusions!= null && exclusions.Contains(path))
+                    continue;
+
                 m_IOProxy.DeleteFile(path, true);
                 m_IOProxy.DeleteFile(path + MetafilesHelper.MetaFileExtension, true);
             }
@@ -764,6 +926,26 @@ namespace Unity.AssetManager.Core.Editor
                     AnalyticsSender.SendEvent(new ImportEvent(trigger, assetData.Identifier.AssetId, fileCount, fileExtension, systemTags));
                 }
             }
+        }
+
+        void EnsureFolderExists(string folderPath)
+        {
+            if (string.IsNullOrEmpty(folderPath) || m_AssetDatabaseProxy.IsValidFolder(folderPath))
+            {
+                return;
+            }
+
+            // Recursively ensure parent folder exists first
+            var parentFolder = Path.GetDirectoryName(folderPath);
+            if (!string.IsNullOrEmpty(parentFolder))
+            {
+                EnsureFolderExists(parentFolder);
+            }
+
+            // Now create this folder using AssetDatabase
+            var folderName = Path.GetFileName(folderPath);
+            m_AssetDatabaseProxy.CreateFolder(parentFolder ?? string.Empty, folderName);
+            m_AssetDatabaseProxy.ImportAsset(folderPath + "/");
         }
 
         string GetNonConflictingImportPath(string path)
@@ -816,8 +998,7 @@ namespace Unity.AssetManager.Core.Editor
             if (!m_SettingsManager.IsSubfolderCreationEnabled)
                 return importDestination;
 
-            return Path.Combine(importDestination,
-                $"{Regex.Replace(assetData.Name, @"[\\\/:*?""<>|]", "").Trim()}");
+            return Path.Combine(importDestination, PathUtils.SanitizeAssetName(assetData.Name));
         }
 
         string GetDefaultDestinationPath(BaseAssetData assetData, string importDestination, out bool cancelImport)
@@ -983,7 +1164,17 @@ namespace Unity.AssetManager.Core.Editor
             return true;
         }
 
-        string[] FindAssetsAndLeftoverFolders(AssetIdentifier identifier)
+        /// <summary>
+        /// Returns file and folder paths that can be safely deleted when removing an imported asset.
+        /// This includes the asset's files AND any parent folders that would become empty after deletion.
+        /// Folders containing other assets (from different imports or user-created) are preserved.
+        /// </summary>
+        /// <param name="identifier">The identifier of the imported asset to remove.</param>
+        /// <returns>
+        /// Array of paths to delete, ordered with files first, then folders deepest-first
+        /// (so child folders are deleted before their parents).
+        /// </returns>
+        string[] GetRemovablePathsFor(AssetIdentifier identifier)
         {
             var fileInfos = m_AssetDataManager.GetImportedAssetInfo(identifier)?.FileInfos;
             fileInfos ??= new List<ImportedFileInfo>();
@@ -991,15 +1182,17 @@ namespace Unity.AssetManager.Core.Editor
             try
             {
                 const string assetsPath = "Assets";
+
+                // Step 1: Get all file paths belonging to this imported asset
                 var filesToRemove = fileInfos.Select(fileInfo => m_AssetDatabaseProxy.GuidToAssetPath(fileInfo.Guid))
                     .Where(f => !string.IsNullOrEmpty(f)).OrderByDescending(p => p).ToList();
+
+                // Step 2: Collect all parent folders up to "Assets/" as candidates for removal.
+                // These folders MIGHT become empty after we delete the files.
                 var foldersToRemove = new HashSet<string>();
                 foreach (var file in filesToRemove)
                 {
                     var path = Path.GetDirectoryName(file);
-
-                    // We want to add an asset's parent folders all the way up to the `Assets` folder, because we don't want to leave behind
-                    // empty folders after the assets are removed process.
                     while (!string.IsNullOrEmpty(path) && !foldersToRemove.Contains(path) &&
                            path.StartsWith(assetsPath) && path.Length > assetsPath.Length)
                     {
@@ -1008,23 +1201,27 @@ namespace Unity.AssetManager.Core.Editor
                     }
                 }
 
-                var leftOverAssetsGuids =
+                // Step 3: Find assets that will REMAIN after deletion (not part of this import).
+                // These are assets in the candidate folders that belong to other imports or were user-created.
+                var assetsRemainingAfterDeletion =
                     m_AssetDatabaseProxy.FindAssets(string.Empty, foldersToRemove.ToArray()).ToHashSet();
+
+                // Remove from the set: files we're deleting + the folders themselves (they have GUIDs too)
                 foreach (var guid in fileInfos.Select(i => i.Guid)
                              .Concat(foldersToRemove.Select(ServicesContainer.instance.Resolve<IAssetDatabaseProxy>().AssetPathToGuid)))
                 {
-                    leftOverAssetsGuids.Remove(guid);
+                    assetsRemainingAfterDeletion.Remove(guid);
                 }
 
-                foreach (var assetPath in leftOverAssetsGuids.Select(i => m_AssetDatabaseProxy.GuidToAssetPath(i)))
+                // Step 4: Protect folders that contain remaining assets.
+                // For each remaining asset, remove its parent folders from the deletion list.
+                foreach (var assetPath in assetsRemainingAfterDeletion.Select(i => m_AssetDatabaseProxy.GuidToAssetPath(i)))
                 {
                     var path = Path.GetDirectoryName(assetPath);
 
                     if (!foldersToRemove.Any())
                         break;
 
-                    // If after the removal process, there will still be some assets left behind, we want to make sure the folders containing
-                    // left over assets are not removed
                     while (foldersToRemove.Contains(path))
                     {
                         foldersToRemove.Remove(path);
@@ -1032,8 +1229,7 @@ namespace Unity.AssetManager.Core.Editor
                     }
                 }
 
-                // We order the folders to be removed so that child folders always come before their parent folders
-                // This way DeleteAssets call won't try to remove parent folders first and fail to remove child folders
+                // Return files + folders, with folders ordered deepest-first so children are deleted before parents
                 return filesToRemove.Concat(foldersToRemove.OrderByDescending(i => i)).ToArray();
             }
             catch (Exception e)
@@ -1047,7 +1243,7 @@ namespace Unity.AssetManager.Core.Editor
         {
             try
             {
-                var assetsAndFolders = FindAssetsAndLeftoverFolders(identifier);
+                var assetsAndFolders = GetRemovablePathsFor(identifier);
                 if (!assetsAndFolders.Any())
                 {
                     return new List<string>();

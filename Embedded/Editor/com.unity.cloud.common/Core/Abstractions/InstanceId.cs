@@ -5,9 +5,10 @@ namespace Unity.Cloud.CommonEmbedded
     /// <summary>
     /// This struct holds information about instance identifier.
     /// </summary>
-    readonly struct InstanceId
+    readonly struct InstanceId : IEquatable<InstanceId>
     {
         readonly string m_String;
+        readonly int m_HashCode;
 
         /// <summary>
         /// Return the value of an identifier representing an invalid instance id
@@ -18,7 +19,11 @@ namespace Unity.Cloud.CommonEmbedded
         /// Returns a <see cref="InstanceId"/> using a <see cref="string"/>.
         /// </summary>
         /// <param name="value">The string representing the instance identifier</param>
-        public InstanceId(string value) => m_String = value;
+        public InstanceId(string value)
+        {
+            m_HashCode = value?.GetHashCode() ?? 0;
+            m_String = value;
+        }
 
         /// <summary>
         /// Returns whether two <see cref="InstanceId"/> objects are equals.
@@ -49,7 +54,7 @@ namespace Unity.Cloud.CommonEmbedded
         /// * You should never persist or use a hash code outside the application domain in which it was created,
         ///   because the same object may hash differently across application domains, processes, and platforms.
         /// </remarks>
-        public override int GetHashCode() => m_String != null ? m_String.GetHashCode() : 0;
+        public override int GetHashCode() => m_HashCode;
 
         /// <summary>
         /// Get the string representation of this <see cref="InstanceId"/>.

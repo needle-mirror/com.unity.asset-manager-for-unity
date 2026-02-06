@@ -6,6 +6,9 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
+#if UNITY_6000_5_OR_NEWER
+using UnityEngine.Assemblies;
+#endif
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -244,7 +247,11 @@ namespace Unity.AssetManager.Core.Editor
 
         static Type GetTypeInAnyAssembly(string typeName)
         {
+#if UNITY_6000_5_OR_NEWER
+            var assemblies = CurrentAssemblies.GetLoadedAssemblies();
+#else
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+#endif
 
             foreach (var assembly in assemblies)
             {

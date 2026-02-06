@@ -14,6 +14,7 @@ namespace Unity.AssetManager.Core.Editor
         void DirectoryDelete(string path, bool recursive);
         void CreateDirectory(string directoryPath);
         IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption);
+        string[] GetDirectories(string path, string searchPattern, SearchOption searchOption);
         bool DeleteAllFilesAndFoldersFromDirectory(string path);
 
         // Directory Info
@@ -59,6 +60,8 @@ namespace Unity.AssetManager.Core.Editor
         public void CreateDirectory(string directoryPath) => Directory.CreateDirectory(directoryPath);
 
         public IEnumerable<string> EnumerateFiles(string path, string searchPattern, SearchOption searchOption) => Directory.EnumerateFiles(path, searchPattern, searchOption);
+
+        public string[] GetDirectories(string path, string searchPattern, SearchOption searchOption) => Directory.GetDirectories(path, searchPattern, searchOption);
 
         public bool DeleteAllFilesAndFoldersFromDirectory(string path)
         {
@@ -152,9 +155,14 @@ namespace Unity.AssetManager.Core.Editor
 
         public void DeleteFile(FileInfo file)
         {
-            if (!file.Exists || IsFileLocked(file))
+            if (!file.Exists)
             {
                 return;
+            }
+
+            if (IsFileLocked(file))
+            {
+                throw new IOException($"Cannot delete file '{file.FullName}' because it is locked by another process.");
             }
 
             try
