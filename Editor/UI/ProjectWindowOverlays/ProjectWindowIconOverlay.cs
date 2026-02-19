@@ -109,6 +109,15 @@ namespace Unity.AssetManager.UI.Editor
 
         HashSet<BaseAssetData> m_PendingAssetData = new ();
 
+        public override void OnEnable()
+        {
+            base.OnEnable();
+
+            // Repaint the project window to apply the icon overlay settings
+            m_SettingsState.ClearState();
+            m_ProjectWindowProxy?.Repaint();
+        }
+
         public override void OnDisable()
         {
             base.OnDisable();
@@ -137,10 +146,6 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_PendingAssetData.Clear();
             m_PendingAssetData.UnionWith(m_SerializedPendingAssetDataList.Where(assetData => assetData != null));
-
-            // Repaint the project window to apply the icon overlay settings
-            m_SettingsState.ClearState();
-            m_ProjectWindowProxy?.Repaint();
         }
 
         public void Update()
