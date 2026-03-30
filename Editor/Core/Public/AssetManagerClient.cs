@@ -347,12 +347,17 @@ namespace Unity.AssetManager.Editor
                 throw new InvalidOperationException("Collections can only be used with a single project. Please include a single project in the search.");
             }
 
+            var tagsFilter = new MultiTextFilterData
+            {
+                Included = filter.Tags?.Where(x => !string.IsNullOrEmpty(x)).ToList() ?? new List<string>()
+            };
+
             return new AssetSearchFilter
             {
                 IsExactMatchSearch = true,
                 AssetIds = filter.AssetIds?.Where(x => !string.IsNullOrEmpty(x)).ToList(),
                 AssetTypes = filter.AssetTypes?.Select(Map).ToList(),
-                Tags = filter.Tags?.Where(x => !string.IsNullOrEmpty(x)).ToList(),
+                TagsFilter = tagsFilter,
                 Status = filter.Statuses?.Where(x => !string.IsNullOrEmpty(x)).ToList(),
                 Labels = filter.Labels?.Where(x => !string.IsNullOrEmpty(x)).ToList(),
                 Collection = filter.Collections?.Where(x => !string.IsNullOrEmpty(x)).ToList(),

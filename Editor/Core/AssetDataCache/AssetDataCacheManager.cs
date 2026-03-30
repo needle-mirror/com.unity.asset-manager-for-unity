@@ -21,30 +21,54 @@ namespace Unity.AssetManager.Core.Editor
         event Action<string> CacheEntryRefreshed;
 
         /// <summary>
-        /// Gets a cache entry for the specified asset ID.
+        /// Writes a cache entry for the given asset data.
+        /// Converts AssetData to AssetDataCacheEntry before writing.
+        /// Raises CacheEntryRefreshed after writing.
         /// </summary>
-        /// <param name="assetId">The asset ID to look up.</param>
-        /// <returns>The cache entry, or null if no entry exists or assetId is null/empty.</returns>
-        AssetDataCacheEntry GetEntry(string assetId);
+        /// <param name="assetData">The asset data to write. Ignored if null.</param>
+        void WriteEntry(AssetData assetData);
 
         /// <summary>
-        /// Gets all cached entries from disk.
-        /// </summary>
-        /// <returns>Read-only collection of all cache entries (empty if none exist).</returns>
-        IReadOnlyCollection<AssetDataCacheEntry> GetAllEntries();
-
-        /// <summary>
-        /// Writes a cache entry to disk.
-        /// </summary>
-        /// <param name="entry">The entry to write. Ignored if null or entry.assetId is null/empty.</param>
-        void WriteEntry(AssetDataCacheEntry entry);
-
-        /// <summary>
-        /// Writes the cache entry to disk without raising CacheEntryRefreshed.
+        /// Writes the cache entry for the given asset data without raising CacheEntryRefreshed.
+        /// Converts AssetData to AssetDataCacheEntry then writes.
         /// Use when persisting in-memory changes to avoid re-notifying listeners.
         /// </summary>
-        /// <param name="entry">The cache entry to write. Ignored if null or entry.assetId is null/empty.</param>
-        void WriteEntryWithoutNotify(AssetDataCacheEntry entry);
+        /// <param name="assetData">The asset data to write. Ignored if null.</param>
+        void WriteEntryWithoutNotify(AssetData assetData);
+
+        /// <summary>
+        /// Writes or updates the cache entry for the given asset data.
+        /// If an entry exists, writes without notify; otherwise writes and raises CacheEntryRefreshed.
+        /// </summary>
+        /// <param name="assetData">The asset data to write or update. Ignored if null.</param>
+        void WriteOrUpdateEntry(AssetData assetData);
+
+        /// <summary>
+        /// Populates an AssetData object with cached asset data.
+        /// </summary>
+        /// <param name="assetData">The asset data to populate.</param>
+        /// <returns>True if population occurred, false if no cache entry exists.</returns>
+        bool PopulateFromCache(BaseAssetData assetData);
+
+        /// <summary>
+        /// Updates the linked projects and collections for a cache entry.
+        /// Call this after fetching linked data from the API.
+        /// </summary>
+        /// <param name="assetId">The asset ID to update.</param>
+        /// <param name="linkedProjects">The linked project identifiers.</param>
+        /// <param name="linkedCollections">The linked collection identifiers.</param>
+        void UpdateLinkedData(
+            string assetId,
+            IEnumerable<ProjectIdentifier> linkedProjects,
+            IEnumerable<CollectionIdentifier> linkedCollections);
+
+        /// <summary>
+        /// Ensures cache entry exists for the given asset data.
+        /// Queues refresh if missing.
+        /// </summary>
+        /// <param name="assetData">The asset data to ensure cache for.</param>
+        /// <returns>True if cache entry exists, false if refresh was queued.</returns>
+        bool EnsureCacheEntry(AssetData assetData);
 
         /// <summary>
         /// Removes the cache entry for the specified asset ID.
@@ -65,17 +89,26 @@ namespace Unity.AssetManager.Core.Editor
         bool HasEntry(string assetId);
 
         /// <summary>
+        /// Gets the timestamp when the cache entry was written for the specified asset ID.
+        /// </summary>
+        /// <param name="assetId">The asset ID to check.</param>
+        /// <returns>The DateTime (UTC) when the entry was cached, or null if no entry exists or timestamp is invalid.</returns>
+        DateTime? GetCachedAt(string assetId);
+
+        /// <summary>
         /// Queues a background refresh task for the specified cache entry.
         /// If a refresh is already in progress for this asset, it will not be queued again.
         /// </summary>
-        /// <param name="entry">The cache entry (identifier fields used for provider calls).</param>
-        void QueueRefresh(AssetDataCacheEntry entry);
+        /// <param name="assetData">The asset data to refresh.</param>
+        /// <param name="addFirst">If true, the refresh will be added to the front of the queue (higher priority). Default is false (added to end of queue).</param>
+        void QueueRefresh(AssetData assetData, bool addFirst = false);
 
         /// <summary>
-        /// Queues refresh tasks for multiple cache entries.
+        /// Queues background refresh tasks for the given asset data.
+        /// Converts each AssetData to a cache entry and queues it.
         /// </summary>
-        /// <param name="entries">The cache entries to refresh.</param>
-        void QueueRefresh(IEnumerable<AssetDataCacheEntry> entries);
+        /// <param name="assetDatas">The assets data to refresh.</param>
+        void QueueRefresh(IEnumerable<AssetData> assetDatas);
 
         /// <summary>
         /// Checks if a refresh is currently in progress for the specified asset ID.
@@ -88,6 +121,12 @@ namespace Unity.AssetManager.Core.Editor
         /// Gets the number of pending refresh tasks in the queue.
         /// </summary>
         int PendingRefreshCount { get; }
+
+        /// <summary>
+        /// Clears all pending refresh tasks from the queue.
+        /// Does not affect the item currently being refreshed.
+        /// </summary>
+        void ClearRefreshQueue();
     }
 
     [Serializable]
@@ -102,8 +141,8 @@ namespace Unity.AssetManager.Core.Editor
         // Track which assets are currently being refreshed to avoid duplicate work
         readonly HashSet<string> m_RefreshingAssetIds = new();
 
-        // Queue of cache entries waiting to be refreshed
-        readonly Queue<AssetDataCacheEntry> m_RefreshQueue = new();
+        // List of cache entries waiting to be refreshed (used as a queue, supports priority insertion at front)
+        readonly List<AssetDataCacheEntry> m_RefreshQueue = new();
 
         // Cancellation token source for background refresh tasks
         CancellationTokenSource m_CancellationTokenSource;
@@ -149,7 +188,99 @@ namespace Unity.AssetManager.Core.Editor
             base.OnDisable();
         }
 
-        public AssetDataCacheEntry GetEntry(string assetId)
+        #region Interface Methods
+
+        public void WriteEntry(AssetData assetData)
+        {
+            if (assetData == null)
+            {
+                Utilities.DevLogWarning("Cannot write AssetDataCache entry: assetData is null");
+                return;
+            }
+
+            var entry = AssetDataCacheConverter.FromAssetData(assetData);
+            if (entry == null)
+            {
+                Utilities.DevLogWarning($"Failed to convert AssetData to AssetDataCacheEntry for asset '{assetData.Identifier?.AssetId}'");
+                return;
+            }
+
+            WriteEntryInternal(entry);
+            CacheEntryRefreshed?.Invoke(entry.assetId);
+        }
+
+        public void WriteEntryWithoutNotify(AssetData assetData)
+        {
+            if (assetData == null)
+                return;
+
+            var entry = AssetDataCacheConverter.FromAssetData(assetData);
+            if (entry != null)
+                WriteEntryInternal(entry);
+        }
+
+        public void WriteOrUpdateEntry(AssetData assetData)
+        {
+            if (assetData == null)
+                return;
+
+            if (HasEntry(assetData.Identifier.AssetId))
+                WriteEntryWithoutNotify(assetData);
+            else
+                WriteEntry(assetData);
+        }
+
+        public bool PopulateFromCache(BaseAssetData assetData)
+        {
+            if (assetData?.Identifier == null)
+                return false;
+
+            var entry = GetEntry(assetData.Identifier.AssetId);
+            if (entry == null)
+                return false;
+
+            return AssetDataCacheConverter.PopulateFromCache(assetData, entry);
+        }
+
+        public void UpdateLinkedData(
+            string assetId,
+            IEnumerable<ProjectIdentifier> linkedProjects,
+            IEnumerable<CollectionIdentifier> linkedCollections)
+        {
+            if (string.IsNullOrEmpty(assetId))
+                return;
+
+            var entry = GetEntry(assetId);
+            if (entry == null)
+            {
+                Utilities.DevLogWarning($"Cannot update linked data: no cache entry for asset '{assetId}'");
+                return;
+            }
+
+            AssetDataCacheConverter.UpdateLinkedProjects(entry, linkedProjects);
+            AssetDataCacheConverter.UpdateLinkedCollections(entry, linkedCollections);
+
+            WriteEntryInternal(entry);
+            CacheEntryRefreshed?.Invoke(entry.assetId);
+        }
+
+        public bool EnsureCacheEntry(AssetData assetData)
+        {
+            if (assetData == null)
+                return false;
+
+            if (HasEntry(assetData.Identifier.AssetId))
+                return true;
+
+            QueueRefresh(assetData);
+            return false;
+        }
+
+        #endregion
+
+        #region Internal Cache Entry Operations
+
+        AssetDataCacheEntry GetEntry(string assetId)
         {
             if (string.IsNullOrEmpty(assetId))
                 return null;
@@ -157,12 +288,7 @@ namespace Unity.AssetManager.Core.Editor
             return AssetDataCachePersistence.ReadEntry(m_IOProxy, assetId);
         }
 
-        public IReadOnlyCollection<AssetDataCacheEntry> GetAllEntries()
-        {
-            return AssetDataCachePersistence.ReadAllEntries(m_IOProxy);
-        }
-
-        public void WriteEntry(AssetDataCacheEntry entry)
+        void WriteEntry(AssetDataCacheEntry entry)
         {
             if (entry == null || string.IsNullOrEmpty(entry.assetId))
             {
@@ -174,15 +300,6 @@ namespace Unity.AssetManager.Core.Editor
             CacheEntryRefreshed?.Invoke(entry.assetId);
         }
 
-        public void WriteEntryWithoutNotify(AssetDataCacheEntry entry)
-        {
-            if (entry == null || string.IsNullOrEmpty(entry.assetId))
-                return;
-
-            WriteEntryInternal(entry);
-        }
-
-        // Writes the entry to disk without raising CacheEntryRefreshed.
         void WriteEntryInternal(AssetDataCacheEntry entry)
         {
             if (entry == null || string.IsNullOrEmpty(entry.assetId))
@@ -190,6 +307,8 @@ namespace Unity.AssetManager.Core.Editor
 
             AssetDataCachePersistence.WriteEntry(m_IOProxy, entry);
         }
+
+        #endregion
 
         public void RemoveEntry(string assetId)
         {
@@ -212,23 +331,42 @@ namespace Unity.AssetManager.Core.Editor
             return AssetDataCachePersistence.EntryExists(m_IOProxy, assetId);
         }
 
-        public void QueueRefresh(AssetDataCacheEntry entry)
+        public DateTime? GetCachedAt(string assetId)
         {
-            if (entry == null || string.IsNullOrEmpty(entry.assetId))
+            if (string.IsNullOrEmpty(assetId))
+                return null;
+
+            var entry = GetEntry(assetId);
+            if (entry == null || string.IsNullOrEmpty(entry.cachedAt))
+                return null;
+
+            if (DateTime.TryParse(entry.cachedAt, null, System.Globalization.DateTimeStyles.RoundtripKind, out var cachedAt))
+                return cachedAt;
+
+            return null;
+        }
+
+        public void QueueRefresh(AssetData assetData, bool addFirst = false)
+        {
+            if (assetData == null)
                 return;
 
-            bool shouldStartProcessing = false;
+            var entry = AssetDataCacheConverter.FromAssetData(assetData);
 
+            var shouldStartProcessing = false;
             lock (m_RefreshQueue)
             {
                 // Don't queue if already refreshing or already in queue
-                if (m_RefreshingAssetIds.Contains(entry.assetId))
+                if (m_RefreshingAssetIds.Contains(entry.assetId) && !addFirst)
                     return;
 
-                if (m_RefreshQueue.Any(e => e?.assetId == entry.assetId))
+                if (m_RefreshQueue.Any(e => e?.assetId == entry.assetId) && !addFirst)
                     return;
 
-                m_RefreshQueue.Enqueue(entry);
+                if (addFirst)
+                    m_RefreshQueue.Insert(0, entry);
+                else
+                    m_RefreshQueue.Add(entry);
 
                 if (m_BackgroundRefreshTask == null || m_BackgroundRefreshTask.IsCompleted)
                 {
@@ -242,14 +380,18 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public void QueueRefresh(IEnumerable<AssetDataCacheEntry> entries)
+
+        public void QueueRefresh(IEnumerable<AssetData> assetsData)
         {
-            if (entries == null)
+            if (assetsData == null)
                 return;
 
-            foreach (var entry in entries)
+            foreach (var assetData in assetsData)
             {
-                QueueRefresh(entry);
+                if (assetData == null)
+                    continue;
+
+                QueueRefresh(assetData);
             }
         }
 
@@ -273,6 +415,15 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     return m_RefreshQueue.Count;
                 }
+            }
+        }
+
+        public void ClearRefreshQueue()
+        {
+            lock (m_RefreshQueue)
+            {
+                Utilities.DevLog("Clearing refresh queue. Pending refreshes cancelled: " + m_RefreshQueue.Count, highlight: true);
+                m_RefreshQueue.Clear();
             }
         }
 
@@ -312,7 +463,8 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     if (m_RefreshQueue.Count > 0)
                     {
-                        entry = m_RefreshQueue.Dequeue();
+                        entry = m_RefreshQueue[0];
+                        m_RefreshQueue.RemoveAt(0);
                         if (entry != null && !string.IsNullOrEmpty(entry.assetId))
                         {
                             m_RefreshingAssetIds.Add(entry.assetId);
@@ -336,10 +488,11 @@ namespace Unity.AssetManager.Core.Editor
                     continue;
                 }
 
+
                 try
                 {
                     Utilities.DevLog($"Refreshing cache for asset: {assetId}", highlight: true);
-                    await RefreshEntryAsyncInternal(identifier, m_AssetsProvider, cancellationToken);
+                    await RefreshEntryAsyncInternal(identifier, cancellationToken);
                     Utilities.DevLog($"Cache refresh complete for asset: {assetId}", highlight: true);
                 }
                 catch (OperationCanceledException)
@@ -361,14 +514,14 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        async Task RefreshEntryAsyncInternal(AssetIdentifier identifier, IAssetsProvider assetsProvider, CancellationToken token)
+        async Task RefreshEntryAsyncInternal(AssetIdentifier identifier, CancellationToken token)
         {
             if (identifier == null || string.IsNullOrEmpty(identifier.AssetId))
                 return;
 
             try
             {
-                var freshAssetData = await assetsProvider.GetAssetAsync(identifier, token);
+                var freshAssetData = await m_AssetsProvider.GetAssetAsync(identifier, token);
 
                 if (freshAssetData == null)
                 {
@@ -376,9 +529,18 @@ namespace Unity.AssetManager.Core.Editor
                     return;
                 }
 
+                // Resolve datasets to fetch file lists before writing to cache.
+                // GetAssetAsync returns datasets without files; ResolveDatasetsAsync populates them.
                 try
                 {
-                    var linkedProjects = await assetsProvider.GetLinkedProjectsAsync(freshAssetData, token);
+                    await freshAssetData.ResolveDatasetsAsync(token);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception e) { Utilities.DevLogWarning($"Failed to resolve datasets for '{identifier.AssetId}': {e.Message}"); }
+
+                try
+                {
+                    var linkedProjects = await m_AssetsProvider.GetLinkedProjectsAsync(freshAssetData, token);
                     if (linkedProjects != null)
                         freshAssetData.LinkedProjects = linkedProjects.ToList();
                 }
@@ -389,7 +551,7 @@ namespace Unity.AssetManager.Core.Editor
                 {
                     try
                     {
-                        var linkedCollections = await assetsProvider.GetLinkedCollectionsAsync(freshAssetData, token);
+                        var linkedCollections = await m_AssetsProvider.GetLinkedCollectionsAsync(freshAssetData, token);
                         if (linkedCollections != null)
                             freshAssetData.LinkedCollections = linkedCollections.ToList();
                     }
@@ -400,7 +562,7 @@ namespace Unity.AssetManager.Core.Editor
                 try
                 {
                     var dependencies = new List<AssetIdentifier>();
-                    await foreach (var dependency in assetsProvider.GetDependenciesAsync(identifier, Range.All, token).WithCancellation(token))
+                    await foreach (var dependency in m_AssetsProvider.GetDependenciesAsync(identifier, Range.All, token).WithCancellation(token))
                     {
                         if (dependency?.TargetAssetIdentifier != null)
                             dependencies.Add(dependency.TargetAssetIdentifier);

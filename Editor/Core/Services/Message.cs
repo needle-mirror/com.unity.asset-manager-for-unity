@@ -2,6 +2,17 @@ using System;
 
 namespace Unity.AssetManager.Core.Editor
 {
+    /// <summary>
+    /// Identifies the source/category of a help box message so callers can dismiss only specific kinds (e.g. deeplink warnings).
+    /// </summary>
+    enum MessageCategory
+    {
+        General,
+        Deeplink,
+        Connection,
+        Validation
+    }
+
     enum RecommendedAction
     {
         OpenServicesSettingButton,

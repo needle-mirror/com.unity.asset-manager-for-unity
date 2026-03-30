@@ -41,7 +41,7 @@ namespace Unity.AssetManager.UI.Editor
         void ApplyFilter(BaseFilter filter, List<string> selectedFilters);
         void EnableFilters(bool enable = true);
         bool IsAvailableFilters();
-        void ApplyFilterFromAssetSearchFilter(AssetSearchFilter assetSearchFilter);
+        void ApplyFilterFromAssetSearchFilter(AssetSearchFilter assetSearchFilter, bool reloadImmediately = true);
         List<BaseFilter> GetAvailablePrimaryMetadataFilters();
         List<CustomMetadataFilter> GetAvailableCustomMetadataFilters();
         void ClearFilters();
@@ -49,6 +49,7 @@ namespace Unity.AssetManager.UI.Editor
         void SetDirty();
         string ConvertAssetTypeFromLegacy(string assetTypeText);
         string ToString(AssetType assetType);
+        AssetType ParseAssetType(string assetTypeText);
     }
 
     [Serializable]
@@ -147,7 +148,8 @@ namespace Unity.AssetManager.UI.Editor
                     name = Guid.TryParse(userId, out _) ? "Service Account" : k_UnknownUser;
                 }
 
-                selections.Add(new FilterSelection(name, userId));
+                var icon = InitialsIconHelper.CreateInitialsIcon(name, userId);
+                selections.Add(new FilterSelection(name, userId, icon));
             }
 
             selections.Sort(Compare);
@@ -167,7 +169,7 @@ namespace Unity.AssetManager.UI.Editor
             var results = await m_AssetsProvider.GetFilterSelectionsAsync(
                 OrganizationId,
                 ProjectIds,
-                AssetSearchFilter,
+                new AssetSearchFilter(),
                 groupBy,
                 m_TokenSource.Token);
 
@@ -176,7 +178,24 @@ namespace Unity.AssetManager.UI.Editor
             switch (groupBy)
             {
                 case AssetSearchGroupBy.Type:
-                    return results.Select(s => new FilterSelection(s, ParseAssetType(s).GetToolTip())).ToList();
+                    return results.Select(s =>
+                    {
+                        var assetType = ParseAssetType(s);
+                        var image = new UnityEngine.UIElements.Image();
+                        image.image = AssetDataTypeHelper.GetIconForAssetType(assetType);
+                        return new FilterSelection(s, assetType.GetToolTip(), image);
+                    }).ToList();
+                case AssetSearchGroupBy.Extension:
+                    // FilePath grouping returns full paths, extract unique extensions excluding .meta files
+                    var extensions = results
+                        .Select(path => System.IO.Path.GetExtension(path))
+                        .Where(ext => !string.IsNullOrEmpty(ext) && !ext.Equals(".meta", StringComparison.OrdinalIgnoreCase))
+                        .Select(ext => ext.ToLowerInvariant())
+                        .Distinct()
+                        .OrderBy(ext => ext)
+                        .Select(ext => new FilterSelection(ext))
+                        .ToList();
+                    return extensions;
                 default:
                     return results.Select(s => new FilterSelection(s)).ToList();
             }
@@ -243,12 +262,12 @@ namespace Unity.AssetManager.UI.Editor
             return m_PageFilters?.IsAvailableFilters() ?? false;
         }
 
-        public void ApplyFilterFromAssetSearchFilter(AssetSearchFilter assetSearchFilter)
+        public void ApplyFilterFromAssetSearchFilter(AssetSearchFilter assetSearchFilter, bool reloadImmediately = true)
         {
             m_PageFilters.ApplyFiltersFromAssetSearchFilter(assetSearchFilter);
             SavedFilterApplied?.Invoke();
 
-            OnFiltersCleared(true);
+            OnFiltersCleared(reloadImmediately);
         }
 
         public List<BaseFilter> GetAvailablePrimaryMetadataFilters()
@@ -300,7 +319,7 @@ namespace Unity.AssetManager.UI.Editor
 
         public string ToString(AssetType assetType) => m_AssetsProvider.GetValueAsString(assetType);
 
-        AssetType ParseAssetType(string assetTypeText) => m_AssetsProvider.TryParse(assetTypeText, out AssetType assetType) ? assetType : AssetType.Other;
+        public AssetType ParseAssetType(string assetTypeText) => m_AssetsProvider.TryParse(assetTypeText, out AssetType assetType) ? assetType : AssetType.Other;
 
         List<string> GetProjectIds(IPage activePage)
         {

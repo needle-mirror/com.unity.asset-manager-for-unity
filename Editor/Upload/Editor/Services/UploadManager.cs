@@ -54,6 +54,9 @@ namespace Unity.AssetManager.Upload.Editor
         [SerializeReference]
         IAssetsProvider m_AssetsProvider;
 
+        [SerializeReference]
+        IAssetDataManager m_AssetDataManager;
+
         CancellationTokenSource m_TokenSource;
 
         bool m_Uploading;
@@ -68,6 +71,7 @@ namespace Unity.AssetManager.Upload.Editor
             m_AssetOperationManager = assetOperationManager;
             m_ImportTracker = importTracker;
             m_AssetsProvider = assetsProvider;
+            m_AssetDataManager = assetDataManager;
         }
 
         public async Task UploadAsync(IReadOnlyCollection<IUploadAsset> uploadEntries)
@@ -92,12 +96,26 @@ namespace Unity.AssetManager.Upload.Editor
 
                 var database = uploadEntries.ToDictionary(entry => entry.LocalIdentifier);
 
+                Utilities.DevLog($"UploadAsync: received {uploadEntries.Count} entries; database keys: " +
+                    $"[{string.Join(", ", database.Keys.Select(k => k.AssetId))}]", tag: "Upload");
+
                 // Get all assets, including their dependencies
                 foreach (var uploadEntry in uploadEntries)
                 {
                     AddDependencies(uploadEntry, assetEntriesWithAllDependencies, database);
                 }
 
+                Utilities.DevLog($"UploadAsync: assetEntriesWithAllDependencies has {assetEntriesWithAllDependencies.Count} entries after AddDependencies traversal", tag: "Upload");
+                foreach (var e in assetEntriesWithAllDependencies)
+                {
+                    Utilities.DevLog($"  '{e.Name}' id={e.LocalIdentifier.AssetId} declared deps: " +
+                        $"[{string.Join(", ", e.Dependencies.Select(d => $"{d.AssetId}@{d.Version}{(d.IsLocal() ? "(local)" : "(cloud)")}"))}]", tag: "Upload");
+                }
+
+                token.ThrowIfCancellationRequested();
+
+                // Ensure collection hierarchies exist before creating assets
+                await EnsureCollectionHierarchiesExistAsync(assetEntriesWithAllDependencies, token);
                 token.ThrowIfCancellationRequested();
 
                 // Prepare the IAssets
@@ -136,6 +154,9 @@ namespace Unity.AssetManager.Upload.Editor
                     throw new AssetManagerException(
                         "One or more creation(s) failed. Upload process will be cancelled and created assets will be removed.");
                 }
+
+                Utilities.DevLog($"UploadAsync: identifierToAssetLookup populated with {identifierToAssetLookup.Count} entries: " +
+                    $"[{string.Join(", ", identifierToAssetLookup.Keys.Select(k => k.AssetId))}]", tag: "Upload");
 
                 token.ThrowIfCancellationRequested();
 
@@ -186,6 +207,10 @@ namespace Unity.AssetManager.Upload.Editor
                     throw new AssetManagerException(
                         "One or more dependencies update failed. Upload process will be cancelled and created assets will be removed.");
                 }
+
+                // Link assets to collections based on project structure
+                await LinkAssetsToCollectionsAsync(uploadEntryToAssetUploadInfoLookup, token);
+                token.ThrowIfCancellationRequested();
 
                 // Track the assets
                 await TaskUtils.RunAllTasksInQueue(uploadEntryToAssetUploadInfoLookup,
@@ -259,10 +284,14 @@ namespace Unity.AssetManager.Upload.Editor
                     assetPaths = assetPaths.Append((originalPath: f.DestinationPath, f.SourcePath, null));
                 }
 
+                AssetData cloudAsset = null;
                 var assetData = asset;
                 try
                 {
-                    var cloudAsset = await m_AssetsProvider.GetAssetAsync(asset.Identifier, token);
+                    // Force fresh fetch from cloud (TimeSpan.Zero) to ensure we get the newly uploaded version.
+                    // The cache uses TrackedAssetIdentifier which matches by AssetId only (ignoring version),
+                    // so without forcing a fresh fetch, we might get stale data from a previous version.
+                    cloudAsset = await m_AssetDataManager.GetAssetAsync(asset.Identifier, TimeSpan.Zero, token);
                     assetData = cloudAsset;
 
                     // Make sure additional data is populated.
@@ -283,6 +312,7 @@ namespace Unity.AssetManager.Upload.Editor
                 }
 
                 await m_ImportTracker.TrackAssets(assetPaths, assetData);
+
                 operation.Finish(OperationStatus.Success);
             }
             catch (OperationCanceledException)
@@ -327,7 +357,7 @@ namespace Unity.AssetManager.Upload.Editor
 
             if (uploadAsset.ExistingAssetIdentifier != null)
             {
-                originalAsset = await m_AssetsProvider.GetAssetAsync(uploadAsset.ExistingAssetIdentifier, token);
+                originalAsset = await m_AssetDataManager.GetAssetAsync(uploadAsset.ExistingAssetIdentifier, TimeSpan.MaxValue, token);
             }
 
             var isRecycled = originalAsset != null;
@@ -388,6 +418,156 @@ namespace Unity.AssetManager.Upload.Editor
             }
         }
 
+        async Task EnsureCollectionHierarchiesExistAsync(
+            IEnumerable<IUploadAsset> uploadAssets,
+            CancellationToken token)
+        {
+            var assetsWithCollections = uploadAssets
+                .Where(asset => !string.IsNullOrEmpty(asset.TargetCollection))
+                .ToList();
+
+            if (assetsWithCollections.Count == 0)
+                return;
+
+            // Group assets by project to handle multi-project uploads correctly
+            var assetsByProject = assetsWithCollections.GroupBy(asset => asset.TargetProject);
+
+            foreach (var projectGroup in assetsByProject)
+            {
+                var projectIdentifier = projectGroup.Key;
+                var uniqueCollectionPaths = projectGroup
+                    .Select(asset => asset.TargetCollection)
+                    .Where(p => !string.IsNullOrEmpty(p))
+                    .Distinct()
+                    .ToList();
+
+                if (uniqueCollectionPaths.Count == 0)
+                    continue;
+
+                await EnsureCollectionHierarchiesExistForProjectAsync(projectIdentifier, uniqueCollectionPaths, token);
+            }
+        }
+
+        async Task EnsureCollectionHierarchiesExistForProjectAsync(
+            ProjectIdentifier projectIdentifier,
+            List<string> collectionPaths,
+            CancellationToken token)
+        {
+            // Get all segments that need to exist for each path
+            // e.g., "Assets/Materials/Metal" → ["Assets", "Assets/Materials", "Assets/Materials/Metal"]
+            var allRequiredPaths = new HashSet<string>();
+            foreach (var path in collectionPaths)
+            {
+                var segments = path.Split('/');
+                var currentPath = string.Empty;
+                foreach (var segment in segments)
+                {
+                    currentPath = string.IsNullOrEmpty(currentPath) ? segment : $"{currentPath}/{segment}";
+                    allRequiredPaths.Add(currentPath);
+                }
+            }
+
+            // Fetch existing collections
+            HashSet<string> existingPaths;
+            try
+            {
+                existingPaths = await m_AssetsProvider.GetExistingCollectionPathsAsync(projectIdentifier, token);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Failed to fetch existing collections: {e.Message}");
+                return;
+            }
+
+            // Find missing collections
+            var missingPaths = allRequiredPaths.Except(existingPaths).ToList();
+            if (missingPaths.Count == 0)
+                return;
+
+            // Sort by depth (number of slashes) to create parents first
+            missingPaths.Sort((a, b) => a.Count(c => c == '/').CompareTo(b.Count(c => c == '/')));
+
+            // Create missing collections in order
+            foreach (var path in missingPaths)
+            {
+                token.ThrowIfCancellationRequested();
+
+                var slashIndex = path.LastIndexOf('/');
+                string name;
+                string parentPath;
+
+                if (slashIndex > 0)
+                {
+                    parentPath = path.Substring(0, slashIndex);
+                    name = path.Substring(slashIndex + 1);
+                }
+                else
+                {
+                    parentPath = string.Empty;
+                    name = path;
+                }
+
+                try
+                {
+                    await m_AssetsProvider.CreateCollectionHierarchyAsync(projectIdentifier, name, parentPath, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"Failed to create collection '{path}': {e.Message}");
+                }
+            }
+        }
+
+        async Task LinkAssetsToCollectionsAsync(
+            Dictionary<IUploadAsset, AssetUploadInfo> uploadEntryToAssetUploadInfoLookup,
+            CancellationToken token)
+        {
+            // Link recycled assets to their collections
+            // (new assets are linked during creation via AssetCreation.Collections)
+            var recycledAssets = uploadEntryToAssetUploadInfoLookup
+                .Where(kvp => !string.IsNullOrEmpty(kvp.Key.TargetCollection) && kvp.Value.TargetAssetDataWasRecycled)
+                .ToList();
+
+            if (recycledAssets.Count == 0)
+                return;
+
+            // Group by both project and collection path to handle multi-project uploads correctly
+            var assetsByProjectAndCollection = recycledAssets
+                .GroupBy(kvp => (kvp.Key.TargetProject, kvp.Key.TargetCollection));
+
+            foreach (var group in assetsByProjectAndCollection)
+            {
+                var projectIdentifier = group.Key.TargetProject;
+                var collectionPath = group.Key.TargetCollection;
+                var assetIdentifiers = group.Select(kvp => kvp.Value.TargetAssetData.Identifier).ToList();
+
+                try
+                {
+                    await m_AssetsProvider.LinkAssetsToCollectionAsync(
+                        projectIdentifier,
+                        collectionPath,
+                        assetIdentifiers,
+                        token);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"Failed to link {assetIdentifiers.Count} asset(s) to collection '{collectionPath}': {e.Message}");
+                }
+            }
+        }
+
         async Task UploadAssetAsync(AssetUploadInfo assetUploadInfo, UploadOperation operation, CancellationToken token = default)
         {
             try
@@ -434,6 +614,11 @@ namespace Unity.AssetManager.Upload.Editor
                 {
                     AddDependencies(child, assetEntries, database);
                 }
+                else if (id.IsLocal())
+                {
+                    Utilities.DevLogWarning($"AddDependencies: '{uploadAsset.Name}' references local dep {id} that is NOT in upload database. " +
+                        "Asset will not be created and the manifest entry will be skipped during FetchAssetDependenciesAsync.", tag: "Upload");
+                }
             }
         }
 
@@ -463,7 +648,12 @@ namespace Unity.AssetManager.Upload.Editor
 
             if (asset.IsFrozen)
             {
-                asset = await m_AssetsProvider.CreateUnfrozenVersionAsync(asset, token);
+                var unfrozenAsset = await m_AssetsProvider.CreateUnfrozenVersionAsync(asset, token);
+                if (unfrozenAsset == null)
+                {
+                    throw new InvalidOperationException($"Failed to create unfrozen version for asset '{asset.Name}' ({asset.Identifier}). The asset may have been deleted or you may not have permission to modify it.");
+                }
+                asset = unfrozenAsset;
             }
 
             var assetUpdate = new AssetUpdate
@@ -485,7 +675,10 @@ namespace Unity.AssetManager.Upload.Editor
 
             var tasks = new List<Task>
             {
-                m_AssetsProvider.UpdateAsync(asset, assetUpdate, token),
+                // Use UpdateWithoutRefreshAsync to avoid cache conflicts when updating a newly created unfrozen version.
+                // The regular UpdateAsync would refresh properties from cache, which could overwrite our new version's
+                // identifier with the old frozen version's identifier (TrackedAssetIdentifier matches by AssetId only).
+                m_AssetsProvider.UpdateWithoutRefreshAsync(asset, assetUpdate, token),
                 m_AssetsProvider.RemoveThumbnail(asset, token),
             };
 

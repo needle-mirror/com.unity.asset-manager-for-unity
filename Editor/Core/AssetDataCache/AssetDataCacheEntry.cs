@@ -66,6 +66,9 @@ namespace Unity.AssetManager.Core.Editor
         public string created;
 
         [SerializeField]
+        public string updated;
+
+        [SerializeField]
         public string createdBy;
 
         [SerializeField]

@@ -37,6 +37,21 @@ namespace Unity.AssetManager.Core.Editor
 
             public string[] DatasetSystemTags;
 
+            /// <summary>
+            /// The organization ID of the project containing the asset
+            /// </summary>
+            public string OrganizationId;
+
+            /// <summary>
+            /// The project ID containing the asset being imported
+            /// </summary>
+            public string ProjectId;
+
+            /// <summary>
+            /// Collection paths where the asset is linked (if any)
+            /// </summary>
+            public string[] LinkedCollectionPaths;
+
             public ImportEventData(ImportTrigger trigger)
             {
                 Utilities.DevAssert(trigger != null);
@@ -53,14 +68,19 @@ namespace Unity.AssetManager.Core.Editor
 
         ImportEventData m_Data;
 
-        internal ImportEvent(ImportTrigger trigger, string assetId, int fileCount = 0, string fileExtension = "", IEnumerable<string> datasetSystemTags = null)
+        internal ImportEvent(ImportTrigger trigger, string assetId, int fileCount = 0, string fileExtension = "",
+            IEnumerable<string> datasetSystemTags = null, string organizationId = "", string projectId = "",
+            IEnumerable<string> linkedCollectionPaths = null)
         {
             m_Data = new ImportEventData(trigger)
             {
                 AssetId = assetId,
                 FileCount = fileCount,
                 FileExtension = fileExtension,
-                DatasetSystemTags = datasetSystemTags?.ToArray()
+                DatasetSystemTags = datasetSystemTags?.ToArray(),
+                OrganizationId = organizationId ?? string.Empty,
+                ProjectId = projectId ?? string.Empty,
+                LinkedCollectionPaths = linkedCollectionPaths?.ToArray() ?? Array.Empty<string>()
             };
         }
 

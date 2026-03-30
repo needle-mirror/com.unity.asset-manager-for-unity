@@ -36,11 +36,19 @@ namespace Unity.AssetManager.UI.Editor
             {
                 return new List<BaseFilter>
                 {
+                    new AssetIdFilter(m_PageFilterStrategy),
+                    new NameFilter(m_PageFilterStrategy),
+                    new DescriptionFilter(m_PageFilterStrategy),
                     new StatusFilter(m_PageFilterStrategy),
-                    new UnityTypeFilter(m_PageFilterStrategy),
+                    new AssetTypeFilter(m_PageFilterStrategy),
+                    new FileExtensionFilter(m_PageFilterStrategy),
+                    new VersionLabelFilter(m_PageFilterStrategy),
+                    new TagsFilter(m_PageFilterStrategy),
                     new CreatedByFilter(m_PageFilterStrategy),
-                    new UpdatedByFilter(m_PageFilterStrategy)
-                }.OrderBy(f => f.DisplayName).ToList();
+                    new UpdatedByFilter(m_PageFilterStrategy),
+                    new UploadDateFilter(m_PageFilterStrategy),
+                    new LastModifiedFilter(m_PageFilterStrategy)
+                };
             }
 
             List<CustomMetadataFilter> CreateCustomMetadataFilters()

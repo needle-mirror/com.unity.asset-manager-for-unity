@@ -1,18 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
-using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
-using Random = System.Random;
 
 namespace Unity.AssetManager.UI.Editor
 {
     enum TabType
     {
         Details,
-        Versions
+        Versions,
+        Activity
     }
 
     struct TabDetails
@@ -33,6 +33,8 @@ namespace Unity.AssetManager.UI.Editor
 
     class AssetInspectorHeader : IPageComponent, IEditableComponent
     {
+        readonly VisualElement m_InspectorRoot;
+        readonly VisualElement m_NameContainer;
         readonly VisualElement m_BorderLine;
         readonly Label m_AssetName;
         readonly Label m_AssetVersion;
@@ -40,8 +42,11 @@ namespace Unity.AssetManager.UI.Editor
         readonly AssetInspectorViewModel m_ViewModel;
 
         TextField m_TextField;
+        InlineEditBehavior m_InlineEditBehavior;
+        VisualElement m_NameWrapper;
 
-        IAssetDataManager m_AssetDataManager;
+        readonly IInlineEditService m_InlineEditService;
+        readonly IAssetDataManager m_AssetDataManager;
 
         // Tab container properties
         readonly VisualElement m_TabsContainer;
@@ -60,15 +65,22 @@ namespace Unity.AssetManager.UI.Editor
             set => m_UIPreferences.SetInt("AssetDetailsPageTabs.ActiveTab", (int)value);
         }
 
+        EditingMode m_EditingMode;
+
         public bool IsEditingEnabled { get; private set; }
 
         public event Action<AssetFieldEdit> FieldEdited;
 
-        public AssetInspectorHeader(VisualElement visualElement, IAssetDataManager assetDataManager, AssetInspectorViewModel viewModel, VisualElement footer, AssetInspectorMetadataTab metadataTab, AssetInspectorVersionsTab versionsTab)
+        public AssetInspectorHeader(VisualElement visualElement, IAssetDataManager assetDataManager, AssetInspectorViewModel viewModel, VisualElement footer, AssetInspectorMetadataTab metadataTab, AssetInspectorVersionsTab versionsTab, AssetInspectorActivityTab activityTab, IInlineEditService inlineEditService, IUnityConnectProxy unityConnectProxy, IUIPreferences uiPreferences)
         {
             m_ViewModel = viewModel;
-            m_AssetDataManager  = assetDataManager;
+            m_AssetDataManager = assetDataManager;
+            m_InlineEditService = inlineEditService;
+            m_UnityConnectProxy = unityConnectProxy;
+            m_UIPreferences = uiPreferences;
+            m_InspectorRoot = visualElement;
 
+            m_NameContainer = visualElement.Q("details-page-asset-name-container");
             m_BorderLine = visualElement.Q<VisualElement>("asset-name-borderline");
             m_BorderLine.AddToClassList("asset-entry-borderline-style");
 
@@ -78,7 +90,7 @@ namespace Unity.AssetManager.UI.Editor
 
             m_TextField = visualElement.Q<TextField>("asset-name-edit-field");
             m_TextField.RegisterCallback<KeyUpEvent>(OnKeyUpEvent);
-            m_TextField.RegisterCallback<FocusOutEvent>(_ => OnEntryEdited(m_TextField.value));
+            m_TextField.RegisterCallback<FocusOutEvent>(OnNameFieldFocusOut);
             m_TextField.style.display = DisplayStyle.None;
 
             m_AssetDashboardLink = visualElement.Q<Image>("asset-dashboard-link");
@@ -94,15 +106,16 @@ namespace Unity.AssetManager.UI.Editor
 
             var tabs = new[]
             {
-                new { Type = TabType.Details, metadataTab.Root, IsFooterVisible = true, EnabledWhenDisconnected = true },
-                new { Type = TabType.Versions, versionsTab.Root, IsFooterVisible = false, EnabledWhenDisconnected = false },
+                new { Type = TabType.Details,   Label = "Details",          metadataTab.Root, IsFooterVisible = true,  EnabledWhenDisconnected = true },
+                new { Type = TabType.Versions,  Label = "Version History",  versionsTab.Root, IsFooterVisible = false, EnabledWhenDisconnected = false },
+                new { Type = TabType.Activity,  Label = "Metadata History", activityTab.Root, IsFooterVisible = false, EnabledWhenDisconnected = false },
             };
 
             foreach (var tab in tabs)
             {
                 var button = new Button
                 {
-                    text = L10n.Tr(tab.Type.ToString())
+                    text = L10n.Tr(tab.Label)
                 };
                 button.clicked += () =>
                 {
@@ -113,9 +126,6 @@ namespace Unity.AssetManager.UI.Editor
 
                 m_TabContents[tab.Type] = new TabDetails(button, tab.Root, tab.IsFooterVisible, tab.EnabledWhenDisconnected);
             }
-
-            m_UnityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
-            m_UIPreferences = ServicesContainer.instance.Resolve<IUIPreferences>();
 
             SetActiveTab(ActiveTabType);
 
@@ -136,7 +146,6 @@ namespace Unity.AssetManager.UI.Editor
             }
             else
             {
-                // This is not a local asset, you can show the tabs
                 UIElementsUtils.Show(m_TabsContainer);
             }
         }
@@ -211,21 +220,117 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        public void EnableEditing(bool enable)
+        public void ConfigureEditing(EditingMode mode)
         {
-            if (enable == IsEditingEnabled)
+            if (m_EditingMode == mode)
                 return;
 
+            m_EditingMode = mode;
+            IsEditingEnabled = mode != EditingMode.ReadOnly;
+
+            if (mode == EditingMode.Inline)
+                ConfigureInlineMode();
+            else
+                ConfigureStandardMode();
+        }
+
+        public void SetEditDisabledReason(string reason)
+        {
+            m_NameContainer.tooltip = reason;
+        }
+
+        void ConfigureInlineMode()
+        {
+            if (m_InlineEditBehavior == null)
+            {
+                m_BorderLine.style.display = DisplayStyle.None;
+
+                m_AssetName.RemoveFromHierarchy();
+                m_TextField.RemoveFromHierarchy();
+                m_TextField.style.display = DisplayStyle.Flex;
+                m_TextField.AddToClassList(UssStyle.DetailsPageEntryValue);
+
+                m_NameWrapper = new VisualElement();
+                m_NameWrapper.style.flexGrow = 1;
+                m_NameWrapper.style.flexShrink = 1;
+                m_NameWrapper.style.minWidth = 0;
+                m_NameWrapper.style.overflow = Overflow.Visible;
+                m_NameWrapper.style.position = Position.Relative;
+                m_NameWrapper.style.marginRight = 2;
+
+                var insertIndex = m_NameContainer.IndexOf(m_BorderLine) + 1;
+                m_NameContainer.Insert(insertIndex, m_NameWrapper);
+
+                m_InlineEditBehavior = new InlineEditBehavior(
+                    container: m_NameWrapper,
+                    popupParent: m_InspectorRoot,
+                    textField: m_TextField,
+                    onSave: SaveNameAsync,
+                    onCancel: () => { },
+                    editField: EditField.Name,
+                    onValueSaved: v => m_AssetName.text = v,
+                    inlineEditService: m_InlineEditService,
+                    customMetadataType: null);
+
+                m_InlineEditBehavior.Initialize();
+            }
+
+            m_InlineEditBehavior.SetEnabled(true);
+        }
+
+        void ConfigureStandardMode()
+        {
+            if (m_InlineEditBehavior != null)
+            {
+                m_InlineEditBehavior.Cleanup();
+                m_InlineEditBehavior = null;
+
+                m_NameWrapper?.RemoveFromHierarchy();
+                m_NameWrapper = null;
+
+                m_TextField.RemoveFromClassList(UssStyle.DetailsPageEntryValue);
+
+                m_AssetName.RemoveFromClassList(UssStyle.DetailsPageEntryValue);
+                m_AssetName.AddToClassList("asset-name");
+
+                m_BorderLine.style.display = DisplayStyle.Flex;
+                m_NameContainer.Insert(1, m_AssetName);
+                m_NameContainer.Insert(2, m_TextField);
+                m_TextField.value = m_AssetName.text;
+            }
+
             m_TextField.value = m_AssetName.text;
+            m_AssetName.style.display = IsEditingEnabled ? DisplayStyle.None : DisplayStyle.Flex;
+            m_TextField.style.display = IsEditingEnabled ? DisplayStyle.Flex : DisplayStyle.None;
+        }
 
-            m_AssetName.style.display = enable ? DisplayStyle.None : DisplayStyle.Flex;
-            m_TextField.style.display = enable ? DisplayStyle.Flex : DisplayStyle.None;
+        async Task SaveNameAsync(string newValue)
+        {
+            if (string.IsNullOrWhiteSpace(newValue))
+                throw new ArgumentException("Asset name cannot be empty");
 
-            IsEditingEnabled = enable;
+            var edit = new AssetFieldEdit(m_ViewModel.AssetIdentifier, EditField.Name, newValue);
+            var result = await m_InlineEditService.SaveFieldAsync(edit, default);
+
+            if (!result.Success)
+                throw new Exception(result.ErrorMessage);
+        }
+
+        void OnNameFieldFocusOut(FocusOutEvent _)
+        {
+            // In inline mode, InlineEditBehavior handles focus-out and calls SaveAsync; we must not
+            // update m_AssetName here or ConfirmEdit will think nothing changed and skip saving.
+            if (m_EditingMode == EditingMode.Inline)
+                return;
+            OnEntryEdited(m_TextField.value);
         }
 
         void OnKeyUpEvent(KeyUpEvent evt)
         {
+            // Only handle keys in non-inline mode (inline mode is handled by InlineEditBehavior)
+            if (m_EditingMode == EditingMode.Inline)
+                return;
+
             if (evt.keyCode is KeyCode.Return or KeyCode.KeypadEnter)
                 OnEntryEdited(m_TextField.value);
         }
@@ -233,7 +338,9 @@ namespace Unity.AssetManager.UI.Editor
         void OnEntryEdited(string newValue)
         {
             if (newValue == m_AssetName.text)
+            {
                 return;
+            }
 
             // Empty values are not supported
             if (string.IsNullOrWhiteSpace(newValue))
@@ -256,12 +363,10 @@ namespace Unity.AssetManager.UI.Editor
             if (isEdited)
             {
                 m_BorderLine.style.backgroundColor = UssStyle.EditedBorderColor;
-                m_TextField.AddToClassList(UssStyle.DetailsPageEntryValueEdited);
             }
             else
             {
                 m_BorderLine.style.backgroundColor = Color.clear;
-                m_TextField.RemoveFromClassList(UssStyle.DetailsPageEntryValueEdited);
             }
         }
     }

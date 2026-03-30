@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
@@ -16,18 +17,23 @@ namespace Unity.AssetManager.UI.Editor
         Timestamp,
         Url,
         Text,
-        NumberRange
+        NumberRange,
+        MultiText,
+        AdvancedMultiSelection,
+        DateSelection
     }
 
     readonly struct FilterSelection : IEquatable<FilterSelection>, IComparable<FilterSelection>
     {
         public string Text { get; }
         public string Tooltip { get; }
+        public VisualElement Icon { get; }
 
-        public FilterSelection(string text, string tooltip = "")
+        public FilterSelection(string text, string tooltip = "", VisualElement icon = null)
         {
             Text = text;
             Tooltip = tooltip;
+            Icon = icon;
         }
 
         public int CompareTo(FilterSelection other) => string.Compare(Text, other.Text, StringComparison.Ordinal);
@@ -90,9 +96,10 @@ namespace Unity.AssetManager.UI.Editor
         public abstract string DisplayName { get; }
         public abstract Task<List<FilterSelection>> GetSelections(bool includeSelectedFilters = false);
         public virtual FilterSelectionType SelectionType => FilterSelectionType.MultiSelection;
+        public virtual bool AllowCustomChoices => false;
 
         public bool IsDirty { get; set; } = true;
-        public IList<string> SelectedFilters => m_SelectedFilters;
+        public List<string> SelectedFilters => m_SelectedFilters;
 
         public virtual void Cancel() { }
         public virtual void Clear() { }

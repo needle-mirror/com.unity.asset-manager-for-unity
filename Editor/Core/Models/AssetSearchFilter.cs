@@ -7,19 +7,53 @@ using UnityEngine;
 namespace Unity.AssetManager.Core.Editor
 {
     [Serializable]
+    class MultiTextFilterData
+    {
+        public List<string> Included = new();
+        public List<string> Excluded = new();
+        public bool UseAndLogic = true;
+
+        public bool HasFilters => (Included?.Count ?? 0) > 0 || (Excluded?.Count ?? 0) > 0;
+
+        public MultiTextFilterData Clone()
+        {
+            return new MultiTextFilterData
+            {
+                Included = Included != null ? new List<string>(Included) : new List<string>(),
+                Excluded = Excluded != null ? new List<string>(Excluded) : new List<string>(),
+                UseAndLogic = UseAndLogic
+            };
+        }
+
+        public void Clear()
+        {
+            Included = new List<string>();
+            Excluded = new List<string>();
+            UseAndLogic = true;
+        }
+    }
+
+    [Serializable]
     class AssetSearchFilter : ISerializationCallbackReceiver
     {
         public List<string> Searches;
+        public MultiTextFilterData NameFilter = new();
+        public MultiTextFilterData DescriptionFilter = new();
         public List<string> AssetIds;
         public List<string> AssetVersions;
         public List<string> CreatedBy;
         public List<string> UpdatedBy;
+        public DateTime? CreatedAtIncluded;
+        public DateTime? CreatedAtExcluded;
+        public DateTime? UpdatedAtIncluded;
+        public DateTime? UpdatedAtExcluded;
         public List<string> Status;
         public List<string> Collection;
 
         public List<string> AssetTypeStrings;
         public List<AssetType> AssetTypes;
-        public List<string> Tags;
+        public List<string> Extensions;
+        public MultiTextFilterData TagsFilter = new();
         public List<string> Labels;
 
         public bool IsExactMatchSearch;
@@ -30,19 +64,58 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeField]
         SerializableSearchFilterMetadata m_SerializableSearchFilterMetadata;
 
+        [SerializeField]
+        string m_CreatedAtIncludedSerialized;
+
+        [SerializeField]
+        string m_CreatedAtExcludedSerialized;
+
+        [SerializeField]
+        string m_UpdatedAtIncludedSerialized;
+
+        [SerializeField]
+        string m_UpdatedAtExcludedSerialized;
+
+
         public void OnBeforeSerialize()
         {
-            if (CustomMetadata == null)
-                return;
+            if (CustomMetadata != null)
+            {
+                m_SerializableSearchFilterMetadata = SerializableSearchFilterMetadata.Convert(CustomMetadata);
+            }
 
-            m_SerializableSearchFilterMetadata = SerializableSearchFilterMetadata.Convert(CustomMetadata);
+            m_CreatedAtIncludedSerialized = CreatedAtIncluded?.ToString("o");
+            m_CreatedAtExcludedSerialized = CreatedAtExcluded?.ToString("o");
+            m_UpdatedAtIncludedSerialized = UpdatedAtIncluded?.ToString("o");
+            m_UpdatedAtExcludedSerialized = UpdatedAtExcluded?.ToString("o");
         }
+
         public void OnAfterDeserialize()
         {
-            if (m_SerializableSearchFilterMetadata == null)
-                return;
+            if (m_SerializableSearchFilterMetadata != null)
+            {
+                CustomMetadata = SerializableSearchFilterMetadata.Convert(m_SerializableSearchFilterMetadata);
+            }
 
-            CustomMetadata = SerializableSearchFilterMetadata.Convert(m_SerializableSearchFilterMetadata);
+            CreatedAtIncluded = ParseDateString(m_CreatedAtIncludedSerialized);
+            CreatedAtExcluded = ParseDateString(m_CreatedAtExcludedSerialized);
+            UpdatedAtIncluded = ParseDateString(m_UpdatedAtIncludedSerialized);
+            UpdatedAtExcluded = ParseDateString(m_UpdatedAtExcludedSerialized);
+        }
+
+        static DateTime? ParseDateString(string dateString)
+        {
+            if (string.IsNullOrEmpty(dateString))
+                return null;
+
+            try
+            {
+                return DateTime.Parse(dateString, DateTimeFormatInfo.CurrentInfo, DateTimeStyles.RoundtripKind);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public AssetSearchFilter Clone()
@@ -50,15 +123,23 @@ namespace Unity.AssetManager.Core.Editor
             return new AssetSearchFilter
             {
                 Searches = CopyList(Searches),
+                NameFilter = NameFilter.Clone(),
+                DescriptionFilter = DescriptionFilter.Clone(),
                 AssetIds = CopyList(AssetIds),
                 AssetVersions = CopyList(AssetVersions),
                 CreatedBy = CopyList(CreatedBy),
                 UpdatedBy = CopyList(UpdatedBy),
+                CreatedAtIncluded = CreatedAtIncluded,
+                CreatedAtExcluded = CreatedAtExcluded,
+                UpdatedAtIncluded = UpdatedAtIncluded,
+                UpdatedAtExcluded = UpdatedAtExcluded,
                 Status = CopyList(Status),
                 Collection = CopyList(Collection),
+
                 AssetTypeStrings = CopyList(AssetTypeStrings),
                 AssetTypes = AssetTypes?.ToList(),
-                Tags = CopyList(Tags),
+                Extensions = CopyList(Extensions),
+                TagsFilter = TagsFilter.Clone(),
                 Labels = CopyList(Labels),
                 CustomMetadata = CloneMetadataList(CustomMetadata),
                 IsExactMatchSearch = IsExactMatchSearch,

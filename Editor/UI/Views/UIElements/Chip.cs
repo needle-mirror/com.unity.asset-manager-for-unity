@@ -12,6 +12,8 @@ namespace Unity.AssetManager.UI.Editor
 
         internal event Action<string> ChipDismissed;
 
+        public string Text => m_Label?.text ?? string.Empty;
+
         public Chip(string text, bool isSelectable = false, bool isDismissable = false)
         {
             m_Label = new Label(text)

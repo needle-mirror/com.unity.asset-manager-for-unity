@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
@@ -54,6 +55,7 @@ namespace Unity.AssetManager.UI.Editor
         AssetsGridView m_AssetsGridView;
         readonly List<SelectionInspectorPage> m_SelectionInspectorPages = new();
         ActionHelpBox m_ActionHelpBox;
+        AssetManagerFooter m_AssetManagerFooter;
 
         IVisualElementScheduledItem m_StorageInfoRefreshScheduledItem;
 
@@ -80,8 +82,11 @@ namespace Unity.AssetManager.UI.Editor
         readonly ISettingsManager m_SettingsManager;
         readonly ISavedAssetSearchFilterManager m_SavedSearchFilterManager;
         readonly IAssetsProvider m_AssetsProvider;
+        readonly IInlineEditService m_InlineEditService;
+        readonly IUIPreferences m_UIPreferences;
 
         Task m_SeatWarningVisibilityTask;
+        CancellationTokenSource m_InlineEditCts;
 
         static int InspectorPanelLastWidth
         {
@@ -109,7 +114,9 @@ namespace Unity.AssetManager.UI.Editor
             ISettingsManager settingsManager,
             ISavedAssetSearchFilterManager savedSearchFilterManager,
             IPackageVersionService packageVersionService,
-            IAssetsProvider assetsProvider)
+            IAssetsProvider assetsProvider,
+            IInlineEditService inlineEditService,
+            IUIPreferences uiPreferences)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
@@ -132,6 +139,8 @@ namespace Unity.AssetManager.UI.Editor
             m_SavedSearchFilterManager = savedSearchFilterManager;
             m_PackageVersionService = packageVersionService;
             m_AssetsProvider = assetsProvider;
+            m_InlineEditService = inlineEditService;
+            m_UIPreferences = uiPreferences;
         }
 
         public void OnEnable()
@@ -217,7 +226,7 @@ namespace Unity.AssetManager.UI.Editor
 
             var storageInfoHelpBoxContainer = new VisualElement();
             storageInfoHelpBoxContainer.AddToClassList("HelpBoxContainer");
-            var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect, m_SettingsManager);
+            var storageInfoHelpBox = new StorageInfoHelpBox(m_PageManager, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect, m_SettingsManager, m_StateManager);
             storageInfoHelpBoxContainer.Add(storageInfoHelpBox);
             m_SearchContentSplitViewContainer.Add(storageInfoHelpBoxContainer);
 
@@ -230,6 +239,7 @@ namespace Unity.AssetManager.UI.Editor
             m_SeatWarningHelpbox.AddToClassList("HelpBoxContainer");
 
             m_SearchContentSplitViewContainer.Add(m_SeatWarningHelpbox);
+            RestoreSeatWarningVisibilityFromState();
 
             // Schedule storage info to be refreshed each 30 seconds
             m_StorageInfoRefreshScheduledItem = storageInfoHelpBox.schedule.Execute(storageInfoHelpBox.RefreshCloudStorageAsync).Every(k_CloudStorageUsageRefreshMs);
@@ -291,6 +301,11 @@ namespace Unity.AssetManager.UI.Editor
             content.AddToClassList("AssetManagerContentView");
             m_SearchContentSplitViewContainer.Add(content);
 
+            m_AssetManagerFooter = new AssetManagerFooter(
+                m_PageManager,
+                ServicesContainer.instance.Resolve<IAssetDataCacheSyncService>());
+            m_SearchContentSplitViewContainer.Add(m_AssetManagerFooter);
+
             if (!ServicesContainer.instance.Resolve<IContextMenuBuilder>().IsContextMenuRegistered(typeof(AssetData)))
             {
                 ServicesContainer.instance.Resolve<IContextMenuBuilder>()
@@ -306,15 +321,15 @@ namespace Unity.AssetManager.UI.Editor
 
             m_AssetsGridView = new AssetsGridView(m_ProjectOrganizationProvider, m_UnityConnect, m_PageManager,
                 m_AssetDataManager, m_AssetOperationManager, m_LinksProxy, m_UploadManager, m_AssetImporter,
-                m_PermissionsManager, m_MessageManager, m_ApplicationProxy);
+                m_PermissionsManager, m_MessageManager, m_ApplicationProxy, m_StateManager);
 
             m_SelectionInspectorPages.Add(new AssetInspector(m_AssetImporter, m_AssetOperationManager, m_StateManager,
                 m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy,
-                m_UnityConnect, m_ProjectIconDownloader, m_PermissionsManager, m_DialogManager, m_PopupManager, m_SettingsManager));
+                m_UnityConnect, m_ProjectIconDownloader, m_PermissionsManager, m_DialogManager, m_PopupManager, m_SettingsManager, m_InlineEditService, m_UIPreferences));
 
             m_SelectionInspectorPages.Add(new MultiAssetDetailsPage(m_AssetImporter, m_AssetOperationManager, m_StateManager,
                 m_PageManager, m_AssetDataManager, m_AssetDatabaseProxy, m_ProjectOrganizationProvider, m_LinksProxy, m_UnityConnect,
-                m_ProjectIconDownloader, m_PermissionsManager, m_DialogManager));
+                m_ProjectIconDownloader, m_PermissionsManager, m_DialogManager, m_InlineEditService));
 
             m_SelectionInspectorContainer = new VisualElement();
             m_SelectionInspectorContainer.AddToClassList("SelectionInspectorContainer");
@@ -348,6 +363,7 @@ namespace Unity.AssetManager.UI.Editor
             content.Add(m_AssetsGridView);
 
             m_CustomizableSection = new VisualElement();
+            m_CustomizableSection.AddToClassList("customizable-section");
             content.Add(m_CustomizableSection);
 
             SetCustomFieldsVisibility(m_PageManager.ActivePage);
@@ -364,6 +380,8 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged += OnLoadingStateChanged;
             m_UnityConnect.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
+            m_MessageManager.HelpBoxMessageSet += OnHelpBoxMessageSet;
+            m_MessageManager.HelpBoxMessageCleared += OnHelpBoxMessageCleared;
         }
 
         void UnregisterCallbacks()
@@ -377,6 +395,21 @@ namespace Unity.AssetManager.UI.Editor
             m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
             m_ProjectOrganizationProvider.LoadingStateChanged -= OnLoadingStateChanged;
             m_UnityConnect.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
+            m_MessageManager.HelpBoxMessageSet -= OnHelpBoxMessageSet;
+            m_MessageManager.HelpBoxMessageCleared -= OnHelpBoxMessageCleared;
+        }
+
+        void OnHelpBoxMessageSet(HelpBoxMessage message)
+        {
+            if (message != null)
+                m_StateManager.SetActionHelpBoxState(message.Content, (int)message.MessageType, (int)message.Category, (int)message.RecommendedAction, message.Dismissable);
+            else
+                m_StateManager.SetActionHelpBoxState(null, 0, 0, 0, false);
+        }
+
+        void OnHelpBoxMessageCleared()
+        {
+            m_StateManager.SetActionHelpBoxState(null, 0, 0, 0, false);
         }
 
         static void OnInspectorResized(GeometryChangedEvent evt)
@@ -422,7 +455,22 @@ namespace Unity.AssetManager.UI.Editor
 
                 // Show only the first page that is visible
                 var inspectorPageToShow = m_SelectionInspectorPages.Find(page => page.IsVisible(validAssets.Count));
-                inspectorPageToShow?.EnableEditing(m_PageManager.ActivePage is UploadPage);
+
+                var isUploadPage = m_PageManager.ActivePage is UploadPage;
+                if (isUploadPage)
+                {
+                    inspectorPageToShow?.ConfigureEditing(EditingMode.Upload);
+                }
+                else
+                {
+                    inspectorPageToShow?.ConfigureEditing(EditingMode.ReadOnly);
+                    if (inspectorPageToShow is AssetInspector or MultiAssetDetailsPage)
+                    {
+                        m_InlineEditCts?.Cancel();
+                        m_InlineEditCts = new CancellationTokenSource();
+                        TaskUtils.TrackException(TryEnableInlineEditingAsync(inspectorPageToShow, validAssets, m_InlineEditCts.Token));
+                    }
+                }
 
                 TaskUtils.TrackException(inspectorPageToShow?.SelectedAsset(validAssets));
                 UIElementsUtils.Show(inspectorPageToShow);
@@ -439,6 +487,47 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
+        async Task TryEnableInlineEditingAsync(SelectionInspectorPage inspectorPage, List<AssetIdentifier> selectedAssets, CancellationToken token)
+        {
+            if (selectedAssets == null || selectedAssets.Count == 0)
+                return;
+
+            // Extract org/project from the selected assets instead of the globally selected project.
+            // This enables inline editing on the "All Assets" tab where no project is globally selected.
+            var firstAsset = selectedAssets[0];
+            var orgId = firstAsset.OrganizationId;
+            var projectId = firstAsset.ProjectId;
+
+            // Check if all assets belong to the same project
+            var hasMixedProjects = selectedAssets.Count > 1 &&
+                selectedAssets.Any(a => a.OrganizationId != orgId || a.ProjectId != projectId);
+
+            if (hasMixedProjects)
+            {
+                inspectorPage.ConfigureEditing(EditingMode.ReadOnly,
+                    L10n.Tr("Editing unavailable: selected assets belong to different projects"));
+                return;
+            }
+
+            if (string.IsNullOrEmpty(orgId) || string.IsNullOrEmpty(projectId))
+                return;
+
+            var role = await m_PermissionsManager.GetRoleAsync(orgId, projectId);
+
+            if (token.IsCancellationRequested)
+                return;
+
+            if (role.CanEdit())
+            {
+                inspectorPage.ConfigureEditing(EditingMode.Inline);
+            }
+            else
+            {
+                inspectorPage.ConfigureEditing(EditingMode.ReadOnly,
+                    L10n.Tr("You don't have permission to edit these assets"));
+            }
+        }
+
         void SetCustomFieldsVisibility(IPage page)
         {
             m_CustomizableSection.Clear();
@@ -452,6 +541,7 @@ namespace Unity.AssetManager.UI.Editor
             UIElementsUtils.SetDisplay(m_Filters, basePage.DisplayFilters);
             UIElementsUtils.SetDisplay(m_SavedViewControls, basePage.DisplaySavedViewControls);
             UIElementsUtils.SetDisplay(m_Sort, basePage.DisplaySort);
+            UIElementsUtils.SetDisplay(m_AssetsGridView, basePage.DisplayGridView);
 
             m_SeatWarningVisibilityTask = SetSeatWarningVisibilityAsync();
 
@@ -474,11 +564,23 @@ namespace Unity.AssetManager.UI.Editor
 
         async Task SetSeatWarningVisibilityAsync()
         {
-            if(m_ProjectOrganizationProvider.SelectedOrganization == null)
+            if (m_ProjectOrganizationProvider.SelectedOrganization == null)
                 return;
 
-            var hasValidSeat = await m_PermissionsManager.CheckSeatValidity(m_ProjectOrganizationProvider.SelectedOrganization.Id);
-            UIElementsUtils.SetDisplay(m_SeatWarningHelpbox, !hasValidSeat);
+            var orgId = m_ProjectOrganizationProvider.SelectedOrganization.Id;
+            var hasValidSeat = await m_PermissionsManager.CheckSeatValidity(orgId);
+            var visible = !hasValidSeat;
+            UIElementsUtils.SetDisplay(m_SeatWarningHelpbox, visible);
+            m_StateManager.SetSeatWarningVisible(visible, orgId);
+        }
+
+        void RestoreSeatWarningVisibilityFromState()
+        {
+            var org = m_ProjectOrganizationProvider.SelectedOrganization;
+            if (org == null || string.IsNullOrEmpty(org.Id))
+                return;
+            if (m_StateManager.GetSeatWarningWasVisibleForOrganization(org.Id))
+                UIElementsUtils.Show(m_SeatWarningHelpbox);
         }
 
         void OnActivePageChanged(IPage page)
@@ -545,7 +647,29 @@ namespace Unity.AssetManager.UI.Editor
                 UIElementsUtils.Show(m_AssetManagerContainer);
 
                 m_ActionHelpBox.Refresh();
+                RetryInlineEditingIfNeeded();
             }
+        }
+
+        void RetryInlineEditingIfNeeded()
+        {
+            var visibleInspector = m_SelectionInspectorPages.Find(
+                page => UIElementsUtils.IsDisplayed(page) && page is AssetInspector or MultiAssetDetailsPage);
+
+            if (visibleInspector == null)
+                return;
+
+            // Check if already in inline mode
+            if (visibleInspector is AssetInspector assetInspector && assetInspector.EditingMode == EditingMode.Inline)
+                return;
+
+            var selectedAssets = m_PageManager.ActivePage?.SelectedAssets?.Where(a => a.IsIdValid()).ToList();
+            if (selectedAssets == null || selectedAssets.Count == 0)
+                return;
+
+            m_InlineEditCts?.Cancel();
+            m_InlineEditCts = new CancellationTokenSource();
+            TaskUtils.TrackException(TryEnableInlineEditingAsync(visibleInspector, selectedAssets, m_InlineEditCts.Token));
         }
 
         public bool CurrentOrganizationIsEmpty()

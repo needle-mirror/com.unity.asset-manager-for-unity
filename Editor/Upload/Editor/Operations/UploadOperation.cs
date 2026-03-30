@@ -62,6 +62,9 @@ namespace Unity.AssetManager.Upload.Editor
 
             ReportStep("Preparing manifest...");
 
+            Utilities.DevLog($"FetchAssetDependenciesAsync for asset '{m_UploadAsset.Name}' (id={m_UploadAsset.LocalIdentifier.AssetId}): " +
+                $"{m_UploadAsset.Dependencies.Count} declared dep(s), lookup has {identifierToAssetLookup.Count} entries", tag: "Upload");
+
             var dependencies = new List<AssetIdentifier>();
 
             // Dependency manifest
@@ -70,16 +73,28 @@ namespace Unity.AssetManager.Upload.Editor
                 if (dependency.IsLocal())
                 {
                     // If the dependency is pointing to a local asset, we need to resolve its target asset data
+                    if (!identifierToAssetLookup.TryGetValue(dependency, out var assetData))
+                    {
+                        Utilities.DevLogError($"Local dep {dependency} NOT in identifierToAssetLookup. Skipping. " +
+                            $"All declared deps for '{m_UploadAsset.Name}': [{string.Join(", ", m_UploadAsset.Dependencies.Select(d => $"{d.AssetId}@{d.Version}{(d.IsLocal() ? "(local)" : "(cloud)")}"))}]. " +
+                            $"All lookup keys: [{string.Join(", ", identifierToAssetLookup.Keys.Select(k => k.AssetId))}]", tag: "Upload");
+                        Debug.LogWarning($"Dependency {dependency} could not be resolved during upload. It will be skipped.");
+                        continue;
+                    }
 
-                    var identifier = identifierToAssetLookup[dependency].Identifier.Clone();
+                    var identifier = assetData.Identifier.Clone();
                     identifier.VersionLabel = dependency.VersionLabel;
                     identifier.Version = dependency.Version != AssetManagerCoreConstants.NewVersionId ? dependency.Version : identifier.Version;
                     dependencies.Add(identifier);
+
+                    Utilities.DevLog($"  Local dep {dependency.AssetId} resolved to {identifier}", tag: "Upload");
                 }
                 else
                 {
                     // Otherwise, the dependency is already pointing to a cloud asset
                     dependencies.Add(dependency);
+
+                    Utilities.DevLog($"  Cloud dep {dependency} added directly", tag: "Upload");
                 }
             }
             m_Dependencies = dependencies;
@@ -111,6 +126,7 @@ namespace Unity.AssetManager.Upload.Editor
             ReportStep("Preparing for upload");
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
             var ioProxy = ServicesContainer.instance.Resolve<IIOProxy>();
 
             // Create a thumbnail
@@ -135,7 +151,7 @@ namespace Unity.AssetManager.Upload.Editor
 
             // Finalize asset
 
-            await ApplyThumbnailAsync(assetsProvider, targetAssetData, thumbnailFile, token);
+            await ApplyThumbnailAsync(assetDataManager, targetAssetData, thumbnailFile, token);
             await UpdateStatusAsync(assetsProvider, targetAssetData, m_UploadAsset.Status, token);
             await FreezeAssetAsync(assetsProvider, targetAssetData, token);
 
@@ -195,7 +211,7 @@ namespace Unity.AssetManager.Upload.Editor
                    !AssetDataTypeHelper.IsSupportingPreviewGeneration(Path.GetExtension(assetPath));
         }
 
-        async Task ApplyThumbnailAsync(IAssetsProvider assetsProvider, AssetData targetAssetData, AssetDataFile thumbnailFile, CancellationToken token)
+        async Task ApplyThumbnailAsync(IAssetDataManager assetDataManager, AssetData targetAssetData, AssetDataFile thumbnailFile, CancellationToken token)
         {
             if (thumbnailFile != null && !string.IsNullOrEmpty(thumbnailFile.Path))
             {
@@ -206,13 +222,13 @@ namespace Unity.AssetManager.Upload.Editor
                 var assetUpdate = new AssetUpdate
                 {
                     // Bubble up the generated tags from the thumbnail to the asset (unless all tag generation is disabled)
-                    Tags = settingsManager.IsAllTagGenerationDisabled 
-                        ? existingTags.ToList() 
+                    Tags = settingsManager.IsAllTagGenerationDisabled
+                        ? existingTags.ToList()
                         : existingTags.Union(thumbnailFile.Tags ?? Array.Empty<string>()).ToList(),
                     PreviewFile = thumbnailFile.Path
                 };
 
-                await assetsProvider.UpdateAsync(targetAssetData, assetUpdate, token);
+                await assetDataManager.UpdateAsync(targetAssetData, assetUpdate, token);
             }
         }
 

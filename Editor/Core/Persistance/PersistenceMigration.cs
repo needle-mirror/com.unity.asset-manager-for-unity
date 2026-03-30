@@ -374,7 +374,8 @@ namespace Unity.AssetManager.Core.Editor
                 }
 
                 // Write using V4 per-Unity-file format
-                var currentVersion = GetCurrentVersion();
+                // Note: V3 already stores cloud paths (from assetDataFile.Path), not Unity asset paths,
+                // so no prefix stripping is needed during migration.
                 Persistence.WriteEntry(ioProxy, importedAssetInfo.AssetData as AssetData, importedAssetInfo.FileInfos);
                 Utilities.DevLog($"Migrated asset '{importedAssetInfo.AssetData.Name}' with original path '{Path.GetFileName(originalFilePath)}'", DevLogHighlightColor.Cyan);
 
@@ -481,5 +482,6 @@ namespace Unity.AssetManager.Core.Editor
         {
             return s_PersistenceVersions[^1].MajorVersion;
         }
+
     }
 }

@@ -36,7 +36,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public void Set(IEnumerable<IMetadata> metadata)
         {
-            m_Dictionary = metadata.ToDictionary(x => x.FieldKey);
+            m_Dictionary = metadata?.ToDictionary(x => x.FieldKey) ?? new Dictionary<string, IMetadata>();
         }
 
         public bool ContainsKey(string fieldKey)

@@ -43,6 +43,19 @@ namespace Unity.AssetManager.Core.Editor
         Viewer
     }
 
+    static class RoleExtensions
+    {
+        /// <summary>
+        /// Returns true if the role has edit permissions (currently Contributor only).
+        /// </summary>
+        public static bool CanEdit(this Role role)
+        {
+            // Only contributor role can edit metadata for now
+            // but this can be expanded as needed.
+            return role == Role.Contributor;
+        }
+    }
+
     interface IPermissionsManager : IService
     {
         event Action<AuthenticationState> AuthenticationStateChanged;

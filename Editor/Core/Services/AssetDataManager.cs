@@ -42,6 +42,23 @@ namespace Unity.AssetManager.Core.Editor
         bool IsInProject(AssetIdentifier id);
         HashSet<AssetIdentifier> FindExclusiveDependencies(IEnumerable<AssetIdentifier> assetIdentifiersToDelete);
         void QueueMissingCacheRefreshes();
+
+        /// <summary>
+        /// Fetches an asset from the cloud, using local cache when available for tracked assets.
+        /// Automatically updates the repository and cache.
+        /// </summary>
+        Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, TimeSpan stalenessTreshold, CancellationToken token);
+
+        /// <summary>
+        /// Fetches an asset from the cloud, using local cache when available for tracked assets.
+        /// Automatically updates the repository and cache.
+        /// </summary>
+        Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token);
+
+        /// <summary>
+        /// Updates an asset in the cloud and automatically updates the cache for tracked assets.
+        /// </summary>
+        Task UpdateAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token);
     }
 
     [Serializable]
@@ -218,6 +235,8 @@ namespace Unity.AssetManager.Core.Editor
 
         }
 
+        static readonly TimeSpan k_CacheStalenessThreshold = TimeSpan.FromSeconds(5);
+
         [SerializeField]
         ImportedAssetInfo[] m_SerializedImportedAssetInfos = Array.Empty<ImportedAssetInfo>();
 
@@ -233,12 +252,12 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeReference]
         IProjectOrganizationProvider m_ProjectOrganizationProvider;
 
+        [SerializeReference]
+        IAssetsProvider m_AssetsProvider;
+
         readonly Dictionary<TrackedAssetIdentifier, BaseAssetData> m_AssetData = new();
         readonly Dictionary<string, List<ImportedAssetInfo>> m_FileGuidToImportedAssetInfosMap = new();
         readonly TrackedIdentifierMap m_TrackedIdentifierMap = new();
-
-        // Track subscriptions to AssetData.AssetDataChanged events
-        readonly Dictionary<TrackedAssetIdentifier, BaseAssetData.AssetDataChangedDelegate> m_AssetDataEventSubscriptions = new();
 
         public event Action<AssetChangeArgs> ImportedAssetInfoChanged = delegate { };
         public event Action<AssetChangeArgs> AssetDataChanged = delegate { };
@@ -247,11 +266,12 @@ namespace Unity.AssetManager.Core.Editor
             (IReadOnlyCollection<ImportedAssetInfo>) m_TrackedIdentifierMap.Values;
 
         [ServiceInjection]
-        public void Inject(IPermissionsManager permissionsManager, IAssetDataCacheManager assetDataCacheManager, IProjectOrganizationProvider projectOrganizationProvider)
+        public void Inject(IPermissionsManager permissionsManager, IAssetDataCacheManager assetDataCacheManager, IProjectOrganizationProvider projectOrganizationProvider, IAssetsProvider assetsProvider)
         {
             m_PermissionsManager = permissionsManager;
             m_AssetDataCacheManager = assetDataCacheManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
+            m_AssetsProvider = assetsProvider;
         }
 
         public override void OnEnable()
@@ -296,16 +316,38 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        void OnCacheEntryRefreshed(string assetId)
+        /// <summary>
+        /// Handles cache entry refresh events from background refresh tasks.
+        /// This is the only subscriber to <see cref="IAssetDataCacheManager.CacheEntryRefreshed"/>.
+        /// </summary>
+        async void OnCacheEntryRefreshed(string assetId)
         {
             if (string.IsNullOrEmpty(assetId))
                 return;
 
             var info = GetImportedAssetInfo(assetId);
-            if (info?.AssetData is AssetData ad && m_AssetDataCacheManager != null && m_AssetDataCacheManager.PopulateFromCache(ad))
+            if (info?.AssetData is AssetData assetData)
             {
-                AssetDataChanged?.Invoke(new AssetChangeArgs { Updated = new[] { new TrackedAssetIdentifier(ad.Identifier) } });
+                try
+                {
+                    await RefreshAssetFromCacheAsync(assetData);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                }
             }
+        }
+
+        /// <summary>
+        /// Populates asset data from cache, refreshes attributes, and notifies all subscribers.
+        /// </summary>
+        async Task RefreshAssetFromCacheAsync(AssetData assetData)
+        {
+            if (m_AssetDataCacheManager == null || !m_AssetDataCacheManager.PopulateFromCache(assetData))
+                return;
+
+            await assetData.NotifyCachePopulatedAsync();
         }
 
         void OnOrganizationChanged(OrganizationInfo organizationInfo)
@@ -484,16 +526,7 @@ namespace Unity.AssetManager.Core.Editor
 
                 bool wasExisting = m_AssetData.ContainsKey(id);
 
-                // Unsubscribe from old asset data if it exists
-                if (wasExisting && m_AssetData.TryGetValue(id, out var oldAssetData))
-                {
-                    UnsubscribeFromAssetDataEvents(id, oldAssetData);
-                }
-
                 m_AssetData[id] = assetData;
-
-                // Subscribe to new asset data events
-                SubscribeToAssetDataEvents(id, assetData);
 
                 if (wasExisting)
                 {
@@ -512,7 +545,7 @@ namespace Unity.AssetManager.Core.Editor
         }
 
         public ImportedAssetInfo GetImportedAssetInfo(AssetIdentifier assetIdentifier)
-            => GetImportedAssetInfo(new TrackedAssetIdentifier(assetIdentifier));
+            => assetIdentifier == null ? null : GetImportedAssetInfo(new TrackedAssetIdentifier(assetIdentifier));
 
         public ImportedAssetInfo GetImportedAssetInfo(TrackedAssetIdentifier assetIdentifier)
         {
@@ -568,12 +601,6 @@ namespace Unity.AssetManager.Core.Editor
                             }
                         }
                     }
-                }
-
-                // Unsubscribe from asset data events (even if not in m_TrackedIdentifierMap)
-                if (m_AssetData.TryGetValue(id, out var assetData))
-                {
-                    UnsubscribeFromAssetDataEvents(id, assetData);
                 }
 
                 // Remove from asset data dictionary
@@ -652,8 +679,7 @@ namespace Unity.AssetManager.Core.Editor
 
             try
             {
-                var assetProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-                assetData = await assetProvider.GetAssetAsync(assetIdentifier, token);
+                assetData = await m_AssetsProvider.GetAssetAsync(assetIdentifier, token);
             }
             catch (ForbiddenException)
             {
@@ -674,6 +700,67 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return assetData;
+        }
+
+        public async Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, TimeSpan stalenessThreshold, CancellationToken token)
+        {
+            // 1. Check local repository first
+            var existing = GetAssetData(assetIdentifier);
+            if (existing is AssetData assetData && !IsCacheStale(assetIdentifier.AssetId, stalenessThreshold))
+            {
+                // Cache is fresh or ensureFreshness is false - use cached data
+                m_AssetDataCacheManager?.PopulateFromCache(assetData);
+                return assetData;
+            }
+
+            // 2. Not in repository - fetch from cloud
+            var fromCloud = await m_AssetsProvider.GetAssetAsync(assetIdentifier, token);
+
+            if (fromCloud == null)
+                return null;
+
+            // 3. Update repository
+            AddOrUpdateAssetDataFromCloudAsset(new[] { fromCloud });
+
+            // 4. Update cache if tracked (fetch files first to ensure cache has complete data)
+            if (GetImportedAssetInfo(assetIdentifier) != null)
+            {
+                await fromCloud.ResolveDatasetsAsync(token);
+                m_AssetDataCacheManager?.WriteEntryWithoutNotify(fromCloud);
+            }
+
+            return fromCloud;
+        }
+
+        public async Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token)
+        {
+            return await GetAssetAsync(assetIdentifier, k_CacheStalenessThreshold, token);
+        }
+
+        bool IsCacheStale(string assetId, TimeSpan stalenessThreshold)
+        {
+            if (m_AssetDataCacheManager == null)
+                return false;
+
+            var cachedAt = m_AssetDataCacheManager.GetCachedAt(assetId);
+            if (cachedAt == null) // No cache entry, consider it stale so it will be fetched from clouds
+                return true;
+
+            var cacheAge = DateTime.UtcNow - cachedAt.Value;
+            return cacheAge > stalenessThreshold;
+        }
+
+        public async Task UpdateAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token)
+        {
+            // 1. Execute SDK updateUpdateStatusAsync
+            await m_AssetsProvider.UpdateAsync(assetData, assetUpdate, token);
+
+            // 2. Update cache if tracked (fetch files first to ensure cache has complete data)
+            if (GetImportedAssetInfo(assetData.Identifier) != null)
+            {
+                await assetData.ResolveDatasetsAsync(token);
+                m_AssetDataCacheManager?.WriteEntryWithoutNotify(assetData);
+            }
         }
 
         public bool IsInProject(AssetIdentifier id)
@@ -728,9 +815,6 @@ namespace Unity.AssetManager.Core.Editor
             {
                 var id = new TrackedAssetIdentifier(data.Identifier);
                 m_AssetData[id] = data;
-
-                // Subscribe to deserialized asset data events
-                SubscribeToAssetDataEvents(id, data);
             }
         }
 
@@ -928,51 +1012,6 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             m_TrackedIdentifierMap[trackId] = info;
-        }
-
-        /// <summary>
-        /// Subscribes to AssetData.AssetDataChanged events for the given asset data.
-        /// </summary>
-        void SubscribeToAssetDataEvents(TrackedAssetIdentifier id, BaseAssetData assetData)
-        {
-            if (assetData == null || m_AssetDataCacheManager == null)
-                return;
-
-            // Unsubscribe if already subscribed
-            if (m_AssetDataEventSubscriptions.TryGetValue(id, out var existingHandler))
-            {
-                assetData.AssetDataChanged -= existingHandler;
-            }
-
-            // Create new handler
-            BaseAssetData.AssetDataChangedDelegate handler = (changedAssetData, eventType) =>
-            {
-                // Update cache only for tracked assets (those with imported asset info / tracking file)
-                if (changedAssetData is AssetData assetDataTyped &&
-                    GetImportedAssetInfo(assetDataTyped.Identifier) != null)
-                {
-                    m_AssetDataCacheManager.WriteEntryWithoutNotify(assetDataTyped);
-                }
-            };
-
-            // Subscribe
-            assetData.AssetDataChanged += handler;
-            m_AssetDataEventSubscriptions[id] = handler;
-        }
-
-        /// <summary>
-        /// Unsubscribes from AssetData.AssetDataChanged events for the given asset data.
-        /// </summary>
-        void UnsubscribeFromAssetDataEvents(TrackedAssetIdentifier id, BaseAssetData assetData)
-        {
-            if (assetData == null)
-                return;
-
-            if (m_AssetDataEventSubscriptions.TryGetValue(id, out var handler))
-            {
-                assetData.AssetDataChanged -= handler;
-                m_AssetDataEventSubscriptions.Remove(id);
-            }
         }
     }
 }

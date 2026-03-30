@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
 using UnityEngine;
@@ -43,6 +44,11 @@ namespace Unity.AssetManager.UI.Editor
             if (s_Instance != this)
                 return;
 
+            // Guard against duplicate root creation when both RefreshAll (from registeredPackages event)
+            // and Unity's own CreateGUI call run after a domain reload during package upgrades
+            if (m_Root != null)
+                return;
+
             m_IsDocked = docked;
 
             var container = ServicesContainer.instance;
@@ -68,12 +74,18 @@ namespace Unity.AssetManager.UI.Editor
                 container.Resolve<ISettingsManager>(),
                 container.Resolve<ISavedAssetSearchFilterManager>(),
                 container.Resolve<IPackageVersionService>(),
-                container.Resolve<IAssetsProvider>());
+                container.Resolve<IAssetsProvider>(),
+                container.Resolve<IInlineEditService>(),
+                container.Resolve<IUIPreferences>());
 
             m_Root.RegisterCallback<GeometryChangedEvent>(OnResized);
             m_Root.OnEnable();
             m_Root.StretchToParentSize();
+
+            // Restore storage dismissed list before adding root so StorageInfoHelpBox sees it on first Refresh
+            RestoreStorageInfoHelpBoxState(container);
             rootVisualElement.Add(m_Root);
+            RestoreActionHelpBoxState(container);
 
             // Manipulators and Inputs
             m_Manipulator = new DragFromOutsideManipulator(rootVisualElement, container.Resolve<IPageManager>(),
@@ -101,17 +113,19 @@ namespace Unity.AssetManager.UI.Editor
                 s_Instance = this;
             }
 
-            if (s_Instance != this)
-                return;
-
+            // Always clean up this instance's resources to prevent leaks during package upgrades
+            // when multiple window instances may exist
             m_Manipulator?.target.RemoveManipulator(m_Manipulator);
             rootVisualElement.UnregisterCallback<KeyDownEvent>(OnKeyDown);
 
             m_Root?.UnregisterCallback<GeometryChangedEvent>(OnResized);
             m_Root?.OnDisable();
 
-            // Disable the service if the AM window is closed
-            ServicesContainer.instance.OnDisable();
+            // Only disable services if this is the singleton instance
+            if (s_Instance == this)
+            {
+                ServicesContainer.instance.OnDisable();
+            }
         }
 
         void OnDestroy()
@@ -134,7 +148,7 @@ namespace Unity.AssetManager.UI.Editor
 
         public void AddItemsToMenu(GenericMenu menu)
         {
-            var refreshItem = new GUIContent("Refresh");
+            var refreshItem = new GUIContent("Re-initialize");
             menu.AddItem(refreshItem, false, Refresh);
 
             var migrationCheck = new GUIContent("Check for Tracking File Migration");
@@ -161,7 +175,7 @@ namespace Unity.AssetManager.UI.Editor
             window.Show();
         }
 
-        internal void RefreshAll()
+        internal void RefreshAll(IService[] overrides = null)
         {
             Refreshed?.Invoke();
 
@@ -169,7 +183,12 @@ namespace Unity.AssetManager.UI.Editor
             OnDisable();
             OnDestroy();
 
-            ServicesInitializer.ResetServices();
+            // Explicitly clear all children to prevent orphaned UI elements
+            // OnDestroy only removes m_Root if Contains() succeeds, which can fail after deserialization
+            rootVisualElement.Clear();
+            m_Root = null;
+
+            ServicesInitializer.ResetServices(overrides);
 
             CreateGUI();
         }
@@ -210,6 +229,28 @@ namespace Unity.AssetManager.UI.Editor
                     }
                     break;
             }
+        }
+
+        static void RestoreStorageInfoHelpBoxState(ServicesContainer container)
+        {
+            var stateManager = container.Resolve<IStateManager>();
+            var storageIds = stateManager.StorageInfoDismissedOrganizationIds;
+            if (storageIds != null && storageIds.Count > 0)
+                StorageInfoHelpBox.SetDismissedOrganizationIds(new List<string>(storageIds));
+        }
+
+        static void RestoreActionHelpBoxState(ServicesContainer container)
+        {
+            var stateManager = container.Resolve<IStateManager>();
+            var messageManager = container.Resolve<IMessageManager>();
+            var actionState = stateManager.GetActionHelpBoxState();
+            if (!string.IsNullOrEmpty(actionState.Content))
+                messageManager.SetHelpBoxMessageFromSerializedState(
+                    actionState.Content,
+                    actionState.MessageType,
+                    actionState.Category,
+                    actionState.RecommendedAction,
+                    actionState.Dismissable);
         }
     }
 }

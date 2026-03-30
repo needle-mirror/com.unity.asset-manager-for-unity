@@ -1,6 +1,6 @@
 # Upload assets to Asset Manager
 
-### How to upload assets to Asset Manager from the Unity Editor.
+### Upload assets to Asset Manager from the Unity Editor.
 
 ---
 
@@ -10,11 +10,10 @@ Use the Asset Manager for Unity package to upload assets to Asset Manager. You c
 - Manage asset dependencies between the Unity Editor and Unity Cloud.
 - Share and reuse your assets between different Unity projects. Sharing assets helps you reduce asset creation costs by getting the maximum value for each asset.
 
-> **Important**:
+## Prerequisites
 Before you upload assets to Asset Manager, make sure you meet the [Prerequisites](prerequisites.md).
 
-> **Important**:
-Ensure that all upload operations complete before triggering a domain reload, such as entering playmode.
+> **Important**: Ensure that all upload operations complete before triggering a domain reload, such as entering playmode.
 
 > **Note**:
 > To modify the Asset Manager Editor preferences for uploading assets, refer to [User Preferences](preferences.md).
@@ -26,33 +25,20 @@ To upload your assets from your local project in the Unity Editor to the Asset M
 1. Open the Unity Editor.
 2. In the Project window, select the assets you want to upload.
 3. Right-click and select **Upload to Asset Manager** or drag from the Project window to Asset Manager.
-4. Go to the left navigation bar. Select the organization and project you want to upload the assets to from the dropdown list.
-5. You can also select the [collection](https://docs.unity.com/cloud/en-us/asset-manager/basic-concepts#collections) you want to upload your asset to. Refer to the **Create a Collection** section for instructions on how to create a collection.
-6. In the **Upload Settings** window, choose one of the following options for the **Reupload mode** setting:
-   - **Skip Identical:** Skip assets that are already uploaded to the Asset Manager.
-   - **Force New Version:** Create a new version for existing assets with updated versions.
-   - **Force New Asset:** Create copies of the assets in Asset Manager.
-7. In the same window, you can manage the way dependencies are uploaded by selecting one of the following options for the **Dependencies** setting:
-   - **Ignore:** To ignore dependencies.
-   - **Separate:** To upload dependencies as separate cloud assets.
-   - **Embedded:** To upload dependencies together with the main asset as a single asset.
-      > **Warning**: The option to embed dependencies will be deprecated and removed in a future version.
-8. In the same window, you can manage the way paths are displayed by selecting one of the following options for the **File paths** setting:
-   - **Full:** Keeps the path relative to the project Assets folder.
-   - **Compact:** Reduces files nesting by removing common path parts.
-   - **Flatten:** Flatten all files to the root of the asset and rename them in case of collision.
-9. You can edit the assets' metadata fields such as **Name**, **Description**, and **Tags**
+4. Go to the left navigation bar. Select the organization and project or [collection](https://docs.unity.com/cloud/en-us/asset-manager/basic-concepts#collections) that you want to upload the assets to from the dropdown list. For more information on creating a new collection, refer to [Create a Collection](create-collection.md).
+5. In the Upload Settings window, configure **Match project structure**,**Reupload mode**, **Dependencies**, and **File path** settings for your upload. For more information, refer to [Upload settings panel](upload-settings.md). 
+6. You can edit the assets' metadata fields such as **Name**, **Description**, and **Tags**. 
    - Select the asset to display an inspector showing the default data.
    - Select any editable field and enter your modifications. Press return/enter or exit focus of the field to set the change. The changes will only be applied once they are uploaded.
    - Any edited fields will be indicated by a blue border appearing to the left of the field. <br/> ![upload-inline-edits.jpg](images/upload-inline-edits.jpg)
    - You can also multi-select assets and bulk edit their fields. <br/> ![upload-multi-edits.jpg](images/upload-multi-edits.jpg)
    - For the **Description** field, if the selected assets do not have identical descriptions, an "—" symbol will be displayed.
    - For the **Tags** field, only the tags common across all assets will be displayed for edit. You can remove any of these tags for all selected assets by clicking the "x", or add new ones by typing them in. If any tags exist that are not assigned to all assets, a "— Mixed" tag will appear to indicate this case.
-10. You can select an asset and in the upload metadata select any existing custom metadata fields in your organization for 1 or multiple assets at the time. If you want to add a new custom metadata on all the selected assets, it will be possible only if that custom metadata is not present in any selected assets, and the value will be set the same for every assets.
+7. You can select an asset and in the upload metadata select any existing custom metadata fields in your organization for 1 or multiple assets at the time. If you want to add a new custom metadata on all the selected assets, it will be possible only if that custom metadata is not present in any selected assets, and the value will be set the same for every assets.
    If you enabled `Allow individual dependency version selection during upload` in the preferences, you can also select the version or version label of each dependency in the **Dependencies** section of the asset.
    > **Note**:
    The custom metadata fields need to be created on the web application first. For details, refer to the [Manage custom metadata for assets](https://docs.unity.com/cloud/en-us/asset-manager/manage-custom-metadata).
-11. Select **Upload assets**.
+8. Select **Upload assets**.
 
 > **Note**:
 Check the asset import states to know the current import and version status of the asset. For more information on asset import states, refer to Asset import states.
@@ -66,16 +52,6 @@ For more details on the identified local changes, you can hover over the state i
 > **Note**:
 You can check the version and status of each dependency at upload time by looking at the items under the **Dependencies** foldout of the **Asset Details Page**.
 
-## Create a Collection
-
-To create a collection in a project, follow these steps:
-
-1. Right-click on the project that you want to create a collection for.
-2. Select the **Create new collection** option.
-3. Enter a name for your new collection.
-4. Press Enter or click away to confirm your selection.
-
-You can then rename and delete your collection by right-clicking it and selecting the desired action.
 
 ## Limitations
 

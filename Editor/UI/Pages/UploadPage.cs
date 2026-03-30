@@ -48,7 +48,7 @@ namespace Unity.AssetManager.UI.Editor
     [Serializable]
     class UploadPage : BasePage
     {
-        static readonly float k_UploadSettingPanelWidth = 280f;
+        static readonly float k_UploadSettingPanelWidth = 350f;
         static readonly string k_UploadSettingsOpenedKey = "com.unity.asset-manager-for-unity.upload-settings-panel-opened";
 
         static readonly HelpBoxMessage k_ScalingIssuesMessage = new(string.Format(L10n.Tr(Constants.ScalingIssuesMessage),
@@ -62,6 +62,9 @@ namespace Unity.AssetManager.UI.Editor
 
         [SerializeReference]
         ISettingsManager m_SettingsManager;
+
+        [SerializeReference]
+        IPermissionsManager m_PermissionsManager;
 
         bool SavedUploadSettingsPanelOpened
         {
@@ -78,14 +81,20 @@ namespace Unity.AssetManager.UI.Editor
         Button m_ClearUploadButton;
 
         public override bool DisplaySearchBar => false;
-        public override bool DisplayBreadcrumbs => true;
+        public override bool DisplayBreadcrumbs => false;
         public override bool DisplayFilters => false;
         public override bool DisplayFooter => false;
         public override bool DisplaySavedViewControls => false;
         public override bool DisplaySort => false;
         public override bool DisplayUploadMetadata => true;
         public override bool DisplayUpdateAllButton => false;
+        public override bool DisplayGridView => false;
         public override string DefaultProjectName => L10n.Tr(Constants.NoProjectSelected);
+
+        UploadHierarchyView m_HierarchyView;
+        UploadHierarchyNode m_HierarchyRoot;
+        Toggle m_MatchProjectStructureToggle;
+        DropdownField m_DependencyModeDropdown;
 
         public UploadPage(IAssetDataManager assetDataManager, IAssetsProvider assetsProvider,
             IProjectOrganizationProvider projectOrganizationProvider, IMessageManager messageManager,
@@ -95,6 +104,7 @@ namespace Unity.AssetManager.UI.Editor
             m_UploadManager = ServicesContainer.instance.Resolve<IUploadManager>();
             m_AssetOperationManager = ServicesContainer.instance.Resolve<IAssetOperationManager>();
             m_SettingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
+            m_PermissionsManager = ServicesContainer.instance.Resolve<IPermissionsManager>();
         }
 
         [MenuItem("Assets/Upload to Asset Manager", false, 21)]
@@ -183,6 +193,7 @@ namespace Unity.AssetManager.UI.Editor
             m_UploadManager.UploadEnded += OnUploadEnded;
 
             m_UploadStaging.UploadAssetEntriesChanged += UpdateButtonsState;
+            m_UploadStaging.UploadAssetEntriesChanged += OnUploadAssetEntriesChanged;
             m_UploadStaging.StagingStatusChanged += OnStagingStatusChanged;
 
             m_UploadStaging.RebuildAssetList(m_AssetDataManager);
@@ -195,7 +206,13 @@ namespace Unity.AssetManager.UI.Editor
             m_UploadManager.UploadEnded -= OnUploadEnded;
 
             m_UploadStaging.UploadAssetEntriesChanged -= UpdateButtonsState;
+            m_UploadStaging.UploadAssetEntriesChanged -= OnUploadAssetEntriesChanged;
             m_UploadStaging.StagingStatusChanged -= OnStagingStatusChanged;
+        }
+
+        void OnUploadAssetEntriesChanged()
+        {
+            RebuildHierarchy();
         }
 
         protected override VisualElement CreateCustomUISection()
@@ -203,15 +220,47 @@ namespace Unity.AssetManager.UI.Editor
             var root = new VisualElement();
             root.AddToClassList(UssStyle.UploadPageCustomSection);
 
+            // Create hierarchy view - fills available space
+            var unityConnectProxy = ServicesContainer.instance.Resolve<IUnityConnectProxy>();
+            m_HierarchyView = new UploadHierarchyView(
+                m_PageManager,
+                m_AssetOperationManager,
+                m_UploadManager,
+                unityConnectProxy,
+                m_AssetDataManager,
+                m_PermissionsManager,
+                m_ProjectOrganizationProvider);
+
+            m_HierarchyView.NodeToggled += OnHierarchyNodeToggled;
+            m_HierarchyView.NodeExpandToggled += OnHierarchyNodeExpandToggled;
+            m_HierarchyView.NodeSelected += OnHierarchyNodeSelected;
+            m_HierarchyView.NodesRangeSelected += OnHierarchyNodesRangeSelected;
+            root.Add(m_HierarchyView);
+
+            // Settings panel (positioned within hierarchy area)
+            var settingsPanel = CreateSettingsPanel();
+            settingsPanel.style.width = k_UploadSettingPanelWidth;
+            root.RegisterCallback<GeometryChangedEvent>(evt =>
+            {
+                if (evt.newRect.width < k_UploadSettingPanelWidth + settingsPanel.resolvedStyle.marginRight)
+                {
+                    settingsPanel.style.width = evt.newRect.width - settingsPanel.resolvedStyle.marginRight;
+                }
+                else
+                {
+                    settingsPanel.style.width = k_UploadSettingPanelWidth;
+                }
+            });
+            root.Add(settingsPanel);
+
+            // Actions section - fixed at bottom
             var actions = new VisualElement();
             actions.AddToClassList(UssStyle.UploadPageAllActionsSection);
+            actions.style.flexShrink = 0;
 
             var actionsSection = new VisualElement();
             actionsSection.AddToClassList(UssStyle.UploadPageActionSection);
-
             actions.Add(actionsSection);
-
-            root.Add(actions);
 
             m_ClearUploadButton = new Button(() =>
             {
@@ -228,40 +277,180 @@ namespace Unity.AssetManager.UI.Editor
 
                 UpdateButtonsState();
             });
-
             actionsSection.Add(m_ClearUploadButton);
 
             m_UploadAssetsButton = new Button(UploadAssets);
             m_UploadAssetsButton.AddToClassList(UssStyle.UploadPageUploadButton);
             actionsSection.Add(m_UploadAssetsButton);
 
-            var settingsPanel = CreateSettingsPanel();
-            settingsPanel.style.width = k_UploadSettingPanelWidth;
-            root.RegisterCallback<GeometryChangedEvent>(evt =>
-            {
-                if (evt.newRect.width < k_UploadSettingPanelWidth + settingsPanel.resolvedStyle.marginRight)
-                {
-                    settingsPanel.style.width = evt.newRect.width - settingsPanel.resolvedStyle.marginRight;
-                }
-                else
-                {
-                    settingsPanel.style.width = k_UploadSettingPanelWidth;
-                }
-            });
-
-            root.Add(settingsPanel);
+            root.Add(actions);
 
             OnStagingStatusChanged();
 
+            // Build initial hierarchy if we have assets
+            RebuildHierarchy();
+
             return root;
+        }
+
+        void OnHierarchyNodeToggled(UploadHierarchyNode node, bool newState)
+        {
+            if (node == null)
+                return;
+
+            if (node.NodeType == HierarchyNodeType.Asset)
+            {
+                // Toggle single asset
+                if (node.AssetData != null)
+                {
+                    m_UploadStaging.SetIgnore(node.AssetData.Identifier, !newState);
+                }
+            }
+            else
+            {
+                // Toggle all descendant assets
+                foreach (var descendant in node.GetAllDescendantAssets())
+                {
+                    if (descendant.AssetData != null && descendant.AssetData.CanBeIgnored)
+                    {
+                        m_UploadStaging.SetIgnore(descendant.AssetData.Identifier, !newState);
+                    }
+                }
+            }
+
+            RefreshStagingStatus();
+            m_HierarchyView?.Refresh();
+        }
+
+        void OnHierarchyNodeExpandToggled(UploadHierarchyNode node)
+        {
+            // Expanded state is now persisted by UploadHierarchyView directly
+        }
+
+        void OnHierarchyNodeSelected(UploadHierarchyNode node, bool additive)
+        {
+            if (node?.AssetData == null)
+                return;
+
+            // Select the asset in the page
+            SelectAsset(node.AssetData.Identifier, additive);
+        }
+
+        void OnHierarchyNodesRangeSelected(IReadOnlyList<UploadHierarchyNode> nodes)
+        {
+            if (nodes == null || nodes.Count == 0)
+                return;
+
+            // Select all assets in the range
+            var identifiers = nodes
+                .Where(n => n?.AssetData != null)
+                .Select(n => n.AssetData.Identifier)
+                .ToList();
+
+            SelectAssets(identifiers);
+        }
+
+        void RebuildHierarchy()
+        {
+            if (m_HierarchyView == null)
+                return;
+
+            // Check if project is selected
+            if (m_ProjectOrganizationProvider.SelectedProjectOrLibrary == null)
+            {
+                m_HierarchyRoot = null;
+                m_HierarchyView.Clear();
+                m_HierarchyView.ShowEmptyState(Messages.MissingSelectedProjectMessage.Content);
+                return;
+            }
+
+            // Check if asset library is selected (can't upload to asset library)
+            if (m_ProjectOrganizationProvider.SelectedAssetLibrary != null)
+            {
+                m_HierarchyRoot = null;
+                m_HierarchyView.Clear();
+                m_HierarchyView.ShowEmptyState(L10n.Tr(m_ProjectOrganizationProvider.SelectedAssetLibrary.Name + Constants.CantSelectAssetLibraryText));
+                return;
+            }
+
+            var uploadAssets = m_UploadStaging.UploadAssets
+                .Cast<UploadAssetData>()
+                .ToList();
+
+            if (uploadAssets.Count == 0)
+            {
+                m_HierarchyRoot = null;
+                m_HierarchyView.Clear();
+                m_HierarchyView.ShowEmptyState(Constants.UploadNoAssetsMessage);
+                return;
+            }
+
+            // Hide empty state when we have assets
+            m_HierarchyView.HideEmptyState();
+
+            var projectName = m_ProjectOrganizationProvider.SelectedProjectOrLibrary?.Name ?? "Project";
+            var collectionPath = m_UploadStaging.CollectionPath;
+            var expandedStates = UploadHierarchyView.GetAllExpandedStates();
+
+            // Build project names dictionary for multi-project display
+            var projectNames = BuildProjectNamesMap(uploadAssets);
+
+            m_HierarchyRoot = UploadHierarchyBuilder.BuildTree(
+                uploadAssets,
+                projectName,
+                collectionPath,
+                expandedStates,
+                projectNames,
+                includeFolders: m_UploadStaging.MatchProjectStructure);
+
+            m_HierarchyView.SetMatchProjectStructure(m_UploadStaging.MatchProjectStructure);
+            m_HierarchyView.SetData(m_HierarchyRoot);
+        }
+
+        /// <summary>
+        /// Builds a dictionary mapping project IDs to display names.
+        /// Uses the selected project's name if available, otherwise falls back to project ID.
+        /// </summary>
+        Dictionary<string, string> BuildProjectNamesMap(List<UploadAssetData> uploadAssets)
+        {
+            var projectNames = new Dictionary<string, string>();
+
+            // Add the selected project's name
+            var selectedProject = m_ProjectOrganizationProvider.SelectedProjectOrLibrary;
+            if (selectedProject != null && !string.IsNullOrEmpty(selectedProject.Id))
+            {
+                projectNames[selectedProject.Id] = selectedProject.Name ?? "Project";
+            }
+
+            // Collect unique project IDs from assets that aren't in the map yet
+            foreach (var asset in uploadAssets)
+            {
+                var targetProject = asset.TargetProject;
+                if (targetProject == null || string.IsNullOrEmpty(targetProject.ProjectId))
+                    continue;
+
+                if (!projectNames.ContainsKey(targetProject.ProjectId))
+                {
+                    // Try to find the project name from the organization's projects
+                    var projectInfo = m_ProjectOrganizationProvider.SelectedOrganization?.ProjectInfos
+                        ?.FirstOrDefault(p => p.Id == targetProject.ProjectId);
+
+                    projectNames[targetProject.ProjectId] = projectInfo?.Name ?? $"Project ({targetProject.ProjectId[..Math.Min(8, targetProject.ProjectId.Length)]})";
+                }
+            }
+
+            return projectNames;
         }
 
         void OnUploadEnded(UploadEndedStatus status)
         {
             if (status == UploadEndedStatus.Success)
             {
+                // Capture the target project to navigate to before clearing the staging data
+                var targetProjectId = GetNavigationTargetProjectId();
+
                 m_UploadStaging.Clear();
-                GoBackToCollectionPage();
+                GoBackToCollectionPage(targetProjectId);
             }
             else
             {
@@ -271,10 +460,43 @@ namespace Unity.AssetManager.UI.Editor
             UpdateButtonsState();
         }
 
+        /// <summary>
+        /// Determines which project to navigate to after a successful upload.
+        /// Returns the selected project ID if it has uploaded assets, otherwise returns the first project
+        /// that has uploaded assets.
+        /// </summary>
+        string GetNavigationTargetProjectId()
+        {
+            var selectedProjectId = m_UploadStaging.ProjectId;
+            var uploadAssets = m_UploadStaging.UploadAssets.Cast<UploadAssetData>().ToList();
+
+            if (uploadAssets.Count == 0)
+                return selectedProjectId;
+
+            // Check if the selected project has any uploaded (non-ignored) assets
+            var selectedProjectHasAssets = uploadAssets.Any(a =>
+                !a.IsIgnored &&
+                a.TargetProject?.ProjectId == selectedProjectId);
+
+            if (selectedProjectHasAssets)
+                return selectedProjectId;
+
+            // Find the first project that has uploaded assets
+            var firstProjectWithAssets = uploadAssets
+                .Where(a => !a.IsIgnored && a.TargetProject != null)
+                .Select(a => a.TargetProject.ProjectId)
+                .FirstOrDefault();
+
+            return firstProjectWithAssets ?? selectedProjectId;
+        }
+
         void OnStagingStatusChanged()
         {
             ManageHelpBoxMessages();
             UpdateButtonsState();
+
+            // Refresh hierarchy view to update re-upload collection warnings after linked collections are fetched
+            m_HierarchyView?.Refresh();
         }
 
         public override void ToggleAsset(AssetIdentifier assetIdentifier, bool checkState)
@@ -447,6 +669,30 @@ namespace Unity.AssetManager.UI.Editor
             var toggle = foldout.Q<Toggle>();
             toggle.focusable = false;
 
+            // Match Project Structure Toggle
+            m_MatchProjectStructureToggle = new Toggle(L10n.Tr(Constants.MatchProjectStructure));
+            m_MatchProjectStructureToggle.value = m_UploadStaging.MatchProjectStructure;
+
+            // Match Project Structure HelpBox (only visible when toggle is checked)
+            var matchStructureHelpBox = new HelpBox(
+                L10n.Tr(Constants.MatchProjectStructureHelpText),
+                HelpBoxMessageType.Info);
+            matchStructureHelpBox.style.display = m_UploadStaging.MatchProjectStructure
+                ? DisplayStyle.Flex
+                : DisplayStyle.None;
+
+            m_MatchProjectStructureToggle.RegisterValueChangedCallback(evt =>
+            {
+                m_UploadStaging.MatchProjectStructure = evt.newValue;
+                matchStructureHelpBox.style.display = evt.newValue
+                    ? DisplayStyle.Flex
+                    : DisplayStyle.None;
+                UpdateDependencyModeDropdown(evt.newValue);
+                RebuildHierarchy();
+            });
+            foldout.Add(matchStructureHelpBox);
+            foldout.Add(m_MatchProjectStructureToggle);
+
             // Upload Mode
             var uploadModeDropdown = CreateEnumDropdown(L10n.Tr(Constants.UploadMode), m_UploadStaging.UploadMode,
                 mode =>
@@ -458,14 +704,21 @@ namespace Unity.AssetManager.UI.Editor
             foldout.Add(uploadModeDropdown);
 
             // Dependency Mode
-            var dependencyModeDropdown = CreateEnumDropdown(L10n.Tr(Constants.Dependencies), m_UploadStaging.DependencyMode,
-                mode =>
+            m_DependencyModeDropdown = new DropdownField(L10n.Tr(Constants.Dependencies));
+            m_DependencyModeDropdown.RegisterValueChangedCallback(v =>
+            {
+                var availableModes = GetAvailableDependencyModes(m_UploadStaging.MatchProjectStructure);
+                if (m_DependencyModeDropdown.index >= 0 && m_DependencyModeDropdown.index < availableModes.Count)
                 {
+                    var mode = availableModes[m_DependencyModeDropdown.index];
                     m_UploadStaging.DependencyMode = mode;
+                    m_DependencyModeDropdown.tooltip = UploadSettings.GetDependencyModeTooltip(mode);
                     OnDependencyModeChanged(mode);
-                }, UploadSettings.GetDependencyModeTooltip);
+                }
+            });
+            UpdateDependencyModeDropdown(m_UploadStaging.MatchProjectStructure);
 
-            foldout.Add(dependencyModeDropdown);
+            foldout.Add(m_DependencyModeDropdown);
 
             // File Paths Mode
             var filePathModeDropdown = CreateEnumDropdown(L10n.Tr(Constants.FilePaths), m_UploadStaging.FilePathMode,
@@ -482,8 +735,10 @@ namespace Unity.AssetManager.UI.Editor
             {
                 m_UploadStaging.ResetDefaultSettings();
                 uploadModeDropdown.index = (int)m_UploadStaging.UploadMode;
-                dependencyModeDropdown.index = (int)m_UploadStaging.DependencyMode;
+                m_MatchProjectStructureToggle.value = m_UploadStaging.MatchProjectStructure;
+                UpdateDependencyModeDropdown(m_UploadStaging.MatchProjectStructure);
                 filePathModeDropdown.index = (int)m_UploadStaging.FilePathMode;
+                RebuildHierarchy();
             })
             {
                 text = L10n.Tr(Constants.UploadSettingsReset)
@@ -501,6 +756,37 @@ namespace Unity.AssetManager.UI.Editor
                 Debug.LogWarning("The option to embed dependencies is being deprecated and will be removed in a future version.");
 
             Reload();
+        }
+
+        List<UploadDependencyMode> GetAvailableDependencyModes(bool matchProjectStructure)
+        {
+            var allModes = Enum.GetValues(typeof(UploadDependencyMode)).Cast<UploadDependencyMode>();
+            return matchProjectStructure
+                ? allModes.Where(m => m != UploadDependencyMode.Embedded).ToList()
+                : allModes.ToList();
+        }
+
+        void UpdateDependencyModeDropdown(bool matchProjectStructure)
+        {
+            if (m_DependencyModeDropdown == null)
+                return;
+
+            if (matchProjectStructure && m_UploadStaging.DependencyMode == UploadDependencyMode.Embedded)
+            {
+                m_UploadStaging.DependencyMode = UploadDependencyMode.Separate;
+                OnDependencyModeChanged(UploadDependencyMode.Separate);
+            }
+
+            var availableModes = GetAvailableDependencyModes(matchProjectStructure);
+
+            m_DependencyModeDropdown.choices = availableModes
+                .Select(m => ObjectNames.NicifyVariableName(m.ToString()))
+                .ToList();
+
+            var currentMode = m_UploadStaging.DependencyMode;
+            var index = availableModes.IndexOf(currentMode);
+            m_DependencyModeDropdown.index = index >= 0 ? index : 0;
+            m_DependencyModeDropdown.tooltip = UploadSettings.GetDependencyModeTooltip(currentMode);
         }
 
         DropdownField CreateEnumDropdown<TEnum>(string name, TEnum defaultValue, Action<TEnum> onValueChanged, Func<TEnum, string> tooltipProvider) where TEnum : Enum
@@ -669,7 +955,11 @@ namespace Unity.AssetManager.UI.Editor
                     DependencyMode = m_UploadStaging.DependencyMode.ToString(),
                     FilePathMode = m_UploadStaging.FilePathMode.ToString(),
                     UseCollection = !string.IsNullOrEmpty(m_UploadStaging.CollectionPath),
-                    UseLatestDependencies = m_SettingsManager.IsUploadDependenciesUsingLatestLabel
+                    UseLatestDependencies = m_SettingsManager.IsUploadDependenciesUsingLatestLabel,
+                    UseMatchedProjectMode = m_UploadStaging.MatchProjectStructure,
+                    OrganizationId = m_UploadStaging.StagingStatus.TargetOrganizationId,
+                    ProjectId = m_UploadStaging.ProjectId,
+                    CollectionPath = m_UploadStaging.CollectionPath
                 };
 
                 var uploadEvent = UploadEvent.CreateFromUploadData(uploadEntries, uploadSettings);
@@ -785,7 +1075,7 @@ namespace Unity.AssetManager.UI.Editor
             m_UploadAssetsButton.tooltip = tooltip;
         }
 
-        void GoBackToCollectionPage()
+        void GoBackToCollectionPage(string targetProjectId)
         {
             if (m_PageManager == null)
                 return;
@@ -793,7 +1083,13 @@ namespace Unity.AssetManager.UI.Editor
             if (m_PageManager.ActivePage != this)
                 return;
 
-            m_ProjectOrganizationProvider.SelectProject(m_UploadStaging.ProjectId, m_UploadStaging.CollectionPath);
+            // Use the provided target project ID, which may differ from the originally selected project
+            // if the selected project had no uploaded assets
+            var collectionPath = targetProjectId == m_UploadStaging.ProjectId
+                ? m_UploadStaging.CollectionPath
+                : null; // Clear collection path if navigating to a different project
+
+            m_ProjectOrganizationProvider.SelectProject(targetProjectId, collectionPath, updateProject: true);
             m_PageManager.SetActivePage<CollectionPage>();
         }
 

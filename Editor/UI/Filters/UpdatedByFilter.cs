@@ -11,6 +11,7 @@ namespace Unity.AssetManager.UI.Editor
     class UpdatedByFilter : CloudFilter
     {
         public override string DisplayName => L10n.Tr(Constants.LastEditByText);
+        public override FilterSelectionType SelectionType => FilterSelectionType.MultiSelection;
         protected override AssetSearchGroupBy GroupBy => AssetSearchGroupBy.UpdatedBy;
 
         public UpdatedByFilter(IPageFilterStrategy pageFilterStrategy)

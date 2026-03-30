@@ -40,17 +40,34 @@ namespace Unity.AssetManager.Upload.Editor
         {
             Texture2D texture;
 
-            var attempt = 2;
+            // Unity's AssetPreview system is asynchronous - GetAssetPreview() returns null
+            // while the preview is being generated in the background. We need to poll until
+            // the preview is ready or give up after a reasonable timeout.
+            const int maxAttempts = 20;
+            const int delayMs = 300;
+
+            var attempt = 0;
             do
             {
-                texture = UnityEditor.AssetPreview.GetAssetPreview(asset);
+                texture = AssetPreview.GetAssetPreview(asset);
 
                 if (texture != null)
                     break;
 
-                --attempt;
-                await Task.Delay(50);
-            } while (attempt > 0);
+                // Check if Unity is still loading the preview - if so, keep waiting
+#if UNITY_6000_5_OR_NEWER
+                if (!AssetPreview.IsLoadingAssetPreview(asset.GetEntityId()) && attempt > 2)
+#else
+                if (!AssetPreview.IsLoadingAssetPreview(asset.GetInstanceID()) && attempt > 2)
+#endif
+                {
+                    // Unity is not loading and we've tried a few times - the asset may not have a preview
+                    break;
+                }
+
+                ++attempt;
+                await Task.Delay(delayMs);
+            } while (attempt < maxAttempts);
 
             return texture;
         }

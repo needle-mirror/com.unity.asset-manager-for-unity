@@ -12,6 +12,7 @@ namespace Unity.AssetManager.UI.Editor
     class CreatedByFilter : CloudFilter
     {
         public override string DisplayName => L10n.Tr(Constants.CreatedByText);
+        public override FilterSelectionType SelectionType => FilterSelectionType.MultiSelection;
         protected override AssetSearchGroupBy GroupBy => AssetSearchGroupBy.CreatedBy;
 
         public CreatedByFilter(IPageFilterStrategy pageFilterStrategy)

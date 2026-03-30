@@ -1,6 +1,34 @@
 :root{
     --icon-tint-color: #C4C4C4;
     --hover-highlight-color: #2C5D87;
+    --inline-edit-hover-border-color: #2d2d2d;
+    --url-hyperlink-color: #4C9FF4;
+    --history-change-section-label-color: rgb(100, 100, 100);
+    --history-change-divider-color: #505050;
+    --history-change-block-background: #444444;
+    --activity-foldout-background: #3E3E3E;
+}
+
+InlineEditConfirmationPopupContainer {
+    background-color: #454545;
+}
+
+.inline-edit-confirmation-btn {
+    background-color: #585858;
+    border-color: #3f3f3f;
+}
+
+.inline-edit-confirmation-divider {
+    background-color: #454545;
+}
+
+.inline-edit-confirmation-btn:hover {
+    background-color: #656565;
+}
+
+.inline-edit-confirmation-btn-icon.inline-edit-confirmation-btn-confirm,
+.inline-edit-confirmation-btn-icon.inline-edit-confirmation-btn-cancel {
+    -unity-background-image-tint-color: #ffffff;
 }
 
 /************************************************
@@ -211,6 +239,7 @@ SearchBar {
     border-color: rgba(0,0,0,0);
 }
 
+
 /************************************************
 * Saved View Controls
 ************************************************/
@@ -323,7 +352,8 @@ RoleChip:hover {
 ************************************************/
 
 .multi-selection-foldout > Toggle {
-    background-color: rgba(32, 32, 32, 1);
+    background-color: rgba(62, 62, 62, 1);
+    border-top-color: rgba(40, 40, 40, 1);
 }
 
 .upload-metadata-title {
@@ -347,7 +377,8 @@ RoleChip:hover {
 }
 
 .details-files-foldout > Toggle{
-    background-color: rgba(32, 32, 32, 1);
+    background-color: rgba(62, 62, 62, 1);
+    border-top-color: rgba(40, 40, 40, 1);
 }
 
 .details-files-foldout-uvcs-chip-icon
@@ -407,8 +438,15 @@ RoleChip:hover {
 }
 
 .asset-version-details-foldout > Toggle {
-    background-color: rgba(32, 32, 32, 1);
+    background-color: rgba(62, 62, 62, 1);
+    border-top-color: rgba(40, 40, 40, 1);
 }
+
+.asset-version-details-foldout.activity-foldout > Toggle {
+    background-color: var(--activity-foldout-background);
+    border-top-color: transparent;
+}
+
 
 .asset-version-label--filled
 {
@@ -525,4 +563,62 @@ PopupContainer {
 }
 .unity-new-version-notification-dropdown:hover .unity-base-popup-field__input {
     background-color: rgba(103, 103, 103, 255);
+}
+
+/************************************************
+* Upload Hierarchy View
+************************************************/
+
+.upload-hierarchy-row{
+    background-color: #2D2D2D;
+}
+
+.upload-hierarchy-view{
+    background-color: #2D2D2D;
+}
+
+.upload-hierarchy-row--hovered {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.upload-hierarchy-row--selected {
+    background-color: rgba(76, 126, 255, 0.3);
+}
+
+.upload-hierarchy-row__reupload-collection-warning-icon {
+    color: #2D2D2D;
+    border-color: #2D2D2D;
+}
+/************************************************
+* Activity Tab - Dark Theme
+************************************************/
+.history-change-value-cell Label {
+    color: #D2D2D2;
+}
+
+.history-change-value-cell .details-page-entry-value {
+    color: #D2D2D2;
+}
+
+.history-change-value-cell--new Label {
+    color: #F5F5F5;
+}
+
+.history-change-value-cell TagChip,
+.history-change-value-cell UserChip {
+    background-color: rgba(90, 90, 90, 1);
+    color: #C4C4C4;
+}
+
+.history-change-value-cell TagChip:hover,
+.history-change-value-cell UserChip:hover {
+    background-color: rgba(110, 110, 110, 1);
+}
+
+.history-change-value-cell TagChip:hover {
+    background-color: rgba(110, 110, 110, 1);
+}
+
+.history-change-value-cell Chip:hover {
+    background-color: rgba(110, 110, 110, 1);
 }

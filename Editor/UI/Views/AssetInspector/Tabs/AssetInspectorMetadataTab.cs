@@ -1,7 +1,5 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
@@ -35,7 +33,8 @@ namespace Unity.AssetManager.UI.Editor
         readonly ISettingsManager m_SettingsManager;
         readonly IProjectOrganizationProvider m_projectOrganizationProvider;
         readonly IUnityConnectProxy m_UnityConnectProxy;
-        private readonly AssetInspectorViewModel m_ViewModel;
+        readonly AssetInspectorViewModel m_ViewModel;
+        readonly IInlineEditService m_InlineEditService;
 
         public VisualElement Root { get; }
 
@@ -45,12 +44,14 @@ namespace Unity.AssetManager.UI.Editor
 
         List<IEditableEntry> m_EditableEntries = new();
 
+        EditingMode m_EditingMode;
+
         public bool IsEditingEnabled { get; private set; }
         public event Action<AssetFieldEdit> FieldEdited;
 
         public AssetInspectorMetadataTab(VisualElement visualElement, Func<bool> isFilterActive,
             IPageManager pageManager, IStateManager stateManager, IPopupManager popupManager,
-            ISettingsManager settingsManager, IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnectProxy, AssetInspectorViewModel viewModel)
+            ISettingsManager settingsManager, IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnectProxy, AssetInspectorViewModel viewModel, IInlineEditService inlineEditService)
         {
             var root = visualElement.Q("details-page-content-container");
             Root = root;
@@ -60,6 +61,7 @@ namespace Unity.AssetManager.UI.Editor
             m_SettingsManager = settingsManager;
             m_projectOrganizationProvider = projectOrganizationProvider;
             m_UnityConnectProxy = unityConnectProxy;
+            m_InlineEditService = inlineEditService;
 
             m_EntriesContainer = new VisualElement();
             m_EntriesContainer.AddToClassList(UssStyle.DetailsPageEntriesContainer);
@@ -133,15 +135,12 @@ namespace Unity.AssetManager.UI.Editor
 
         public void RefreshUI(bool isLoading = false)
         {
-            // Remove asset preview from hierarchy to avoid it being destroyed when clearing the container
             m_AssetPreview.RemoveFromHierarchy();
 
-            // Save any pending changes before clearing the entries
-            // This ensures edits are committed with the correct asset context
-            // Use ToList() to create a copy since SavePendingChanges may trigger events that modify the collection
             foreach (var entry in m_EditableEntries.ToList())
             {
                 entry.SavePendingEdits();
+                entry.Dispose();
             }
 
             m_EntriesContainer.Clear();
@@ -154,7 +153,6 @@ namespace Unity.AssetManager.UI.Editor
             UpdatePreviewStatus(m_ViewModel.GetOverallStatus());
             UpdateStatusWarning(m_ViewModel.AssetAttributes);
 
-            // Offline message: same placement as no-files-warning-box (under thumbnail, above data fields)
             m_EntriesContainer.Add(m_OfflineMessageBox);
             RefreshOfflineMessage();
 
@@ -163,27 +161,27 @@ namespace Unity.AssetManager.UI.Editor
 
             AssetInspectorUIElementHelper.AddSpace(m_EntriesContainer);
 
-            if (!string.IsNullOrWhiteSpace(m_ViewModel.AssetDescription) || IsEditingEnabled)
+            var editableAssetId = (m_ViewModel.SelectedAssetData as UploadAssetData)?.ExistingAssetIdentifier?.AssetId ?? m_ViewModel.AssetId;
+            var editableIdentifier = m_ViewModel.AssetIdentifier;
+
+            var descriptionEntry = AssetInspectorUIElementHelper.AddEditableText(m_EntriesContainer, editableAssetId, Constants.DescriptionText, m_ViewModel.AssetDescription ?? string.Empty, isSelectable: true);
+            descriptionEntry.EntryEdited += value => OnEntryEdited(editableIdentifier, EditField.Description, value);
+            descriptionEntry.IsEntryEdited += IsDescriptionEdited;
+            if (descriptionEntry is EditableTextEntry descTextEntry)
             {
-                var assetId = (m_ViewModel.SelectedAssetData as UploadAssetData)?.ExistingAssetIdentifier?.AssetId ?? m_ViewModel.AssetId;
-                // Capture the identifier at creation time to ensure edits are applied to the correct asset
-                var capturedIdentifier = m_ViewModel.AssetIdentifier;
-                var descriptionEntry = AssetInspectorUIElementHelper.AddEditableText(m_EntriesContainer, assetId, Constants.DescriptionText, m_ViewModel.AssetDescription);
-                descriptionEntry.EntryEdited += value => OnEntryEdited(capturedIdentifier, EditField.Description, value);
-                descriptionEntry.IsEntryEdited += IsDescriptionEdited;
-                descriptionEntry.EnableEditing(IsEditingEnabled);
-                m_EditableEntries.Add(descriptionEntry);
+                descTextEntry.SetEditFieldInfo(editableIdentifier, EditField.Description, m_InlineEditService);
+                descTextEntry.SetConfirmationPopupParent(m_EntriesContainer);
             }
+            descriptionEntry.ConfigureEditing(m_EditingMode);
+            m_EditableEntries.Add(descriptionEntry);
 
             if (!string.IsNullOrWhiteSpace(m_ViewModel.AssetStatus))
             {
-                var assetId = (m_ViewModel.SelectedAssetData as UploadAssetData)?.ExistingAssetIdentifier?.AssetId ?? m_ViewModel.AssetId;
-                // Capture the identifier at creation time to ensure edits are applied to the correct asset
-                var capturedIdentifier = m_ViewModel.AssetIdentifier;
-                var statusEntry = AssetInspectorUIElementHelper.AddEditableStatusDropdown(m_EntriesContainer, assetId, Constants.StatusText, m_ViewModel.AssetStatus, m_ViewModel.AssetReachableStatus);
-                statusEntry.EntryEdited += value => OnEntryEdited(capturedIdentifier, EditField.Status, value);
+                var statusEntry = AssetInspectorUIElementHelper.AddEditableStatusDropdown(m_EntriesContainer, editableAssetId, Constants.StatusText, m_ViewModel.AssetStatus, m_ViewModel.AssetReachableStatus, m_InlineEditService);
+                statusEntry.SetConfirmationPopupParent(m_EntriesContainer);
+                statusEntry.EntryEdited += value => OnEntryEdited(editableIdentifier, EditField.Status, value);
                 statusEntry.IsEntryEdited += IsStatusEdited;
-                statusEntry.EnableEditing(IsEditingEnabled);
+                statusEntry.ConfigureEditing(m_EditingMode);
                 m_EditableEntries.Add(statusEntry);
             }
 
@@ -194,29 +192,21 @@ namespace Unity.AssetManager.UI.Editor
 
             if (m_ViewModel.AssetTags.Any() || IsEditingEnabled)
             {
-                var assetId = (m_ViewModel.SelectedAssetData as UploadAssetData)?.ExistingAssetIdentifier?.AssetId ?? m_ViewModel.AssetId;
-                // Capture the identifier at creation time to ensure edits are applied to the correct asset
-                var capturedIdentifier = m_ViewModel.AssetIdentifier;
-                var tagsEntry = AssetInspectorUIElementHelper.AddEditableTagList(m_EntriesContainer, assetId, Constants.TagsText, m_ViewModel.AssetTags);
-                tagsEntry.EntryEdited += value => OnEntryEdited(capturedIdentifier, EditField.Tags, value);
+                var tagsEntry = AssetInspectorUIElementHelper.AddEditableTagList(m_EntriesContainer, editableAssetId, Constants.TagsText, m_ViewModel.AssetTags, inlineEditService: m_InlineEditService);
+                tagsEntry.SetConfirmationPopupParent(m_EntriesContainer);
+                tagsEntry.EntryEdited += value => OnEntryEdited(editableIdentifier, EditField.Tags, value);
                 tagsEntry.IsEntryEdited += AreTagsEdited;
-                tagsEntry.EnableEditing(IsEditingEnabled);
+                tagsEntry.ConfigureEditing(m_EditingMode);
                 m_EditableEntries.Add(tagsEntry);
             }
-
-            m_DependenciesComponent = new AssetDependenciesComponent(m_EntriesContainer, m_PageManager, m_PopupManager, m_SettingsManager, m_projectOrganizationProvider, m_StateManager);
-            m_DependenciesComponent.RefreshUI(m_ViewModel.SelectedAssetData, isLoading);
-            DisplayMetadata(m_ViewModel.SelectedAssetData);
 
             AssetInspectorUIElementHelper.AddText(m_EntriesContainer, Constants.FilesSizeText, "-", isSelectable:false, k_FileSizeName);
             AssetInspectorUIElementHelper.AddText(m_EntriesContainer, Constants.TotalFilesText, "-", isSelectable:false, k_FileCountName);
 
-            // Temporary solution to display targeted assets during re-upload. Very handy to understand which assets the system is re-uploading to.
             var identifier = m_ViewModel.AssetIdentifier;
             if (m_ViewModel.SelectedAssetData is UploadAssetData uploadAssetData)
-            {
                 identifier = uploadAssetData.TargetAssetIdentifier ?? identifier;
-            }
+
             AssetInspectorUIElementHelper.AddAssetIdentifier(m_EntriesContainer, Constants.AssetIdText, identifier);
 
             var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
@@ -230,77 +220,16 @@ namespace Unity.AssetManager.UI.Editor
             SetFileCount(m_ViewModel.GetFilesCount());
             SetFileSize(m_ViewModel.GetFileSize());
 
+            var customMetadata = new CustomMetadataFoldoutComponent(
+                m_EntriesContainer, m_EntriesContainer, m_InlineEditService, m_projectOrganizationProvider, m_StateManager,
+                () => RefreshUI(false));
+            customMetadata.RefreshUI(m_ViewModel.SelectedAssetData, m_EditingMode);
+
+            m_DependenciesComponent = new AssetDependenciesComponent(m_EntriesContainer, m_PageManager, m_PopupManager, m_SettingsManager, m_projectOrganizationProvider, m_StateManager);
+            m_DependenciesComponent.RefreshUI(m_ViewModel.SelectedAssetData, isLoading);
+
             if (isLoading)
-            {
                 AssetInspectorUIElementHelper.AddLoadingText(m_EntriesContainer);
-            }
-        }
-
-        void DisplayMetadata(BaseAssetData assetData)
-        {
-            // Dot not display metadata for local assets (a.k.a UploadAssetData)
-            if (assetData.Identifier.IsLocal())
-                return;
-
-            foreach (var metadata in assetData.Metadata)
-            {
-                switch (metadata.Type)
-                {
-                    case MetadataFieldType.Text:
-                    {
-                        var textMetadata = (Core.Editor.TextMetadata)metadata;
-                        AssetInspectorUIElementHelper.AddText(m_EntriesContainer, textMetadata.Name, textMetadata.Value, isSelectable: true);
-                        break;
-                    }
-                    case MetadataFieldType.Boolean:
-                    {
-                        var booleanMetadata = (Core.Editor.BooleanMetadata)metadata;
-                        AssetInspectorUIElementHelper.AddToggle(m_EntriesContainer, booleanMetadata.Name, booleanMetadata.Value);
-                        break;
-                    }
-                    case MetadataFieldType.Number:
-                    {
-                        var numberMetadata = (Core.Editor.NumberMetadata)metadata;
-                        AssetInspectorUIElementHelper.AddText(m_EntriesContainer, numberMetadata.Name,
-                            numberMetadata.Value.ToString(CultureInfo.CurrentCulture), isSelectable: true);
-                        break;
-                    }
-                    case MetadataFieldType.Timestamp:
-                    {
-                        var timestampMetadata = (Core.Editor.TimestampMetadata)metadata;
-                        AssetInspectorUIElementHelper.AddText(m_EntriesContainer, timestampMetadata.Name,
-                            Utilities.DatetimeToString(timestampMetadata.Value.DateTime), isSelectable: true);
-                        break;
-                    }
-                    case MetadataFieldType.Url:
-                    {
-                        var urlMetadata = (Core.Editor.UrlMetadata)metadata;
-                        AssetInspectorUIElementHelper.AddText(m_EntriesContainer, urlMetadata.Name,
-                            urlMetadata.Value.Uri == null ? string.Empty : urlMetadata.Value.Uri.ToString(), isSelectable: true);
-                        break;
-                    }
-                    case MetadataFieldType.User:
-                    {
-                        var userMetadata = (Core.Editor.UserMetadata)metadata;
-                        AssetInspectorUIElementHelper.AddUser(m_EntriesContainer, metadata.Name, userMetadata.Value, null);
-                        break;
-                    }
-                    case MetadataFieldType.SingleSelection:
-                    {
-                        var singleSelectionMetadata = (Core.Editor.SingleSelectionMetadata)metadata;
-                        AssetInspectorUIElementHelper.AddSelectionChips(m_EntriesContainer, metadata.Name, new List<string> {singleSelectionMetadata.Value}, isSelectable: true);
-                        break;
-                    }
-                    case MetadataFieldType.MultiSelection:
-                    {
-                        var multiSelectionMetadata = (Core.Editor.MultiSelectionMetadata)metadata;
-                        AssetInspectorUIElementHelper.AddSelectionChips(m_EntriesContainer, metadata.Name, multiSelectionMetadata.Value, isSelectable: true);
-                        break;
-                    }
-                    default:
-                        throw new InvalidOperationException("Unexpected metadata field type was encountered.");
-                }
-            }
         }
 
         public void RefreshButtons(UIEnabledStates enabled, BaseOperation operationInProgress)
@@ -387,13 +316,20 @@ namespace Unity.AssetManager.UI.Editor
             FieldEdited?.Invoke(edit);
         }
 
-        public void EnableEditing(bool enable)
+        public void ConfigureEditing(EditingMode mode)
         {
-            foreach (var editableEntry in m_EditableEntries)
+            var modeChanged = m_EditingMode != mode;
+            m_EditingMode = mode;
+            IsEditingEnabled = mode != EditingMode.ReadOnly;
+
+            if (modeChanged && m_ViewModel.SelectedAssetData != null)
             {
-                editableEntry.EnableEditing(enable);
+                RefreshUI();
+                return;
             }
-            IsEditingEnabled = enable;
+
+            foreach (var editableEntry in m_EditableEntries)
+                editableEntry.ConfigureEditing(mode);
         }
 
         void OnFileChanged()

@@ -84,6 +84,9 @@ namespace Unity.AssetManager.Upload.Editor
         bool m_ExistingAssetIsAccessible;
 
         [SerializeField]
+        List<string> m_ExistingLinkedCollectionPaths = new();
+
+        [SerializeField]
         UploadFilePathMode m_FilePathMode;
 
         [SerializeField]
@@ -150,6 +153,7 @@ namespace Unity.AssetManager.Upload.Editor
         }
 
         public override IEnumerable<BaseAssetData> Versions => m_Versions;
+        public override IReadOnlyList<HistoryChangeEntry> UpdateHistoryChanges => Array.Empty<HistoryChangeEntry>();
 
         public bool IsIgnored
         {
@@ -219,6 +223,54 @@ namespace Unity.AssetManager.Upload.Editor
 
         public ProjectIdentifier TargetProject => m_TargetProject;
 
+        /// <summary>
+        /// Returns true if the asset already exists in the cloud and has linked collections,
+        /// and the new collection path (based on Match Project Structure) would be different
+        /// from all existing linked collections.
+        /// </summary>
+        public bool WillBeAddedToNewCollection
+        {
+            get
+            {
+                // No existing asset or no existing linked collections - no warning needed
+                if (m_ExistingAssetIdentifier == null || m_ExistingLinkedCollectionPaths.Count == 0)
+                    return false;
+
+                // Compute the target collection path based on asset folder structure
+                var targetCollectionPath = GetMatchProjectStructureCollectionPath();
+
+                // If we can't determine a target collection path, no warning needed
+                if (string.IsNullOrEmpty(targetCollectionPath))
+                    return false;
+
+                // Check if any existing linked collection matches the target path
+                foreach (var existingPath in m_ExistingLinkedCollectionPaths)
+                {
+                    if (string.Equals(existingPath, targetCollectionPath, StringComparison.OrdinalIgnoreCase))
+                        return false;
+                }
+
+                // Target collection is different from all existing linked collections
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Gets the collection path that would be used when Match Project Structure is enabled.
+        /// This is derived from the asset's folder path.
+        /// </summary>
+        string GetMatchProjectStructureCollectionPath()
+        {
+            var folderPath = Path.GetDirectoryName(m_AssetPath)?.Replace('\\', '/');
+            if (string.IsNullOrEmpty(folderPath))
+                return null;
+
+            // Strip the first segment (Assets/ or Packages/) from the path
+            // e.g., "Assets/Materials/Metal" → "Materials/Metal"
+            var slashIndex = folderPath.IndexOf('/');
+            return slashIndex >= 0 ? folderPath.Substring(slashIndex + 1) : null;
+        }
+
         public UploadAssetData(){}
 
         public UploadAssetData(AssetIdentifier localIdentifier,
@@ -277,6 +329,12 @@ namespace Unity.AssetManager.Upload.Editor
                 CopyMetadata(existingAssetData.Metadata);
 
                 tags = existingAssetData.Tags.ToHashSet();
+
+                // Store the existing linked collection paths for re-upload warning
+                m_ExistingLinkedCollectionPaths = existingAssetData.LinkedCollections?
+                    .Select(c => c.CollectionPath)
+                    .Where(p => !string.IsNullOrEmpty(p))
+                    .ToList() ?? new List<string>();
             }
             else
             {
@@ -306,17 +364,31 @@ namespace Unity.AssetManager.Upload.Editor
             m_Tags = tags.ToList();
         }
 
-        public IUploadAsset GenerateUploadAsset(string collectionPath)
+        public IUploadAsset GenerateUploadAsset(string collectionPath, bool matchProjectStructure)
         {
             Utilities.DevAssert(m_ResolvedStatus != UploadAttribute.UploadStatus.DontUpload
                 && m_ResolvedStatus != UploadAttribute.UploadStatus.Skip
                 && m_ResolvedStatus != UploadAttribute.UploadStatus.ErrorOutsideProject);
 
+            var targetCollection = collectionPath;
+
+            if (matchProjectStructure)
+            {
+                var folderPath = Path.GetDirectoryName(m_AssetPath)?.Replace('\\', '/');
+                if (!string.IsNullOrEmpty(folderPath))
+                {
+                    // Strip the first segment (Assets/ or Packages/) from the path
+                    // e.g., "Assets/Materials/Metal" → "Materials/Metal"
+                    var slashIndex = folderPath.IndexOf('/');
+                    targetCollection = slashIndex >= 0 ? folderPath.Substring(slashIndex + 1) : null;
+                }
+            }
+
             var uploadAsset = new UploadAsset(m_Name, m_Description, m_Status, m_StatusFlowId, m_AssetGuid, m_Identifier, m_AssetType,
                 GetFiles(x => x.IsSource).Cast<UploadAssetDataFile>().Select(f => f.GenerateUploadFile()),
                 m_Tags, ResolveDependencyIdentifiers(), m_Metadata,
                 m_ResolvedStatus == UploadAttribute.UploadStatus.Override ? m_ExistingAssetIdentifier : null,
-                ComparisonDetails, m_TargetProject, collectionPath);
+                ComparisonDetails, m_TargetProject, targetCollection);
 
             return uploadAsset;
         }
@@ -409,6 +481,8 @@ namespace Unity.AssetManager.Upload.Editor
 
         public override Task RefreshPropertiesAsync(CancellationToken token = default) => Task.CompletedTask;
 
+        public override Task RefreshUpdateHistoryAsync(CancellationToken token = default) => Task.CompletedTask;
+
         public override async Task RefreshVersionsAsync(CancellationToken token = default)
         {
             if (m_ExistingAssetIdentifier == null)
@@ -485,8 +559,8 @@ namespace Unity.AssetManager.Upload.Editor
                 if (m_ExistingAssetIdentifier == null)
                     return;
 
-                var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-                var existingAsset = await assetsSdkProvider.GetAssetAsync(m_ExistingAssetIdentifier, token);
+                var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+                var existingAsset = await assetDataManager.GetAssetAsync(m_ExistingAssetIdentifier, token);
 
                 if (existingAsset != null)
                 {
@@ -566,10 +640,16 @@ namespace Unity.AssetManager.Upload.Editor
             {
                 var assetsProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
                 sourceDataset = await GetSourceDataset(importedAssetInfo.AssetData, assetsProvider, token);
+
+                // Fetch linked collections from the existing asset for re-upload warning
+                await RefreshExistingLinkedCollectionsAsync(importedAssetInfo.AssetData, assetsProvider, token);
             }
             else
             {
                 sourceDataset = importedAssetInfo.AssetData.Datasets.FirstOrDefault(d => d.IsSource);
+
+                // Use cached linked collections if available
+                RefreshExistingLinkedCollectionsFromCache(importedAssetInfo.AssetData);
             }
 
             isSourceControlled = sourceDataset is {IsSourceControlled: true};
@@ -620,6 +700,40 @@ namespace Unity.AssetManager.Upload.Editor
                 default:
                     return UploadAttribute.UploadStatus.DontUpload;
             }
+        }
+
+        async Task RefreshExistingLinkedCollectionsAsync(BaseAssetData existingAssetData, IAssetsProvider assetsProvider, CancellationToken token)
+        {
+            if (existingAssetData is not AssetData assetData || assetsProvider == null)
+                return;
+
+            try
+            {
+                var linkedCollections = await assetsProvider.GetLinkedCollectionsAsync(assetData, token);
+                if (linkedCollections != null)
+                {
+                    m_ExistingLinkedCollectionPaths = linkedCollections
+                        .Select(c => c.CollectionPath)
+                        .Where(p => !string.IsNullOrEmpty(p))
+                        .ToList();
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception e)
+            {
+                Utilities.DevLogWarning($"Failed to fetch linked collections for re-upload warning: {e.Message}");
+            }
+        }
+
+        void RefreshExistingLinkedCollectionsFromCache(BaseAssetData existingAssetData)
+        {
+            if (existingAssetData?.LinkedCollections == null)
+                return;
+
+            m_ExistingLinkedCollectionPaths = existingAssetData.LinkedCollections
+                .Select(c => c.CollectionPath)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .ToList();
         }
 
         async Task<bool> IsLocallyModifiedAsync(ImportedAssetInfo importedAssetInfo, CancellationToken token)
@@ -685,7 +799,20 @@ namespace Unity.AssetManager.Upload.Editor
         static async Task<AssetDataset> GetSourceDataset(BaseAssetData assetData, IAssetsProvider assetsProvider, CancellationToken token)
         {
             var sourceDataset = assetData.Datasets.FirstOrDefault(d => d.IsSource);
-            if (sourceDataset != null && sourceDataset.SystemTags.Contains(k_NotSynced))
+
+            if (sourceDataset == null && assetData is AssetData ad)
+            {
+                sourceDataset = await assetsProvider.GetDatasetAsync(ad, new List<string> {k_Source}, token);
+                if (sourceDataset != null)
+                {
+                    await sourceDataset.GetFilesAsync(assetsProvider, assetData.Identifier, token);
+
+                    var datasets = assetData.Datasets.ToList();
+                    datasets.Add(sourceDataset);
+                    assetData.Datasets = datasets;
+                }
+            }
+            else if (sourceDataset != null && sourceDataset.SystemTags.Contains(k_NotSynced))
             {
                 // Come from an older version of persistence, we need to update the system tags
                 var cloudDataset = await assetsProvider.GetDatasetAsync(assetData as AssetData, new List<string> {k_Source}, token);
@@ -810,17 +937,36 @@ namespace Unity.AssetManager.Upload.Editor
         {
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
 
+            Utilities.DevLog($"ResolveDependencyIdentifiers for '{Name}' (id={Identifier.AssetId}, hash={System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this)}): " +
+                $"{Dependencies.Count()} dep(s), evaluateUploadStatus={evaluateUploadStatus}", tag: "Upload");
+
             var dependencyIdentifiers = new List<AssetIdentifier>();
             foreach (var id in Dependencies)
             {
                 var dependency = assetDataManager.GetAssetData(id) as UploadAssetData;
+
+                if (dependency == null)
+                {
+                    Utilities.DevLog($"  Dep id={id.AssetId} ver={id.Version}: NOT FOUND", tag: "Upload");
+                }
+                else
+                {
+                    Utilities.DevLog($"  Dep id={id.AssetId} ver={id.Version}: " +
+                        $"resolved instance hash={System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(dependency)}, " +
+                        $"CanBeUploaded={dependency.CanBeUploaded}, IsIgnored={dependency.IsIgnored}, " +
+                        $"ExistingId={(dependency.m_ExistingAssetIdentifier?.AssetId ?? "null")}", tag: "Upload");
+                }
+
                 if (dependency == null || dependency.IsIgnored) continue;
 
                 if (id.Version == AssetManagerCoreConstants.NewVersionId && evaluateUploadStatus && dependency.CanBeUploaded)
                 {
+                    Utilities.DevLog($"  Dep id={id.AssetId}: branch=local-add (NewVersionId + CanBeUploaded)", tag: "Upload");
                     dependencyIdentifiers.Add(id);
                     continue;
                 }
+
+                Utilities.DevLog($"  Dep id={id.AssetId}: branch=resolve-existing", tag: "Upload");
 
                 Utilities.DevAssert(dependency != null, $"Dependency {id.AssetId} for {Name} could not be loaded.");
 
@@ -953,6 +1099,7 @@ namespace Unity.AssetManager.Upload.Editor
             var fileName = Path.GetFileName(assetPath);
             return Utilities.GetUniqueFilename(files.Select(e => e.Path).ToArray(), fileName);
         }
+
 
         public void SetName(string name)
         {

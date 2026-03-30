@@ -34,6 +34,19 @@ namespace Unity.AssetManager.UI.Editor
         public const string EnterText = "Enter text :";
         public const string EnterNumberText = "Enter number :";
         public const string EnterUrlText = "Enter hyperlink label :";
+        public const string EnterAssetIdText = "Enter asset Id :";
+        public const string Contains = "Contains";
+        public const string DoesNotContain = "Does not contain";
+        public const string Is = "Is";
+        public const string IsNot = "Is not";
+        public const string AddValue = "+ Add value";
+        public const string AddValueLabel = "Add value";
+        public const string Add = "Add";
+        public const string And = "AND";
+        public const string Or = "OR";
+        public const string NoAvailableOptions = "No available options in this project for this filter";
+        public const string ApplyLogic = "Apply";
+        public const string BetweenValues = "between values";
 
         // Saved View Controls
         public const string ClearFilter = "Clear";
@@ -102,6 +115,9 @@ namespace Unity.AssetManager.UI.Editor
         public const string Dependencies = "Dependencies";
         public const string FilePaths = "File paths";
         public const string UploadSettingsReset = "Reset to default";
+        public const string MatchProjectStructure = "Match project structure";
+        public const string MatchProjectStructureHelpText = "This option automatically organizes assets in the Asset Manager dashboard to match your project structure";
+        public const string ReuploadCollectionWarningText = "This asset already exists in a collection in Asset Manager. Enabling Match Project Structure will also link (add) the asset to the selected collection.";
         public const string ScalingIssuesMessage = "Uploading {0}+ assets may reach scaling issues. Try to upload less than {0} assets at the time for better results.";
         public const int ScalingIssuesThreshold = 100;
         public const string UnexpectedFieldDefinitionType = "Unexpected field definition type was encountered.";
@@ -117,6 +133,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string CustomUploadMetadata = "Custom Metadata";
         public const string AddCustomField = "Add custom field";
         public const string MetadataPartialEditing = "Metadata that are only on some of the selected assets cannot be multi-edited.";
+        public const string MetadataLoadingSelection = "Loading custom metadata fields for selection...";
         public const string NoMatchingFields = "No matching metadata field. To add custom fields, go to the <a>dashboard</a> and create a new metadata field.";
         public const string NoMatchingFields_WithoutLink = "No matching metadata field.";
 
@@ -140,6 +157,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string FixedVersionSelectionTitle = "Fixed version";
 
         // AssetDetailsView Asset info
+        public const string IdText = "Id";
         public const string AssetIdText = "Asset Id";
         public const string VersionText = "Ver. ";
         public const string PendingVersionText = "Pending";
@@ -172,6 +190,14 @@ namespace Unity.AssetManager.UI.Editor
         public const string DependenciesText = "Dependencies";
         public const string NoDependenciesText = "This asset has no dependencies";
         public const string ServiceAccountText = "Service Account";
+        public const string SystemUserText = "System";
+        public const string SomeoneText = "Someone";
+        public const string StartedVersionText = "started version ";
+        public const string MadeChangesTextSingular = "made <b>{0}</b> change";
+        public const string MadeChangesTextPlural = "made <b>{0}</b> changes";
+        public const string NoActivityYetText = "No activity yet.";
+        public const string NowText = "now";
+        public const string LoadMoreText = "Load more ({0} remaining)";
         public const string LatestTagText = "Latest";
         public const string ImportedTagText = "Imported";
         public const string VCSChipTooltip = "Those files are version controlled";
@@ -208,6 +234,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string ShowInProjectButtonToolTip = "Pings the Asset in an active Project window";
         public const string ShowInProjectButtonDisabledToolTip = "This Asset has not yet been imported";
         public const string ShowInDashboardActionText = "Show In Dashboard";
+        public const string RefreshCacheActionText = "Refresh";
         public const string AssetsSelectedTitle = "Assets Selected";
         public const string ImportingText = "Importing";
         public const string ImportAllSelectedActionText = "Import All Selected";
@@ -231,6 +258,13 @@ namespace Unity.AssetManager.UI.Editor
         public const string NoResultsForSearchText = " for search: ";
         public const string NoResultsForFiltersText = " with filters: ";
         public const string CantSelectAssetLibraryText = " is an asset library and cannot be selected for upload.";
+
+        // Deeplink access / not found — {0} is the invalid value for user to copy (org id, project id, version, or action segment)
+        public const string DeeplinkOrganizationNotAccessibleText = "The deeplinked asset refers to an organization you do not have access to. Organization ID: {0}";
+        public const string DeeplinkProjectNotAccessibleText = "The deeplinked asset refers to a project you do not have access to. Project ID: {0}";
+        public const string DeeplinkVersionNotFoundForAssetText = "The deeplinked asset version does not exists. Version: {0}";
+        public const string DeeplinkInvalidLinkFormatText = "This deeplink could not be opened: unrecognized URL payload.";
+        public const string DeeplinkActionNotSupportedText = "This deeplink could not be opened: unsupported requested action, {0}";
 
         public const string UpdateAllText = "Update All";
         public const string UpdateAllToLatestActionText = "Update All To Latest";
@@ -318,5 +352,11 @@ namespace Unity.AssetManager.UI.Editor
         public const string CollectionDeleteTitle = "Warning";
         public const string CollectionDeleteOk = "Delete";
         public const string CollectionDeleteCancel = Cancel;
+
+        // Asset Manager Footer
+        public const string LastSyncPrefix = "Last sync: ";
+        public const string LastSyncNever = "--";
+        public const string RefreshNowButtonText = "Refresh now";
+        public const string RefreshNowButtonTooltip = "Refresh cached metadata for imported assets";
     }
 }

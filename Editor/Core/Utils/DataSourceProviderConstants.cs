@@ -18,6 +18,8 @@ namespace Unity.AssetManager.Core.Editor
         public const int DefaultCacheSizeMb = DefaultCacheSizeGb * 1024;
         public const int ShrinkSizeInMb = 200;
 
+        public const string DateSelectionFormat = "yyyy-MM-dd";
+
         // This exists here for compatibility with 2020.x versions
         public static readonly DateTime UnixEpoch = DateTime.UnixEpoch;
 

@@ -13,12 +13,29 @@ namespace Unity.AssetManager.Core.Editor
 
     static class MetadataHelpers
     {
+        public static IMetadata CreateMetadataFromFieldDefinition(IMetadataFieldDefinition def)
+        {
+            if (def == null)
+                throw new ArgumentNullException(nameof(def));
+
+            return def.Type switch
+            {
+                MetadataFieldType.Text => new TextMetadata(def.Key, def.DisplayName, string.Empty),
+                MetadataFieldType.Number => new NumberMetadata(def.Key, def.DisplayName, 0),
+                MetadataFieldType.Boolean => new BooleanMetadata(def.Key, def.DisplayName, false),
+                MetadataFieldType.Url => new UrlMetadata(def.Key, def.DisplayName, new UriEntry(null, string.Empty)),
+                MetadataFieldType.Timestamp => new TimestampMetadata(def.Key, def.DisplayName, new DateTimeEntry(DateTime.Now)),
+                MetadataFieldType.User => new UserMetadata(def.Key, def.DisplayName, string.Empty),
+                MetadataFieldType.SingleSelection => new SingleSelectionMetadata(def.Key, def.DisplayName, string.Empty),
+                MetadataFieldType.MultiSelection => new MultiSelectionMetadata(def.Key, def.DisplayName, new List<string>()),
+                _ => throw new InvalidOperationException("Unexpected field definition type was encountered.")
+            };
+        }
+
         public static MetadataSharingType GetMetadataSharingType(IReadOnlyCollection<IMetadataContainer> metadata, string fieldKey)
         {
             if (MetadataIsInAllAssets(metadata, fieldKey))
-            {
                 return MetadataSharingType.All;
-            }
 
             return MetadataIsInAtLeastOneAsset(metadata, fieldKey)
                 ? MetadataSharingType.Partial
@@ -27,10 +44,9 @@ namespace Unity.AssetManager.Core.Editor
 
         public static bool HasSameMetadataFieldKeys(IReadOnlyCollection<IMetadataContainer> metadata)
         {
-            if (metadata.Count == 1)
+            if (metadata == null || metadata.Count <= 1)
                 return true;
 
-            // We only need to compare the metadata to the first one
             var referenceMetadata = metadata.First();
             var count = referenceMetadata.Count();
 

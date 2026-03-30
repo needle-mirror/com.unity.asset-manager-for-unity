@@ -237,9 +237,9 @@ namespace Unity.AssetManager.UI.Editor
         }
 
         public static EditableListEntry AddEditableTagList(VisualElement container, string assetId, string title, IEnumerable<string> chips,
-            string name = null)
+            string name = null, IInlineEditService inlineEditService = null)
         {
-            var entry = new EditableListEntry(assetId, title, chips, TagChipCreator)
+            var entry = new EditableListEntry(assetId, title, chips, TagChipCreator, inlineEditService: inlineEditService)
             {
                 name = name
             };
@@ -261,9 +261,11 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        public static EditableDropdownEntry AddEditableStatusDropdown(VisualElement container, string assetId, string title, string selectedValue, IEnumerable<string> options)
+        public static EditableDropdownEntry AddEditableStatusDropdown(VisualElement container, string assetId, string title,
+            string selectedValue, IEnumerable<string> options, IInlineEditService inlineEditService = null)
         {
-            var statusEntry = new EditableDropdownEntry(assetId, title, selectedValue, options, true);
+            var statusEntry = new EditableDropdownEntry(assetId, title, selectedValue, options, true,
+                inlineEditService: inlineEditService);
             container.Add(statusEntry);
 
             return statusEntry;

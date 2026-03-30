@@ -31,6 +31,10 @@ namespace Unity.AssetManager.Upload.Editor
             public string FilePathMode;
             public bool UseCollection;
             public bool UseLatestDependencies;
+            public bool UseMatchedProjectMode;
+            public string OrganizationId;
+            public string ProjectId;
+            public string CollectionPath;
         }
 
         [Serializable]
@@ -76,14 +80,34 @@ namespace Unity.AssetManager.Upload.Editor
             public bool UseLatestDependencies;
 
             /// <summary>
-            /// Number of assets with modifications to their primary metadata fields (name, desc, tags, etc)
+            /// If the option to match project structure is set
             /// </summary>
-            public int AssetsWithModifiedFieldsCount;
+            public bool UseMatchedProjectMode;
 
             /// <summary>
             /// Information about the custom metadata fields added or modified in the uploaded assets
             /// </summary>
             public CustomMetadataInfo CustomMetadataInfo;
+
+            /// <summary>
+            /// The organization ID of the target project
+            /// </summary>
+            public string OrganizationId;
+
+            /// <summary>
+            /// The project ID where assets are being uploaded
+            /// </summary>
+            public string ProjectId;
+
+            /// <summary>
+            /// The collection path if uploading to a specific collection
+            /// </summary>
+            public string CollectionPath;
+
+            /// <summary>
+            /// Number of assets with modifications to their primary metadata fields (name, desc, tags, etc)
+            /// </summary>
+            public int AssetsWithModifiedFieldsCount;
         }
 
         internal const string k_EventName = AnalyticsSender.EventPrefix + "Upload";
@@ -105,8 +129,12 @@ namespace Unity.AssetManager.Upload.Editor
                 FilePathMode = settings.FilePathMode,
                 UseCollection = settings.UseCollection,
                 UseLatestDependencies = settings.UseLatestDependencies,
+                UseMatchedProjectMode = settings.UseMatchedProjectMode,
                 AssetsWithModifiedFieldsCount = assetsWithModifiedFieldsCount,
-                CustomMetadataInfo = customMetadataInfo
+                CustomMetadataInfo = customMetadataInfo,
+                OrganizationId = settings.OrganizationId ?? string.Empty,
+                ProjectId = settings.ProjectId ?? string.Empty,
+                CollectionPath = settings.CollectionPath ?? string.Empty,
             };
         }
 

@@ -13,6 +13,8 @@ namespace Unity.AssetManager.UI.Editor
         [SerializeReference] IProjectOrganizationProvider m_ProjectOrganizationProvider;
         [SerializeReference] IUnityConnectProxy m_UnityConnectProxy;
 
+        readonly IStateManager m_StateManager;
+
         Dictionary<string, NameAndId> m_OrganizationOptions = new();
         Dictionary<string, Role> m_OrganizationRoles = new();
         Dictionary<string, bool> m_OrganizationSeatValidity = new();
@@ -23,53 +25,51 @@ namespace Unity.AssetManager.UI.Editor
         public event Action UpdateSelectionChanged;
 
         public SidebarOrganizationSelectorViewmodel(IPermissionsManager permissionsManager,
-            IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnectProxy)
+            IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnectProxy,
+            IStateManager stateManager = null)
         {
             m_PermissionsManager = permissionsManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_UnityConnectProxy = unityConnectProxy;
-
-            _ = FetchOrganizationsData();
+            m_StateManager = stateManager;
         }
 
         public void BindEvents()
         {
-            m_PermissionsManager.AuthenticationStateChanged += OnAuthenticationStateChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged += OnOrganizationChanged;
+            m_ProjectOrganizationProvider.OrganizationListChanged += OnOrganizationListChanged;
+            m_ProjectOrganizationProvider.LoadingStateChanged += OnOrganizationLoadingStateChanged;
             m_UnityConnectProxy.OrganizationIdChanged += OnOrganizationIdChanged;
             PrivateCloudSettings.SettingsUpdated += UpdateSelectionEnabled;
+
+            ApplyOrganizationList(m_ProjectOrganizationProvider.OrganizationList);
+
+            if (!m_ProjectOrganizationProvider.IsLoading)
+                InvokeSelectedOrganizationChanged();
         }
 
         public void UnbindEvents()
         {
-            m_PermissionsManager.AuthenticationStateChanged -= OnAuthenticationStateChanged;
-            m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+            m_ProjectOrganizationProvider.OrganizationListChanged -= OnOrganizationListChanged;
+            m_ProjectOrganizationProvider.LoadingStateChanged -= OnOrganizationLoadingStateChanged;
             m_UnityConnectProxy.OrganizationIdChanged -= OnOrganizationIdChanged;
             PrivateCloudSettings.SettingsUpdated -= UpdateSelectionEnabled;
         }
 
-        void OnOrganizationChanged(OrganizationInfo organizationInfo)
+        void OnOrganizationLoadingStateChanged(bool isLoading)
         {
-            _ = FetchOrganizationsData();
+            if (!isLoading)
+                InvokeSelectedOrganizationChanged();
         }
 
         void OnOrganizationIdChanged()
         {
-            _ = FetchOrganizationsData();
+            if (!m_ProjectOrganizationProvider.IsLoading)
+                ApplyOrganizationList(m_ProjectOrganizationProvider.OrganizationList);
         }
 
-        void OnAuthenticationStateChanged(AuthenticationState authenticationState)
+        void OnOrganizationListChanged(IReadOnlyList<NameAndId> list)
         {
-            if (authenticationState == AuthenticationState.LoggedIn)
-            {
-                _ = FetchOrganizationsData();
-            }
-            else
-            {
-                SelectedOrganizationChanged?.Invoke(string.Empty);
-            }
-
-            UpdateSelectionEnabled();
+            ApplyOrganizationList(list);
         }
 
         void UpdateSelectionEnabled()
@@ -77,25 +77,34 @@ namespace Unity.AssetManager.UI.Editor
             UpdateSelectionChanged?.Invoke();
         }
 
-        async Task FetchOrganizationsData()
+        void ApplyOrganizationList(IReadOnlyList<NameAndId> list)
         {
             m_OrganizationOptions = new Dictionary<string, NameAndId>();
-            await foreach (var organization in m_ProjectOrganizationProvider.ListOrganizationsAsync())
+            if (list != null)
             {
-                m_OrganizationOptions[organization.Name] = organization;
-                if (!m_FetchOrganizationsTasks.ContainsKey(organization.Name))
-                    m_FetchOrganizationsTasks[organization.Name] = FetchOrganizationRoleAndEntitlements(organization.Name, organization.Id);
+                foreach (var organization in list)
+                {
+                    m_OrganizationOptions[organization.Name] = organization;
+                    if (!m_FetchOrganizationsTasks.ContainsKey(organization.Name))
+                        m_FetchOrganizationsTasks[organization.Name] = FetchOrganizationRoleAndEntitlements(organization.Name, organization.Id);
+                }
             }
 
             var linkedOrganizationId = m_UnityConnectProxy.HasValidOrganizationId ? m_UnityConnectProxy.OrganizationId : null;
             m_LinkedOrganizationName =
                 linkedOrganizationId != null && m_OrganizationOptions.Values.Any(o => o.Id == linkedOrganizationId)
-                    ? m_LinkedOrganizationName = m_OrganizationOptions.Values.First(o => o.Id == linkedOrganizationId).Name
+                    ? m_OrganizationOptions.Values.First(o => o.Id == linkedOrganizationId).Name
                     : string.Empty;
 
-            var selectedOrganization = m_ProjectOrganizationProvider.SelectedOrganization;
+        }
 
-            SelectedOrganizationChanged?.Invoke(selectedOrganization?.Name ?? string.Empty);
+        void InvokeSelectedOrganizationChanged()
+        {
+            var selectedOrganization = m_ProjectOrganizationProvider.SelectedOrganization;
+            var name = selectedOrganization?.Name ?? m_StateManager?.SelectedOrganizationName ?? string.Empty;
+            if (!string.IsNullOrEmpty(selectedOrganization?.Name) && m_StateManager != null)
+                m_StateManager.SelectedOrganizationName = selectedOrganization.Name;
+            SelectedOrganizationChanged?.Invoke(name);
         }
 
         async Task FetchOrganizationRoleAndEntitlements(string organizationName, string organizationId)
@@ -143,7 +152,9 @@ namespace Unity.AssetManager.UI.Editor
 
         public string GetSelectedOrganizationName()
         {
-            return m_ProjectOrganizationProvider.SelectedOrganization?.Name ?? string.Empty;
+            return m_ProjectOrganizationProvider.SelectedOrganization?.Name
+                ?? m_StateManager?.SelectedOrganizationName
+                ?? string.Empty;
         }
     }
 }

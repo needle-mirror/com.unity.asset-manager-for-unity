@@ -50,6 +50,8 @@ namespace Unity.AssetManager.UI.Editor
         public IEnumerable<ProjectIdentifier> LinkedProjects => SelectedAssetData?.LinkedProjects;
         public IEnumerable<CollectionIdentifier> LinkedCollections => SelectedAssetData?.LinkedCollections;
         public IEnumerable<BaseAssetData> AssetVersions => SelectedAssetData?.Versions;
+        public IReadOnlyList<HistoryChangeEntry> UpdateHistoryChanges => SelectedAssetData?.UpdateHistoryChanges;
+        public List<IMetadataFieldDefinition> MetadataFieldDefinitions => m_ProjectOrganizationProvider?.SelectedOrganization?.MetadataFieldDefinitions;
         public IEnumerable<AssetDataset> AssetDatasets => SelectedAssetData?.Datasets;
         public Texture2D AssetThumbnail => SelectedAssetData?.Thumbnail;
         public string AssetPrimaryExtension => SelectedAssetData?.PrimaryExtension;
@@ -112,6 +114,7 @@ namespace Unity.AssetManager.UI.Editor
         public event Action FilesChanged;
         public event Action LinkedProjectsUpdated;
         public event Action VersionsRefreshed;
+        public event Action UpdateHistoryRefreshed;
 
         public AssetInspectorViewModel()
         {
@@ -321,9 +324,8 @@ namespace Unity.AssetManager.UI.Editor
 
         public async Task<bool> CheckPermissionAsync()
         {
-            if (AssetIdentifier == null)
+            if (AssetIdentifier == null || m_PermissionsManager == null)
                 return false;
-
             return await m_PermissionsManager.CheckPermissionAsync(AssetIdentifier.OrganizationId, AssetIdentifier.ProjectId, Constants.ImportPermission);
         }
 
@@ -373,6 +375,25 @@ namespace Unity.AssetManager.UI.Editor
 
             await SelectedAssetData.RefreshVersionsAsync();
             VersionsRefreshed?.Invoke();
+        }
+
+        public async Task RefreshUpdateHistoryAsync()
+        {
+            if (SelectedAssetData == null)
+                return;
+
+            try
+            {
+                await SelectedAssetData.RefreshUpdateHistoryAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
+            finally
+            {
+                UpdateHistoryRefreshed?.Invoke();
+            }
         }
 
         public async Task RefreshInfosAsync(bool completeRefresh)

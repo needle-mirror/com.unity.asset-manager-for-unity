@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -39,6 +40,8 @@ namespace Unity.AssetManager.UI.Editor
         readonly IPermissionsManager m_PermissionsManager;
         readonly IApplicationProxy m_ApplicationProxy;
 
+        readonly IStateManager m_StateManager;
+
         IPage m_CurrentActivePage;
         bool m_IsClickedItemAlreadySelected;
         AssetIdentifier m_SelectedAssetIdentifier;
@@ -53,7 +56,8 @@ namespace Unity.AssetManager.UI.Editor
             IAssetImporter assetImporter,
             IPermissionsManager permissionsManager,
             IMessageManager messageManager,
-            IApplicationProxy applicationProxy)
+            IApplicationProxy applicationProxy,
+            IStateManager stateManager)
         {
             m_UnityConnect = unityConnect;
             m_PageManager = pageManager;
@@ -64,6 +68,7 @@ namespace Unity.AssetManager.UI.Editor
             m_AssetImporter = assetImporter;
             m_PermissionsManager = permissionsManager;
             m_ApplicationProxy = applicationProxy;
+            m_StateManager = stateManager;
 
             m_Gridview = new GridView(MakeGridViewItem, BindGridViewItem);
             Add(m_Gridview);
@@ -85,6 +90,13 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
+            // Restore m_CurrentActivePage from serialized state so we don't trigger OnActivePageChanged after domain reload
+            if (m_StateManager != null && m_PageManager.ActivePage != null &&
+                m_StateManager.ActivePageTypeName == m_PageManager.ActivePage.GetType().Name)
+            {
+                m_CurrentActivePage = m_PageManager.ActivePage;
+            }
+
             // In case the active page has changed since the last time the grid was attached to the panel
             if (m_PageManager.ActivePage != m_CurrentActivePage)
             {
@@ -176,6 +188,8 @@ namespace Unity.AssetManager.UI.Editor
         void OnActivePageChanged(IPage page)
         {
             m_CurrentActivePage = page;
+            if (m_StateManager != null && page != null)
+                m_StateManager.ActivePageTypeName = page.GetType().Name;
             ClearGrid();
             Refresh();
         }

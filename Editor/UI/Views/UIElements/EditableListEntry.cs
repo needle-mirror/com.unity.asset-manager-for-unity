@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.AssetManager.Core.Editor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -22,17 +23,27 @@ namespace Unity.AssetManager.UI.Editor
         public event Action<object> EntryEdited;
         public event Func<string, object, bool> IsEntryEdited;
 
+        readonly IInlineEditService m_InlineEditService;
         ChipListField m_TagField;
         Func<string, Chip> m_ChipCreator;
+        EditingMode m_EditingMode;
+
+        VisualElement m_ValueRow;
+        VisualElement m_EditIcon;
+        InlineEditStateManager m_StateManager;
+        InlineEditConfirmationPopupContainer m_ConfirmationPopup;
+        HashSet<string> m_ValuesSnapshotForCancel;
 
         HashSet<string> m_Values;
 
-        public EditableListEntry(string assetId, string title, IEnumerable<string> values, Func<string, Chip> chipCreator)
+        public EditableListEntry(string assetId, string title, IEnumerable<string> values, Func<string, Chip> chipCreator,
+            IInlineEditService inlineEditService = null)
             : base(title)
         {
             AssetId = assetId;
             m_Values = values.ToHashSet();
             m_ChipCreator = chipCreator;
+            m_InlineEditService = inlineEditService;
 
             m_ChipContainer = AddChipContainer();
             m_ChipContainer.AddToClassList(UssStyle.FlexWrap);
@@ -48,28 +59,133 @@ namespace Unity.AssetManager.UI.Editor
 
             m_EditFields.Add(m_TagField);
 
-            EnableEditing(false);
+            ConfigureEditing(EditingMode.ReadOnly);
         }
 
-        public EditableListEntry(string assetId, string title, IEnumerable<string> values, Func<string, Chip> chipCreator, bool allowMultiSelection = false)
-            : this(assetId, title, values, chipCreator)
+        public EditableListEntry(string assetId, string title, IEnumerable<string> values, Func<string, Chip> chipCreator,
+            bool allowMultiSelection, IInlineEditService inlineEditService = null)
+            : this(assetId, title, values, chipCreator, inlineEditService)
         {
             AllowMultiSelection = allowMultiSelection;
         }
 
-        public void EnableEditing(bool enable)
+        public void ConfigureEditing(EditingMode mode)
         {
-            IsEditingEnabled = enable;
+            if (m_EditingMode == mode)
+                return;
 
-            if (enable)
+            if (m_EditingMode == EditingMode.Inline && m_ValueRow != null)
+                TeardownInlineValueRow();
+
+            m_EditingMode = mode;
+            IsEditingEnabled = mode != EditingMode.ReadOnly;
+
+            if (mode == EditingMode.Inline)
             {
-                ToggleEditField();
+                SetupInlineValueRow();
             }
             else
             {
-                ToggleReadonlyField();
+                if (IsEditingEnabled)
+                    ToggleEditField();
+                else
+                    ToggleReadonlyField();
             }
+        }
 
+        void SetupInlineValueRow()
+        {
+            var insertIndex = hierarchy.IndexOf(m_ChipContainer);
+            m_ChipContainer.RemoveFromHierarchy();
+            m_TagField.RemoveFromHierarchy();
+
+            m_ValueRow = new VisualElement();
+            m_ValueRow.AddToClassList(UssStyle.InlineEditValueRow);
+            m_ValueRow.AddToClassList(UssStyle.InlineEditable);
+
+            m_ValueRow.Add(m_ChipContainer);
+            m_ValueRow.Add(m_TagField);
+
+            m_EditIcon = new VisualElement();
+            m_EditIcon.AddToClassList(UssStyle.InlineEditIcon);
+            m_ValueRow.Add(m_EditIcon);
+
+            m_ChipContainer.style.display = DisplayStyle.Flex;
+            m_TagField.style.display = DisplayStyle.None;
+
+            hierarchy.Insert(insertIndex, m_ValueRow);
+
+            m_StateManager = new InlineEditStateManager(this, m_ValueRow, m_EditIcon,
+                inlineEditService: m_InlineEditService);
+            UpdateReadonlyChipContainer();
+
+            m_ValueRow.RegisterCallback<ClickEvent>(OnInlineValueRowClick);
+        }
+
+        public void SetConfirmationPopupParent(VisualElement parent)
+        {
+            m_ConfirmationPopup?.Dispose();
+            m_ConfirmationPopup = new InlineEditConfirmationPopupContainer();
+            parent.Add(m_ConfirmationPopup);
+        }
+
+        void TeardownInlineValueRow()
+        {
+            m_StateManager?.Dispose();
+            m_StateManager = null;
+
+            m_ValueRow.UnregisterCallback<ClickEvent>(OnInlineValueRowClick);
+            m_ConfirmationPopup?.Dispose();
+            m_ConfirmationPopup = null;
+
+            var idx = hierarchy.IndexOf(m_ValueRow);
+            m_ChipContainer.RemoveFromHierarchy();
+            m_TagField.RemoveFromHierarchy();
+            m_ValueRow.RemoveFromHierarchy();
+            m_ValueRow = null;
+            m_EditIcon = null;
+
+            hierarchy.Insert(idx, m_ChipContainer);
+            hierarchy.Insert(idx + 1, m_TagField);
+        }
+
+        void OnInlineValueRowClick(ClickEvent evt)
+        {
+            if (!IsEditingEnabled || !m_StateManager.CanStartEdit() || m_ConfirmationPopup == null)
+                return;
+
+            m_StateManager.EnterEditMode();
+            m_ValuesSnapshotForCancel = new HashSet<string>(m_Values);
+            m_ChipContainer.style.display = DisplayStyle.None;
+            m_TagField.style.display = DisplayStyle.Flex;
+            m_TagField.UpdateChips(m_Values);
+            m_TagField.Focus();
+
+            m_ConfirmationPopup.Show(m_ValueRow, SubmitTagEdits, CancelTagEdits, InlineEditConfirmMode.ButtonOnly);
+        }
+
+        void SubmitTagEdits()
+        {
+            EntryEdited?.Invoke(m_Values);
+            ExitTagFieldEditing();
+        }
+
+        void CancelTagEdits()
+        {
+            m_Values.Clear();
+            foreach (var v in m_ValuesSnapshotForCancel)
+                m_Values.Add(v);
+            ExitTagFieldEditing();
+        }
+
+        void ExitTagFieldEditing()
+        {
+            m_ConfirmationPopup?.Hide();
+            m_StateManager.ExitEditMode();
+            m_ChipContainer.style.display = DisplayStyle.Flex;
+            m_TagField.style.display = DisplayStyle.None;
+            UpdateReadonlyChipContainer();
+            UpdateStyling();
         }
 
         void ToggleEditField()
@@ -107,33 +223,41 @@ namespace Unity.AssetManager.UI.Editor
         void OnChipAdded(string chip)
         {
             m_Values.Add(chip);
-            EntryEdited?.Invoke(m_Values);
+            if (!(m_StateManager?.IsEditing ?? false))
+                EntryEdited?.Invoke(m_Values);
         }
 
         void OnChipRemoved(string chip)
         {
             m_Values.Remove(chip);
-            EntryEdited?.Invoke(m_Values);
+            if (!(m_StateManager?.IsEditing ?? false))
+                EntryEdited?.Invoke(m_Values);
         }
 
         void UpdateStyling()
         {
-            var isEdited = IsEditingEnabled && (IsEntryEdited?.Invoke(AssetId, m_Values) ?? false);
-            if (isEdited)
-            {
-                m_BorderLine.style.backgroundColor = UssStyle.EditedBorderColor;
-                m_TagField.AddToClassList(UssStyle.DetailsPageEntryValueEdited);
-            }
-            else
-            {
-                m_BorderLine.style.backgroundColor = Color.clear;
-                m_TagField.RemoveFromClassList(UssStyle.DetailsPageEntryValueEdited);
-            }
+            InlineEditStyling.UpdateEditedStyling(
+                m_BorderLine,
+                m_TagField,
+                m_EditingMode,
+                () => IsEntryEdited?.Invoke(AssetId, m_Values) ?? false);
         }
 
         public void SavePendingEdits()
         {
-            // n/a: chip additions/removals are committed immediately
+            if (m_StateManager?.IsEditing ?? false)
+                SubmitTagEdits();
+        }
+
+        public void Dispose()
+        {
+            m_StateManager?.Dispose();
+            m_StateManager = null;
+
+            if (m_ValueRow != null)
+                m_ValueRow.UnregisterCallback<ClickEvent>(OnInlineValueRowClick);
+            m_ConfirmationPopup?.Dispose();
+            m_ConfirmationPopup = null;
         }
     }
 }

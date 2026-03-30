@@ -539,6 +539,169 @@ ClipboardButton {
 }
 
 /************************************************
+* Inline Edit
+************************************************/
+.inline-edit-value-row {
+    flex-direction: row;
+    align-items: center;
+    flex-grow: 1;
+    min-width: 0;
+    min-height: 20px;
+}
+
+.inline-editable {
+    border-width: 2px;
+    border-color: transparent;
+    border-radius: 5px;
+}
+
+.inline-editable:hover {
+    border-width: 2px;
+    border-color: var(--inline-edit-hover-border-color);
+    border-radius: 5px;
+}
+
+.inline-editable--editing,
+.inline-editable--editing:hover {
+    border-color: transparent;
+}
+
+.details-page-entry--editing .details-page-entry-label {
+    color: #81B4FF;
+}
+
+.metadata-page-entry--editing .metadata-page-entry-label {
+    color: #81B4FF;
+}
+
+.inline-edit-value-row > TextField,
+.inline-edit-value-row > DoubleField {
+    margin: 0;
+    padding: 0;
+    flex-shrink: 1;
+    flex-grow: 0;
+    overflow: hidden;
+}
+
+.inline-edit-textfield-readonly > .unity-base-text-field__input,
+.inline-edit-textfield-readonly .unity-base-text-field__input {
+    background-color: transparent;
+    border-color: transparent;
+    -unity-text-align: middle-left;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.details-page-asset-name-container .inline-edit-textfield-readonly > .unity-base-text-field__input {
+    -unity-font-style: bold;
+}
+
+.inline-edit-value-row > .details-page-chip-container {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+/* Custom metadata: value row text/number inputs expand to fill available space */
+.metadata-page-entry-metadata-field.inline-edit-value-row > TextField,
+.metadata-page-entry-metadata-field.inline-edit-value-row > DoubleField {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+/* Match TextField input left offset (1px border + 2px padding) so read-only labels align with inline-edit text */
+Label.metadata-page-entry-metadata-field {
+    padding-left: 4.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.url-hyperlink-label {
+    color: var(--url-hyperlink-color);
+}
+
+Label.url-hyperlink-label {
+    flex-grow: 0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    min-width: 0;
+    padding-left: 0;
+    cursor: link;
+}
+
+.inline-edit-icon {
+    display: none;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin-left: auto;
+    margin-right: 2px;
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Edit.png');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+    background-size: contain;
+}
+
+.inline-editable:hover .inline-edit-icon {
+    display: flex;
+}
+
+.inline-edit--saving {
+    opacity: 0.6;
+}
+
+InlineEditConfirmationPopupContainer {
+    position: absolute;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    padding: 0;
+    border-width: 1px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.inline-edit-confirmation-btn {
+    width: 25px;
+    height: 18px;
+    min-width: 20px;
+    min-height: 18px;
+    padding: 0;
+    margin: 0;
+    border-width: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    cursor: link;
+}
+
+.inline-edit-confirmation-divider {
+    width: 1px;
+    min-width: 1px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.inline-edit-confirmation-btn-icon {
+    width: 12px;
+    height: 12px;
+    background-size: contain;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.inline-edit-confirmation-btn-icon.inline-edit-confirmation-btn-confirm {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Check.png');
+}
+
+.inline-edit-confirmation-btn-icon.inline-edit-confirmation-btn-cancel {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Close.png');
+}
+
+.inline-edit-confirmation-btn-icon.inline-edit-confirmation-btn-confirm,
+.inline-edit-confirmation-btn-icon.inline-edit-confirmation-btn-cancel {
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+/************************************************
 * Page Title
 ************************************************/
 PageTitle {
@@ -571,8 +734,10 @@ PageTitle {
     flex-direction: row;
     flex-wrap: wrap;
     flex-shrink: 0;
-    flex-grow: 1;
+    flex-grow: 0;
     justify-content: space-between;
+    padding-top: 13px;
+    padding-bottom: 12px;
 }
 
 .unity-filters {
@@ -636,6 +801,7 @@ PageTitle {
 
 .unity-filters-popup-filter-selection {
     flex-direction: row;
+    align-items: center;
     font-size: 12px;
     padding-top: 3px;
     padding-bottom: 3px;
@@ -667,6 +833,30 @@ PageTitle {
     border-width: 1px;
 }
 
+.unity-filters-popup-filter-selection-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+#InitialsCircle.unity-filters-popup-filter-selection-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+#InitialsCircle.unity-filters-popup-filter-selection-icon #Initials {
+    -unity-text-align: middle-center;
+    color: white;
+    font-size: 9px;
+    padding: 0;
+    margin: 0;
+}
+
 .unity-filters-popup-filter-no-selection {
     font-size: 14px;
     padding: 3px 8px;
@@ -693,6 +883,47 @@ PageTitle {
     min-width: 40px;
 }
 
+.unity-filters-popup-add-choice-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 3px 8px;
+    margin-top: 0px;
+}
+
+.unity-filters-popup-add-choice-button {
+    margin-left: 2px;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
+.unity-filters-popup-add-choice-text-field {
+    margin-right: 8px;
+    width:100px;
+}
+
+.unity-filters-popup-add-choice-row:hover {
+    background-color: var(--hover-highlight-color);
+    border-radius: 5px;
+}
+
+.unity-filters-popup-add-choice-label {
+    margin-left: 4px;
+}
+
+.unity-filters-popup-add-choice-input-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 3px 8px;
+}
+
+.unity-filters-popup-add-choice-input-row .unity-filters-popup-add-choice-text-field {
+    flex-grow: 1;
+}
+
+.unity-filters-popup-add-choice-add-button {
+    margin-left: 4px;
+}
+
 .unity-filters-popup-separator-line {
     height: 1px;
     margin: 8px;
@@ -710,6 +941,13 @@ PageTitle {
     flex-shrink: 0;
     align-items: center;
     margin-bottom: 5px;
+    max-width: 200px;
+}
+
+.unity-filters-chip > TextElement {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -unity-text-overflow-position: end;
 }
 
 .unity-filters-chip-delete {
@@ -719,6 +957,187 @@ PageTitle {
     height: 11px;
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Close.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+.unity-filters-expanded-input-row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.unity-filters-expanded-input-column {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.unity-filters-expanded-mode-row {
+    flex-direction: row;
+    align-items: center;
+    align-self: stretch;
+    justify-content: space-between;
+}
+
+.unity-filters-expanded-input-column .unity-filters-expanded-input-row {
+    align-self: stretch;
+}
+
+.unity-filters-expanded-text-field {
+    flex-grow: 1;
+    margin-left: -5px;
+    min-width: 250px;
+    align-items: flex-start;
+}
+
+.unity-filters-expanded-remove-button {
+    margin-left: 2px;
+    margin-right:10px;
+}
+
+.unity-filters-expanded-button-container {
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.unity-filters-expanded-right-container {
+    flex-direction: row;
+}
+
+.unity-filters-expanded-logic-selector {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    margin-left: 12px;
+    margin-right:12px;
+}
+
+.unity-filters-expanded-logic-label {
+    margin-right: 4px;
+}
+
+.unity-filters-expanded-logic-selector > .unity-filters-expanded-logic-label {
+    margin-left: 10px;
+}
+
+.unity-filters-expanded-logic-line {
+    flex-grow: 1;
+    margin-left: 8px;
+}
+
+.unity-filters-and-separator {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.unity-filters-and-separator-line {
+    flex-grow: 1;
+    height: 1px;
+}
+
+.unity-filters-and-separator-label {
+    margin-left: 8px;
+    margin-right: 8px;
+    -unity-text-align: middle-center;
+}
+
+/* Advanced Multi-Selection Filter */
+.unity-filters-advanced-mode-dropdown {
+    margin-bottom: 4px;
+    flex-grow: 1;
+}
+
+.unity-filters-advanced-mode-dropdown > .unity-base-popup-field__input {
+    flex-grow: 1;
+}
+
+.unity-filters-advanced-text-box {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    background-color: rgb(51, 51, 51);
+    border-width: 1px;
+    border-color: rgb(26, 26, 26);
+    border-radius: 3px;
+    padding-left: 4px;
+    min-height: 24px;
+    min-width: 200px;
+    align-self: stretch;
+}
+
+.unity-filters-advanced-pills-container {
+    flex-direction: column;
+    align-items: flex-start;
+    flex-grow: 1;
+}
+
+.unity-filters-advanced-value-dropdown {
+    width: 24px;
+    min-width: 24px;
+    flex-grow: 0;
+    flex-shrink: 0;
+    margin: 0;
+    align-self: stretch;
+    justify-content: center;
+    padding-right:5px;
+}
+
+.unity-filters-advanced-value-dropdown:hover .unity-base-popup-field__input{
+    background-color: rgb(66, 66, 66);
+}
+
+.unity-filters-advanced-value-dropdown > .unity-base-popup-field__input {
+    background-color: rgb(51, 51, 51);
+    padding-left: 0;
+    padding-right: 4px;
+    border-width:1px;
+    border-color: rgb(51, 51, 51);
+    flex-grow: 1;
+    justify-content: center;
+}
+
+.unity-filters-advanced-value-dropdown .unity-text-element {
+    display: none;
+}
+
+.unity-filters-advanced-pill {
+    flex-direction: row;
+    align-items: center;
+    background-color: rgb(89, 89, 89);
+    border-radius: 3px;
+    padding-left: 6px;
+    padding-right: 4px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    margin-right: 4px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+.unity-filters-advanced-pill-label {
+    font-size: 11px;
+    margin-right: 4px;
+}
+
+.unity-filters-advanced-pill-remove {
+    width: 12px;
+    height: 12px;
+}
+
+/* Date Selection Filter */
+.unity-filters-date-selection-mode-dropdown {
+    width: 65px;
+    margin-right:20px;
+}
+
+.unity-filters-date-selection-label {
+    width: 65px;
+    margin-left:2px;
+    margin-right:2px;
+}
+
+.unity-filters-date-selection-date-container {
+    margin-left: 20px;
 }
 
 /************************************************
@@ -762,7 +1181,7 @@ PageTitle {
     margin-right: 0;
     margin-left: 0;
     border-width: 1px;
-    border-left-width: 0;
+    border-left-width: 1px;
     border-radius: 0 3px 3px 0;
 }
 
@@ -1150,6 +1569,11 @@ TextField {
     min-width: 160px;
 }
 
+.toolbar-search-input #unity-text-input {
+    height: 100%;
+    align-items: center;
+}
+
 .toolbar-search-input.has-chips TextField #unity-text-input {
     border-color: #585858;
     border-width: 1px;
@@ -1310,8 +1734,13 @@ UserChip #Initials {
 ************************************************/
 
 .AssetManagerContentView {
-    height: 100%;
+    height:100%;
     overflow: hidden;
+}
+
+.customizable-section {
+    flex-grow: 1;
+    flex-direction: column;
 }
 
 AssetsGridView {
@@ -1515,7 +1944,7 @@ AssetsGridView {
     width: 16px;
     height: 16px;
     position: absolute;
-    margin: 4px;
+    margin: 2px;
     bottom: 0;
     right: 0;
 }
@@ -1540,20 +1969,20 @@ AssetsGridView {
 
 .grid-view--item-upload-duplicate {
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/AssetStatus/Plus@2x.png');
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     position: absolute;
-    margin: 4px;
+    margin: 2px;
     bottom: 0;
     right: 0;
 }
 
 .grid-view--item-upload-outside {
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/AssetStatus/Warning@2x.png');
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     position: absolute;
-    margin: 4px;
+    margin: 2px;
     bottom: 0;
     right: 0;
 }
@@ -1695,6 +2124,16 @@ HelpBox > Label {
     margin-left: 4px;
     font-size: 12px;
     min-width: 90px;
+}
+
+/* Action help box (SetHelpBoxMessage: deeplink warnings, connection, etc.) — match HelpBox padding and label font size */
+.action-helpbox {
+    padding: 10px;
+}
+.action-helpbox > Label {
+    font-size: 12px !important;
+    margin-right: 4px;
+    margin-left: 4px;
 }
 
 HelpBox > Button {
@@ -1853,26 +2292,30 @@ MultiAssetDetailsPage {
 
 .multi-selection-foldout {
     -unity-font-style: bold;
-    margin-top: 20px;
+    margin-top: 0;
+    margin-left: 0;
     flex-grow: 1;
 }
 
 .multi-selection-foldout > Toggle {
-    padding: 8px 10px 8px 10px;
-    margin: 0 0 5px 0;
+    padding: 2px 10px 2px 10px;
+    margin: 0;
+    border-top-width: 1px;
+    border-bottom-width: 0;
+    min-height: 24px;
 }
 
-.multi-selection-foldout > Toggle > VisualElement {
-    flex-direction: row-reverse;
-}
-
-.multi-selection-foldout > Toggle > VisualElement > Label {
-    position: absolute;
-    left: 5px;
-}
 
 .multi-selection-foldout > * > .unity-foldout__content {
     margin-left: 0;
+}
+
+.multi-selection-foldout .details-page-entry-value {
+    -unity-font-style: normal;
+}
+
+.multi-selection-foldout .details-page-chip-container {
+    -unity-font-style: normal;
 }
 
 /************************************************
@@ -1900,6 +2343,8 @@ AssetInspector {
 .details-page-asset-name-container {
     flex-direction: row;
     flex-shrink: 1;
+    flex-grow: 1;
+    margin-right: 8px;
 }
 
 .details-page-dashboard-link {
@@ -1987,21 +2432,251 @@ AssetInspector {
 }
 
 .asset-version-details-foldout {
-    margin-bottom: 8px;
+    margin-bottom: 0;
+    margin-left: 0;
 }
 
 .asset-version-details-foldout > Toggle {
     margin: 0;
-    padding: 2px 4px;
+    padding: 2px 10px;
     -unity-font-style: bold;
-    border-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 1px;
+    border-bottom-width: 0;
     flex-shrink: 1;
     min-width: 0;
+}
+
+.asset-version-details-foldout:checked > .unity-foldout__content {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    margin-right: 10px;
 }
 
 .asset-version-details-foldout > Toggle > .unity-toggle__input {
     flex-shrink: 1;
     min-width: 0;
+}
+
+.asset-version-details-foldout > Label,
+.asset-version-details-foldout > DetailsPageEntry {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+/************************************************
+* Activity Tab
+************************************************/
+.asset-version-details-foldout.activity-foldout {
+    margin-bottom: 2px;
+    padding-left: 10px;
+    width: 100%;
+    background-color: var(--activity-foldout-background);
+}
+
+.asset-version-details-foldout.activity-foldout > Toggle {
+    padding: 8px 4px;
+    flex-shrink: 0;
+    width: 100%;
+    background-color: var(--activity-foldout-background);
+    border-top-width: 0;
+}
+
+.asset-version-details-foldout.activity-foldout > Toggle > .unity-toggle__input {
+    flex-grow: 0;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.asset-version-details-foldout.activity-foldout > .unity-foldout__content {
+    margin-left: 0;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.activity-foldout--no-toggle > Toggle > .unity-foldout__input {
+    visibility: hidden;
+}
+
+.activity-foldout--no-toggle > Toggle {
+    cursor: arrow;
+}
+
+.history-change-block {
+    margin-bottom: 8px;
+    padding: 12px;
+    border-radius: 4px;
+    background-color: var(--history-change-block-background);
+}
+
+.history-change-title-row {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.history-change-field-name {
+    -unity-font-style: bold;
+    margin-right: 4px;
+}
+
+.history-change-action-icon {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    margin-right: 8px;
+    justify-content: center;
+    align-items: center;
+}
+
+.history-change-action-icon > Label {
+    -unity-text-align: middle-center;
+    color: white;
+    font-size: 11px;
+    -unity-font-style: bold;
+    padding: 0;
+    margin: 0;
+}
+
+/* Action icon background colors */
+.history-change-action-icon.history-change-action--added {
+    background-color: #14A859;
+}
+
+.history-change-action-icon.history-change-action--changed {
+    background-color: #3A79BB;
+}
+
+.history-change-action-icon.history-change-action--removed {
+    background-color: #C04040;
+}
+
+Label.history-change-action--added {
+    color: rgb(177, 241, 203);
+    -unity-font-style: bold;
+}
+
+Label.history-change-action--changed {
+    color: rgb(139, 199, 255);
+    -unity-font-style: bold;
+}
+
+Label.history-change-action--removed {
+    color: rgb(255, 209, 217);
+    -unity-font-style: bold;
+}
+
+.history-change-value-cell {
+    margin-bottom: 4px;
+}
+
+.history-change-section-label {
+    color: var(--history-change-section-label-color);
+    margin-top: 4px;
+    margin-bottom: 4px;
+    font-size: 11px;
+}
+
+.history-change-section-label-horizontal {
+    color: var(--history-change-section-label-color);
+    margin-bottom: 4px;
+    font-size: 11px;
+    padding-left: 4px;
+}
+
+.history-change-arrow-row {
+    align-items: center;
+    justify-content: flex-start;
+    margin: 6px 0;
+    height: 20px;
+}
+
+.history-change-arrow {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    min-height: 16px;
+    background-size: 16px 16px;
+    background-position: center;
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Arrow-Right.png');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+.history-change-arrow-vertical {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    min-height: 16px;
+    background-size: 16px 16px;
+    background-position: center;
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Arrow-Down.png');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+.history-change-divider {
+    height: 1px;
+    margin: 12px 0;
+    background-color: var(--history-change-divider-color);
+}
+
+/* Activity header styles */
+.activity-header-column {
+    flex-direction: column;
+    align-items: flex-start;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.activity-header-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    align-self: flex-start;
+}
+
+.activity-header-text {
+    margin-left: 4px;
+}
+
+.activity-date-label {
+    margin-top: 2px;
+    align-self: flex-start;
+}
+
+.activity-user-icon {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    border-radius: 10px;
+    margin-right: 8px;
+    flex-shrink: 0;
+    justify-content: center;
+    align-items: center;
+}
+
+.activity-user-icon > Label {
+    -unity-text-align: middle-center;
+    color: white;
+    font-size: 9px;
+    -unity-font-style: bold;
+    padding: 0;
+    margin: 0;
+}
+
+.activity-user-name {
+    flex-shrink: 1;
+}
+
+.activity-load-more-button {
+    margin: 8px 0;
+    padding: 8px 16px;
+    align-self: center;
+    -unity-font-style: normal;
 }
 
 .asset-version-label-container {
@@ -2020,7 +2695,6 @@ AssetInspector {
 .details-page-content-container {
     flex-grow: 0;
     flex-shrink: 0;
-    padding: 10px;
 }
 
 .details-page-scrollview > #unity-content-and-vertical-scroll-container > #unity-content-viewport > #unity-content-container {
@@ -2029,6 +2703,8 @@ AssetInspector {
 
 .details-page-entries-container {
     flex-shrink: 0;
+    margin-left: 10px;
+    margin-right: 10px;
 }
 
 .details-page-thumbnail-container {
@@ -2051,6 +2727,7 @@ AssetInspector {
 .details-page-chip-container {
     flex-direction: row;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .details-page-chip {
@@ -2120,24 +2797,36 @@ AssetInspector {
 .details-files-foldout {
     -unity-font-style: bold;
     flex-grow: 1;
-    margin-top: 10px;
-    margin-bottom: 10px;
+    margin-top: 0;
+    margin-bottom: 0;
     margin-left: 0;
 }
 
+/* Only apply negative margins to foldouts inside entries-container */
+.details-page-entries-container .details-files-foldout,
+.details-page-entries-container > .multi-selection-foldout {
+    margin-left: -10px;
+    margin-right: -10px;
+}
+
 .details-files-foldout > Toggle {
-    padding: 8px 10px 8px 10px;
-    margin: 0 0 5px 0;
+    padding: 2px 10px 2px 10px;
+    margin: 0;
+    border-top-width: 1px;
+    border-bottom-width: 0;
 }
 
-.details-files-foldout > Toggle > VisualElement {
-    flex-direction: row-reverse;
+.details-files-foldout:checked > .unity-foldout__content {
+    margin-top: 5px;
+    margin-bottom: 5px;
 }
 
-.details-files-foldout > Toggle > VisualElement > Label {
-    position: absolute;
-    left: 5px;
+/* Foldouts in files-container need extra padding since they're not in entries-container */
+#files-container .details-files-foldout > Toggle {
+    padding-left: 10px;
+    padding-right: 10px;
 }
+
 
 .details-files-foldout-uvcs-chip {
     position: absolute;
@@ -2165,6 +2854,8 @@ AssetInspector {
     height: 55px;
     margin-top: 5px;
     margin-bottom: 5px;
+    margin-left: 10px;
+    margin-right: 10px;
     border-radius: 5px;
     flex-shrink: 0;
     border-width: 1px;
@@ -2177,6 +2868,8 @@ AssetInspector {
     height: 55px;
     margin-top: 5px;
     margin-bottom: 5px;
+    margin-left: 10px;
+    margin-right: 10px;
     border-radius: 5px;
     flex-shrink: 0;
     border-width: 1px;
@@ -2189,6 +2882,8 @@ AssetInspector {
     height: 55px;
     margin-top: 5px;
     margin-bottom: 5px;
+    margin-left: 10px;
+    margin-right: 10px;
     border-radius: 5px;
     flex-shrink: 0;
     border-width: 1px;
@@ -2201,6 +2896,8 @@ AssetInspector {
     height: 55px;
     margin-top: 5px;
     margin-bottom: 5px;
+    margin-left: 10px;
+    margin-right: 10px;
     border-radius: 5px;
     flex-shrink: 0;
     border-width: 1px;
@@ -2211,7 +2908,7 @@ AssetInspector {
 .no-dependencies-label {
     align-self: center;
     -unity-font-style: bold;
-    margin: 10px 0;
+    margin: 10px;
     flex-wrap: wrap;
     white-space: normal;
     -unity-text-align: middle-center;
@@ -2267,6 +2964,8 @@ AssetInspector {
     width: auto;
     margin-top: 5px;
     margin-bottom: 5px;
+    margin-left: 10px;
+    margin-right: 10px;
     border-radius: 5px;
     flex-shrink: 0;
     border-width: 1px;
@@ -2469,7 +3168,7 @@ AssetInspector {
     margin-right: 0;
     margin-left: 0;
     border-width: 1px;
-    border-left-width: 0;
+    border-left-width: 1px;
     border-radius: 0 3px 3px 0;
 }
 
@@ -2631,6 +3330,8 @@ AssetInspector {
 
 .details-files-foldout .unity-foldout__content {
     margin-left: 0;
+    padding-left: 12px;
+    padding-right: 10px;
 }
 
 .details-page-three-dots-item {
@@ -2690,11 +3391,20 @@ AssetInspector {
     align-items: center;
 }
 
+.details-page-entry.details-page-entry--editing {
+    margin-bottom: 22px;
+}
+
 .details-page-entry-value {
     -unity-text-align: middle-left;
     text-overflow: ellipsis;
     overflow: hidden;
     flex-shrink: 1;
+}
+
+/* Match TextField input left offset (1px border + 2px padding) so value labels align with inline-edit text */
+Label.details-page-entry-value {
+    padding-left: 4.5px;
 }
 
 .details-page-entry-value-text {
@@ -2710,6 +3420,8 @@ AssetInspector {
     justify-content: center;
     flex-grow: 1;
     margin-top: 24px;
+    margin-left: 10px;
+    margin-right: 10px;
     -unity-font-style: normal;
     -unity-text-align: middle-center;
 }
@@ -2879,15 +3591,22 @@ AssetInspector {
     margin-bottom:5px;
 }
 
+.metadata-page-entry.metadata-page-entry--editing-popup-below {
+    margin-bottom: 22px;
+}
+
 .metadata-page-entry-label {
     text-overflow: ellipsis;
     overflow: hidden;
     -unity-text-align: middle-left;
     -unity-font-style: bold;
     margin-right: 5px;
-    margin-left: 20px;
-    flex-shrink: 1;
+    margin-left: 5px;
+    flex-shrink: 0;
     flex-grow: 0;
+    min-width: 20px;
+    width: 90px;
+    align-self: center;
 }
 
 .metadata-field-and-button-container {
@@ -2898,6 +3617,11 @@ AssetInspector {
     align-items: center;
 }
 
+.metadata-page-entry--no-label .metadata-field-and-button-container {
+    margin-left: 20px;
+}
+
+/* Shared by all metadata rows (label + field or no-label field only). */
 .metadata-page-entry-metadata-field {
     flex-grow: 1;
     flex-shrink: 1;
@@ -2905,14 +3629,9 @@ AssetInspector {
     align-self: center;
     min-width: 0;
     flex-basis: 0;
+    -unity-font-style: normal;
 }
 
-.metadata-page-entry-label{
-    min-width: 20px;
-    flex-shrink: 0;
-    width:90px;
-    align-self: flex-start;
-}
 
 .metadata-page-entry-kebab-button {
     background-size: 16px 16px;
@@ -2922,7 +3641,7 @@ AssetInspector {
     flex-shrink: 0;
     background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Settings.png');
     -unity-background-image-tint-color: var(--icon-tint-color);
-    align-self: flex-start;
+    align-self: center;
 }
 
 .invalid-field-label {
@@ -3032,6 +3751,7 @@ AssetInspector {
 }
 
 .settings-foldout > Toggle {
+    padding: 2px 10px;
     margin-bottom: 6px;
     -unity-font-style: bold;
 }
@@ -3262,6 +3982,13 @@ AssetInspector {
     min-width: 140px;
 }
 
+.upload-page-settings-panel .unity-toggle__input {
+    flex-grow: 0;
+    flex-shrink: 0;
+    right: 0;
+    margin-left:35px;
+}
+
 .upload-page-all-settings-section {
     flex-direction: row;
     -unity-text-align: middle-left;
@@ -3275,7 +4002,11 @@ AssetInspector {
 * Custom Section
 ************************************************/
 
-.upload-page-custom-section,
+.upload-page-custom-section {
+    flex-grow: 1;
+    flex-direction: column;
+}
+
 .in-project-page-custom-section {
     flex-direction: row;
     justify-content: flex-end;
@@ -3288,7 +4019,12 @@ AssetInspector {
     flex-direction: row;
 }
 
-.upload-page-all-actions-section,
+.upload-page-all-actions-section {
+    flex-direction: row;
+    height: 30px;
+    margin-left: auto;
+}
+
 .in-project-page-all-actions-section {
     flex-direction: row;
     height: 30px;
@@ -3382,6 +4118,7 @@ PopupContainer {
 }
 
 .reimport-foldout Toggle {
+    padding: 2px 10px;
     margin-left: 0;
     margin-right: 0;
     flex-shrink: 1;
@@ -3504,4 +4241,279 @@ BlockingProgressPanel ProgressBar .progress-bar {
     border-width: 1px;
     padding: 12px;
     margin: 32px;
+}
+
+/************************************************
+* Asset Manager Footer
+************************************************/
+
+.asset-manager-footer {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 8px;
+    flex-shrink: 0;
+    min-height: 24px;
+    border-top-width: 1px;
+    border-top-color: rgba(0, 0, 0, 0.2);
+}
+
+.asset-manager-footer-label {
+    margin-right: 8px;
+    -unity-font-style: normal;
+}
+
+Button.asset-manager-footer-refresh-button {
+    background-image: none;
+    border-width: 0;
+    padding: 0;
+    cursor: link;
+    background-color: rgba(0, 0, 0, 0);
+    color: rgba(76, 126, 255, 1);
+}
+
+/************************************************
+* Upload Hierarchy View
+************************************************/
+
+.upload-hierarchy-view {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.upload-hierarchy-scrollview {
+    flex-grow: 1;
+}
+
+.upload-hierarchy-row-container {
+    flex-grow: 1;
+}
+
+.upload-hierarchy-row {
+    flex-direction: row;
+    align-items: center;
+    height: 22px;
+    padding-left: 4px;
+    padding-right: 8px;
+}
+
+.upload-hierarchy-row--hovered {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.upload-hierarchy-row--selected {
+    background-color: rgba(76, 126, 255, 0.3);
+}
+
+.upload-hierarchy-row--ignored {
+    opacity: 0.5;
+}
+
+.upload-hierarchy-row__indent {
+    flex-shrink: 0;
+}
+
+.upload-hierarchy-row__expand-arrow {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-right: 2px;
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+.upload-hierarchy-row__expand-arrow--expanded {
+    background-image: resource("uipackageresources/images/d_in_foldout_on.png");
+}
+
+.upload-hierarchy-row__expand-arrow--collapsed {
+    background-image: resource("uipackageresources/images/d_in_foldout.png");
+}
+
+.upload-hierarchy-row__expand-arrow--hidden {
+    visibility: hidden;
+}
+
+.upload-hierarchy-row__checkbox {
+    flex-shrink: 0;
+    margin-right: 4px;
+    margin-left: 0;
+    top:2px;
+}
+
+.upload-hierarchy-row__checkbox > .unity-toggle__input {
+    flex-grow: 0;
+}
+
+.upload-hierarchy-row__checkbox--indeterminate > .unity-toggle__input > .unity-toggle__checkmark {
+    background-color: rgba(76, 126, 255, 0.5);
+}
+
+.upload-hierarchy-row__thumbnail-container {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    margin-right: 6px;
+}
+
+.upload-hierarchy-row__thumbnail {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    background-size: contain;
+    background-position: center;
+}
+
+.upload-hierarchy-row__thumbnail--folder {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Folder-Open.png');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+.upload-hierarchy-row__thumbnail--folder-collapsed {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Icons/Folder-Close.png');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+.upload-hierarchy-row__status-overlay {
+    position: absolute;
+    right: -24px;
+    top: 6px;
+    width: 16px;
+    height: 16px;
+    flex-direction: row;
+}
+
+.upload-hierarchy-row__status-overlay .grid-view--item-upload-add, .upload-hierarchy-row__status-overlay .grid-view--item-upload-duplicate{
+    width: 16px;
+    height: 16px;
+    right: 2px;
+    top: -5px;
+}
+
+.upload-hierarchy-row__status-overlay > * {
+    width: 24px;
+    height: 24px;
+    margin-right: 2px;
+}
+
+.upload-hierarchy-row__name {
+    flex-grow: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    -unity-text-align: middle-left;
+    margin-left:14px;
+}
+
+.upload-hierarchy-row__extension {
+    flex-shrink: 0;
+    flex-grow: 0;
+    margin-left: 0;
+    color: rgba(128, 128, 128, 1);
+    font-size: 11px;
+    -unity-text-align: middle-left;
+}
+
+.upload-hierarchy-row__dependency-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    margin-left: 4px;
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Common/Link.png');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+    align-self: center;
+}
+
+.upload-hierarchy-row__reupload-collection-warning-icon {
+    flex-shrink: 0;
+    margin-left: 4px;
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+    -unity-text-align: middle-center;
+    -unity-font-style: bold;
+    align-self: center;
+    background-color: rgb(136, 136, 136);
+    border-radius: 8px;
+    padding-left:2px;
+}
+
+.upload-hierarchy-row__spacer {
+    flex-grow: 1;
+}
+
+.upload-hierarchy-row__role-chip {
+    display: none;
+    flex-shrink: 0;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    background-color: rgba(255, 255, 255, 0.1);
+    -unity-text-align: middle-center;
+}
+
+.upload-hierarchy-row--project-root .upload-hierarchy-row__role-chip {
+    display: flex;
+}
+
+.upload-hierarchy-row__progress-bar {
+    width: 100px;
+    flex-shrink: 0;
+    margin-left: 8px;
+    margin-right: 8px;
+}
+
+.upload-hierarchy-row__progress-bar > * {
+    height: 3px;
+    border-radius: 2px;
+}
+
+.upload-hierarchy-row__thumbnail--project-root {
+    background-image: resource('Packages/com.unity.asset-manager-for-unity/Editor/UI/EditorResources/Images/Common/Unity-Ellipse.png');
+    -unity-background-image-tint-color: var(--icon-tint-color);
+}
+
+/* Project root specific styles */
+.upload-hierarchy-row--project-root .upload-hierarchy-row__name {
+    -unity-font-style: bold;
+}
+
+/* Folder-specific styles */
+.upload-hierarchy-row--folder .upload-hierarchy-row__name {
+    -unity-font-style: bold;
+}
+
+/* Asset-specific styles */
+.upload-hierarchy-row--asset .upload-hierarchy-row__thumbnail {
+    border-radius: 2px;
+}
+
+/* SuperRoot is invisible - it's a virtual container for multi-project uploads */
+.upload-hierarchy-row--super-root {
+    display: none;
+}
+
+/* Empty state message for upload hierarchy */
+.upload-hierarchy-empty-state {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50%;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.upload-hierarchy-empty-state__label {
+    -unity-text-align: middle-center;
+    font-size: 22px;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    height: auto;
+    margin-top: 10px;
+    margin-bottom: 10px;
 }

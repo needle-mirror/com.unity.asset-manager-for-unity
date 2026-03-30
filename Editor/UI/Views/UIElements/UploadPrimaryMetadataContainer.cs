@@ -23,12 +23,17 @@ namespace Unity.AssetManager.UI.Editor
         readonly IAssetDataManager m_AssetDataManager;
 
         readonly AssetDataSelection m_SelectedAssetsData = new();
-        readonly List<AssetFieldContainer> m_FieldContainers = new();
+        readonly IFieldChangeHandler m_FieldChangeHandler;
+
+        MultiEditTextEntry m_DescriptionEntry;
+        MultiEditStatusEntry m_StatusEntry;
+        MultiEditTagsEntry m_TagsEntry;
 
         public UploadPrimaryMetadataContainer(IPageManager pageManager, IAssetDataManager assetDataManager)
         {
             m_PageManager = pageManager;
             m_AssetDataManager = assetDataManager;
+            m_FieldChangeHandler = new LocalStagingFieldChangeHandler(ApplyEdits);
 
             BuildUI();
 
@@ -46,7 +51,7 @@ namespace Unity.AssetManager.UI.Editor
             title.AddToClassList(UssStyle.k_UploadMetadataTitle);
             Add(title);
 
-            CreateFieldContainers();
+            CreateEntries();
 
             if (m_PageManager.ActivePage == null)
                 return;
@@ -54,69 +59,95 @@ namespace Unity.AssetManager.UI.Editor
             m_SelectedAssetsData.Selection = m_AssetDataManager.GetAssetsData(m_PageManager.ActivePage.SelectedAssets);
         }
 
-        void CreateFieldContainers()
+        void CreateEntries()
         {
-            var uploadAssetSelection = m_SelectedAssetsData.Selection.Cast<UploadAssetData>();
+            var selection = m_SelectedAssetsData.Selection;
 
-            var descriptionContainer = new DescriptionFieldContainer(uploadAssetSelection, GetImportedAssetInfo, ApplyEdits);
-            m_FieldContainers.Add(descriptionContainer);
-            Add(descriptionContainer.Root);
+            m_DescriptionEntry = new MultiEditTextEntry(
+                Constants.DescriptionText,
+                selection,
+                inlineEditService: null,
+                EditField.Description,
+                fieldChangeHandler: m_FieldChangeHandler,
+                isEdited: () => IsDescriptionEdited());
+            m_DescriptionEntry.ConfigureEditing(EditingMode.Upload);
+            Add(m_DescriptionEntry);
 
-            var statusContainer = new StatusFieldContainer(uploadAssetSelection, GetImportedAssetInfo, ApplyEdits);
-            m_FieldContainers.Add(statusContainer);
-            Add(statusContainer.Root);
+            m_StatusEntry = new MultiEditStatusEntry(
+                Constants.StatusText,
+                selection,
+                inlineEditService: null,
+                EditField.Status,
+                fieldChangeHandler: m_FieldChangeHandler,
+                isEdited: () => IsStatusEdited());
+            m_StatusEntry.ConfigureEditing(EditingMode.Upload);
+            Add(m_StatusEntry);
 
-            var tagsContainer = new TagsFieldContainer(uploadAssetSelection, GetImportedAssetInfo, ApplyEdits);
-            m_FieldContainers.Add(tagsContainer);
-            Add(tagsContainer.Root);
+            m_TagsEntry = new MultiEditTagsEntry(
+                Constants.TagsText,
+                selection,
+                inlineEditService: null,
+                fieldChangeHandler: m_FieldChangeHandler,
+                isEdited: () => AreTagsEdited());
+            m_TagsEntry.ConfigureEditing(EditingMode.Upload);
+            Add(m_TagsEntry);
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
             m_PageManager.SelectedAssetChanged += OnSelectedAssetChanged;
-            EnableFields();
+            UpdateEntries();
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
         {
-            DisableFields();
             m_PageManager.SelectedAssetChanged -= OnSelectedAssetChanged;
+            m_DescriptionEntry?.Dispose();
+            m_StatusEntry?.Dispose();
+            m_TagsEntry?.Dispose();
         }
 
         void OnSelectedAssetChanged(IPage page, IEnumerable<AssetIdentifier> identifiers)
         {
-            foreach (var fieldContainer in m_FieldContainers)
-            {
-                fieldContainer.SavePendingChanges();
-            }
+            m_DescriptionEntry?.SavePendingEdits();
+            m_StatusEntry?.SavePendingEdits();
+            m_TagsEntry?.SavePendingEdits();
 
             m_SelectedAssetsData.Selection = m_AssetDataManager.GetAssetsData(identifiers);
-            UpdateFields();
+            UpdateEntries();
         }
 
-        void EnableFields()
+        void UpdateEntries()
         {
-            UpdateFields();
-            foreach (var fieldContainer in m_FieldContainers)
-                fieldContainer.Enable();
-        }
-
-        void DisableFields()
-        {
-            foreach (var fieldContainer in m_FieldContainers)
-                fieldContainer.Disable();
-        }
-
-        void UpdateFields()
-        {
-            foreach (var fieldContainer in m_FieldContainers)
-                fieldContainer.UpdateField(m_SelectedAssetsData.Selection);
+            var selection = m_SelectedAssetsData.Selection;
+            m_DescriptionEntry?.UpdateSelection(selection);
+            m_StatusEntry?.UpdateSelection(selection);
+            m_TagsEntry?.UpdateSelection(selection);
         }
 
         ImportedAssetInfo GetImportedAssetInfo(string assetId)
         {
             return m_AssetDataManager?.GetImportedAssetInfo(assetId);
         }
+
+        bool IsDescriptionEdited() => UploadFieldUtils.IsFieldEdited(
+            m_SelectedAssetsData.Selection,
+            GetImportedAssetInfo,
+            asset => asset.Description,
+            info => info?.AssetData?.Description);
+
+        bool IsStatusEdited() => UploadFieldUtils.IsFieldEdited(
+            m_SelectedAssetsData.Selection,
+            GetImportedAssetInfo,
+            asset => asset.Status,
+            info => info?.AssetData?.Status);
+
+        bool AreTagsEdited() => UploadFieldUtils.IsFieldEdited(
+            m_SelectedAssetsData.Selection,
+            GetImportedAssetInfo,
+            asset => asset.Tags ?? Enumerable.Empty<string>(),
+            info => info?.AssetData?.Tags ?? Enumerable.Empty<string>(),
+            areEqual: (x, y) => x.SequenceEqual(y));
 
         void ApplyEdits(IEnumerable<AssetFieldEdit> edits)
         {
@@ -144,8 +175,7 @@ namespace Unity.AssetManager.UI.Editor
             var uploadPage = m_PageManager.ActivePage as UploadPage;
             uploadPage?.OnAssetSelectionEdited(edits);
 
-            UpdateFields();
+            UpdateEntries();
         }
     }
 }
-

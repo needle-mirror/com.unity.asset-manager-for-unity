@@ -132,19 +132,19 @@ namespace Unity.AssetManager.Core.Editor
         /// </summary>
         /// <param name="packageInfo">CustomPackageInfo object containing available versions</param>
         /// <returns>Semver version string or null if not found</returns>
-        static string GetLatestReleaseVersion(PackageInfo packageInfo)
+        internal static string GetLatestReleaseVersion(PackageInfo packageInfo)
         {
             if (packageInfo == null || packageInfo.versions.compatible.Length == 0)
                 return null;
 
-            var releaseVersions = new List<string>();
+            var releaseVersions = new List<(SemanticVersion, string)>();
 
             // First try to find a release version (without pre-release identifiers)
             foreach (var package in packageInfo.versions.compatible)
             {
                 if (SemanticVersion.TryParse(package, out var version) && version.IsRelease)
                 {
-                    releaseVersions.Add(package);
+                    releaseVersions.Add((version, package));
                 }
             }
 
@@ -152,8 +152,10 @@ namespace Unity.AssetManager.Core.Editor
             {
                 return packageInfo.versions.compatible.FirstOrDefault();
             }
-            releaseVersions.Sort();
-            return releaseVersions.Last();
+
+            // Compare using the SemanticVersion comparer, but return the string
+            releaseVersions.Sort((x, y) => x.Item1.CompareTo(y.Item1));
+            return releaseVersions.Last().Item2;
         }
     }
 }

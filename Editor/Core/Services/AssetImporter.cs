@@ -923,7 +923,20 @@ namespace Unity.AssetManager.Core.Editor
                         .SelectMany(d => d.SystemTags)
                         .Where(t => !string.IsNullOrEmpty(t));
 
-                    AnalyticsSender.SendEvent(new ImportEvent(trigger, assetData.Identifier.AssetId, fileCount, fileExtension, systemTags));
+                    // Extract linked collection paths for analytics
+                    var linkedCollectionPaths = assetData.LinkedCollections?
+                        .Select(c => c.CollectionPath)
+                        .Where(path => !string.IsNullOrEmpty(path));
+
+                    AnalyticsSender.SendEvent(new ImportEvent(
+                        trigger,
+                        assetData.Identifier.AssetId,
+                        fileCount,
+                        fileExtension,
+                        systemTags,
+                        assetData.Identifier.OrganizationId,
+                        assetData.Identifier.ProjectId,
+                        linkedCollectionPaths));
                 }
             }
         }

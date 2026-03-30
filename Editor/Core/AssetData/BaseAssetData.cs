@@ -49,6 +49,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public abstract IEnumerable<AssetIdentifier> Dependencies { get; internal set; }
         public abstract IEnumerable<BaseAssetData> Versions { get; }
+        public abstract IReadOnlyList<HistoryChangeEntry> UpdateHistoryChanges { get; }
         public abstract IEnumerable<AssetLabel> Labels { get; }
 
         public abstract Task GetThumbnailAsync(CancellationToken token = default);
@@ -57,6 +58,7 @@ namespace Unity.AssetManager.Core.Editor
         public abstract Task RefreshAssetDataAttributesAsync(CancellationToken token = default);
         public abstract Task RefreshPropertiesAsync(CancellationToken token = default);
         public abstract Task RefreshVersionsAsync(CancellationToken token = default);
+        public abstract Task RefreshUpdateHistoryAsync(CancellationToken token = default);
         public abstract Task RefreshDependenciesAsync(CancellationToken token = default);
         public abstract Task RefreshLinkedProjectsAsync(CancellationToken token = default);
         public abstract Task RefreshLinkedCollectionsAsync(CancellationToken token = default);

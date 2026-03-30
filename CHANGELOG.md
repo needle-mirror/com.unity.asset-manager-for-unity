@@ -4,6 +4,29 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-03-30
+
+[Added]
+- Added an option "Match project structure" in the Upload Settings. This option automatically organizes assets in the Asset Manager dashboard to match your project structure.
+- Added a "Metadata History" tab for the selected asset which shows the history of changes to its metadata for the currently imported version.
+- Added a new OrganizationListChanged event in ProjectOrganizationProvider.
+- Added a footer with the capacity to refresh the internal asset cache when in the "In project" tab.
+- Added the ability to edit asset metadata in the asset inspector.
+- Added the ability to filter assets by id.
+- `ServicesEnabledChanged` on private cloud settings, raised when enabling or disabling private cloud services.
+
+[Changed]
+- Changes to colour styling in the Asset Details panel.
+- Upload tabs is now in the form of a hierarchy list instead of a grid.
+- Toggling **Enable Private Cloud Services** now clears persisted and in-memory organization and project related data.
+
+[Fixed]
+- Fixed nested "Assets" directories being incorrectly stripped from tracking file paths.
+- Fixed issue where re-upload an asset with dependencies could mark those dependencies as "new".
+- Fix thumnails not loading for staged asset in the upload tab soon after they were imported.
+- Fix deep linking to an inaccessible project no longer display  "loading..." in organization selector.
+- Fix to show the correct latest version in the New Version Notification banner.
+
 ## [1.10.0] - 2026-02-06
 
 [Added]

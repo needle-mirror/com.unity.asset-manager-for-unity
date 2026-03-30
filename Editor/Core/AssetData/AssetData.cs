@@ -80,12 +80,16 @@ namespace Unity.AssetManager.Core.Editor
         [SerializeReference]
         List<AssetLabel> m_Labels = new();
 
+        [SerializeReference]
+        List<HistoryChangeEntry> m_UpdateHistoryChanges;
+
         Task<Uri> m_GetPreviewStatusTask;
         Task m_AssetDataAttributesTask;
         Task m_DatasetTask;
         Task m_RefreshPropertiesTask;
         Task m_RefreshDependenciesTask;
         Task m_RefreshVersionsTask;
+        Task m_RefreshUpdateHistoryTask;
         Task m_ThumbnailUrlTask;
         CachedTask m_LinkedProjectsTask;
         CachedTask m_LinkedCollectionsTask;
@@ -117,6 +121,7 @@ namespace Unity.AssetManager.Core.Editor
         }
 
         public override IEnumerable<BaseAssetData> Versions => m_Versions;
+        public override IReadOnlyList<HistoryChangeEntry> UpdateHistoryChanges => m_UpdateHistoryChanges ?? (IReadOnlyList<HistoryChangeEntry>)Array.Empty<HistoryChangeEntry>();
 
         IThumbnailDownloader ThumbnailDownloader =>
             m_ThumbnailDownloader ??= ServicesContainer.instance.Resolve<IThumbnailDownloader>();
@@ -279,7 +284,7 @@ namespace Unity.AssetManager.Core.Editor
         /// Fills AssetData with only the essential fields stored in tracking files.
         /// This method is used when reading from per-Unity-file tracking format (V4+),
         /// where only minimal tracking data is stored on disk.
-        /// 
+        ///
         /// Additional fields (status, dependencies, metadata, etc.) are not stored in tracking files
         /// and will be populated from the UI cache when needed.
         /// </summary>
@@ -386,6 +391,8 @@ namespace Unity.AssetManager.Core.Editor
             if (!string.IsNullOrEmpty(entry.created) && DateTime.TryParse(entry.created, null, System.Globalization.DateTimeStyles.RoundtripKind, out var created))
                 m_Created = created.Ticks;
 
+            if (!string.IsNullOrEmpty(entry.updated) && DateTime.TryParse(entry.updated, null, System.Globalization.DateTimeStyles.RoundtripKind, out var updated))
+                m_Updated = updated.Ticks;
 
             // Linked projects (set directly to backing field to avoid event)
             if (entry.linkedProjects != null && entry.linkedProjects.Count > 0)
@@ -412,6 +419,31 @@ namespace Unity.AssetManager.Core.Editor
             if (metadata.Any())
                 SetMetadata(metadata);
 
+            // Populate datasets from cache (dataset definitions are per-asset data stored in the cache,
+            // not in per-file tracking files which only reference datasets by ID)
+            if (entry.datasets != null && entry.datasets.Count > 0)
+            {
+                var filesByPath = entry.files?.ToDictionary(f => f.path, f => f)
+                    ?? new Dictionary<string, AssetDataCacheFile>();
+
+                m_Datasets = entry.datasets
+                    .Where(d => !string.IsNullOrEmpty(d.id))
+                    .Select(d =>
+                    {
+                        var datasetFiles = d.fileKeys?
+                            .Select(key => filesByPath.GetValueOrDefault(key))
+                            .Where(f => f != null)
+                            .Select(f => (BaseAssetDataFile)new AssetDataFile(
+                                f.path, f.extension, null, f.description, f.tags?.ToList(), f.fileSize, f.available))
+                            .ToList();
+
+                        return new AssetDataset(d.id, d.name, d.systemTags, datasetFiles);
+                    })
+                    .ToList();
+
+                ResolvePrimaryExtension();
+            }
+
             // Populate parentSequenceNumber if available in cache
             if (entry.parentSequenceNumber != 0)
                 m_ParentSequenceNumber = entry.parentSequenceNumber;
@@ -431,7 +463,7 @@ namespace Unity.AssetManager.Core.Editor
                     newIdentifier.LibraryId = entry.libraryId;
                 else if (!string.IsNullOrEmpty(m_Identifier.LibraryId))
                     newIdentifier.LibraryId = m_Identifier.LibraryId;
-                
+
                 m_Identifier = newIdentifier;
             }
 
@@ -457,6 +489,18 @@ namespace Unity.AssetManager.Core.Editor
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Refreshes asset attributes and notifies subscribers after cache data has been populated.
+        /// Call this after <see cref="IAssetDataCacheManager.PopulateFromCache"/> to update import status and UI.
+        /// </summary>
+        /// <param name="token">Cancellation token to abort the refresh operation.</param>
+        public async Task NotifyCachePopulatedAsync(CancellationToken token = default)
+        {
+            await RefreshAssetDataAttributesAsync(token);
+            InvokeEvent(AssetDataEventType.PropertiesChanged);
+            InvokeEvent(AssetDataEventType.AssetDataAttributesChanged);
         }
 
         public override async Task GetThumbnailAsync(CancellationToken token = default)
@@ -679,8 +723,8 @@ namespace Unity.AssetManager.Core.Editor
 
         async Task RefreshPropertiesInternalAsync(CancellationToken token = default)
         {
-            var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
-            var updatedAsset = await assetsSdkProvider.GetAssetAsync(Identifier, token);
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+            var updatedAsset = await assetDataManager.GetAssetAsync(Identifier, token);
 
             if (updatedAsset == null)
             {
@@ -766,6 +810,72 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             m_Versions = versions;
+        }
+
+        public override async Task RefreshUpdateHistoryAsync(CancellationToken token = default)
+        {
+            m_RefreshUpdateHistoryTask ??= RefreshUpdateHistoryInternalAsync(token);
+            try
+            {
+                await m_RefreshUpdateHistoryTask;
+            }
+            catch (HttpRequestException)
+            {
+                // Ignore unreachable host
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if the Asset is unavailable
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the Asset is not found
+            }
+            finally
+            {
+                m_RefreshUpdateHistoryTask = null;
+            }
+        }
+
+        async Task RefreshUpdateHistoryInternalAsync(CancellationToken token)
+        {
+            var assetsSdkProvider = ServicesContainer.instance.Resolve<IAssetsProvider>();
+            var list = new List<AssetUpdateHistorySnapshot>();
+            await foreach (var entry in assetsSdkProvider.GetUpdateHistoryAsync(m_Identifier, token))
+            {
+                var tags = entry.Tags != null ? new List<string>(entry.Tags) : (List<string>)null;
+                var metadata = MapHistoryMetadataToStrings(entry.Metadata);
+                list.Add(new AssetUpdateHistorySnapshot(
+                    entry.SequenceNumber,
+                    entry.Updated,
+                    entry.UpdatedBy.ToString(),
+                    entry.Name,
+                    entry.Description,
+                    tags,
+                    metadata));
+            }
+            // SDK returns history in descending order (newest first); diff helper expects chronological order (oldest first).
+            list.Reverse();
+            m_UpdateHistoryChanges = HistoryDiffHelper.FromSnapshots(list);
+        }
+
+        static Dictionary<string, string> MapHistoryMetadataToStrings<T>(IReadOnlyDictionary<string, T> metadata)
+        {
+            if (metadata == null || metadata.Count == 0)
+                return new Dictionary<string, string>();
+            var result = new Dictionary<string, string>();
+            foreach (var kvp in metadata)
+            {
+                try
+                {
+                    result[kvp.Key] = kvp.Value?.ToString() ?? string.Empty;
+                }
+                catch
+                {
+                    result[kvp.Key] = string.Empty;
+                }
+            }
+            return result;
         }
 
         public override async Task RefreshLinkedProjectsAsync(CancellationToken token = default)

@@ -183,6 +183,12 @@ namespace Unity.AssetManager.Core.Editor
             return InternalEditorUtility.GetIconForFile(extension);
         }
 
+        public static Texture2D GetIconForAssetType(AssetType assetType)
+        {
+            var descriptor = k_UnityTypeDescriptors.FirstOrDefault(d => d.Type == assetType);
+            return descriptor?.GetIcon() ?? DefaultIcon;
+        }
+
         public static AssetType GetUnityAssetType(string extension)
         {
             if (string.IsNullOrEmpty(extension))

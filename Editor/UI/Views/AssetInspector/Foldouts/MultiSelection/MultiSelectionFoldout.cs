@@ -17,15 +17,26 @@ namespace Unity.AssetManager.UI.Editor
         List<BaseAssetData> m_FilesList = new();
         readonly Button m_Button;
 
+        internal static void ApplyMultiSelectionFoldoutToggleLayout(Toggle foldoutToggle)
+        {
+            if (foldoutToggle == null)
+                return;
+
+            var checkmark = foldoutToggle.Q(k_CheckMarkName);
+            if (checkmark?.parent != null)
+                checkmark.parent.style.flexDirection = FlexDirection.Row;
+
+            var label = foldoutToggle.Q<Label>();
+            if (label != null)
+                label.style.position = Position.Relative;
+        }
+
         public MultiSelectionFoldout(VisualElement parent, string foldoutTitle, string foldoutName, string buttonTitle, Action buttonCallback, string foldoutExpandedClassName = null)
             : base(parent, foldoutTitle, foldoutName, k_ViewListName, k_FoldoutClassName, string.Empty, foldoutExpandedClassName)
         {
             if (m_FoldoutToggle != null)
             {
-                var checkmark = m_FoldoutToggle.Q(k_CheckMarkName);
-                checkmark.parent.style.flexDirection = FlexDirection.Row;
-                var label = m_FoldoutToggle.Q<Label>();
-                label.style.position = Position.Relative;
+                ApplyMultiSelectionFoldoutToggleLayout(m_FoldoutToggle);
                 m_Button = new Button
                 {
                     text = L10n.Tr(buttonTitle)

@@ -1,5 +1,9 @@
 using System;
+#if UNITY_6000_5_OR_NEWER
+using GUID = UnityEngine.GUID;
+#else
 using UnityEditor;
+#endif
 
 namespace Unity.AssetManager.Editor
 {

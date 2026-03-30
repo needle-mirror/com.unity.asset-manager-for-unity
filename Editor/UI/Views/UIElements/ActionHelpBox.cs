@@ -42,6 +42,7 @@ namespace Unity.AssetManager.UI.Editor
                 tooltip = L10n.Tr("Dismiss message")
             };
             m_DismissButton.AddToClassList("action-helpbox-dismiss-button");
+            AddToClassList("action-helpbox");
 
             Add(m_MessageActionButton);
             Add(m_DismissButton);
@@ -73,7 +74,6 @@ namespace Unity.AssetManager.UI.Editor
                 {
                     text = m_PageManager.ActivePage is UploadPage ? $"{k_NoConnectionMessage} {k_NoConnectionUploadPageMessage}" : k_NoConnectionMessage;
                 }
-
                 return;
             }
 
@@ -99,7 +99,20 @@ namespace Unity.AssetManager.UI.Editor
             // Only show dismiss button for dismissable messages
             m_DismissButton.visible = m_HelpBoxMessage.Dismissable;
 
+            if (m_HelpBoxMessage.Category == MessageCategory.Deeplink)
+                MakeMessageLabelSelectable();
+
             UIElementsUtils.Show(this);
+        }
+
+        /// <summary>
+        /// Makes the HelpBox message text selectable so the user can copy-paste it (e.g. deeplink org/project/version/action reference).
+        /// </summary>
+        void MakeMessageLabelSelectable()
+        {
+            var label = this.Q<Label>(className: HelpBox.labelUssClassName);
+            if (label != null && label.selection != null)
+                label.selection.isSelectable = true;
         }
 
         void OnHelpBoxMessageSet(HelpBoxMessage helpBoxMessage)

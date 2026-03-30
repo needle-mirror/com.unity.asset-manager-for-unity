@@ -18,6 +18,7 @@ namespace Unity.AssetManager.UI.Editor
             ImportAll,
             RemoveAll,
             UpdateAllToLatest,
+            RefreshCache,
         }
 
         [Serializable]

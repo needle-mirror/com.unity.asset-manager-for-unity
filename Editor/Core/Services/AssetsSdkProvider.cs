@@ -22,7 +22,10 @@ namespace Unity.AssetManager.Core.Editor
         Status,
         CreatedBy,
         UpdatedBy,
-        Type
+        Type,
+        Extension,
+        Label,
+        Tag
     }
 
     enum SortField
@@ -42,16 +45,18 @@ namespace Unity.AssetManager.Core.Editor
         Descending
     }
 
+    /// <summary>
+    /// Direct cloud access for asset fetch and mutation operations.
     interface IAssetsProvider : IService
     {
         int DefaultSearchPageSize { get; }
 
         // Assets
 
-        Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token);
         Task<AssetData> GetLatestAssetVersionAsync(AssetIdentifier assetIdentifier, CancellationToken token);
         Task<string> GetLatestAssetVersionLiteAsync(AssetIdentifier assetIdentifier, CancellationToken token);
         IAsyncEnumerable<AssetData> ListVersionInDescendingOrderAsync(AssetIdentifier assetIdentifier, CancellationToken token);
+        IAsyncEnumerable<AssetUpdateHistory> GetUpdateHistoryAsync(AssetIdentifier assetIdentifier, CancellationToken token);
 
         IAsyncEnumerable<AssetData> SearchAsync(string organizationId, IEnumerable<string> projectIds,
             AssetSearchFilter assetSearchFilter, SortField sortField, SortingOrder sortingOrder, int startIndex,
@@ -71,9 +76,6 @@ namespace Unity.AssetManager.Core.Editor
         Task<AssetData> CreateUnfrozenVersionAsync(AssetData assetData, CancellationToken token);
         Task RemoveUnfrozenAssetVersion(AssetIdentifier assetIdentifier, CancellationToken token);
         Task RemoveAsset(AssetIdentifier assetIdentifier, CancellationToken token);
-        Task UpdateAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token);
-        Task UpdateStatusAsync(AssetData assetData, string statusName, CancellationToken token);
-        Task FreezeAsync(AssetData assetData, string changeLog, CancellationToken token);
         Task<Uri> GetPreviewUrlAsync(AssetData assetData, int maxDimension, CancellationToken token);
 
         Task<ImportStatuses> GatherImportStatusesAsync(IEnumerable<BaseAssetData> assetDatas, CancellationToken token);
@@ -85,7 +87,18 @@ namespace Unity.AssetManager.Core.Editor
         Task<IEnumerable<ProjectIdentifier>> GetLinkedProjectsAsync(AssetData assetData, CancellationToken token);
         Task<IEnumerable<CollectionIdentifier>> GetLinkedCollectionsAsync(AssetData assetData, CancellationToken token);
 
+        // Collections
+
+        Task<HashSet<string>> GetExistingCollectionPathsAsync(ProjectIdentifier projectIdentifier, CancellationToken token);
+        Task CreateCollectionHierarchyAsync(ProjectIdentifier projectIdentifier, string name, string parentPath, CancellationToken token);
+        Task LinkAssetsToCollectionAsync(ProjectIdentifier projectIdentifier, string collectionPath, IEnumerable<AssetIdentifier> assetIdentifiers, CancellationToken token);
+
         Task<IEnumerable<string>> GetReachableStatusNamesAsync(AssetIdentifier assetIdentifier, CancellationToken token);
+        Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token);
+        Task UpdateAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token);
+        Task UpdateWithoutRefreshAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token);
+        Task UpdateStatusAsync(AssetData assetData, string statusName, CancellationToken token);
+        Task FreezeAsync(AssetData assetData, string changeLog, CancellationToken token);
 
         // Files
 
@@ -240,7 +253,9 @@ namespace Unity.AssetManager.Core.Editor
             var projectDescriptors = projectIds.Select(p => new ProjectDescriptor(strongTypedOrgId, new ProjectId(p))).ToList();
 
             var query = AssetRepository.GroupAndCountAssets(projectDescriptors)?
-                .SelectWhereMatchesFilter(Map(assetSearchFilter));
+                .SelectWhereMatchesFilter(Map(assetSearchFilter)).LimitTo(2000);
+            // This calls doesn't have pagination, so the limit to is actually the number of results returned.
+            // We set it to 2000 to get a large number of results but still have a limit to avoid potential performance issues
 
             var keys = new HashSet<string>();
             await foreach (var kvp in DataMapper.GroupAndCountAsync(query, groupable, token))
@@ -320,6 +335,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public async Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token)
         {
+            // Use this method directly only if you directly need the cloud asset, otherwise use AssetDataManager.GetAssetAsync which has caching and will call this method if the asset is not in cache or if the cached version is outdated.
             return await Map(Map(assetIdentifier), token);
         }
 
@@ -351,7 +367,7 @@ namespace Unity.AssetManager.Core.Editor
                 }
                 catch (InvalidArgumentException ex)
                 {
-                    Utilities.DevLogError("Metadata update failed. Please make sure every metadata value is valid. Error: " + ex.Message);
+                    Utilities.DevLogError("Metadata update failed. Please make sure every metadata value is valid. " + Utilities.GetUserFacingErrorMessage(ex));
                 }
             }
         }
@@ -430,6 +446,32 @@ namespace Unity.AssetManager.Core.Editor
             await foreach (var version in DataMapper.ListAssetsAsync(versionQuery, token))
             {
                 yield return await DataMapper.From(version, token);
+            }
+        }
+
+        public async IAsyncEnumerable<AssetUpdateHistory> GetUpdateHistoryAsync(AssetIdentifier assetIdentifier, [EnumeratorCancellation] CancellationToken token)
+        {
+            if (assetIdentifier == null)
+            {
+                yield break;
+            }
+
+            var asset = await InternalGetAssetAsync(assetIdentifier, token);
+            if (asset == null)
+            {
+                yield break;
+            }
+
+            var searchFilter = new AssetUpdateHistorySearchFilter();
+            searchFilter.IncludeDatasetsAndFiles.WhereEquals(true);
+
+            var query = asset.QueryUpdateHistory()
+                .SelectWhereMatchesFilter(searchFilter)
+                .LimitTo(Range.All);
+
+            await foreach (var entry in query.ExecuteAsync(token))
+            {
+                yield return entry;
             }
         }
 
@@ -860,6 +902,76 @@ namespace Unity.AssetManager.Core.Editor
             return collectionPaths.ToArray();
         }
 
+        public async Task<HashSet<string>> GetExistingCollectionPathsAsync(ProjectIdentifier projectIdentifier, CancellationToken token)
+        {
+            var collectionPaths = new HashSet<string>();
+
+            try
+            {
+                var projectDescriptor = new ProjectDescriptor(
+                    new OrganizationId(projectIdentifier.OrganizationId),
+                    new ProjectId(projectIdentifier.ProjectId));
+                var project = await AssetRepository.GetAssetProjectAsync(projectDescriptor, token);
+
+                await foreach (var collection in project.ListCollectionsAsync(Range.All, token))
+                {
+                    collectionPaths.Add(collection.Descriptor.Path);
+                }
+            }
+            catch (ForbiddenException)
+            {
+                // Ignore if we don't have access to the project
+            }
+            catch (NotFoundException)
+            {
+                // Ignore if the project is not found
+            }
+
+            return collectionPaths;
+        }
+
+        public async Task CreateCollectionHierarchyAsync(ProjectIdentifier projectIdentifier, string name, string parentPath, CancellationToken token)
+        {
+            var projectDescriptor = new ProjectDescriptor(
+                new OrganizationId(projectIdentifier.OrganizationId),
+                new ProjectId(projectIdentifier.ProjectId));
+            var project = await AssetRepository.GetAssetProjectAsync(projectDescriptor, token);
+
+            var collectionCreation = new AssetCollectionCreation(name, string.Empty)
+            {
+                ParentPath = string.IsNullOrEmpty(parentPath) ? null : parentPath,
+                Description = name
+            };
+
+            await project.CreateCollectionLiteAsync(collectionCreation, token);
+        }
+
+        public async Task LinkAssetsToCollectionAsync(ProjectIdentifier projectIdentifier, string collectionPath, IEnumerable<AssetIdentifier> assetIdentifiers, CancellationToken token)
+        {
+            var assetIdList = assetIdentifiers.ToList();
+            if (assetIdList.Count == 0)
+                return;
+
+            var collectionDescriptor = new CollectionDescriptor(
+                new ProjectDescriptor(
+                    new OrganizationId(projectIdentifier.OrganizationId),
+                    new ProjectId(projectIdentifier.ProjectId)),
+                new CollectionPath(collectionPath));
+
+            var collection = await AssetRepository.GetAssetCollectionAsync(collectionDescriptor, token);
+
+            var assets = new List<IAsset>();
+            foreach (var assetId in assetIdList)
+            {
+                var asset = await InternalGetAssetAsync(assetId, token);
+                if (asset != null)
+                    assets.Add(asset);
+            }
+
+            if (assets.Count > 0)
+                await collection.LinkAssetsAsync(assets, token);
+        }
+
         public async Task<IEnumerable<string>> GetReachableStatusNamesAsync(AssetIdentifier assetIdentifier, CancellationToken token)
         {
             if(assetIdentifier.IsAssetFromLibrary())
@@ -922,6 +1034,24 @@ namespace Unity.AssetManager.Core.Editor
 
         public async Task UpdateAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token)
         {
+            await UpdateAsyncInternal(assetData, assetUpdate, token);
+
+            // Refresh the local data state with the modifications in the cloud
+            await assetData.RefreshPropertiesAsync(token);
+        }
+
+        public async Task UpdateWithoutRefreshAsync(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token)
+        {
+            // Use this overload when updating a newly created unfrozen version.
+            // RefreshPropertiesAsync uses TrackedAssetIdentifier for caching, which matches
+            // by AssetId only (not version). This can cause a newly created unfrozen version
+            // to have its identifier overwritten with a cached frozen version's identifier,
+            // leading to "already frozen" errors when trying to freeze.
+            await UpdateAsyncInternal(assetData, assetUpdate, token);
+        }
+
+        async Task UpdateAsyncInternal(AssetData assetData, AssetUpdate assetUpdate, CancellationToken token)
+        {
             var cloudAssetUpdate = Map(assetUpdate);
             var asset = await InternalGetAssetAsync(assetData, token);
             if (asset == null)
@@ -936,9 +1066,6 @@ namespace Unity.AssetManager.Core.Editor
             {
                 await UpdateMetadata(assetData.Identifier, assetUpdate.Metadata, token);
             }
-
-            // Refresh the local data state with the modifications in the cloud
-            await assetData.RefreshPropertiesAsync(token);
         }
 
         public async Task UpdateStatusAsync(AssetData assetData, string statusName, CancellationToken token)
@@ -1528,52 +1655,6 @@ namespace Unity.AssetManager.Core.Editor
             };
         }
 
-        static string OptimizeVersionForSearch(string version)
-        {
-            // Because of how elastic search tokenizes strings, we need to manipulate the version to minimize false positive results
-            // We will therefore keep only that last component of the version string
-            return version.Split('-')[^1];
-        }
-
-        static void ParseFileExtensions(List<string> fileExtensions, Cloud.AssetsEmbedded.AssetSearchFilter cloudAssetSearchFilter)
-        {
-            if (fileExtensions == null || !fileExtensions.Any())
-            {
-                return;
-            }
-
-            var pattern = new StringBuilder(fileExtensions[0]);
-            for (var i = 1; i < fileExtensions.Count; ++i)
-            {
-                pattern.Append($"|{fileExtensions[i]}");
-            }
-
-            cloudAssetSearchFilter.Include().Files.Path.WithValue(new Regex($".*({pattern})", RegexOptions.IgnoreCase));
-        }
-
-        static bool TryParseSearchTerms(List<string> searchTerms, Cloud.AssetsEmbedded.AssetSearchFilter cloudAssetSearchFilter)
-        {
-            if (searchTerms == null || !searchTerms.Any())
-            {
-                return false;
-            }
-
-            // Search Name and Description by predicate, any term in the list
-            var stringPredicate = new StringPredicate(searchTerms[0], StringSearchOption.Wildcard);
-            for (var i = 1; i < searchTerms.Count; ++i)
-            {
-                stringPredicate = stringPredicate.Or(searchTerms[i], StringSearchOption.Wildcard);
-            }
-
-            cloudAssetSearchFilter.Any().Name.WithValue(stringPredicate);
-            cloudAssetSearchFilter.Any().Description.WithValue(stringPredicate);
-
-            // Search Tags by list
-            cloudAssetSearchFilter.Any().Tags.WithValue(searchTerms);
-
-            return true;
-        }
-
         async Task<AssetData> Map(AssetDescriptor assetDescriptor, CancellationToken token)
         {
             try
@@ -1705,158 +1786,7 @@ namespace Unity.AssetManager.Core.Editor
 
         static IAssetSearchFilter Map(AssetSearchFilter assetSearchFilter)
         {
-            var cloudAssetSearchFilter = new Cloud.AssetsEmbedded.AssetSearchFilter();
-            var minimumAnyRequirement = 0;
-
-            if (assetSearchFilter.CreatedBy != null && assetSearchFilter.CreatedBy.Any())
-            {
-                cloudAssetSearchFilter.Include().AuthoringInfo.CreatedBy.WithValue(string.Join(" ", assetSearchFilter.CreatedBy));
-            }
-
-            if (assetSearchFilter.UpdatedBy != null && assetSearchFilter.UpdatedBy.Any())
-            {
-                cloudAssetSearchFilter.Include().AuthoringInfo.UpdatedBy.WithValue(string.Join(" ", assetSearchFilter.UpdatedBy));
-            }
-
-            if (assetSearchFilter.Status != null && assetSearchFilter.Status.Any())
-            {
-                cloudAssetSearchFilter.Include().Status.WithValue(string.Join(" ", assetSearchFilter.Status));
-            }
-
-            if (assetSearchFilter.AssetTypes != null && assetSearchFilter.AssetTypes.Any())
-            {
-                var assetTypes = assetSearchFilter.AssetTypes
-                    .Select(Map)
-                    .ToArray();
-
-                if (assetTypes.Length > 0)
-                {
-                    cloudAssetSearchFilter.Include().Type.WithValue(assetTypes);
-                }
-            }
-            else if (assetSearchFilter.AssetTypeStrings != null && assetSearchFilter.AssetTypeStrings.Any())
-            {
-                var assetTypes = new List<Cloud.AssetsEmbedded.AssetType>();
-                foreach (var typeString in assetSearchFilter.AssetTypeStrings)
-                {
-                    if (typeString.TryGetAssetTypeFromString(out var assetType))
-                    {
-                        assetTypes.Add(assetType);
-                    }
-                }
-
-                if (assetTypes.Count > 0)
-                {
-                    cloudAssetSearchFilter.Include().Type.WithValue(assetTypes.ToArray());
-                }
-            }
-
-            if (assetSearchFilter.Tags != null && assetSearchFilter.Tags.Any())
-            {
-                cloudAssetSearchFilter.Include().Tags.WithValue(string.Join(" ", assetSearchFilter.Tags));
-            }
-
-            if (assetSearchFilter.Labels != null && assetSearchFilter.Labels.Any())
-            {
-                cloudAssetSearchFilter.Include().Labels.WithValue(assetSearchFilter.Labels);
-            }
-
-            if (assetSearchFilter.CustomMetadata != null)
-            {
-                foreach (var metadataGroup in assetSearchFilter.CustomMetadata.GroupBy(m => m.FieldKey))
-                {
-                    var metadataList = metadataGroup.ToList();
-                    if (!metadataList.Any())
-                        continue;
-
-                    if (metadataList[0].Type == MetadataFieldType.Timestamp)
-                    {
-                        var minValue = metadataList.Min(m => ((TimestampMetadata) m).Value.DateTime);
-                        var maxValue = metadataList.Max(m => ((TimestampMetadata) m).Value.DateTime);
-                        cloudAssetSearchFilter.Include().Metadata.WithTimestampValue(metadataGroup.Key, minValue, true, maxValue);
-                    }
-                    else
-                    {
-                        var metadataValue = metadataList.Select(Map).FirstOrDefault(x => x != null);
-                        if (metadataValue == null)
-                            continue;
-
-                        // Strings should be searched by predicate
-                        if (metadataValue is Cloud.AssetsEmbedded.StringMetadata stringMetadata)
-                        {
-                            var stringPredicate = new StringPredicate(stringMetadata.Value, assetSearchFilter.IsExactMatchSearch
-                                ? StringSearchOption.ExactMatch
-                                : StringSearchOption.Prefix);
-                            cloudAssetSearchFilter.Include().Metadata.WithTextValue(metadataGroup.Key, stringPredicate);
-                        }
-
-                        // Urls should be searched by label or, when no label defined, by the URL itself
-                        else if (metadataValue is Cloud.AssetsEmbedded.UrlMetadata urlMetadata)
-                        {
-                            if (!string.IsNullOrEmpty(urlMetadata.Label))
-                            {
-                                var stringPredicate = new StringPredicate($"[{urlMetadata.Label}]", StringSearchOption.Prefix);
-                                cloudAssetSearchFilter.Include().Metadata.WithTextValue(metadataGroup.Key, stringPredicate);
-                            }
-                            else if (urlMetadata.Uri != null)
-                            {
-                                cloudAssetSearchFilter.Include().Metadata.WithValue(metadataGroup.Key, urlMetadata);
-                            }
-                        }
-
-                        // Multiselection values need to be searched by Any() to perform OR logical search between values
-                        else if (metadataValue is Cloud.AssetsEmbedded.MultiSelectionMetadata multiSelectionMetadata)
-                        {
-                            cloudAssetSearchFilter.Any().Metadata.WithValue(metadataGroup.Key, multiSelectionMetadata);
-                            ++minimumAnyRequirement;
-                        }
-
-                        // All other metadata are by exact match.
-                        else
-                        {
-                            cloudAssetSearchFilter.Include().Metadata.WithValue(metadataGroup.Key, metadataValue);
-                        }
-                    }
-                }
-            }
-
-            if (assetSearchFilter.Collection != null)
-            {
-                var collectionPaths = assetSearchFilter.Collection
-                    .Where(x => !string.IsNullOrEmpty(x))
-                    .Select(x => new CollectionPath(x));
-                cloudAssetSearchFilter.Collections.WhereContains(collectionPaths);
-            }
-
-            if (assetSearchFilter.Searches is {Count: > 0})
-            {
-                var fileExtensions = assetSearchFilter.Searches.Where(x => x.StartsWith('.')).ToList();
-                ParseFileExtensions(fileExtensions, cloudAssetSearchFilter);
-
-                var searches = assetSearchFilter.Searches.Where(x => !fileExtensions.Contains(x)).ToList();
-                if (TryParseSearchTerms(searches, cloudAssetSearchFilter))
-                {
-                    ++minimumAnyRequirement; // We need to search to match in at least one field
-                }
-            }
-
-            if (assetSearchFilter.AssetIds is {Count: > 0})
-            {
-                var searchString = string.Join(' ', assetSearchFilter.AssetIds);
-                cloudAssetSearchFilter.Include().Id.WithValue(searchString);
-            }
-
-            if (assetSearchFilter.AssetVersions is {Count: > 0})
-            {
-                var searchString = string.Join(' ', assetSearchFilter.AssetVersions.Select(OptimizeVersionForSearch));
-                cloudAssetSearchFilter.Any().Version.WithValue(searchString);
-                cloudAssetSearchFilter.Any().Labels.WithValue("*");
-                ++minimumAnyRequirement;
-            }
-
-            cloudAssetSearchFilter.Any().WhereMinimumMatchEquals(Math.Max(1, minimumAnyRequirement));
-
-            return cloudAssetSearchFilter;
+            return AssetSearchFilterMapper.Map(assetSearchFilter, Map);
         }
 
         static GroupableField Map(AssetSearchGroupBy groupBy)
@@ -1868,6 +1798,9 @@ namespace Unity.AssetManager.Core.Editor
                 AssetSearchGroupBy.CreatedBy => GroupableField.CreatedBy,
                 AssetSearchGroupBy.UpdatedBy => GroupableField.UpdateBy,
                 AssetSearchGroupBy.Type => GroupableField.Type,
+                AssetSearchGroupBy.Extension => GroupableField.FilePath,
+                AssetSearchGroupBy.Label => GroupableField.Labels,
+                AssetSearchGroupBy.Tag => GroupableField.Tags,
                 _ => throw new ArgumentOutOfRangeException(nameof(groupBy), groupBy, null)
             };
         }
@@ -1906,7 +1839,7 @@ namespace Unity.AssetManager.Core.Editor
             return statusFlowIdentifier == null ? null : new StatusFlowDescriptor(new OrganizationId(statusFlowIdentifier.OrganizationId), statusFlowIdentifier.StatusFlowId);
         }
 
-        static MetadataValue Map(IMetadata metadata) => metadata.Type switch
+        internal static MetadataValue Map(IMetadata metadata) => metadata.Type switch
         {
             MetadataFieldType.Boolean => new Cloud.AssetsEmbedded.BooleanMetadata(((BooleanMetadata) metadata).Value),
             MetadataFieldType.Text => new Cloud.AssetsEmbedded.StringMetadata(((TextMetadata) metadata).Value),
@@ -2053,6 +1986,7 @@ namespace Unity.AssetManager.Core.Editor
             IAsyncEnumerable<IAsset> ListAssetsAsync(AssetQueryBuilder query, CancellationToken token)
             {
                 return query.ExecuteAsync(token);
+
             }
 
             [ExcludeFromCoverage]
@@ -2232,6 +2166,11 @@ namespace Unity.AssetManager.Core.Editor
                 }
 
                 var projectOrganizationProvider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
+                if (projectOrganizationProvider?.SelectedOrganization?.MetadataFieldDefinitions == null)
+                {
+                    return null;
+                }
+
                 var fieldDefinitions = projectOrganizationProvider.SelectedOrganization.MetadataFieldDefinitions;
 
                 var metadataFields = new List<IMetadata>();

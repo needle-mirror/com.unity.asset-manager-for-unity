@@ -1,3 +1,4 @@
+using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
 using UnityEditor;
@@ -19,15 +20,18 @@ namespace Unity.AssetManager.UI.Editor
                 new FileUtility(),
                 new SavedAssetSearchFilterManager(),
                 new PersistenceManager(),
-                new AssetDataCacheManager());
+                new AssetDataCacheManager(),
+                new AssetDataCacheSyncService(),
+                new InlineEditService(),
+                new UIPreferences());
         }
 
-        public static void ResetServices()
+        public static void ResetServices(IService[] overrides = null)
         {
-            InitializeServices(true);
+            InitializeServices(true, overrides);
         }
 
-        static void InitializeServices(bool forceReset = false)
+        static void InitializeServices(bool forceReset = false, IService[] overrides = null)
         {
             if (!forceReset && ServicesContainer.instance.IsInitialized())
             {
@@ -35,7 +39,8 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            ServicesContainer.instance.InitializeServices(
+            IService[] services =
+            {
                 // Core
                 new IOProxy(),
                 new ApplicationProxy(),
@@ -51,6 +56,7 @@ namespace Unity.AssetManager.UI.Editor
                 new ProjectOrganizationProvider(),
                 new AssetDataManager(),
                 new AssetDataCacheManager(),
+                new AssetDataCacheSyncService(),
                 new ProjectIconDownloader(),
                 new AssetDatabaseProxy(),
                 new PersistenceManager(),
@@ -66,6 +72,7 @@ namespace Unity.AssetManager.UI.Editor
                 new MessageManager(),
                 new SavedAssetSearchFilterManager(),
                 new PackageVersionService(),
+                new InlineEditService(),
 
                 // UI
                 new StateManager(),
@@ -75,7 +82,21 @@ namespace Unity.AssetManager.UI.Editor
                 new ContextMenuBuilder(),
                 new DialogManager(),
                 new ProjectWindowProxy(),
-                new ProjectWindowIconOverlay());
+                new ProjectWindowIconOverlay()
+            };
+
+            if (overrides != null && overrides.Length > 0)
+            {
+                for (int i = 0; i < services.Length; i++)
+                {
+                    if (overrides.FirstOrDefault(s => s.RegistrationType == services[i].RegistrationType) is { } overrideService)
+                    {
+                        services[i] = overrideService;
+                    }
+                }
+            }
+
+            ServicesContainer.instance.InitializeServices(services);
 
             // Post-initialization configurations
             var assetImportResolver = ServicesContainer.instance.Resolve<IAssetImportResolver>();

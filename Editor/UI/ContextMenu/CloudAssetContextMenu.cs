@@ -34,6 +34,7 @@ namespace Unity.AssetManager.UI.Editor
             RemoveFromProjectEntry(evt);
             ShowInProjectEntry(evt);
             ShowInDashboardEntry(evt);
+            RefreshCacheEntry(evt);
             await ImportEntry(evt);
             CancelImportEntry(evt);
             UntrackAssetEntry(evt);
@@ -259,6 +260,28 @@ namespace Unity.AssetManager.UI.Editor
                             .ContextMenuItemType.ShowInDashboard));
                     });
             }
+        }
+
+        void RefreshCacheEntry(ContextualMenuPopulateEvent evt)
+        {
+            if (!IsInProject)
+                return;
+
+            if (!m_UnityConnectProxy.AreCloudServicesReachable)
+                return;
+
+            if (TargetAssetData is not AssetData assetData)
+                return;
+
+            var cacheManager = ServicesContainer.instance.Resolve<IAssetDataCacheManager>();
+
+            AddMenuEntry(evt, L10n.Tr(Constants.RefreshCacheActionText), true,
+                _ =>
+                {
+                    cacheManager.QueueRefresh(assetData, true);
+                    AnalyticsSender.SendEvent(new GridContextMenuItemSelectedEvent(
+                        GridContextMenuItemSelectedEvent.ContextMenuItemType.RefreshCache));
+                });
         }
 
         void UpdateAllToLatest(ContextualMenuPopulateEvent evt)

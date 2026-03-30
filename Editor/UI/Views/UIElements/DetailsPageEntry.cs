@@ -21,6 +21,21 @@ namespace Unity.AssetManager.UI.Editor
         public const string ClipboardButtonContainer = "unity-clipboard-button-container";
         public const string ClipboardButtonIcon = "unity-clipboard-button-icon";
         public static readonly Color EditedBorderColor = new(0.02f, 0.58f, 0.88f);
+
+        public const string InlineEditValueRow = "inline-edit-value-row";
+        public const string InlineEditable = "inline-editable";
+        public const string InlineEditIcon = "inline-edit-icon";
+        public const string InlineEditableEditing = "inline-editable--editing";
+        public const string DetailsPageEntryEditing = "details-page-entry--editing";
+
+        public const string InlineEditSaving = "inline-edit--saving";
+
+        public const string InlineEditConfirmationBtn = "inline-edit-confirmation-btn";
+        public const string InlineEditConfirmationBtnIcon = "inline-edit-confirmation-btn-icon";
+        public const string InlineEditConfirmationBtnConfirm = "inline-edit-confirmation-btn-confirm";
+        public const string InlineEditConfirmationBtnCancel = "inline-edit-confirmation-btn-cancel";
+        public const string InlineEditConfirmationDivider = "inline-edit-confirmation-divider";
+        public const string InlineEditTextFieldReadonly = "inline-edit-textfield-readonly";
     }
 
     class DetailsPageEntry : VisualElement

@@ -289,7 +289,7 @@ namespace Unity.AssetManager.Core.Editor
                     if (PathsReferToSameUnityAsset(fi.OriginalPath, oldUnityAssetPath))
                         continue; // This one we're moving; handle below
 
-                    var trackingPath = GetTrackingFilePathForUnityAsset(fi.OriginalPath);
+                    var trackingPath = GetTrackingFilePath(fi.OriginalPath);
                     if (string.IsNullOrEmpty(trackingPath))
                         continue;
                     var normalizedTrackingPath = Path.GetFullPath(trackingPath);
@@ -679,7 +679,7 @@ namespace Unity.AssetManager.Core.Editor
                     {
                         if (fileInfo != null && !string.IsNullOrEmpty(fileInfo.OriginalPath))
                         {
-                            var trackingFilePath = GetTrackingFilePathForUnityAsset(fileInfo.OriginalPath);
+                            var trackingFilePath = GetTrackingFilePath(fileInfo.OriginalPath);
                             if (!string.IsNullOrEmpty(trackingFilePath) && ioProxy.FileExists(trackingFilePath))
                                 ioProxy.DeleteFile(trackingFilePath);
                         }
@@ -724,7 +724,7 @@ namespace Unity.AssetManager.Core.Editor
                     continue;
                 }
 
-                var trackingFilePath = GetTrackingFilePathForUnityAsset(fileInfo.OriginalPath);
+                var trackingFilePath = GetTrackingFilePath(fileInfo.OriginalPath);
                 if (string.IsNullOrEmpty(trackingFilePath))
                 {
                     continue;
@@ -751,9 +751,27 @@ namespace Unity.AssetManager.Core.Editor
         }
 
         /// <summary>
-        /// Converts a Unity asset path to a tracking file path.
+        /// Builds a tracking file path from a relative path (e.g. a cloud/OriginalPath).
+        /// Does NOT strip any prefix — the path is used as-is under the tracked folder.
+        /// Example: "Cars/Models/delivery.fbx" -> "uam/Cars/Models/delivery.fbx.json"
+        /// </summary>
+        internal static string GetTrackingFilePath(string relativePath)
+        {
+            if (string.IsNullOrEmpty(relativePath))
+            {
+                return null;
+            }
+
+            var normalizedRelative = relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            var trackingFileName = normalizedRelative + ".json";
+            return Path.Combine(TrackedFolder, trackingFileName);
+        }
+
+        /// <summary>
+        /// Converts a Unity asset path to a tracking file path by stripping the leading "Assets/" prefix.
         /// Example: "Assets/Cars/Models/delivery.fbx" -> "uam/Cars/Models/delivery.fbx.json"
-        /// Unity asset paths are already validated by Unity, so we can use them directly.
+        /// Only the leading "Assets/" is removed; interior occurrences are preserved
+        /// (e.g. "Assets/Assets/Foo/bar.fbx" -> "uam/Assets/Foo/bar.fbx.json").
         /// </summary>
         internal static string GetTrackingFilePathForUnityAsset(string unityAssetPath)
         {
@@ -762,7 +780,6 @@ namespace Unity.AssetManager.Core.Editor
                 return null;
             }
 
-            // Remove "Assets/" prefix if present
             var relativePath = unityAssetPath;
             if (unityAssetPath.StartsWith(AssetManagerCoreConstants.AssetsFolderName + Path.DirectorySeparatorChar) ||
                 unityAssetPath.StartsWith(AssetManagerCoreConstants.AssetsFolderName + Path.AltDirectorySeparatorChar))
@@ -774,13 +791,7 @@ namespace Unity.AssetManager.Core.Editor
                 relativePath = unityAssetPath.Substring(AssetManagerCoreConstants.AssetsFolderName.Length);
             }
 
-            // Normalize path separators so Path.Combine produces a consistent path (avoids mixed \ and / on Windows)
-            var normalizedRelative = relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
-
-            // Append .json extension
-            var trackingFileName = normalizedRelative + ".json";
-
-            return Path.Combine(TrackedFolder, trackingFileName);
+            return GetTrackingFilePath(relativePath);
         }
 
         /// <summary>

@@ -62,6 +62,12 @@ namespace Unity.AssetManager.Upload.Editor
             set => m_Settings.UploadMode = value;
         }
 
+        public bool MatchProjectStructure
+        {
+            get => m_Settings.MatchProjectStructure;
+            set => m_Settings.MatchProjectStructure = value;
+        }
+
         public string ProjectId => m_Settings.ProjectId;
         public string CollectionPath => m_Settings.CollectionPath;
 
@@ -310,10 +316,38 @@ namespace Unity.AssetManager.Upload.Editor
 
         public IReadOnlyCollection<IUploadAsset> GenerateUploadAssets()
         {
-            return m_UploadAssets
+            LogUploadSettings();
+
+            Utilities.DevLog($"GenerateUploadAssets: m_UploadAssets has {m_UploadAssets.Count} entries", tag: "Upload");
+            foreach (var a in m_UploadAssets)
+            {
+                Utilities.DevLog($"  '{a.Name}' id={a.Identifier.AssetId} hash={System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(a)} " +
+                    $"CanBeUploaded={a.CanBeUploaded} IsIgnored={a.IsIgnored} IsDependency={a.IsDependency}", tag: "Upload");
+            }
+
+            var result = m_UploadAssets
                 .Where(assetData => assetData.CanBeUploaded)
-                .Select(assetData => assetData.GenerateUploadAsset(m_Settings.CollectionPath))
+                .Select(assetData => assetData.GenerateUploadAsset(
+                    m_Settings.CollectionPath,
+                    m_Settings.MatchProjectStructure))
                 .ToList();
+
+            Utilities.DevLog($"GenerateUploadAssets: produced {result.Count} IUploadAsset entries (after CanBeUploaded filter)", tag: "Upload");
+
+            return result;
+        }
+
+        [System.Diagnostics.Conditional("AM4U_DEV")]
+        void LogUploadSettings()
+        {
+            var settingsManager = ServicesContainer.instance.Resolve<ISettingsManager>();
+            Utilities.DevLog("UploadSettings: " +
+                $"OrganizationId={m_Settings.OrganizationId}, ProjectId={m_Settings.ProjectId}, CollectionPath='{m_Settings.CollectionPath}', " +
+                $"UploadMode={m_Settings.UploadMode}, DependencyMode={m_Settings.DependencyMode}, FilePathMode={m_Settings.FilePathMode}, " +
+                $"MatchProjectStructure={m_Settings.MatchProjectStructure}, " +
+                $"PinDependenciesToLatest={settingsManager?.IsUploadDependenciesUsingLatestLabel}, " +
+                $"KeepHigherVersion={settingsManager?.IsKeepHigherVersionEnabled}, " +
+                $"DependencyVersionSelection={settingsManager?.IsDependencyVersionSelectionEnabled}", tag: "Upload");
         }
 
         public void RebuildAssetList(IAssetDataManager assetDataManager)

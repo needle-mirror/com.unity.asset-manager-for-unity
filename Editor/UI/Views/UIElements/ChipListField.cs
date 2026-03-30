@@ -28,14 +28,15 @@ namespace Unity.AssetManager.UI.Editor
                 m_TextField.label = label;
                 m_TextField.tooltip = label;
             }
-            m_TextField.RegisterCallback<KeyUpEvent>(OnKeyUpEvent);
+            m_TextField.RegisterCallback<KeyDownEvent>(OnKeyDownEvent);
             m_TextField.RegisterCallback<FocusOutEvent>(_ => OnEntryAdded(m_TextField.value));
 
             m_ChipContainer = new VisualElement();
             m_ChipContainer.AddToClassList(UssStyle.DetailsPageChipContainer);
             m_ChipContainer.AddToClassList(UssStyle.FlexWrap);
             m_ChipContainer.focusable = false;
-            m_ChipContainer.pickingMode = PickingMode.Ignore;
+            m_ChipContainer.pickingMode = PickingMode.Position;
+            m_ChipContainer.RegisterCallback<PointerDownEvent>(OnChipContainerPointerDown);
 
             m_TextInput = m_TextField.Q("unity-text-input");
             if (m_TextInput != null)
@@ -55,14 +56,17 @@ namespace Unity.AssetManager.UI.Editor
 
         public void UpdateChips(IEnumerable<string> values, bool insertMultiValueChip = false)
         {
-            m_Values = values.ToHashSet();
+            var snapshot = values.ToList();
+            m_Values.Clear();
+            foreach (var v in snapshot)
+                m_Values.Add(v);
 
             m_ChipContainer.Clear();
 
             if (insertMultiValueChip)
                 m_ChipContainer.Add(CreateMixedValueChip());
 
-            foreach (var chipText in values)
+            foreach (var chipText in snapshot)
             {
                 var chip = EditChipCreator(chipText);
                 if (chip != null)
@@ -70,16 +74,26 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        void OnKeyUpEvent(KeyUpEvent evt)
+        void OnKeyDownEvent(KeyDownEvent evt)
         {
-            if (evt.keyCode is KeyCode.Return or KeyCode.KeypadEnter)
-                OnEntryAdded(m_TextField.value);
+            if (evt.keyCode is not (KeyCode.Return or KeyCode.KeypadEnter))
+                return;
+
+            OnEntryAdded(m_TextField.value);
+            evt.StopPropagation();
+            evt.PreventDefault();
         }
 
         void OnParentFieldClicked(PointerUpEvent evt)
         {
             evt.StopImmediatePropagation();
             FocusOnTextInput();
+        }
+
+        void OnChipContainerPointerDown(PointerDownEvent evt)
+        {
+            if (evt.target == m_ChipContainer)
+                FocusOnTextInput();
         }
 
         void FocusOnTextInput()
@@ -109,16 +123,35 @@ namespace Unity.AssetManager.UI.Editor
             if (string.IsNullOrWhiteSpace(newValue) || m_Values.Contains(newValue))
                 return;
 
-            ChipAdded?.Invoke(newValue);
+            m_Values.Add(newValue);
+
+            var chip = EditChipCreator(newValue);
+            if (chip != null)
+                m_ChipContainer.Add(chip);
+
             m_TextField.value = string.Empty;
+
+            // Fire event last: handlers may synchronously call UpdateChips which clears
+            // and rebuilds m_ChipContainer, so the chip must already be in the container
+            // (or it will be rebuilt from data). Firing earlier caused duplicate chips.
+            ChipAdded?.Invoke(newValue);
         }
 
         void OnEntryRemoved(string value)
         {
-            if (!m_Values.Contains(value))
+            if (!m_Values.Remove(value))
                 return;
 
             ChipRemoved?.Invoke(value);
+
+            foreach (var child in m_ChipContainer.Children().ToList())
+            {
+                if (child is Chip chip && chip.Text == value)
+                {
+                    chip.RemoveFromHierarchy();
+                    break;
+                }
+            }
         }
 
         Chip EditChipCreator(string chipText)
@@ -132,7 +165,7 @@ namespace Unity.AssetManager.UI.Editor
         static Chip CreateMixedValueChip()
         {
             var chip = new Chip("— Mixed", isDismissable: false);
-            chip.style.unityFontStyleAndWeight = FontStyle.BoldAndItalic;
+            chip.style.unityFontStyleAndWeight = FontStyle.Italic;
             return chip;
         }
     }

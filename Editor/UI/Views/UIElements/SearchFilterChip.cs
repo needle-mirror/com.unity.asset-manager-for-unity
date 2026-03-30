@@ -5,6 +5,10 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
+#if UNITY_6000_6_OR_NEWER
+    [UxmlElement]
+    partial
+#endif
     class SearchFilterChip : VisualElement
     {
         const string k_UssName = "SearchFilterChip";
@@ -18,10 +22,11 @@ namespace Unity.AssetManager.UI.Editor
 
         internal string SearchFilter { get; private set; }
 
+#if !UNITY_6000_6_OR_NEWER
 #pragma warning disable CS0618 // Type or member is obsolete
         public new class UxmlFactory : UxmlFactory<SearchFilterChip> { }
 #pragma warning restore CS0618 // Type or member is obsolete
-
+#endif
         public SearchFilterChip() { }
 
         internal SearchFilterChip(string searchFilter, Action<string> dismissCallback)

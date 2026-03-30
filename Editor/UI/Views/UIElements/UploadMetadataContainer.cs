@@ -264,44 +264,17 @@ namespace Unity.AssetManager.UI.Editor
             var editList = new List<AssetFieldEdit>();
             foreach (var assetData in m_SelectedAssetsData.Selection)
             {
-                var metadata = CreateMetadataFromFieldDefinition(fieldDefinition);
+                var metadata = MetadataHelpers.CreateMetadataFromFieldDefinition(fieldDefinition);
                 editList.Add(new AssetFieldEdit(assetData.Identifier, EditField.Custom, metadata));
             }
             ((UploadPage)m_PageManager.ActivePage).OnAssetSelectionEdited(editList);
         }
 
-        static IMetadata CreateMetadataFromFieldDefinition(IMetadataFieldDefinition def) =>
-            def.Type switch
-            {
-                MetadataFieldType.Text => new Core.Editor.TextMetadata(def.Key, def.DisplayName, string.Empty),
-                MetadataFieldType.Number => new Core.Editor.NumberMetadata(def.Key, def.DisplayName, 0),
-                MetadataFieldType.Boolean => new Core.Editor.BooleanMetadata(def.Key, def.DisplayName, false),
-                MetadataFieldType.Url => new Core.Editor.UrlMetadata(def.Key, def.DisplayName, new UriEntry(null, string.Empty)),
-                MetadataFieldType.Timestamp => new Core.Editor.TimestampMetadata(def.Key, def.DisplayName, new DateTimeEntry(DateTime.Now)),
-                MetadataFieldType.User => new Core.Editor.UserMetadata(def.Key, def.DisplayName, string.Empty),
-                MetadataFieldType.SingleSelection => new Core.Editor.SingleSelectionMetadata(def.Key, def.DisplayName, string.Empty),
-                MetadataFieldType.MultiSelection => new Core.Editor.MultiSelectionMetadata(def.Key, def.DisplayName, new List<string>()),
-                _ => throw new InvalidOperationException(Constants.UnexpectedFieldDefinitionType)
-            };
-
         MetadataPageEntry CreateMetadataPageEntryFromFieldDefinition(IMetadataFieldDefinition fieldDefinition,
             IEnumerable<IMetadata> metadata)
         {
-            MetadataElement metadataField = fieldDefinition.Type switch
-            {
-                MetadataFieldType.Text => new TextMetadataField(metadata.Cast<Core.Editor.TextMetadata>().ToList()),
-                MetadataFieldType.Number => new NumberMetadataField(metadata.Cast<Core.Editor.NumberMetadata>().ToList()),
-                MetadataFieldType.Boolean => new BooleanMetadataField(metadata.Cast<Core.Editor.BooleanMetadata>().ToList()),
-                MetadataFieldType.Url => new UrlMetadataField(metadata.Cast<Core.Editor.UrlMetadata>().ToList()),
-                MetadataFieldType.Timestamp => new TimestampMetadataField(metadata.Cast<Core.Editor.TimestampMetadata>().ToList()),
-                MetadataFieldType.User => new UserMetadataField(metadata.Cast<Core.Editor.UserMetadata>().ToList(), GetUserInfoList().ToList()),
-                MetadataFieldType.SingleSelection => new SingleSelectionMetadataField(metadata.Cast<Core.Editor.SingleSelectionMetadata>().ToList(),
-                    ((SelectionFieldDefinition)fieldDefinition).AcceptedValues.ToList()),
-                MetadataFieldType.MultiSelection => new MultiSelectionMetadataField(fieldDefinition.DisplayName,
-                    metadata.Cast<Core.Editor.MultiSelectionMetadata>().ToList(),
-                    ((SelectionFieldDefinition)fieldDefinition).AcceptedValues.ToList()),
-                _ => throw new InvalidOperationException(Constants.UnexpectedFieldDefinitionType)
-            };
+            var metadataField = MetadataFieldFactory.CreateEditField(
+                fieldDefinition, metadata.ToList(), GetUserInfoList());
 
             metadataField.ValueChanged += () =>
             {

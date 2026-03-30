@@ -67,6 +67,9 @@ namespace Unity.AssetManager.UI.Editor
         [SerializeReference]
         ISavedAssetSearchFilterManager m_SavedSearchFilterManager;
 
+        [SerializeReference]
+        IStateManager m_StateManager;
+
         const string k_SortFieldPrefKey = "com.unity.asset-manager-for-unity.sortField";
         const string k_SortingOrderKey = "com.unity.asset-manager-for-unity.sortingOrder";
 
@@ -112,7 +115,7 @@ namespace Unity.AssetManager.UI.Editor
             IAssetDataManager assetDataManager, IProjectOrganizationProvider projectOrganizationProvider,
             IAssetOperationManager assetOperationManager, IMessageManager messageManager,
             IDialogManager dialogManager, ISettingsManager settingsManager,
-            ISavedAssetSearchFilterManager savedSearchFilterManager)
+            ISavedAssetSearchFilterManager savedSearchFilterManager, IStateManager stateManager)
         {
             m_UnityConnectProxy = unityConnectProxy;
             m_AssetsProvider = assetsProvider;
@@ -123,6 +126,7 @@ namespace Unity.AssetManager.UI.Editor
             m_DialogManager = dialogManager;
             m_SettingsManager = settingsManager;
             m_SavedSearchFilterManager = savedSearchFilterManager;
+            m_StateManager = stateManager;
         }
 
         public override void OnEnable()
@@ -133,6 +137,9 @@ namespace Unity.AssetManager.UI.Editor
 
             m_ActivePage?.OnEnable();
             InitializePageFiltering();
+
+            if (m_StateManager != null && m_ActivePage != null)
+                m_StateManager.ActivePageTypeName = m_ActivePage.GetType().Name;
         }
 
         protected override void ValidateServiceDependencies()
@@ -142,6 +149,7 @@ namespace Unity.AssetManager.UI.Editor
             m_DialogManager = ServicesContainer.instance.Get<IDialogManager>();
             m_SettingsManager = ServicesContainer.instance.Get<ISettingsManager>();
             m_SavedSearchFilterManager = ServicesContainer.instance.Get<ISavedAssetSearchFilterManager>();
+            m_StateManager = ServicesContainer.instance.Get<IStateManager>();
         }
 
         public override void OnDisable()
@@ -196,6 +204,9 @@ namespace Unity.AssetManager.UI.Editor
             m_ActivePage?.LoadMore(clear: true, clearSelection: true);
 
             m_AssetOperationManager.ClearFinishedOperations();
+
+            if (m_StateManager != null)
+                m_StateManager.ActivePageTypeName = m_ActivePage?.GetType().Name;
 
             ActivePageChanged?.Invoke(m_ActivePage);
         }
@@ -290,18 +301,8 @@ namespace Unity.AssetManager.UI.Editor
                 Utilities.DevLogException(e);
             }
 
-            // Add any missing page filters that were not serialized
-            var pageFiltersFactory = new PageFiltersFactory(PageFilterStrategy, m_ProjectOrganizationProvider, m_AssetDataManager);
-
-            var collectionPageFilters = pageFiltersFactory.CreateCollectionPageFilters();
-            var inProjectPageFilters = pageFiltersFactory.CreateInProjectPageFilters();
-            var uploadPageFilters = pageFiltersFactory.CreateUploadPageFilters();
-
-            TryAddMissingFilter(nameof(CollectionPage), collectionPageFilters);
-            TryAddMissingFilter(nameof(AllAssetsPage), collectionPageFilters);
-            TryAddMissingFilter(nameof(InProjectPage), inProjectPageFilters);
-            TryAddMissingFilter(nameof(AllAssetsInProjectPage), inProjectPageFilters);
-            TryAddMissingFilter(nameof(UploadPage), uploadPageFilters);
+            // Replace any missing or broken page filters (can happen after package update)
+            ReplaceInvalidFilters();
 
             if (m_ActivePage != null)
             {
@@ -313,10 +314,42 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        void TryAddMissingFilter(string key, PageFilters filters)
+        void ReplaceInvalidFilters()
         {
             m_PageFiltersByType ??= new Dictionary<string, PageFilters>();
-            m_PageFiltersByType.TryAdd(key, filters);
+
+            var collectionFiltersAreValid = AreFiltersValid(nameof(CollectionPage)) && AreFiltersValid(nameof(AllAssetsPage));
+            var projectFiltersAreValid = AreFiltersValid(nameof(InProjectPage)) && AreFiltersValid(nameof(AllAssetsInProjectPage));
+            var uploadFiltersAreValid = AreFiltersValid(nameof(UploadPage));
+
+            if (collectionFiltersAreValid && projectFiltersAreValid && uploadFiltersAreValid)
+                return;
+
+            var pageFiltersFactory = new PageFiltersFactory(PageFilterStrategy, m_ProjectOrganizationProvider, m_AssetDataManager);
+
+            if (!collectionFiltersAreValid)
+            {
+                var filters = pageFiltersFactory.CreateCollectionPageFilters();
+                m_PageFiltersByType[nameof(CollectionPage)] = filters;
+                m_PageFiltersByType[nameof(AllAssetsPage)] = filters;
+            }
+
+            if (!projectFiltersAreValid)
+            {
+                var filters = pageFiltersFactory.CreateInProjectPageFilters();
+                m_PageFiltersByType[nameof(InProjectPage)] = filters;
+                m_PageFiltersByType[nameof(AllAssetsInProjectPage)] = filters;
+            }
+
+            if (!uploadFiltersAreValid)
+            {
+                m_PageFiltersByType[nameof(UploadPage)] = pageFiltersFactory.CreateUploadPageFilters();
+            }
+        }
+
+        bool AreFiltersValid(string key)
+        {
+            return m_PageFiltersByType.TryGetValue(key, out var pageFilters) && pageFilters?.AreValid == true;
         }
 
         void OnOrganizationChanged(OrganizationInfo _)

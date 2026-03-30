@@ -1,4 +1,5 @@
 using System;
+using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -10,12 +11,18 @@ namespace Unity.AssetManager.Core.Editor
         void SetHelpBoxMessage(HelpBoxMessage helpBoxMessage);
         void ClearHelpBoxMessage();
         void DismissHelpBoxMessage();
+        void DismissDeeplinkHelpBoxMessage();
 
         void SetGridViewMessage(Message message);
         void ClearGridViewMessage();
         void DismissGridViewMessage();
 
         void ClearAllMessages();
+
+        /// <summary>
+        /// Restore the Action HelpBox from serialized state (e.g. from StateManager). Used by UI after domain reload.
+        /// </summary>
+        void SetHelpBoxMessageFromSerializedState(string content, int messageType, int category, int recommendedAction, bool dismissable);
 
         event Action<HelpBoxMessage> HelpBoxMessageSet;
         event Action HelpBoxMessageCleared;
@@ -64,6 +71,15 @@ namespace Unity.AssetManager.Core.Editor
             HelpBoxMessageCleared?.Invoke();
         }
 
+        public void DismissDeeplinkHelpBoxMessage()
+        {
+            if (m_HelpBoxMessage != null && m_HelpBoxMessage.Category == MessageCategory.Deeplink)
+            {
+                m_HelpBoxMessage = null;
+                HelpBoxMessageCleared?.Invoke();
+            }
+        }
+
         public void SetGridViewMessage(Message message)
         {
             m_GridViewMessage = message;
@@ -93,6 +109,18 @@ namespace Unity.AssetManager.Core.Editor
         {
             ClearHelpBoxMessage();
             ClearGridViewMessage();
+        }
+
+        public void SetHelpBoxMessageFromSerializedState(string content, int messageType, int category, int recommendedAction, bool dismissable)
+        {
+            if (string.IsNullOrEmpty(content))
+                return;
+            SetHelpBoxMessage(new HelpBoxMessage(
+                content,
+                (RecommendedAction)recommendedAction,
+                (HelpBoxMessageType)messageType,
+                dismissable,
+                (MessageCategory)category));
         }
     }
 }

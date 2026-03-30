@@ -23,7 +23,7 @@ namespace Unity.AssetManager.UI.Editor
     interface IEditableComponent
     {
         bool IsEditingEnabled { get; }
-        void EnableEditing(bool enable);
+        void ConfigureEditing(EditingMode mode);
     }
 
     class AssetInspector : SelectionInspectorPage
@@ -31,21 +31,29 @@ namespace Unity.AssetManager.UI.Editor
         readonly IEnumerable<IPageComponent> m_PageComponents;
         readonly IEnumerable<IEditableComponent> m_EditableComponents;
         readonly AssetInspectorViewModel m_ViewModel = new();
+        readonly AssetInspectorHeader m_Header;
+        readonly AssetInspectorMetadataTab m_DetailsTab;
+        readonly IInlineEditService m_InlineEditService;
+
+        EditingMode m_EditingMode;
+        public EditingMode EditingMode => m_EditingMode;
 
         VisualElement m_NoFilesWarningBox;
         VisualElement m_SameFileNamesWarningBox;
-        VisualElement m_NoDependenciesBox;
         FileFoldoutComponent m_FilesFoldoutComponent;
 
         public AssetInspector(IAssetImporter assetImporter, IAssetOperationManager assetOperationManager,
             IStateManager stateManager, IPageManager pageManager, IAssetDataManager assetDataManager,
             IAssetDatabaseProxy assetDatabaseProxy, IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, IProjectIconDownloader projectIconDownloader,
-            IPermissionsManager permissionsManager, IDialogManager dialogManager, IPopupManager popupManager, ISettingsManager settingsManager)
+            IPermissionsManager permissionsManager, IDialogManager dialogManager, IPopupManager popupManager, ISettingsManager settingsManager,
+            IInlineEditService inlineEditService, IUIPreferences uiPreferences)
             : base(assetImporter, assetOperationManager, stateManager, pageManager, assetDataManager,
                 assetDatabaseProxy, projectOrganizationProvider, linksProxy, unityConnectProxy, projectIconDownloader,
                 permissionsManager, dialogManager)
         {
+            m_InlineEditService = inlineEditService;
+
             BuildUxmlDocument();
 
             m_ViewModel = new AssetInspectorViewModel(assetImporter, linksProxy, assetDataManager,
@@ -53,9 +61,13 @@ namespace Unity.AssetManager.UI.Editor
             BindViewModelEvents();
 
             var versionsTab = new AssetInspectorVersionsTab(m_ScrollView.contentContainer, m_DialogManager, m_ViewModel);
-            var detailsTab = new AssetInspectorMetadataTab(m_ScrollView.contentContainer, IsAnyFilterActive, m_PageManager, m_StateManager, popupManager, settingsManager, projectOrganizationProvider, unityConnectProxy, m_ViewModel);
+            var activityTab = new AssetInspectorActivityTab(m_ScrollView.contentContainer, m_ViewModel);
+            var detailsTab = new AssetInspectorMetadataTab(m_ScrollView.contentContainer, IsAnyFilterActive, m_PageManager, m_StateManager, popupManager, settingsManager, projectOrganizationProvider, unityConnectProxy, m_ViewModel, inlineEditService);
             var footer = new AssetInspectorFooter(this, m_DialogManager, m_ViewModel);
-            var header = new AssetInspectorHeader(this, assetDataManager, m_ViewModel, footer.ButtonsContainer, detailsTab, versionsTab);
+            var header = new AssetInspectorHeader(this, assetDataManager, m_ViewModel, footer.ButtonsContainer, detailsTab, versionsTab, activityTab, inlineEditService, m_UnityConnectProxy, uiPreferences);
+
+            m_Header = header;
+            m_DetailsTab = detailsTab;
 
             header.FieldEdited += OnFieldEdited;
             detailsTab.FieldEdited += OnFieldEdited;
@@ -66,6 +78,7 @@ namespace Unity.AssetManager.UI.Editor
                 footer,
                 detailsTab,
                 versionsTab,
+                activityTab,
             };
 
             m_EditableComponents = new IEditableComponent[]
@@ -83,6 +96,15 @@ namespace Unity.AssetManager.UI.Editor
             m_ViewModel.AssetDataChanged += () => RefreshUI();
             m_ViewModel.AssetDataAttributesUpdated += (attributes) => RefreshButtons();
             m_ViewModel.FilesChanged += RefreshSourceFilesInformationUI;
+			m_ViewModel.FilesChanged += RefreshButtons;
+            if (m_InlineEditService != null)
+                m_InlineEditService.FieldSaved += OnInlineEditFieldSaved;
+        }
+
+        void OnInlineEditFieldSaved(AssetFieldEdit edit)
+        {
+            if (edit?.AssetIdentifier != null && edit.AssetIdentifier.Equals(m_ViewModel.AssetIdentifier))
+                _ = m_ViewModel.RefreshUpdateHistoryAsync();
         }
 
         public override bool IsVisible(int selectedAssetCount)
@@ -134,14 +156,19 @@ namespace Unity.AssetManager.UI.Editor
             base.OnDetachFromPanel(evt);
 
             m_CloseButton.clicked -= OnCloseButton;
+            if (m_InlineEditService != null)
+                m_InlineEditService.FieldSaved -= OnInlineEditFieldSaved;
         }
 
-        public override void EnableEditing(bool enable)
+        public override void ConfigureEditing(EditingMode mode, string disabledReason = null)
         {
+            m_EditingMode = mode;
             foreach (var editableComponent in m_EditableComponents)
             {
-                editableComponent.EnableEditing(enable);
+                editableComponent.ConfigureEditing(mode);
             }
+            // Set tooltip on header when editing is disabled
+            m_Header?.SetEditDisabledReason(mode == EditingMode.ReadOnly ? disabledReason : null);
         }
 
         protected override void OnOperationProgress(AssetDataOperation operation)
@@ -196,8 +223,19 @@ namespace Unity.AssetManager.UI.Editor
 
         void OnFieldEdited(AssetFieldEdit assetFieldEdit)
         {
-            // Use the asset identifier from the edit to find the correct asset
-            // This handles the case where selection changed before the edit was applied
+            if (m_EditingMode == EditingMode.Inline)
+            {
+                // Name and Description use InlineEditBehavior, which calls SaveFieldAsync directly
+                // via its onSave callback — they don't need to be routed here again.
+                // Status and Tags use dropdown/pill-based UI without InlineEditBehavior,
+                // so this is their only path to SaveFieldAsync in inline mode.
+                if (assetFieldEdit.Field is EditField.Status or EditField.Tags)
+                    TaskUtils.TrackException(m_InlineEditService.SaveFieldAsync(assetFieldEdit, default));
+
+                return;
+            }
+
+            // Upload page flow: batch edits into staging
             var assetData = m_AssetDataManager.GetAssetData(assetFieldEdit.AssetIdentifier) as UploadAssetData;
 
             switch (assetFieldEdit.Field)

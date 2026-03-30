@@ -40,7 +40,7 @@ namespace Unity.AssetManager.UI.Editor
         {
             UnregisterCallback<FocusOutEvent>(OnFocusOut);
             UnregisterCallback<GeometryChangedEvent>(OnResized);
-            parent.UnregisterCallback<GeometryChangedEvent>(OnResized);
+            parent?.UnregisterCallback<GeometryChangedEvent>(OnResized);
         }
 
         public void Show()

@@ -10,16 +10,10 @@ namespace Unity.AssetManager.UI.Editor
     class AssetDependenciesComponent : VisualElement
     {
         readonly DependenciesFoldout m_DependenciesFoldout;
-        readonly VisualElement m_NoDependenciesBox;
 
         public AssetDependenciesComponent(VisualElement parent, IPageManager pageManager, IPopupManager popupManager,
             ISettingsManager settingsManager, IProjectOrganizationProvider projectOrganizationProvider, IStateManager stateManager = null)
         {
-            m_NoDependenciesBox = new Label("No dependencies");
-            m_NoDependenciesBox.AddToClassList("no-dependencies-label");
-            m_NoDependenciesBox.Q<Label>().text = L10n.Tr(Constants.NoDependenciesText);
-            UIElementsUtils.SetDisplay(m_NoDependenciesBox, false);
-            parent.Add(m_NoDependenciesBox);
             var dependenciesContainer = new VisualElement
             {
                 name = "dependencies-container",
@@ -38,6 +32,7 @@ namespace Unity.AssetManager.UI.Editor
                 {
                     Expanded = stateManager?.DependenciesFoldoutValue ?? false
                 };
+            m_DependenciesFoldout.SetEmptyStateLabel(Constants.NoDependenciesText, "no-dependencies-label");
 
             if (stateManager != null)
             {
@@ -64,7 +59,6 @@ namespace Unity.AssetManager.UI.Editor
         {
             var dependencies = assetData.Dependencies.ToList();
             m_DependenciesFoldout.Populate(assetData, dependencies);
-            UIElementsUtils.SetDisplay(m_NoDependenciesBox, !dependencies.Any());
             m_DependenciesFoldout.StopPopulating();
         }
     }

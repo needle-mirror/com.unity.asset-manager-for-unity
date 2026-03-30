@@ -10,6 +10,10 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
+#if UNITY_6000_6_OR_NEWER
+    [UxmlElement]
+    partial
+#endif
     class GridView : BindableElement, ISerializationCallbackReceiver
     {
         internal enum RefreshRowsType
@@ -62,10 +66,11 @@ namespace Unity.AssetManager.UI.Editor
         internal event Action GridViewLastItemVisible;
         internal event Action BackgroundClicked;
 
+#if !UNITY_6000_6_OR_NEWER
 #pragma warning disable CS0618 // Type or member is obsolete
         public new class UxmlFactory : UxmlFactory<GridView> { }
 #pragma warning restore CS0618 // Type or member is obsolete
-
+#endif
         /// <summary>
         /// Callback for binding a data item to the visual element.
         /// </summary>

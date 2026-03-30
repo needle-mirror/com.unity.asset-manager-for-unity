@@ -20,6 +20,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly IPageManager m_PageManager;
         readonly ISettingsManager m_SettingsManager;
+        readonly IStateManager m_StateManager;
 
         StorageUsage m_CloudStorageUsage;
         OrganizationInfo m_OrganizationInfo;
@@ -39,13 +40,27 @@ namespace Unity.AssetManager.UI.Editor
 
         static List<string> m_DismissedOrganizationInfoLevelMessage = new();
 
+        internal static List<string> GetDismissedOrganizationIds()
+        {
+            return new List<string>(m_DismissedOrganizationInfoLevelMessage);
+        }
+
+        internal static void SetDismissedOrganizationIds(List<string> ids)
+        {
+            m_DismissedOrganizationInfoLevelMessage.Clear();
+            if (ids != null)
+                m_DismissedOrganizationInfoLevelMessage.AddRange(ids);
+        }
+
         public StorageInfoHelpBox(IPageManager pageManager, IProjectOrganizationProvider projectOrganizationProvider,
-            ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, ISettingsManager settingsManager)
+            ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, ISettingsManager settingsManager,
+            IStateManager stateManager)
         {
             m_PageManager = pageManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_UnityConnectProxy = unityConnectProxy;
             m_SettingsManager = settingsManager;
+            m_StateManager = stateManager;
 
             messageType = HelpBoxMessageType.Info;
 
@@ -88,6 +103,7 @@ namespace Unity.AssetManager.UI.Editor
                 !m_DismissedOrganizationInfoLevelMessage.Contains(m_ProjectOrganizationProvider.SelectedOrganization?.Id))
             {
                 m_DismissedOrganizationInfoLevelMessage.Add(m_ProjectOrganizationProvider.SelectedOrganization?.Id);
+                m_StateManager?.SetStorageInfoDismissedOrganizationIds(GetDismissedOrganizationIds());
             }
         }
 

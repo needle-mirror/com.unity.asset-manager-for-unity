@@ -619,7 +619,7 @@ namespace Unity.AssetManager.Core.Editor
             {
                 if (fileInfo != null && !string.IsNullOrEmpty(fileInfo.OriginalPath))
                 {
-                    var trackingFilePath = Persistence.GetTrackingFilePathForUnityAsset(fileInfo.OriginalPath);
+                    var trackingFilePath = Persistence.GetTrackingFilePath(fileInfo.OriginalPath);
                     if (!string.IsNullOrEmpty(trackingFilePath))
                     {
                         UpdateFilePathCacheEntry(trackingFilePath, assetData.Identifier.AssetId);

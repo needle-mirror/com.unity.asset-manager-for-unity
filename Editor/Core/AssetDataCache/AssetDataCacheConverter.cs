@@ -44,6 +44,7 @@ namespace Unity.AssetManager.Core.Editor
                 statusFlowId = assetData.StatusFlowId,
                 description = assetData.Description,
                 created = assetData.Created?.ToString("o"),
+                updated = assetData.Updated?.ToString("o"),
                 createdBy = assetData.CreatedBy,
                 updatedBy = assetData.UpdatedBy,
                 previewFilePath = assetData.PreviewFilePath,

@@ -58,6 +58,11 @@ namespace Unity.AssetManager.UI.Editor
             m_ViewModel.BindEvents();
             m_ViewModel.SelectedOrganizationChanged += OnSelectedOrganizationChanged;
             m_ViewModel.UpdateSelectionChanged += UpdateSelectionEnabled;
+
+            // Restore displayed organization name immediately (e.g. after domain reload) even if organization list not loaded yet
+            var currentName = m_ViewModel.GetSelectedOrganizationName();
+            if (!string.IsNullOrEmpty(currentName))
+                SetSelectedOrganizationWithoutNotify(currentName);
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent evt)
@@ -220,8 +225,9 @@ namespace Unity.AssetManager.UI.Editor
 
         void SetSelectedOrganizationWithoutNotify(string organizationName)
         {
-            if (m_ViewModel.GetOrganizationOptions().ContainsKey(organizationName))
-                m_OrganizationButtonText.text = organizationName;
+            if (string.IsNullOrEmpty(organizationName))
+                return;
+            m_OrganizationButtonText.text = organizationName;
         }
     }
 }

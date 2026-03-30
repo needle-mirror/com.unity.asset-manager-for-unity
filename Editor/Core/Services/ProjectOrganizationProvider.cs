@@ -280,6 +280,7 @@ namespace Unity.AssetManager.Core.Editor
         bool IsLoading { get; }
         event Action<OrganizationInfo> OrganizationChanged;
         event Action<bool> LoadingStateChanged;
+        event Action<IReadOnlyList<NameAndId>> OrganizationListChanged;
         event Action<ProjectOrLibraryInfo, CollectionInfo> ProjectSelectionChanged;
         event Action<ProjectOrLibraryInfo> ProjectInfoChanged;
         event Action<List<ProjectOrLibraryInfo>> AssetLibrariesProjectsLoaded;
@@ -294,7 +295,8 @@ namespace Unity.AssetManager.Core.Editor
         Task CreateCollection(CollectionInfo collectionInfo);
         Task DeleteCollection(CollectionInfo collectionInfo);
         Task RenameCollection(CollectionInfo collectionInfo, string newName);
-        IAsyncEnumerable<NameAndId> ListOrganizationsAsync();
+        Task RefreshOrganizationListAsync();
+        List<NameAndId> OrganizationList { get; }
         Task<List<string>> GetOrganizationVersionLabelsAsync();
         Task<List<ProjectOrLibraryInfo>> GetAssetLibrariesAsync();
         IAsyncEnumerable<StatusFlowInfo> GetOrganizationStatusFlowsAsync(CancellationToken token);
@@ -340,7 +342,7 @@ namespace Unity.AssetManager.Core.Editor
 
         internal static readonly string k_OrganizationPrefKey = "com.unity.asset-manager-for-unity.selectedOrganizationId";
         internal static readonly string k_ProjectPrefKey = "com.unity.asset-manager-for-unity.selectedProjectId";
-        static readonly string k_CollectionPathPrefKey = "com.unity.asset-manager-for-unity.selectedCollectionPath";
+        internal static readonly string k_CollectionPathPrefKey = "com.unity.asset-manager-for-unity.selectedCollectionPath";
         static readonly string k_DefaultCollectionDescription = "none";
 
 
@@ -350,7 +352,7 @@ namespace Unity.AssetManager.Core.Editor
             get
             {
                 var savedId = PreferencesStorage.GetValue(k_OrganizationPrefKey);
-                return string.IsNullOrWhiteSpace(savedId) ? m_UnityConnectProxy.OrganizationId : savedId;
+                return string.IsNullOrWhiteSpace(savedId) ? null : savedId;
             }
         }
 
@@ -380,6 +382,10 @@ namespace Unity.AssetManager.Core.Editor
         bool IsLoggedIn => GetAuthenticationState() == Cloud.IdentityEmbedded.AuthenticationState.LoggedIn;
 
         public event Action<bool> LoadingStateChanged;
+        public event Action<IReadOnlyList<NameAndId>> OrganizationListChanged;
+
+        List<NameAndId> m_OrganizationList;
+        public List<NameAndId> OrganizationList => m_OrganizationList ?? new List<NameAndId>();
 
         public OrganizationInfo SelectedOrganization =>
             IsLoading || string.IsNullOrEmpty(m_OrganizationInfo?.Id) ? null : m_OrganizationInfo;
@@ -464,8 +470,10 @@ namespace Unity.AssetManager.Core.Editor
         {
             RegisterOnAuthenticationStateChanged(OnAuthenticationStateChanged);
             m_UnityConnectProxy.CloudServicesReachabilityChanged += OnCloudServicesReachabilityChanged;
-
-            _ = TryLoadValidOrganizationAsync();
+            if (GetAuthenticationState() == Unity.Cloud.IdentityEmbedded.AuthenticationState.LoggedIn)
+            {
+                _ = TryLoadValidOrganizationAsync();
+            }
         }
 
         public override void OnDisable()
@@ -480,6 +488,34 @@ namespace Unity.AssetManager.Core.Editor
             m_UnityConnectProxy.CloudServicesReachabilityChanged -= OnCloudServicesReachabilityChanged;
         }
 
+        /// <summary>
+        /// Clears persisted and in-memory organization/project selection. Used when switching between
+        /// public Unity services and private cloud (IDs are not portable across backends).
+        /// </summary>
+        internal void ClearCachedSelectionForBackendSwitch()
+        {
+            if (IsLoading)
+            {
+                m_LoadOrganizationOperation?.Cancel();
+                m_LoadOrganizationOperation = null;
+            }
+
+            SavedOrganizationId = string.Empty;
+            SavedProjectId = string.Empty;
+            SavedCollectionPath = string.Empty;
+
+            m_OrganizationInfo = null;
+            m_SelectedProjectId = null;
+            m_CollectionPath = null;
+            m_OrganizationList = new List<NameAndId>();
+            m_AssetLibrariesProjects = null;
+            m_AssetLibrariesLoadTask = null;
+
+            OrganizationListChanged?.Invoke(OrganizationList);
+            InvokeOrganizationChanged();
+            ProjectSelectionChanged?.Invoke(null, null);
+        }
+
         void OnAuthenticationStateChanged()
         {
             // Cancel the current operation if the user is logged out
@@ -487,16 +523,24 @@ namespace Unity.AssetManager.Core.Editor
             {
                 m_LoadOrganizationOperation?.Cancel();
                 m_OrganizationInfo = null;
+                OrganizationList.Clear();
+                OrganizationListChanged?.Invoke(OrganizationList);
             }
 
-            _ = TryLoadValidOrganizationAsync();
-            m_AssetLibrariesLoadTask = TryLoadAssetLibrariesAsync();
+            if (GetAuthenticationState() == Unity.Cloud.IdentityEmbedded.AuthenticationState.LoggedIn) 
+            {
+                _ = TryLoadValidOrganizationAsync();
+                m_AssetLibrariesLoadTask = TryLoadAssetLibrariesAsync();
+            }
         }
 
         void OnCloudServicesReachabilityChanged(bool cloudServicesReachable)
         {
-            _ = TryLoadValidOrganizationAsync();
-            m_AssetLibrariesLoadTask = TryLoadAssetLibrariesAsync();
+            if (cloudServicesReachable) 
+            {
+                _ = TryLoadValidOrganizationAsync();
+                m_AssetLibrariesLoadTask = TryLoadAssetLibrariesAsync();
+            }
         }
 
         public async IAsyncEnumerable<UserInfo> GetOrganizationUsersAsync(string organizationId, Range range, [EnumeratorCancellation] CancellationToken token)
@@ -704,12 +748,6 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        public async IAsyncEnumerable<NameAndId> ListOrganizationsAsync()
-        {
-            await foreach(var organization in OrganizationRepository.ListOrganizationsAsync(Range.All))
-                yield return new NameAndId() { Id = organization.Id.ToString(), Name = organization.Name };
-        }
-
         public async Task<List<string>> GetOrganizationVersionLabelsAsync()
         {
             if (m_VersionLabels.ContainsKey(m_OrganizationInfo.Id))
@@ -805,28 +843,79 @@ namespace Unity.AssetManager.Core.Editor
             return null;
         }
 
-        internal async Task TryLoadValidOrganizationAsync()
+        /// <summary>
+        /// Fetches the organization list from the repository, updates the cache, and raises OrganizationListChanged.
+        /// </summary>
+        public async Task RefreshOrganizationListAsync()
         {
-            if (!IsCloudReachable || !IsLoggedIn || IsLoading)
+            if (!IsCloudReachable || !IsLoggedIn)
                 return;
 
-            var isOrganizationAvailable = await IsSavedOrganizationAvailableForUser();
-            if (!isOrganizationAvailable)
+            var list = new List<NameAndId>();
+            await foreach (var organization in OrganizationRepository.ListOrganizationsAsync(Range.All))
+                list.Add(new NameAndId(organization.Name, organization.Id.ToString()));
+            m_OrganizationList = list;
+            OnOrganizationListChanged();
+
+            if (IsLoading)
+                return;
+
+            await TryLoadFirstOrSavedOrganization();
+        }
+
+        async Task TryLoadFirstOrSavedOrganization()
+        {
+            if (!string.IsNullOrWhiteSpace(SavedOrganizationId))
             {
-                if (m_UnityConnectProxy.HasValidOrganizationId)
-                    SavedOrganizationId = m_UnityConnectProxy.OrganizationId;
-                else
+                var savedId = SavedOrganizationId;
+
+                // Avoid redundant reload when Refresh runs again (e.g. OnEnable + auth) after load already completed.
+                if (!IsLoading && m_OrganizationInfo != null && m_OrganizationInfo.Id == savedId)
+                    return;
+
+                // EditorPrefs are not scoped per backend; reject ids that do not exist on the repository
+                // we are using now (e.g. leftover private-cloud ids when Unity services are active).
+                var trustSaved =
+                    OrganizationList.Exists(o => o.Id == savedId)
+                    || await GetOrganizationAsync(savedId) != null
+                    || (m_UnityConnectProxy.HasValidOrganizationId && savedId == m_UnityConnectProxy.OrganizationId);
+
+                if (trustSaved)
                 {
-                    // Get the first available organization for the user
-                    await foreach(var organization in OrganizationRepository.ListOrganizationsAsync(Range.All))
-                        SavedOrganizationId = organization.Id.ToString();
+                    SelectOrganization(savedId);
+                    return;
                 }
+
+                Utilities.DevLog($"Discarding saved organization id '{savedId}' — not found on the current backend.");
+                SavedOrganizationId = string.Empty;
+                SavedProjectId = string.Empty;
+                SavedCollectionPath = string.Empty;
             }
 
-            if (string.IsNullOrWhiteSpace(m_OrganizationInfo?.Id) || m_OrganizationInfo?.Id != SavedOrganizationId)
+            if (m_UnityConnectProxy.HasValidOrganizationId)
+                SelectOrganization(m_UnityConnectProxy.OrganizationId);
+            else
             {
-                await LoadOrganization(SavedOrganizationId);
+                var first = OrganizationList.FirstOrDefault();
+                if (first.Id != null)
+                    SelectOrganization(first.Id);
+                else
+                    await LoadOrganization(null);
             }
+        }
+
+        internal async Task OnOrganizationListChanged() 
+        {
+            Utilities.DevLog($"OrganizationListChanged ({OrganizationList.Count} organizations) : saved '{SavedOrganizationId}'");
+            OrganizationListChanged?.Invoke(OrganizationList);
+        }
+
+        internal async Task TryLoadValidOrganizationAsync()
+        {
+            if (!IsCloudReachable || !IsLoggedIn)
+                return;
+
+            await RefreshOrganizationListAsync();
         }
 
         internal async Task TryLoadAssetLibrariesAsync()
@@ -895,15 +984,17 @@ namespace Unity.AssetManager.Core.Editor
             if (!IsCloudReachable || !IsLoggedIn)
                 return Task.CompletedTask;
 
-            // Create a new instance if the id has changed
             if (m_OrganizationInfo?.Id != newOrgId)
             {
-                m_OrganizationInfo = new OrganizationInfo {Id = newOrgId};
+                m_OrganizationInfo = null;
             }
 
             // Cancel any existing operation
             if (IsLoading)
+            {
                 m_LoadOrganizationOperation?.Cancel();
+                m_LoadOrganizationOperation = null;
+            }
 
             Utilities.DevLog($"Fetching organization info for '{newOrgId}'...");
 
@@ -918,6 +1009,7 @@ namespace Unity.AssetManager.Core.Editor
             return m_LoadOrganizationOperation.Start(token => GetOrganizationInfoAsync(newOrgId, token),
                 loadingStartCallback: () =>
                 {
+                    Utilities.DevLog($"Start loading organization {newOrgId}...");
                     LoadingStateChanged?.Invoke(true);
                     InvokeOrganizationChanged();
                 },
@@ -928,11 +1020,13 @@ namespace Unity.AssetManager.Core.Editor
                 },
                 exceptionCallback: e =>
                 {
+                    Utilities.DevLog($"Exception while loading organization {newOrgId}: {e.Message}");
                     Debug.LogException(e);
                     InvokeOrganizationChanged();
                 },
                 successCallback: result =>
                 {
+                    Utilities.DevLog($"Successfully loaded organization {newOrgId}");
                     m_OrganizationInfo = result;
                     SavedOrganizationId = m_OrganizationInfo.Id;
 
@@ -945,30 +1039,11 @@ namespace Unity.AssetManager.Core.Editor
             );
         }
 
-        async Task<bool> IsSavedOrganizationAvailableForUser()
-        {
-            if (GetAuthenticationState() != Cloud.IdentityEmbedded.AuthenticationState.LoggedIn)
-                return false;
-
-            await foreach (var organization in OrganizationRepository.ListOrganizationsAsync(Range.All))
-            {
-                if (organization.Id.ToString() == SavedOrganizationId)
-                    return true;
-            }
-
-            return false;
-        }
-
         async Task<OrganizationInfo> GetOrganizationInfoAsync(string organizationId, CancellationToken token)
         {
 #if AM4U_DEV
             var t = new Stopwatch();
             t.Start();
-#endif
-
-#if UNITY_2021
-            var orgFromOrgName = await GetOrganizationFromOrganizationName(organizationId);
-            organizationId = orgFromOrgName?.Id.ToString();
 #endif
 
             var organizationInfo = new OrganizationInfo {Id = organizationId, Name = "none"};
@@ -1028,36 +1103,6 @@ namespace Unity.AssetManager.Core.Editor
 
             return organizationInfo;
         }
-
-#if UNITY_2021
-        async Task<IOrganization> GetOrganizationFromOrganizationName(string organizationName)
-        {
-            // First call to backend requires a valid authentication state
-            while (GetAuthenticationState() != Unity.Cloud.Identity.AuthenticationState.LoggedIn)
-            {
-                await Task.Delay(200);
-            }
-
-            var organizationsAsync = OrganizationRepository.ListOrganizationsAsync(Range.All);
-
-            await foreach (var organization in organizationsAsync)
-            {
-                if (CreateTagFromOrganizationName(organization.Name) == organizationName)
-                {
-                    return organization;
-                }
-            }
-
-            return null;
-        }
-
-        // organization names that are coming out of CloudProjectSettings.organizationId are formatted as tag
-        string CreateTagFromOrganizationName(string organizationName)
-        {
-            return organizationName.ToLowerInvariant().Replace(" ", "-");
-        }
-#endif
-
 
         string RestoreSelectedProjectId()
         {

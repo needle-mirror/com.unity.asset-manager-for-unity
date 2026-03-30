@@ -14,11 +14,37 @@ namespace Unity.AssetManager.UI.Editor
     {
         public const string DetailsPageContentContainer = "details-page-content-container";
         public const string AssetVersionDetailsFoldout = "asset-version-details-foldout";
+        public const string ActivityFoldout = "activity-foldout";
+        public const string ActivityFoldoutNoToggle = "activity-foldout--no-toggle";
         public const string AssetVersionLabelContainer = "asset-version-label-container";
         public const string AssetVersionLabel = "asset-version-label";
         public const string AssetVersionLabel_Filled = "asset-version-label--filled";
         public const string AssetVersionLabel_Imported = "asset-version-label--imported";
         public const string UnityFoldoutInput = "unity-foldout__input";
+
+        public const string HistoryChangeBlock = "history-change-block";
+        public const string HistoryChangeTitleRow = "history-change-title-row";
+        public const string HistoryChangeFieldName = "history-change-field-name";
+        public const string HistoryChangeActionAdded = "history-change-action--added";
+        public const string HistoryChangeActionChanged = "history-change-action--changed";
+        public const string HistoryChangeActionRemoved = "history-change-action--removed";
+        public const string HistoryChangeActionIcon = "history-change-action-icon";
+        public const string HistoryChangeSectionLabel = "history-change-section-label";
+        public const string HistoryChangeSectionLabelHorizontal = "history-change-section-label-horizontal";
+        public const string HistoryChangeArrow = "history-change-arrow";
+        public const string HistoryChangeArrowVertical = "history-change-arrow-vertical";
+        public const string HistoryChangeValueCell = "history-change-value-cell";
+        public const string HistoryChangeValueCellNew = "history-change-value-cell--new";
+        public const string HistoryChangeArrowRow = "history-change-arrow-row";
+
+        // Activity header styles
+        public const string ActivityHeaderColumn = "activity-header-column";
+        public const string ActivityHeaderRow = "activity-header-row";
+        public const string ActivityHeaderText = "activity-header-text";
+        public const string ActivityDateLabel = "activity-date-label";
+        public const string ActivityUserIcon = "activity-user-icon";
+        public const string ActivityUserName = "activity-user-name";
+        public const string ActivityLoadMoreButton = "activity-load-more-button";
     }
 
     class AssetInspectorVersionsTab : IPageComponent
@@ -66,10 +92,19 @@ namespace Unity.AssetManager.UI.Editor
                 m_UIPreferences.SetString(k_PreferencesProjectId, m_CurrentProjectId);
             }
 
-            // Have the loaded version expanded by default if the foldout is not already set
+            // Have only the loaded version (e.g. from deeplink) expanded when opening the tab; fold all other versions.
             if (!m_UIPreferences.Contains($"foldout:{m_ViewModel.AssetId}"))
-            {
                 m_UIPreferences.SetBool($"foldout:{m_ViewModel.AssetId}", true);
+            m_UIPreferences.RemoveAll($"foldout:{m_ViewModel.AssetId}_");
+
+            var deeplinkVersionToExpand = m_UIPreferences.GetString($"deeplink-expand-version:{m_ViewModel.AssetId}", string.Empty);
+            if (!string.IsNullOrEmpty(deeplinkVersionToExpand))
+            {
+                m_UIPreferences.Remove($"deeplink-expand-version:{m_ViewModel.AssetId}");
+                m_UIPreferences.SetBool($"foldout:{m_ViewModel.AssetId}_{deeplinkVersionToExpand}", true);
+            }
+            else
+            {
                 m_UIPreferences.SetBool(GetFoldoutKey(m_ViewModel.AssetIdentifier), true);
             }
 

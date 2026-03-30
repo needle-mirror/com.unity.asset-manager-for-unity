@@ -72,6 +72,7 @@ namespace Unity.AssetManager.UI.Editor
             m_ViewModel.ProjectSelectionChanged += OnProjectSelectionChanged;
 
             Refresh();
+            ApplyCurrentSelection();
             ScrollToHeight(m_StateManager.SideBarScrollValue);
             m_ProjectsFoldoutViewModel.Enabled = true;
             m_LibrariesFoldoutViewModel.Enabled = true;
@@ -113,12 +114,20 @@ namespace Unity.AssetManager.UI.Editor
         void OnOrganizationChanged(OrganizationInfo organization)
         {
             Refresh();
-
+            ApplyCurrentSelection();
             m_SidebarSavedViewFoldout.Refresh();
         }
 
         void OnProjectSelectionChanged(ProjectOrLibraryInfo projectOrLibraryInfo, CollectionInfo collectionInfo)
         {
+            if (projectOrLibraryInfo != null)
+            {
+                m_StateManager.SelectedOrganizationId = m_ViewModel.GetSelectedOrganization()?.Id;
+                m_StateManager.SelectedOrganizationName = m_ViewModel.GetSelectedOrganization()?.Name;
+                m_StateManager.SelectedProjectId = projectOrLibraryInfo.Id;
+                m_StateManager.SelectedCollectionPath = collectionInfo?.GetFullPath();
+            }
+
             if (projectOrLibraryInfo == null || m_ViewModel.GetActivePage() is AllAssetsPage or AllAssetsInProjectPage)
             {
                 m_SidebarProjectFoldout.ClearSelectedProject();
@@ -146,6 +155,43 @@ namespace Unity.AssetManager.UI.Editor
             m_SidebarAssetLibraryFoldout.SetEnabled(page is CollectionPage or AllAssetsPage);
             m_SidebarSavedViewFoldout.SetEnabled(!m_ViewModel.IsCurrentlySelectingAnAssetLibrary());
             m_SidebarSavedViewFoldout.SetDisplay(page is BasePage { DisplaySavedViewControls: true });
+        }
+
+        void ApplyCurrentSelection()
+        {
+            var projectOrLibraryInfo = m_ViewModel.GetSelectedProjectOrLibrary();
+            var collectionInfo = m_ViewModel.GetSelectedCollection();
+
+            if (projectOrLibraryInfo == null && !string.IsNullOrEmpty(m_StateManager.SelectedOrganizationId) && !string.IsNullOrEmpty(m_StateManager.SelectedProjectId))
+            {
+                var (project, collection) = m_ViewModel.TryGetProjectAndCollectionFromIds(
+                    m_StateManager.SelectedOrganizationId,
+                    m_StateManager.SelectedProjectId,
+                    m_StateManager.SelectedCollectionPath);
+                if (project != null)
+                {
+                    projectOrLibraryInfo = project;
+                    collectionInfo = collection;
+                }
+            }
+
+            if (projectOrLibraryInfo == null || m_ViewModel.GetActivePage() is AllAssetsPage or AllAssetsInProjectPage)
+            {
+                m_SidebarProjectFoldout.ClearSelectedProject();
+                m_SidebarAssetLibraryFoldout.ClearSelectedProject();
+            }
+            else
+            {
+                if (projectOrLibraryInfo.IsAssetLibrary)
+                {
+                    m_SidebarAssetLibraryFoldout.SelectProject(projectOrLibraryInfo, collectionInfo);
+                    m_SidebarSavedViewFoldout.Unselect();
+                }
+                else
+                {
+                    m_SidebarProjectFoldout.SelectProject(projectOrLibraryInfo, collectionInfo);
+                }
+            }
         }
 
         void Refresh()

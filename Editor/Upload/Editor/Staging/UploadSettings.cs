@@ -30,10 +30,12 @@ namespace Unity.AssetManager.Upload.Editor
         static readonly string k_UploadModePrefKey = "com.unity.asset-manager-for-unity.reupload-mode";
         static readonly string k_UploadDependencyModePrefKey = "com.unity.asset-manager-for-unity.upload-dependency-mode";
         static readonly string k_UploadFlattenFilePathsPrefKey = "com.unity.asset-manager-for-unity.upload-flatten-file-paths";
+        static readonly string k_UploadMatchProjectStructurePrefKey = "com.unity.asset-manager-for-unity.match-project-structure";
 
         static readonly UploadAssetMode k_DefaultUploadAssetMode = UploadAssetMode.SkipIdentical;
         static readonly UploadDependencyMode k_DefaultUploadDependencyMode = UploadDependencyMode.Separate;
         static readonly UploadFilePathMode k_DefaultUploadFilePathMode = UploadFilePathMode.Full;
+        static readonly bool k_DefaultMatchProjectStructure = false;
 
         public string OrganizationId;
         public string ProjectId;
@@ -57,6 +59,12 @@ namespace Unity.AssetManager.Upload.Editor
             set => SavedFilePathMode = value;
         }
 
+        public bool MatchProjectStructure
+        {
+            get => SavedMatchProjectStructure;
+            set => SavedMatchProjectStructure = value;
+        }
+
         UploadAssetMode SavedUploadMode
         {
             set => EditorPrefs.SetInt(k_UploadModePrefKey, (int)value);
@@ -75,11 +83,18 @@ namespace Unity.AssetManager.Upload.Editor
             get => (UploadFilePathMode)EditorPrefs.GetInt(k_UploadFlattenFilePathsPrefKey, (int)k_DefaultUploadFilePathMode);
         }
 
+        bool SavedMatchProjectStructure
+        {
+            set => EditorPrefs.SetBool(k_UploadMatchProjectStructurePrefKey, value);
+            get => EditorPrefs.GetBool(k_UploadMatchProjectStructurePrefKey, k_DefaultMatchProjectStructure);
+        }
+
         public void ResetToDefault()
         {
             SavedUploadMode = k_DefaultUploadAssetMode;
             SavedDependencyMode = k_DefaultUploadDependencyMode;
             SavedFilePathMode = k_DefaultUploadFilePathMode;
+            SavedMatchProjectStructure = k_DefaultMatchProjectStructure;
         }
 
         public static string GetUploadModeTooltip(UploadAssetMode mode)

@@ -148,7 +148,8 @@ namespace Unity.AssetManager.UI.Editor
             // So we need to make sure the version returned is the one we need.
             var assetData = m_AssetDataManager.GetAssetData(identifier);
 
-            if (assetData != null && (assetData.Identifier == identifier || m_PageManager.ActivePage is UploadPage && assetData.Identifier.AssetId == identifier.AssetId))
+            if (assetData != null && (assetData.Identifier == identifier || m_PageManager.ActivePage is UploadPage &&
+                    assetData.Identifier.AssetId == identifier.AssetId))
             {
                 return assetData;
             }

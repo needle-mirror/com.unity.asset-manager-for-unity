@@ -22,6 +22,9 @@ namespace Unity.AssetManager.UI.Editor
 
         public void CreatePopupContainer(VisualElement parent)
         {
+            if (m_PopupContainer != null)
+                m_PopupContainer.RemoveFromHierarchy();
+
             m_PopupContainer = new PopupContainer();
             parent.Add(m_PopupContainer);
         }

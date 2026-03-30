@@ -75,6 +75,7 @@ namespace Unity.AssetManager.UI.Editor
         public virtual bool DisplayUploadMetadata => false;
         public virtual bool DisplayUpdateAllButton => true;
         public virtual bool DisplayTitle => false;
+        public virtual bool DisplayGridView => true;
         public virtual string DefaultProjectName => L10n.Tr(Constants.AllAssetsFolderName);
         public virtual string Title => GetPageName();
         protected Task UpdateAssetAttributesTask { get; private set; }
@@ -449,6 +450,10 @@ namespace Unity.AssetManager.UI.Editor
                 catch (TaskCanceledException)
                 {
                     // Ignore
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when a new search supersedes this one (e.g. filter applied or project changed)
                 }
                 catch (Exception e)
                 {

@@ -93,35 +93,16 @@ namespace Unity.AssetManager.Core.Editor
             m_PermissionsManager.AuthenticationStateChanged += CheckCloudServicesReachability;
         }
 
-        protected override void ValidateServiceDependencies()
+        /// <summary>
+        /// Applies organization/project ids for the given backend mode. Used on every editor update and
+        /// immediately when private cloud is toggled so <see cref="IUnityConnectProxy"/> is not stale for one frame.
+        /// </summary>
+        internal void ApplyConnectedOrganizationProjectForBackendMode(bool privateCloudServicesEnabled)
         {
-            base.ValidateServiceDependencies();
-
-            m_ApplicationProxy ??= ServicesContainer.instance.Get<IApplicationProxy>();
-            m_PermissionsManager ??= ServicesContainer.instance.Get<IPermissionsManager>();
-            m_SettingsManager ??= ServicesContainer.instance.Get<ISettingsManager>();
-        }
-
-        public override void OnDisable()
-        {
-            if (m_ApplicationProxy != null)
-                m_ApplicationProxy.Update -= Update;
-
-            if (m_PermissionsManager != null)
-                m_PermissionsManager.AuthenticationStateChanged -= CheckCloudServicesReachability;
-        }
-
-        void Update()
-        {
-            var isReachingPrivateCloudServices = false;
-
             var settings = m_SettingsManager.PrivateCloudSettings;
 
-            // Private Cloud must set its own organization and project ids.
-            // We cannot rely on the CloudProjectSettings linked organization/project as these remain connected to public Unity services.
-            if (settings.ServicesEnabled)
+            if (privateCloudServicesEnabled)
             {
-                isReachingPrivateCloudServices = true;
                 if (!m_ConnectedOrganizationId.Equals(settings.SelectedOrganizationId))
                 {
                     m_ConnectedOrganizationId = settings.SelectedOrganizationId;
@@ -159,6 +140,34 @@ namespace Unity.AssetManager.Core.Editor
                 m_ConnectedProjectId = CloudProjectSettings.projectId;
                 ProjectIdChanged?.Invoke();
             }
+        }
+
+        protected override void ValidateServiceDependencies()
+        {
+            base.ValidateServiceDependencies();
+
+            m_ApplicationProxy ??= ServicesContainer.instance.Get<IApplicationProxy>();
+            m_PermissionsManager ??= ServicesContainer.instance.Get<IPermissionsManager>();
+            m_SettingsManager ??= ServicesContainer.instance.Get<ISettingsManager>();
+        }
+
+        public override void OnDisable()
+        {
+            if (m_ApplicationProxy != null)
+                m_ApplicationProxy.Update -= Update;
+
+            if (m_PermissionsManager != null)
+                m_PermissionsManager.AuthenticationStateChanged -= CheckCloudServicesReachability;
+        }
+
+        void Update()
+        {
+            var settings = m_SettingsManager.PrivateCloudSettings;
+            var isReachingPrivateCloudServices = settings.ServicesEnabled;
+
+            // Private Cloud must set its own organization and project ids.
+            // We cannot rely on the CloudProjectSettings linked organization/project as these remain connected to public Unity services.
+            ApplyConnectedOrganizationProjectForBackendMode(isReachingPrivateCloudServices);
 
             CheckCloudServicesReachability(m_IsReachingPrivateCloudServices != isReachingPrivateCloudServices);
             m_IsReachingPrivateCloudServices = isReachingPrivateCloudServices;

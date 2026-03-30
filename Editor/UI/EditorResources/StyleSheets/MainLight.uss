@@ -1,6 +1,29 @@
 :root{
     --icon-tint-color: #555555;
     --hover-highlight-color: #3A79BB;
+    --inline-edit-hover-border-color: #5a5a5a;
+    --url-hyperlink-color: #1565C0;
+    --history-change-section-label-color: #6A6A6A;
+    --history-change-divider-color: #B0B0B0;
+    --history-change-block-background: #C8C8C8;
+    --activity-foldout-background: #D6D6D6;
+}
+
+InlineEditConfirmationPopupContainer {
+    background-color: #e8e8e8;
+}
+
+.inline-edit-confirmation-btn {
+    background-color: #e0e0e0;
+    border-color: #888888;
+}
+
+.inline-edit-confirmation-divider {
+    background-color: #e8e8e8;
+}
+
+.inline-edit-confirmation-btn:hover {
+    background-color: #d0d0d0;
 }
 
 /************************************************
@@ -334,7 +357,8 @@ RoleChip {
 ************************************************/
 
 .multi-selection-foldout > Toggle {
-    background-color: rgba(198, 198, 198, 1);
+    background-color: rgba(214, 214, 214, 1);
+    border-top-color: rgba(180, 180, 180, 1);
 }
 
 .upload-metadata-title {
@@ -377,7 +401,8 @@ RoleChip {
 }
 
 .details-files-foldout > Toggle{
-    background-color: rgba(198, 198, 198, 1);
+    background-color: rgba(214, 214, 214, 1);
+    border-top-color: rgba(180, 180, 180, 1);
 }
 
 .details-files-foldout-uvcs-chip-icon
@@ -447,7 +472,13 @@ RoleChip {
 }
 
 .asset-version-details-foldout > Toggle {
-    background-color: #C6C6C6;
+    background-color: rgba(214, 214, 214, 1);
+    border-top-color: rgba(180, 180, 180, 1);
+}
+
+.asset-version-details-foldout.activity-foldout > Toggle {
+    background-color: var(--activity-foldout-background);
+    border-top-color: transparent;
 }
 
 .asset-version-label--filled
@@ -565,4 +596,70 @@ PopupContainer {
 
 .unity-new-version-notification-dropdown:hover .unity-base-popup-field__input {
     background-color: rgba(236, 236, 236, 255);
+}
+
+/************************************************
+* Activity Tab - Light Theme
+************************************************/
+.asset-version-details-foldout.activity-foldout {
+    background-color: var(--activity-foldout-background);
+}
+
+.asset-version-details-foldout.activity-foldout > Toggle {
+    background-color: var(--activity-foldout-background);
+}
+
+.history-change-value-cell Label {
+    color: #090909;
+}
+
+.history-change-value-cell TagChip,
+.history-change-value-cell UserChip {
+    background-color: #C6C6C6;
+    color: #090909;
+}
+
+.history-change-value-cell TagChip:hover,
+.history-change-value-cell UserChip:hover {
+    background-color: #D4D4D4;
+}
+
+.history-change-value-cell TagChip:hover {
+    background-color: #D4D4D4;
+}
+
+.history-change-value-cell Chip:hover {
+    background-color: #D4D4D4;
+}
+
+Label.history-change-action--added {
+    color: #1A7A40;
+}
+
+Label.history-change-action--changed {
+    color: #1B5EA0;
+}
+
+Label.history-change-action--removed {
+    color: #A03030;
+}
+
+/************************************************
+* Upload Hierarchy View
+************************************************/
+
+.upload-hierarchy-row--hovered {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.upload-hierarchy-view{
+    background-color: #A5A5A5;
+}
+
+.upload-hierarchy-row__extension {
+    color: black;
+}
+
+.upload-hierarchy-row__reupload-collection-warning-icon {
+    color: #A5A5A5;
 }

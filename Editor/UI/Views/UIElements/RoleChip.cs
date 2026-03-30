@@ -92,7 +92,7 @@ namespace Unity.AssetManager.UI.Editor
             var role = await m_PermissionsManager.GetRoleAsync(organizationId, projectId);
             m_Label.text = role.ToString();
 
-            var isVisible = m_PageManager.ActivePage is CollectionPage or UploadPage;
+            var isVisible = m_PageManager.ActivePage is CollectionPage;
             m_IsShown = isVisible && role != Role.None;
             UIElementsUtils.SetDisplay(this, m_IsShown);
         }

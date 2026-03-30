@@ -30,21 +30,28 @@ namespace Unity.AssetManager.UI.Editor
 
             if (provider.SelectedOrganization == null)
             {
-                provider.OrganizationChanged += OnOrganizationLoaded;
+                provider.LoadingStateChanged += OnOrganizationLoadingStateChanged;
             }
             else
             {
-                OnOrganizationLoaded(provider.SelectedOrganization);
+                if (provider.IsLoading) 
+                {
+                    provider.LoadingStateChanged += OnOrganizationLoadingStateChanged;
+                }
+                else 
+                {
+                    OrganizationLoaded?.Invoke();
+                }
             }
         }
 
-        void OnOrganizationLoaded(OrganizationInfo organization)
+        void OnOrganizationLoadingStateChanged(bool isLoading)
         {
-            if (organization?.Id == null)
+            if (isLoading)
                 return;
-
+            
             var provider = ServicesContainer.instance.Resolve<IProjectOrganizationProvider>();
-            provider.OrganizationChanged -= OnOrganizationLoaded;
+            provider.LoadingStateChanged -= OnOrganizationLoadingStateChanged;
 
             OrganizationLoaded?.Invoke();
         }

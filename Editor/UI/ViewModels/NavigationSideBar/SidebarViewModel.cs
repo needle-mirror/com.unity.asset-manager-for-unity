@@ -85,6 +85,34 @@ namespace Unity.AssetManager.UI.Editor
             return m_ProjectOrganizationProvider.SelectedOrganization;
         }
 
+        public ProjectOrLibraryInfo GetSelectedProjectOrLibrary()
+        {
+            return m_ProjectOrganizationProvider.SelectedProjectOrLibrary;
+        }
+
+        public CollectionInfo GetSelectedCollection()
+        {
+            return m_ProjectOrganizationProvider.SelectedCollection;
+        }
+
+        /// <summary>
+        /// Resolves project and collection from persisted ids for restoring selection after domain reload.
+        /// Returns (null, null) if the organization is not loaded or the project/collection are not found.
+        /// </summary>
+        public (ProjectOrLibraryInfo project, CollectionInfo collection) TryGetProjectAndCollectionFromIds(string organizationId, string projectId, string collectionPath)
+        {
+            var org = m_ProjectOrganizationProvider.SelectedOrganization;
+            if (org == null || org.Id != organizationId)
+                return (null, null);
+
+            var project = m_ProjectOrganizationProvider.GetProject(projectId);
+            if (project == null)
+                return (null, null);
+
+            var collection = string.IsNullOrEmpty(collectionPath) ? null : project.GetCollection(collectionPath);
+            return (project, collection ?? new CollectionInfo(organizationId, projectId, null));
+        }
+
         public IPage GetActivePage()
         {
             return m_PageManager.ActivePage;

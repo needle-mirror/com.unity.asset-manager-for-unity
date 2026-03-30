@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using Unity.Cloud.CommonEmbedded;
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -27,6 +28,7 @@ namespace Unity.AssetManager.Core.Editor
         const string k_DevLogHighlightColor = "#00CED1";   // cyan — info highlight
         const string k_DevLogWarningHighlightColor = "#FFD700"; // yellow/gold — warning highlight
         const string k_DevLogErrorHighlightColor = "#FF0000";   // red — error highlight
+        const string k_DevLogTagColor = "#C58AF9";              // light purple — custom subsystem tag
 
         internal static string BytesToReadableString(double bytes)
         {
@@ -55,6 +57,26 @@ namespace Unity.AssetManager.Core.Editor
         public static string DatetimeToString(DateTime? value)
         {
             return value?.ToLocalTime().ToString("G");
+        }
+
+        /// <summary>
+        /// Formats a DateTime as relative time (e.g., "now", "2h ago").
+        /// Returns "now" if within 5 minutes.
+        /// </summary>
+        public static string FormatRelativeTime(DateTime dateTime)
+        {
+            var timeSpan = DateTime.Now - dateTime;
+
+            if (timeSpan.TotalMinutes < 5)
+                return "now";
+            if (timeSpan.TotalHours < 1)
+                return $"{(int)timeSpan.TotalMinutes}m ago";
+            if (timeSpan.TotalDays < 1)
+                return $"{(int)timeSpan.TotalHours}h ago";
+            if (timeSpan.TotalDays < 30)
+                return $"{(int)timeSpan.TotalDays}d ago";
+
+            return $"{(int)(timeSpan.TotalDays / 30)}mo ago";
         }
 
         public static int ConvertTo12HourTime(int hour24)
@@ -87,11 +109,12 @@ namespace Unity.AssetManager.Core.Editor
         /// </summary>
         /// <param name="message">The message to log.</param>
         /// <param name="highlight">When true, colors the message (cyan) for priority information.</param>
+        /// <param name="tag">Optional subsystem tag (rendered in purple after the AM4U_DEV prefix) for grep-friendly categorization.</param>
         [System.Diagnostics.Conditional("AM4U_DEV")]
-        public static void DevLog(string message, bool highlight = false)
+        public static void DevLog(string message, bool highlight = false, string tag = null)
         {
             var body = highlight ? $"<color={k_DevLogHighlightColor}>{message}</color>" : message;
-            Debug.Log($"{k_DevLogPrefix} {body}");
+            Debug.Log($"{FormatPrefix(tag)} {body}");
         }
 
         /// <summary>
@@ -131,11 +154,84 @@ namespace Unity.AssetManager.Core.Editor
         /// </summary>
         /// <param name="message">The message to log.</param>
         /// <param name="highlight">When true, colors the message (red) for priority information.</param>
+        /// <param name="tag">Optional subsystem tag (rendered in purple after the AM4U_DEV prefix) for grep-friendly categorization.</param>
         [System.Diagnostics.Conditional("AM4U_DEV")]
-        public static void DevLogError(string message, bool highlight = false)
+        public static void DevLogError(string message, bool highlight = false, string tag = null)
         {
             var body = highlight ? $"<color={k_DevLogErrorHighlightColor}>{message}</color>" : message;
-            Debug.LogError($"{k_DevLogPrefix} {body}");
+            Debug.LogError($"{FormatPrefix(tag)} {body}");
+        }
+
+        /// <summary>
+        /// Returns a short, human-readable message suitable for UI or logs. Avoids full exception payloads
+        /// (e.g. ServiceError) and uses Detail/Title or the first line of Message when appropriate.
+        /// </summary>
+        public static string GetUserFacingErrorMessage(Exception ex)
+        {
+            if (ex == null)
+                return "An error occurred.";
+
+            if (ex is ServiceException se)
+            {
+                var detailMessage = TryGetDetailErrorMessage(se);
+                if (!string.IsNullOrWhiteSpace(detailMessage))
+                    return detailMessage.Trim();
+                if (!string.IsNullOrWhiteSpace(se.Detail))
+                    return se.Detail.Trim();
+                if (!string.IsNullOrWhiteSpace(se.Title))
+                    return se.Title.Trim();
+                return "Validation failed.";
+            }
+
+            var msg = ex.Message?.Trim() ?? "";
+            if (string.IsNullOrEmpty(msg))
+                return "An error occurred. Please try again.";
+            if (msg.IndexOf('\n') < 0 && msg.Length <= 200)
+                return msg;
+            var firstLine = msg.Split('\n')[0].Trim();
+            return firstLine.Length <= 200 ? firstLine : firstLine.Substring(0, 197) + "...";
+        }
+
+        /// <summary>
+        /// Tries to extract errorMessage from ServiceException Details or Message (handles JSON-style and C#-style serialization).
+        /// </summary>
+        static string TryGetDetailErrorMessage(ServiceException se)
+        {
+            var sources = new List<string>();
+            if (se.Details != null)
+            {
+                foreach (var d in se.Details)
+                {
+                    var s = d?.ToString();
+                    if (!string.IsNullOrWhiteSpace(s)) sources.Add(s);
+                }
+            }
+            if (sources.Count == 0 && !string.IsNullOrWhiteSpace(se.Message))
+                sources.Add(se.Message);
+
+            foreach (var text in sources)
+            {
+                var value = MatchErrorMessageValue(text);
+                if (!string.IsNullOrWhiteSpace(value)) return value;
+            }
+            return null;
+        }
+
+        static string MatchErrorMessageValue(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return null;
+            // Double-quoted JSON: "errorMessage": "Name must not start with whitespace" (allow escaped \" in value)
+            var m = Regex.Match(text, @"""errorMessage""\s*:\s*""((?:[^""\\]|\\.)*)""", RegexOptions.IgnoreCase);
+            if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
+                return m.Groups[1].Value.Replace("\\\"", "\"").Trim();
+            // Single-quoted
+            m = Regex.Match(text, @"'errorMessage'\s*:\s*'([^']*)'", RegexOptions.IgnoreCase);
+            if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
+                return m.Groups[1].Value.Trim();
+            m = Regex.Match(text, @"""errorMessage""\s*:\s*""([^""]*)""", RegexOptions.IgnoreCase);
+            if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
+                return m.Groups[1].Value.Trim();
+            return null;
         }
 
         /// <summary>
@@ -143,11 +239,12 @@ namespace Unity.AssetManager.Core.Editor
         /// </summary>
         /// <param name="message">The message to log.</param>
         /// <param name="highlight">When true, colors the message (yellow) for priority information.</param>
+        /// <param name="tag">Optional subsystem tag (rendered in purple after the AM4U_DEV prefix) for grep-friendly categorization.</param>
         [System.Diagnostics.Conditional("AM4U_DEV")]
-        public static void DevLogWarning(string message, bool highlight = false)
+        public static void DevLogWarning(string message, bool highlight = false, string tag = null)
         {
             var body = highlight ? $"<color={k_DevLogWarningHighlightColor}>{message}</color>" : message;
-            Debug.LogWarning($"{k_DevLogPrefix} {body}");
+            Debug.LogWarning($"{FormatPrefix(tag)} {body}");
         }
 
         [System.Diagnostics.Conditional("AM4U_DEV")]
@@ -155,6 +252,13 @@ namespace Unity.AssetManager.Core.Editor
         {
             Debug.LogError($"{k_DevLogPrefix} Exception: {e.GetType().Name}");
             Debug.LogException(e);
+        }
+
+        static string FormatPrefix(string tag)
+        {
+            return string.IsNullOrEmpty(tag)
+                ? k_DevLogPrefix
+                : $"{k_DevLogPrefix}<color={k_DevLogTagColor}>[{tag}]</color>";
         }
 
         public static string GetInitials(string fullName)

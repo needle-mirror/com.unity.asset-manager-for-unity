@@ -13,6 +13,7 @@ namespace Unity.AssetManager.UI.Editor
         public const string InvalidFieldLabel = "invalid-field-label";
         public const string InvalidTextFieldLabel = "invalid-text-field";
         public const string UnityTextElement = "unity-text-element";
+        public const string UrlHyperlinkLabel = "url-hyperlink-label";
     }
 
     abstract class MetadataElement : VisualElement
@@ -120,8 +121,12 @@ namespace Unity.AssetManager.UI.Editor
 
             Add(verticalContainer);
 
-            // Set the default value to about:blank since URI cannot be null
-            m_RepresentedMetadata.ForEach(x => x.Value = new UriEntry(new Uri("about:blank"), string.Empty));
+            // Only fill in a null URI to satisfy the API requirement; existing URI and label are preserved as-is.
+            m_RepresentedMetadata.ForEach(x =>
+            {
+                if (x.Value.Uri == null)
+                    x.Value = new UriEntry(new Uri("about:blank"), x.Value.Label ?? string.Empty);
+            });
         }
 
         void OnUrlChanged(ChangeEvent<string> evt)

@@ -149,7 +149,7 @@ namespace Unity.AssetManager.UI.Editor
             m_PageManager.ActivePage.ClearSelection();
         }
 
-        public abstract void EnableEditing(bool enable);
+        public abstract void ConfigureEditing(EditingMode mode, string disabledReason = null);
 
         protected abstract void OnOperationProgress(AssetDataOperation operation);
         protected abstract void OnOperationFinished(AssetDataOperation operation);

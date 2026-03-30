@@ -13,6 +13,7 @@ namespace Unity.AssetManager.UI.Editor
         readonly Foldout m_Foldout;
         readonly ListView m_ListView;
         protected readonly Toggle m_FoldoutToggle;
+        Label m_EmptyStateLabel;
 
         readonly string m_FoldoutExpandedClassName = "details-foldout-expanded";
         readonly string m_FoldoutTitle;
@@ -107,8 +108,23 @@ namespace Unity.AssetManager.UI.Editor
         public void StopPopulating()
         {
             var hasItems = !IsEmpty;
-            UIElementsUtils.SetDisplay(m_Foldout, hasItems);
+            UIElementsUtils.SetDisplay(m_Foldout, hasItems || m_EmptyStateLabel != null);
             UIElementsUtils.SetDisplay(m_ListView, hasItems);
+            if (m_EmptyStateLabel != null)
+            {
+                UIElementsUtils.SetDisplay(m_EmptyStateLabel, !hasItems);
+            }
+        }
+
+        public void SetEmptyStateLabel(string text, string className = null)
+        {
+            m_EmptyStateLabel = new Label(L10n.Tr(text));
+            if (!string.IsNullOrEmpty(className))
+            {
+                m_EmptyStateLabel.AddToClassList(className);
+            }
+            UIElementsUtils.SetDisplay(m_EmptyStateLabel, false);
+            m_Foldout.Add(m_EmptyStateLabel);
         }
 
         protected virtual IList PrepareListItem(BaseAssetData assetData, IEnumerable<TData> items)

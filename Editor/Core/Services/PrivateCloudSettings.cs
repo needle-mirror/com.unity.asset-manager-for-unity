@@ -11,6 +11,12 @@ namespace Unity.AssetManager.Core.Editor
 
         public static event Action SettingsUpdated;
 
+        /// <summary>
+        /// Raised when <see cref="ServicesEnabled"/> is about to change (public Unity services vs private cloud).
+        /// Argument is the new value. Invoked before the new value is persisted and before <see cref="SettingsUpdated"/>.
+        /// </summary>
+        public static event Action<bool> ServicesEnabledChanged;
+
         [SerializeField]
         bool m_ServicesEnabled = false;
         [SerializeField]
@@ -55,6 +61,18 @@ namespace Unity.AssetManager.Core.Editor
         public static void SetEnabled(bool enable)
         {
             var settings = Load();
+            if (settings.m_ServicesEnabled == enable)
+                return;
+
+            ServicesEnabledChanged?.Invoke(enable);
+
+            var container = ServicesContainer.instance;
+            if (container?.Get<IUnityConnectProxy>() is UnityConnectProxy unityConnectProxy)
+                unityConnectProxy.ApplyConnectedOrganizationProjectForBackendMode(enable);
+
+            if (container != null && container.Get<IProjectOrganizationProvider>() is ProjectOrganizationProvider projectOrganizationProvider)
+                projectOrganizationProvider.ClearCachedSelectionForBackendSwitch();
+
             settings.m_ServicesEnabled = enable;
             settings.Save();
         }

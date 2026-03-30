@@ -104,7 +104,8 @@ namespace Unity.AssetManager.UI.Editor
             var organizationSelectorViewModel = new SidebarOrganizationSelectorViewmodel(
                 m_PermissionsManager,
                 m_ProjectOrganizationProvider,
-                m_UnityConnectProxy);
+                m_UnityConnectProxy,
+                m_StateManager);
             var organizationSelector = new SidebarOrganizationSelector(organizationSelectorViewModel, m_PopupManager);
 
             var button = new Button();

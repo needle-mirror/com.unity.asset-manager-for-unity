@@ -30,6 +30,8 @@ namespace Unity.AssetManager.UI.Editor
         public IEnumerable<LocalFilter> SelectedLocalFilters => m_SelectedFilters.OfType<LocalFilter>();
         public AssetSearchFilter AssetSearchFilter => m_AssetSearchFilter ?? InitializeAssetSearchFilter();
         public List<CustomMetadataFilter> CustomMetadataFilters => m_CustomMetadataFilters;
+        public bool AreValid => m_PrimaryMetadataFilters != null && m_CustomMetadataFilters != null
+            && m_PrimaryMetadataFilters.All(f => f != null) && m_CustomMetadataFilters.All(f => f != null);
         IEnumerable<BaseFilter> Filters => m_PrimaryMetadataFilters.Concat(m_CustomMetadataFilters);
 
         public event Action<IReadOnlyCollection<string>> SearchFiltersChanged;
@@ -188,7 +190,10 @@ namespace Unity.AssetManager.UI.Editor
 
             m_SearchFilters.Clear();
             AddSearchFilter(assetSearchFilter.Searches);
+
+            m_AssetSearchFilter = null;
         }
+
 
         public bool IsAvailableFilters()
         {
@@ -197,7 +202,9 @@ namespace Unity.AssetManager.UI.Editor
 
         public List<BaseFilter> GetAvailablePrimaryMetadataFilters()
         {
-            return m_PrimaryMetadataFilters.Where(filter => !m_SelectedFilters.Contains(filter)).ToList();
+            return m_PrimaryMetadataFilters
+                .Where(filter => !m_SelectedFilters.Contains(filter))
+                .ToList();
         }
 
         public List<CustomMetadataFilter> GetAvailableCustomMetadataFilters()
@@ -217,12 +224,16 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             m_SearchFilters.Clear();
+            m_AssetSearchFilter = null;
 
             ClearPageFilters?.Invoke(requiresReload);
         }
 
         public void SetDirty()
         {
+            if (!AreValid)
+                return;
+
             foreach (var filter in m_PrimaryMetadataFilters)
             {
                 filter.IsDirty = true;

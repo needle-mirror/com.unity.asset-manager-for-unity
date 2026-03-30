@@ -32,6 +32,9 @@ namespace Unity.AssetManager.UI.Editor
         static readonly string k_UploadIncludedFoldoutTitle = "Included Dependencies";
 
         readonly AssetDataSelection m_SelectedAssetsData = new();
+        readonly IInlineEditService m_InlineEditService;
+        InlineMultiEditSection m_InlineMultiEditSection;
+        HelpBox m_EditingDisabledHelpBox;
         bool m_IsEditingEnabled = false;
 
         public enum FoldoutName
@@ -53,11 +56,13 @@ namespace Unity.AssetManager.UI.Editor
             IStateManager stateManager, IPageManager pageManager, IAssetDataManager assetDataManager,
             IAssetDatabaseProxy assetDatabaseProxy, IProjectOrganizationProvider projectOrganizationProvider,
             ILinksProxy linksProxy, IUnityConnectProxy unityConnectProxy, IProjectIconDownloader projectIconDownloader,
-            IPermissionsManager permissionsManager, IDialogManager dialogManager)
+            IPermissionsManager permissionsManager, IDialogManager dialogManager,
+            IInlineEditService inlineEditService = null)
             : base(assetImporter, assetOperationManager, stateManager, pageManager, assetDataManager,
                 assetDatabaseProxy, projectOrganizationProvider, linksProxy, unityConnectProxy, projectIconDownloader,
                 permissionsManager, dialogManager)
         {
+            m_InlineEditService = inlineEditService;
             BuildUxmlDocument();
             m_SelectedAssetsData.AssetDataChanged += OnAssetDataEvent;
         }
@@ -115,12 +120,29 @@ namespace Unity.AssetManager.UI.Editor
 
             m_FooterContainer.contentContainer.hierarchy.Add(m_RemoveButton);
 
+            if (m_InlineEditService != null)
+            {
+                var cacheManager = ServicesContainer.instance.Resolve<IAssetDataCacheManager>();
+                m_InlineMultiEditSection = new InlineMultiEditSection(
+                    m_InlineEditService, m_ProjectOrganizationProvider, m_StateManager,
+                    m_AssetDataManager, cacheManager);
+                var contentContainer = m_ScrollView.Q<VisualElement>(k_InspectorScrollviewContainerClassName);
+                contentContainer.Add(m_InlineMultiEditSection);
+
+                m_EditingDisabledHelpBox = new HelpBox
+                {
+                    messageType = HelpBoxMessageType.Info
+                };
+                m_EditingDisabledHelpBox.AddToClassList("editing-disabled-helpbox");
+                UIElementsUtils.Hide(m_EditingDisabledHelpBox);
+                contentContainer.Add(m_EditingDisabledHelpBox);
+            }
+
             // We need to manually refresh once to make sure the UI is updated when the window is opened.
             if (m_PageManager.ActivePage == null)
                 return;
 
-            m_SelectedAssetsData.Selection = m_AssetDataManager.GetAssetsData(m_PageManager.ActivePage.SelectedAssets);
-            RefreshUI();
+            TaskUtils.TrackException(SelectAssetDataAsync(m_AssetDataManager.GetAssetsData(m_PageManager.ActivePage.SelectedAssets)));
         }
 
         protected override void RefreshUploadMetadataContainer()
@@ -157,12 +179,19 @@ namespace Unity.AssetManager.UI.Editor
             }
         }
 
-        protected override Task SelectAssetDataAsync(IReadOnlyCollection<BaseAssetData> assetData)
+        protected override async Task SelectAssetDataAsync(IReadOnlyCollection<BaseAssetData> assetData)
         {
             if (assetData == null || assetData.Count == 0)
             {
                 m_SelectedAssetsData.Clear();
-                return Task.CompletedTask;
+                return;
+            }
+
+            // Resolve datasets only for assets that haven't been resolved yet (no primary source file)
+            var unresolvedAssets = assetData.Where(a => a.PrimarySourceFile == null);
+            if (unresolvedAssets.Any())
+            {
+                await Task.WhenAll(unresolvedAssets.Select(a => a.ResolveDatasetsAsync()));
             }
 
             // Check if assetData is a subset of m_SelectedAssetsData
@@ -179,13 +208,28 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             RefreshScrollView();
-            return Task.CompletedTask;
         }
 
-        public override void EnableEditing(bool enable)
+        public override void ConfigureEditing(EditingMode mode, string disabledReason = null)
         {
-            m_IsEditingEnabled =  enable;
+            m_IsEditingEnabled = mode == EditingMode.Upload;
             RefreshUploadMetadataContainer();
+            m_InlineMultiEditSection?.ConfigureEditing(mode, disabledReason);
+
+            // Show/hide the editing disabled help box
+            if (m_EditingDisabledHelpBox != null)
+            {
+                var showHelpBox = mode == EditingMode.ReadOnly && !string.IsNullOrEmpty(disabledReason);
+                if (showHelpBox)
+                {
+                    m_EditingDisabledHelpBox.text = disabledReason;
+                    UIElementsUtils.Show(m_EditingDisabledHelpBox);
+                }
+                else
+                {
+                    UIElementsUtils.Hide(m_EditingDisabledHelpBox);
+                }
+            }
         }
 
         protected override void OnOperationProgress(AssetDataOperation operation)
@@ -290,6 +334,7 @@ namespace Unity.AssetManager.UI.Editor
             RefreshTitleAndButtons();
             RefreshUploadMetadataContainer();
             RefreshMultiSelectionFoldoutButtonState();
+            m_InlineMultiEditSection?.UpdateSelection(m_SelectedAssetsData.Selection);
         }
 
         void RefreshFoldoutUI()
@@ -357,6 +402,15 @@ namespace Unity.AssetManager.UI.Editor
             foreach (var foldout in m_Foldouts)
             {
                 foldout.Value.SetButtonEnable(cloudServiceReachable);
+            }
+
+            if (m_PageManager.ActivePage is UploadPage)
+            {
+                // Upload selections use local identifiers; IsInProject only applies to cloud IDs.
+                // Unimported/Imported foldouts are cleared on the upload page — keep their actions disabled.
+                m_Foldouts[FoldoutName.Unimported].SetButtonEnable(false);
+                m_Foldouts[FoldoutName.Imported].SetButtonEnable(false);
+                return;
             }
 
             var containDeletedAssets = m_SelectedAssetsData.Selection.Any(a => a.AssetDataAttributeCollection?.GetAttribute<ImportAttribute>()?.Status == ImportAttribute.ImportStatus.ErrorSync);
