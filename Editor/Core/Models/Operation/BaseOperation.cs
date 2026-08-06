@@ -20,6 +20,7 @@ namespace Unity.AssetManager.Core.Editor
         public override bool ShowInBackgroundTasks => true;
     }
 
+    [Serializable]
     abstract class BaseOperation
     {
         int m_ProgressId;

@@ -14,6 +14,7 @@ namespace Unity.AssetManager.Core.Editor
         public IMetadata Clone();
     }
 
+    [Serializable]
     abstract class MetadataBase<T> : IMetadata
     {
         [SerializeField]

@@ -1,5 +1,3 @@
-using System;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
@@ -12,8 +10,6 @@ namespace Unity.AssetManager.UI.Editor
         const int k_Height = 20;
         const int k_Width = k_Height;
 
-        static Quaternion s_LastRotation;
-        static Vector3 s_LastPosition;
         static float s_LastAngle;
 
         readonly IVisualElementScheduledItem m_Scheduler;
@@ -48,21 +44,18 @@ namespace Unity.AssetManager.UI.Editor
             if (style.visibility == Visibility.Hidden)
                 return;
 
-            transform.rotation = Quaternion.Euler(0, 0, m_CurrentAngle);
+            style.rotate = new Rotate(new Angle(m_CurrentAngle, AngleUnit.Degree));
             m_CurrentAngle += 0.6f * timerState.deltaTime;
         }
 
         void OnAttachToPanel(AttachToPanelEvent evt)
         {
-            transform.rotation = s_LastRotation.normalized;
-            transform.position = s_LastPosition;
             m_CurrentAngle = s_LastAngle;
+            style.rotate = new Rotate(new Angle(m_CurrentAngle, AngleUnit.Degree));
         }
 
         void OnDetachFromPanel(DetachFromPanelEvent e)
         {
-            s_LastRotation = transform.rotation;
-            s_LastPosition = transform.position;
             s_LastAngle = m_CurrentAngle;
         }
     }

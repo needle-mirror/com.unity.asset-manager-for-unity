@@ -319,8 +319,38 @@ namespace Unity.AssetManager.Core.Editor
             ResolvePrimaryExtension();
         }
 
+        /// <summary>
+        /// Repoints this asset at another project of the same organization, after an
+        /// organization-wide lookup revealed the tracked project is no longer reachable.
+        /// </summary>
+        /// <remarks>
+        /// Mutating the identifier in place is only safe because <see cref="TrackedAssetIdentifier"/>
+        /// does not compare the project: an <see cref="AssetData"/> is shared by reference between
+        /// the tracked map and the asset data repository, both keyed by that type, so changing a
+        /// field that took part in the key would strand the entry in the wrong hash bucket.
+        /// </remarks>
+        internal void UpdateProjectId(string projectId)
+        {
+            if (m_Identifier == null || string.IsNullOrEmpty(projectId) || m_Identifier.ProjectId == projectId)
+            {
+                return;
+            }
+
+            m_Identifier = m_Identifier.WithProjectId(projectId);
+
+            TaskUtils.TrackException(RefreshLinkedProjectsAsync());
+        }
+
         void FillFromOther(AssetData other)
         {
+            if (other == null || ReferenceEquals(this, other))
+            {
+                // The repository can hand back this very instance (see AssetDataManager.GetAssetAsync,
+                // which returns the entry it already holds while its cache entry is fresh). Merging an
+                // asset into itself has nothing to contribute and only risks self-assignment damage.
+                return;
+            }
+
             m_Identifier = other.Identifier;
             m_SequenceNumber = other.SequenceNumber;
             m_ParentSequenceNumber = other.ParentSequenceNumber;
@@ -373,6 +403,12 @@ namespace Unity.AssetManager.Core.Editor
 
             if (!string.IsNullOrEmpty(entry.changelog))
                 m_Changelog = entry.changelog;
+
+            // Asset type is not stored in the minimal tracking file (FillFromTracking defaults it
+            // to Other); it is persisted in the cache and must be restored here. Only override when
+            // the cache holds a concrete type so we never clobber a good value with a stale default.
+            if (entry.assetType != AssetType.Other)
+                m_AssetType = entry.assetType;
 
             if (!string.IsNullOrEmpty(entry.createdBy))
                 m_CreatedBy = entry.createdBy;
@@ -632,11 +668,15 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
+        // Mirrors the early exit of ResolveDatasetsAsync; when it is true, resolving the datasets is a no-op
+        // and the file list can be trusted to be complete.
+        public override bool AreDatasetsResolved => m_DatasetProcessed || !string.IsNullOrEmpty(PrimaryExtension);
+
         public override async Task ResolveDatasetsAsync(CancellationToken token = default)
         {
             // Because an AssetData is tied to a version, and files modification creates a new version,
             // we can assume that the primary extension is always the same.
-            if (m_DatasetProcessed || !string.IsNullOrEmpty(PrimaryExtension))
+            if (AreDatasetsResolved)
                 return;
 
             // Wait for the refresh of properties as dataset info will be bundled
@@ -650,7 +690,6 @@ namespace Unity.AssetManager.Core.Editor
             try
             {
                 await m_DatasetTask;
-                m_DatasetProcessed = true;
             }
             catch (HttpRequestException)
             {
@@ -692,6 +731,12 @@ namespace Unity.AssetManager.Core.Editor
             token.ThrowIfCancellationRequested();
 
             ResolvePrimaryExtension();
+
+            // Mark the datasets resolved before notifying, so a listener that refreshes off this event
+            // sees AreDatasetsResolved as true. Otherwise an asset that resolves to no importable files
+            // still reports itself as potentially importable to that refresh, and nothing corrects it
+            // afterwards.
+            m_DatasetProcessed = true;
 
             InvokeEvent(AssetDataEventType.FilesChanged);
         }
@@ -967,22 +1012,29 @@ namespace Unity.AssetManager.Core.Editor
 
         bool TryCopyDataset(AssetDataset dataset, string targetSystemLabel)
         {
-            if (dataset.SystemTags.Contains(targetSystemLabel))
+            if (!dataset.SystemTags.Contains(targetSystemLabel)) return false;
+
+            // Find a matching dataset by id (Persistence >= V4)
+            var existingDataset = m_Datasets.Find(x => x.Id == dataset.Id);
+            if (existingDataset != null)
             {
-                var existingDataset = m_Datasets.Find(x => x.SystemTags.Contains(targetSystemLabel));
-                if (existingDataset == null)
-                {
-                    m_Datasets.Add(dataset);
-                }
-                else
-                {
-                    existingDataset.Copy(dataset);
-                }
+                existingDataset.Copy(dataset);
 
                 return true;
             }
 
-            return false;
+            // Fallback, find a matching dataset by system label (Persistence <= V3)
+            existingDataset = m_Datasets.Find(x => x.SystemTags.Contains(targetSystemLabel));
+            if (existingDataset != null)
+            {
+                existingDataset.Copy(dataset);
+            }
+            else
+            {
+                m_Datasets.Add(dataset);
+            }
+
+            return true;
         }
     }
 }

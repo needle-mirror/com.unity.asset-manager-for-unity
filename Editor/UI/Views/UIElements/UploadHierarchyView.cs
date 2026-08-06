@@ -311,7 +311,7 @@ namespace Unity.AssetManager.UI.Editor
         /// <summary>
         /// Clears all data from the view.
         /// </summary>
-        public void Clear()
+        public new void Clear()
         {
             m_RootNode = null;
             m_FlattenedNodes.Clear();

@@ -41,8 +41,18 @@ namespace Unity.AssetManager.UI.Editor
 
         public void OnSelection()
         {
-            m_IsLoading = true;
             m_DisplayCount = k_PageSize;
+
+            // Library assets are immutable, so there is no metadata history to fetch. The tab is
+            // hidden for them; leave it empty rather than requesting a history the SDK refuses.
+            if (m_ViewModel.IsAssetFromLibrary)
+            {
+                m_IsLoading = false;
+                RefreshUI();
+                return;
+            }
+
+            m_IsLoading = true;
             RefreshUI();
 
             // Track analytics for Activity tab view

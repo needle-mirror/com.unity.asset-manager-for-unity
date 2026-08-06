@@ -81,7 +81,11 @@ namespace Unity.AssetManager.UI.Editor
 
             OnEntryAdded(m_TextField.value);
             evt.StopPropagation();
+#if UNITY_6000_0_OR_NEWER
+            focusController?.IgnoreEvent(evt);
+#else
             evt.PreventDefault();
+#endif
         }
 
         void OnParentFieldClicked(PointerUpEvent evt)

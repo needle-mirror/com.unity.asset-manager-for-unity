@@ -85,6 +85,9 @@ namespace Unity.Cloud.AssetsEmbedded
 
         public bool AutoSubmit { get; set; }
 
+        /// <inheritdoc />
+        public IEnumerable<AssetTrashDetailsData> TrashDetails { get; set; }
+
         internal AssetData()
             : this(AssetId.None, AssetVersion.None) { }
 

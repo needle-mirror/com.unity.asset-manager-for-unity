@@ -4,6 +4,26 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-08-06
+
+[Changed]
+- Replaced deprecated UI Toolkit APIs so the package compiles without C# warnings on Unity 6.0 through trunk.
+- Tracked assets are now identified by their organization and asset id only. An asset that is moved between projects, or unlinked from the project it was imported from, keeps its import status instead of being treated as a different asset. If the same asset was imported from two projects it is now a single entry in the "In Project" tab.
+- An asset that cannot be found in the project it was imported from is now looked up across the whole organization, and its tracking file is rewritten with the project it actually belongs to. Expect a one-time tracking-file diff for assets whose project changed.
+- Reduced memory usage when staging assets for upload.
+
+[Fixed]
+- Fixed the search bar input box not fitting inside the search bar once a search pill is added, where its bordered edge hung past the bottom of the bar. The input box and the clear button are also no longer drawn outside the bar's rounded border when the Assets tab panel is narrow.
+- Fixed the asset type filter in the "In Project" tab only showing "Other" instead of the actual imported asset types.
+- Fixed a duplicate tracking file being left behind when a tracked asset is renamed and then moved.
+- Fixed a tracking file being deleted on a case-only rename on case-insensitive filesystems (Windows, macOS).
+- Fixed a duplicate tracking file being recreated at the pre-rename/move location when a renamed or moved asset is reimported.
+- Fixed spurious tracking-file churn (timestamp-only changes) when reimporting unchanged content.
+- Fixed imported assets showing a sync error after being moved to, or unlinked from, a project in the Asset Manager dashboard. Their status is now resolved correctly.
+- Fixed Shader Graph assets always being reported as modified.
+- Fixed dependency versions selected by the user not being preserved. Dependencies are now only upversioned when pinned to fixed versions.
+- Fixed the Import and Reimport buttons of the multi-selection foldouts being disabled until the foldout was expanded. They are now enabled as soon as the assets are selected.
+
 ## [1.11.0] - 2026-03-30
 
 [Added]
@@ -14,11 +34,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added the ability to edit asset metadata in the asset inspector.
 - Added the ability to filter assets by id.
 - `ServicesEnabledChanged` on private cloud settings, raised when enabling or disabling private cloud services.
+- Added a warning in the Upload page when "Match Project Structure" is enabled and the asset already belongs to a collection in Asset Manager, indicating that the asset will also be linked to the selected collection.
+- Added detailed `[Upload]` diagnostic logs to help investigate upload failures on assets with large dependency sets.
 
 [Changed]
 - Changes to colour styling in the Asset Details panel.
 - Upload tabs is now in the form of a hierarchy list instead of a grid.
 - Toggling **Enable Private Cloud Services** now clears persisted and in-memory organization and project related data.
+- The asset description in the Asset Details panel is now selectable.
 
 [Fixed]
 - Fixed nested "Assets" directories being incorrectly stripped from tracking file paths.
@@ -26,6 +49,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fix thumnails not loading for staged asset in the upload tab soon after they were imported.
 - Fix deep linking to an inaccessible project no longer display  "loading..." in organization selector.
 - Fix to show the correct latest version in the New Version Notification banner.
+- Fixed an `InvalidOperationException` when multi-selecting assets that have no metadata.
+- Fixed a `NullReferenceException` and lost page filters after upgrading the package while the Asset Manager window is open.
+- Fixed asset files not being fetched when the local cache is updated, which could leave imported assets with incomplete file information.
+- Fixed the Dependencies foldout missing from the asset inspector.
+- Fixed reimport of multi-selected assets.
+- Fixed the upload settings message being displayed when the "Match Project Structure" checkbox is unchecked.
+- Fixed filter pills on the second line being clipped and partially unclickable.
+- Fixed the text cursor being offset in the toolbar search field.
+- Fixed the "Version Created" author and date in the Metadata History tab showing the first version's update info instead of the asset's creation info.
+- Fixed an upload failure (`KeyNotFoundException`) on prefabs with 100 or more dependencies.
 
 ## [1.10.0] - 2026-02-06
 

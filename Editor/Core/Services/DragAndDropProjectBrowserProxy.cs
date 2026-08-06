@@ -6,7 +6,7 @@ namespace Unity.AssetManager.Core.Editor
 {
     interface IDragAndDropProjectBrowserProxy : IService
     {
-#if UNITY_6000_4_OR_NEWER
+#if UNITY_6000_3_OR_NEWER
         void RegisterProjectBrowserHandler(DragAndDrop.ProjectBrowserDropHandlerV2 projectHandlerDelegate);
         void UnRegisterProjectBrowserHandler(DragAndDrop.ProjectBrowserDropHandlerV2 projectHandlerDelegate);
 #else
@@ -18,7 +18,7 @@ namespace Unity.AssetManager.Core.Editor
     [Serializable]
     class DragAndDropProjectBrowserProxy : BaseService<IDragAndDropProjectBrowserProxy>, IDragAndDropProjectBrowserProxy
     {
-#if UNITY_6000_4_OR_NEWER
+#if UNITY_6000_3_OR_NEWER
         public void RegisterProjectBrowserHandler(DragAndDrop.ProjectBrowserDropHandlerV2 projectHandlerDelegate)
         {
             DragAndDrop.AddDropHandlerV2(projectHandlerDelegate);

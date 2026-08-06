@@ -55,6 +55,11 @@ namespace Unity.Cloud.AssetsEmbedded
                 fieldsFilter.AssetFields |= AssetFields.systemMetadata;
                 fieldsFilter.UnionSystemMetadataFields(systemMetadataFields);
             }
+
+            if (configuration.CacheTrashDetails)
+            {
+                fieldsFilter.AssetFields |= AssetFields.trashDetails;
+            }
         }
 
         static void Set(this DatasetCacheConfiguration configuration, FieldsFilter fieldsFilter, IEnumerable<string> metadataFields, IEnumerable<string> systemMetadataFields)

@@ -162,7 +162,11 @@ namespace Unity.AssetManager.UI.Editor
 
             panel?.visualTree.RegisterCallback<PointerDownEvent>(OnGlobalPointerDown, TrickleDown.TrickleDown);
 
+#if UNITY_6000_3_OR_NEWER
+            m_GenericDropdownMenu.DropDown(m_DropdownButton.worldBound, m_DropdownButton, DropdownMenuSizeMode.Auto);
+#else
             m_GenericDropdownMenu.DropDown(m_DropdownButton.worldBound, m_DropdownButton, false);
+#endif
             EnableTooltip(false);
         }
 

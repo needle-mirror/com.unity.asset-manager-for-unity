@@ -21,6 +21,12 @@ namespace Unity.AssetManager.Core.Editor
         event Action<AssetChangeArgs> ImportedAssetInfoChanged;
         event Action<AssetChangeArgs> AssetDataChanged;
 
+        /// <summary>
+        /// Raised when a tracked asset's project was repaired because the project it was imported
+        /// from no longer holds it. Listeners are expected to persist the corrected identifier.
+        /// </summary>
+        event Action<ImportedAssetInfo> TrackedAssetProjectIdRepaired;
+
         IReadOnlyCollection<ImportedAssetInfo> ImportedAssetInfos { get; }
 
         void SetImportedAssetInfos(IReadOnlyCollection<ImportedAssetInfo> allImportedInfos);
@@ -261,6 +267,7 @@ namespace Unity.AssetManager.Core.Editor
 
         public event Action<AssetChangeArgs> ImportedAssetInfoChanged = delegate { };
         public event Action<AssetChangeArgs> AssetDataChanged = delegate { };
+        public event Action<ImportedAssetInfo> TrackedAssetProjectIdRepaired = delegate { };
 
         public IReadOnlyCollection<ImportedAssetInfo> ImportedAssetInfos =>
             (IReadOnlyCollection<ImportedAssetInfo>) m_TrackedIdentifierMap.Values;
@@ -294,6 +301,11 @@ namespace Unity.AssetManager.Core.Editor
                 if (m_ProjectOrganizationProvider.SelectedOrganization != null)
                     QueueMissingCacheRefreshes();
             }
+
+            if (m_AssetsProvider != null)
+            {
+                m_AssetsProvider.AssetResolvedInAnotherProject += OnAssetResolvedInAnotherProject;
+            }
         }
 
         public override void OnDisable()
@@ -313,6 +325,11 @@ namespace Unity.AssetManager.Core.Editor
             if (m_ProjectOrganizationProvider != null)
             {
                 m_ProjectOrganizationProvider.OrganizationChanged -= OnOrganizationChanged;
+            }
+
+            if (m_AssetsProvider != null)
+            {
+                m_AssetsProvider.AssetResolvedInAnotherProject -= OnAssetResolvedInAnotherProject;
             }
         }
 
@@ -722,6 +739,10 @@ namespace Unity.AssetManager.Core.Editor
             // 3. Update repository
             AddOrUpdateAssetDataFromCloudAsset(new[] { fromCloud });
 
+            // 3b. The asset may have moved projects since it was imported; repair the tracking
+            // before the cache is written so the cache records the corrected project too.
+            ReconcileTrackedProjectId(assetIdentifier, fromCloud);
+
             // 4. Update cache if tracked (fetch files first to ensure cache has complete data)
             if (GetImportedAssetInfo(assetIdentifier) != null)
             {
@@ -735,6 +756,104 @@ namespace Unity.AssetManager.Core.Editor
         public async Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token)
         {
             return await GetAssetAsync(assetIdentifier, k_CacheStalenessThreshold, token);
+        }
+
+        /// <summary>
+        /// Repairs the project of a tracked asset when the cloud reports it somewhere else, which
+        /// happens once the asset has been moved between projects or unlinked from the one it was
+        /// imported from. Does nothing for assets that are not tracked or whose project still agrees.
+        /// </summary>
+        internal void ReconcileTrackedProjectId(AssetIdentifier requestedIdentifier, BaseAssetData fromCloud)
+        {
+            if (fromCloud == null)
+            {
+                return;
+            }
+
+            ReconcileTrackedProjectId(requestedIdentifier, fromCloud.Identifier?.ProjectId,
+                fromCloud.LinkedProjects);
+        }
+
+        /// <summary>
+        /// Reacts to the provider fetching an asset from somewhere other than the project it was
+        /// asked for. The provider only reports the move; correcting the tracking is ours to do.
+        /// </summary>
+        void OnAssetResolvedInAnotherProject(AssetResolvedInAnotherProjectArgs args)
+        {
+            if (args == null)
+            {
+                return;
+            }
+
+            ReconcileTrackedProjectId(args.RequestedIdentifier, args.ResolvedIdentifier?.ProjectId,
+                args.LinkedProjects);
+        }
+
+        void ReconcileTrackedProjectId(AssetIdentifier requestedIdentifier, string resolvedProjectId,
+            IEnumerable<ProjectIdentifier> linkedProjects)
+        {
+            if (requestedIdentifier == null)
+            {
+                return;
+            }
+
+            var info = GetImportedAssetInfo(requestedIdentifier);
+            if (info?.AssetData is not AssetData trackedAssetData)
+            {
+                return;
+            }
+
+            var projectId = PickTrackedProjectId(resolvedProjectId, ProjectIds(linkedProjects));
+
+            if (string.IsNullOrEmpty(projectId) || trackedAssetData.Identifier?.ProjectId == projectId)
+            {
+                return;
+            }
+
+            Utilities.DevLog($"Repairing tracked project for asset {requestedIdentifier.AssetId}: " +
+                $"{trackedAssetData.Identifier?.ProjectId} -> {projectId}", highlight: true);
+
+            trackedAssetData.UpdateProjectId(projectId);
+
+            TrackedAssetProjectIdRepaired?.Invoke(info);
+        }
+
+        /// <summary>
+        /// Chooses the project a tracked asset should point at, or null when nothing trustworthy is
+        /// available. Returning null leaves the tracking alone; a half-repaired entry is worse than
+        /// a stale one.
+        /// </summary>
+        string PickTrackedProjectId(string resolvedProjectId, List<string> linkedProjects)
+        {
+            // 1. What the cloud itself reported, as long as the linked projects agree or say nothing.
+            if (!string.IsNullOrEmpty(resolvedProjectId)
+                && (linkedProjects.Count == 0 || linkedProjects.Contains(resolvedProjectId)))
+            {
+                return resolvedProjectId;
+            }
+
+            if (linkedProjects.Count == 0)
+            {
+                return null;
+            }
+
+            // 2. The project the user is currently looking at, when the asset is linked to it.
+            var selectedProjectId = m_ProjectOrganizationProvider?.SelectedProjectOrLibrary?.Id;
+            if (!string.IsNullOrEmpty(selectedProjectId) && linkedProjects.Contains(selectedProjectId))
+            {
+                return selectedProjectId;
+            }
+
+            // 3. Otherwise the first linked project, the same choice the cloud mapping makes.
+            return linkedProjects[0];
+        }
+
+        static List<string> ProjectIds(IEnumerable<ProjectIdentifier> linkedProjects)
+        {
+            return linkedProjects?
+                .Where(p => p != null && !string.IsNullOrEmpty(p.ProjectId))
+                .Select(p => p.ProjectId)
+                .ToList() ?? new List<string>();
         }
 
         bool IsCacheStale(string assetId, TimeSpan stalenessThreshold)
@@ -973,7 +1092,8 @@ namespace Unity.AssetManager.Core.Editor
             // PersistenceV4 stores one file per tracking file, so file watcher events deliver
             // single-file ImportedAssetInfos. When an entry already exists for this asset,
             // merge the new file infos into it rather than replacing the entire entry.
-            if (m_TrackedIdentifierMap.TryGetValue(trackId, out var existingInfo))
+            if (m_TrackedIdentifierMap.TryGetValue(trackId, out var existingInfo)
+                && !ReferenceEquals(info, existingInfo))
             {
                 foreach (var newFileInfo in info.FileInfos)
                 {
@@ -984,7 +1104,11 @@ namespace Unity.AssetManager.Core.Editor
                         existingInfo.FileInfos.Add(newFileInfo);
                 }
 
-                existingInfo.AssetData = info.AssetData;
+                // Tracked identity ignores the project, so two imports of the same asset from
+                // different projects now land on this key. Choose deliberately instead of letting
+                // file enumeration order decide which version and project survive.
+                existingInfo.AssetData = PickSurvivingAssetData(existingInfo.AssetData, info.AssetData,
+                    m_ProjectOrganizationProvider?.SelectedProjectOrLibrary?.Id);
                 info = existingInfo;
             }
 
@@ -1012,6 +1136,53 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             m_TrackedIdentifierMap[trackId] = info;
+        }
+
+        /// <summary>
+        /// Picks which of two records of the same asset to keep when their tracked identifiers
+        /// collide. Prefers the project the user is working in, then the most recently published
+        /// asset, and otherwise keeps what is already there so the outcome is stable.
+        /// </summary>
+        internal static BaseAssetData PickSurvivingAssetData(BaseAssetData existing, BaseAssetData incoming,
+            string preferredProjectId)
+        {
+            if (existing == null)
+                return incoming;
+
+            if (incoming == null)
+                return existing;
+
+            // An entry read from a tracking file carries no version until it is filled from the
+            // cloud; anything with a version is more informative.
+            var existingHasVersion = !string.IsNullOrEmpty(existing.Identifier?.Version);
+            var incomingHasVersion = !string.IsNullOrEmpty(incoming.Identifier?.Version);
+            if (existingHasVersion != incomingHasVersion)
+                return incomingHasVersion ? incoming : existing;
+
+            if (!string.IsNullOrEmpty(preferredProjectId))
+            {
+                var existingPreferred = existing.Identifier?.ProjectId == preferredProjectId;
+                var incomingPreferred = incoming.Identifier?.ProjectId == preferredProjectId;
+                if (existingPreferred != incomingPreferred)
+                    return incomingPreferred ? incoming : existing;
+            }
+
+            if (incoming.SequenceNumber != existing.SequenceNumber)
+            {
+                var winner = incoming.SequenceNumber > existing.SequenceNumber ? incoming : existing;
+
+                if (existing.Identifier?.Version != incoming.Identifier?.Version)
+                {
+                    Utilities.DevLogWarning(
+                        $"Asset {existing.Identifier?.AssetId} is tracked from more than one project with " +
+                        $"differing versions ({existing.Identifier?.Version} and {incoming.Identifier?.Version}); " +
+                        $"keeping version {winner.Identifier?.Version}.");
+                }
+
+                return winner;
+            }
+
+            return existing;
         }
     }
 }

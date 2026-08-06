@@ -205,7 +205,7 @@ namespace Unity.AssetManager.UI.Editor
             return item;
         }
 
-#if UNITY_6000_4_OR_NEWER
+#if UNITY_6000_3_OR_NEWER
         DragAndDropVisualMode OnProjectBrowserDrop(EntityId _, string path, bool perform)
 #else
         DragAndDropVisualMode OnProjectBrowserDrop(int _, string path, bool perform)

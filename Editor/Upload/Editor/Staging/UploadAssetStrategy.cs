@@ -217,9 +217,14 @@ namespace Unity.AssetManager.Upload.Editor
 
         static void SetDependenciesIdentifierVersionLabel(IEnumerable<UploadAssetData> uploadAssetData, bool pinDependencyToLatest)
         {
+            if (!pinDependencyToLatest) return;
+
             foreach (var dependencyIdentifier in uploadAssetData.SelectMany(assetData => assetData.Dependencies))
             {
-                dependencyIdentifier.VersionLabel = pinDependencyToLatest ? "Latest" : string.Empty;
+                if (string.IsNullOrEmpty(dependencyIdentifier.VersionLabel))
+                {
+                    dependencyIdentifier.VersionLabel = "Latest";
+                }
             }
         }
 

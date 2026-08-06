@@ -13,6 +13,7 @@ namespace Unity.AssetManager.Core.Editor
         Type RegistrationType { get; }
     }
 
+    [Serializable]
     abstract class BaseService : IService
     {
         public abstract Type RegistrationType { get; }
@@ -58,6 +59,7 @@ namespace Unity.AssetManager.Core.Editor
         public virtual void OnDisable() { }
     }
 
+    [Serializable]
     abstract class BaseService<T> : BaseService where T : IService
     {
         public override Type RegistrationType => typeof(T);
@@ -130,7 +132,7 @@ namespace Unity.AssetManager.Core.Editor
                 // A previously serialized service may no longer exist
                 if (serviceInfo.Service == null)
                     continue;
-                
+
                 Register_Internal(serviceInfo.Service);
 
                 // Remove any dependencies that may have been serialized but are no longer valid

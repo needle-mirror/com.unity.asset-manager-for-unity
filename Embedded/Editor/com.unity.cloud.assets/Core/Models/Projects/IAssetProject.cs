@@ -180,7 +180,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <returns>A task with no result. </returns>
         /// <remarks>Can only be called on a version that is unfrozen. </remarks>
         Task DeleteUnfrozenAssetVersionAsync(AssetId assetId, AssetVersion assetVersion, CancellationToken cancellationToken) => throw new NotImplementedException();
-        
+
         /// <summary>
         /// Returns a builder to create a query to search a project's <see cref="IAssetCollection"/>.
         /// </summary>
@@ -231,5 +231,49 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <returns>A <see cref="TransformationQueryBuilder"/>. </returns>
         TransformationQueryBuilder QueryTransformations();
+
+        /// <summary>
+        /// Puts selected assets into the trash.
+        /// </summary>
+        /// <returns>A task with no result. </returns>
+        Task TrashAssetsAsync(IEnumerable<AssetId> assetIds, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
+        /// Retrieves an asset by its ID and version from the project's trash.
+        /// </summary>
+        /// <param name="assetId">The id of the asset. </param>
+        /// <param name="assetVersion">The version of the asset. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the requested asset. </returns>
+        Task<ITrashedAsset> GetTrashedAssetAsync(AssetId assetId, AssetVersion assetVersion, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Returns a builder to create a query to search the project's trash <see cref="ITrashedAsset"/>.
+        /// </summary>
+        /// <returns>A <see cref="TrashedAssetQueryBuilder"/>. </returns>
+        TrashedAssetQueryBuilder QueryTrashedAssets();
+
+        /// <summary>
+        /// Restores the assets from the trash back to the project.
+        /// </summary>
+        /// <param name="assetIds">The ids of assets to restore. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task with no result. </returns>
+        Task RestoreTrashedAssetsAsync(IEnumerable<AssetId> assetIds, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Permanently deletes the assets from the trash.
+        /// </summary>
+        /// <param name="assetIds">The ids of assets to delete. </param>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task with no result. </returns>
+        Task DeleteAssetsFromTrashAsync(IEnumerable<AssetId> assetIds, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Empties the trash by permanently deleting all assets in it.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task with no result. </returns>
+        Task EmptyTrashAsync(CancellationToken cancellationToken);
     }
 }

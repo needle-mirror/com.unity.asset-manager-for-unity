@@ -153,11 +153,12 @@ namespace Unity.Cloud.AssetsEmbedded
                     PaginationRange = m_Range
                 };
                 var descriptor = new ProjectDescriptor(m_OrganizationId, projectIds[0]);
-
                 var enumerator = m_AssetDataSource.ListAssetsAsync(descriptor, parameters, cancellationToken);
+
                 await foreach (var assetData in enumerator)
                 {
-                    yield return assetData.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration, descriptor, includeFields, m_CacheConfiguration.AssetConfiguration);
+                    yield return assetData.From(m_AssetDataSource, m_CacheConfiguration.DefaultConfiguration,
+                        descriptor, includeFields, m_CacheConfiguration.AssetConfiguration);
                 }
             }
             else

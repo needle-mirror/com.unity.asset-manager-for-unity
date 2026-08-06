@@ -126,6 +126,12 @@ namespace Unity.AssetManager.Core.Editor
             m_Metadata.Set(metadata);
         }
 
+        public void SetDependencies(IEnumerable<AssetIdentifier> dependencies)
+        {
+            Dependencies = dependencies;
+            InvokeEvent(AssetDataEventType.DependenciesChanged);
+        }
+
         public void CopyMetadata(IMetadataContainer metadataContainer)
         {
             // Clone the original IMetadata instead of using the reference so that the original is not modified when modifying this UploadAssetData in the UI
@@ -158,6 +164,14 @@ namespace Unity.AssetManager.Core.Editor
                 InvokeEvent(AssetDataEventType.PrimaryFileChanged);
             }
         }
+
+        /// <summary>
+        /// Whether the file list of this asset is known.
+        /// Datasets coming from a search or from the cloud do not carry their files until
+        /// <see cref="ResolveDatasetsAsync"/> has run, so an empty file list on an unresolved asset means
+        /// "not known yet" and not "no files".
+        /// </summary>
+        public virtual bool AreDatasetsResolved => true;
 
         public virtual IEnumerable<ProjectIdentifier> LinkedProjects
         {

@@ -116,7 +116,7 @@ namespace Unity.AssetManager.UI.Editor
             container.Add(entry);
 
             var chipContainer = entry.AddChipContainer();
-            AddUserChip(chipContainer, details, searchFilterType);
+            _ = AddUserChip(chipContainer, details, searchFilterType);
         }
 
         static async Task AddUserChip(VisualElement container, string userId, Type searchFilterType)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Unity.Cloud.CommonEmbedded;
@@ -120,7 +121,7 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             return new VersionQueryBuilder(m_DataSource, m_DefaultCacheConfiguration, Descriptor, assetId);
         }
-        
+
         /// <inheritdoc />
         public AssetLabelQueryBuilder QueryAssetLabels(AssetId assetId)
         {
@@ -235,6 +236,47 @@ namespace Unity.Cloud.AssetsEmbedded
         public TransformationQueryBuilder QueryTransformations()
         {
             return new TransformationQueryBuilder(m_DataSource, m_DefaultCacheConfiguration, Descriptor);
+        }
+
+        /// <inheritdoc />
+        public async Task TrashAssetsAsync(IEnumerable<AssetId> assetIds, CancellationToken cancellationToken)
+        {
+            await m_DataSource.TrashAssetsAsync(Descriptor, assetIds, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public async Task<ITrashedAsset> GetTrashedAssetAsync(AssetId assetId, AssetVersion assetVersion, CancellationToken cancellationToken)
+        {
+            var assetDescriptor = new AssetDescriptor(Descriptor, assetId, assetVersion);
+            var fieldsFilter = m_DefaultCacheConfiguration.GetAssetFieldsFilter();
+            var assetData = await m_DataSource.GetAssetFromTrashAsync(assetDescriptor, fieldsFilter, cancellationToken);
+            var properties = assetData.From(assetDescriptor, fieldsFilter);
+            var trashDetails = assetData.TrashDetails?.Select(t => t.From()).ToArray() ?? Array.Empty<TrashDetails>();
+            return new TrashedAssetEntity(assetDescriptor, properties, m_DataSource) { TrashDetails = trashDetails };
+        }
+
+        /// <inheritdoc />
+        public TrashedAssetQueryBuilder QueryTrashedAssets()
+        {
+            return new TrashedAssetQueryBuilder(m_DataSource, m_DefaultCacheConfiguration, Descriptor);
+        }
+
+        /// <inheritdoc />
+        public Task RestoreTrashedAssetsAsync(IEnumerable<AssetId> assetIds, CancellationToken cancellationToken)
+        {
+            return m_DataSource.RestoreAssetsFromTrashAsync(Descriptor, assetIds, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task DeleteAssetsFromTrashAsync(IEnumerable<AssetId> assetIds, CancellationToken cancellationToken)
+        {
+            return m_DataSource.DeleteAssetsFromTrashAsync(Descriptor, assetIds, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task EmptyTrashAsync(CancellationToken cancellationToken)
+        {
+            return m_DataSource.EmptyTrashAsync(Descriptor, cancellationToken);
         }
 
         /// <summary>

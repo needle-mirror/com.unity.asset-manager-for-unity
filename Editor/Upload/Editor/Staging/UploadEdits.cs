@@ -44,6 +44,34 @@ namespace Unity.AssetManager.Upload.Editor
         }
     }
 
+    /// <summary>
+    /// Class that holds a collection of dependency identifiers. Necessary because Unity's serializer have
+    /// difficulties serializing AssetEditDictionary<IEnumerable<AssetIdentifier>> directly.
+    /// </summary>
+    [Serializable]
+    class DependencyCollection : IEnumerable<AssetIdentifier>
+    {
+        [SerializeField]
+        public List<AssetIdentifier> Dependencies = new();
+
+        public DependencyCollection() { }
+
+        public DependencyCollection(IEnumerable<AssetIdentifier> dependencies)
+        {
+            Dependencies = dependencies?.ToList() ?? new List<AssetIdentifier>();
+        }
+
+        public IEnumerator<AssetIdentifier> GetEnumerator()
+        {
+            return Dependencies.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+    }
+
     [Serializable]
     // Quick solution to hold manual edits information between two UploadStaging.GenerateUploadAssetData
     // Without this, if the user manually edits assets, then changes the Dependency Mode, edits will be lost
@@ -234,6 +262,23 @@ namespace Unity.AssetManager.Upload.Editor
             metadata = null;
             return false;
         }
+
+        public void SetModifiedDependencies(string assetDataGuid, IEnumerable<AssetIdentifier> dependencies)
+        {
+            m_ModifiedMetadata.Dependencies.Dictionary[assetDataGuid] = new DependencyCollection(dependencies);
+        }
+
+        public bool TryGetModifiedDependencies(string assetDataGuid, out IEnumerable<AssetIdentifier> dependencies)
+        {
+            if (m_ModifiedMetadata.Dependencies.Dictionary.TryGetValue(assetDataGuid, out var value))
+            {
+                dependencies = value;
+                return true;
+            }
+
+            dependencies = null;
+            return false;
+        }
     }
 
 
@@ -255,6 +300,9 @@ namespace Unity.AssetManager.Upload.Editor
         [SerializeField]
         public AssetEditDictionary<IMetadataContainer> CustomMetadata = new();
 
+        [SerializeField]
+        public AssetEditDictionary<DependencyCollection> Dependencies = new();
+
         public void Clear()
         {
             Names.Dictionary.Clear();
@@ -262,6 +310,7 @@ namespace Unity.AssetManager.Upload.Editor
             Statuses.Dictionary.Clear();
             Tags.Dictionary.Clear();
             CustomMetadata.Dictionary.Clear();
+            Dependencies.Dictionary.Clear();
         }
 
         public bool HasEdits(string assetDataGuid)
@@ -273,6 +322,7 @@ namespace Unity.AssetManager.Upload.Editor
             hasEdits |= Statuses.Dictionary.ContainsKey(assetDataGuid);
             hasEdits |= Tags.Dictionary.ContainsKey(assetDataGuid);
             hasEdits |= CustomMetadata.Dictionary.ContainsKey(assetDataGuid);
+            hasEdits |= Dependencies.Dictionary.ContainsKey(assetDataGuid);
 
             return hasEdits;
         }
@@ -284,6 +334,7 @@ namespace Unity.AssetManager.Upload.Editor
             Statuses.Dictionary.Remove(assetDataGuid);
             Tags.Dictionary.Remove(assetDataGuid);
             CustomMetadata.Dictionary.Remove(assetDataGuid);
+            Dependencies.Dictionary.Remove(assetDataGuid);
         }
     }
 

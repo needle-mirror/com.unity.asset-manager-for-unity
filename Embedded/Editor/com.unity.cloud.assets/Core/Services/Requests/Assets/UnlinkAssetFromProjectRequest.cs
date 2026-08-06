@@ -21,10 +21,13 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <param name="projectId">ID of the project.</param>
         /// <param name="assetId">ID of the asset.</param>
-        public UnlinkAssetFromProjectRequest(ProjectId projectId, AssetId assetId)
+        /// <param name="trash">Set to true to move the assets to trash instead of unlinking them.</param>
+        public UnlinkAssetFromProjectRequest(ProjectId projectId, AssetId assetId, bool trash = false)
             : base(projectId)
         {
             m_RequestUrl += $"/assets/{assetId}/unlink";
+            if(trash)
+                m_RequestUrl += "?trash=true";
         }
 
         /// <summary>
@@ -32,10 +35,13 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <param name="projectId">ID of the project.</param>
         /// <param name="assetIds">IDs of the assets.</param>
-        public UnlinkAssetFromProjectRequest(ProjectId projectId, IEnumerable<AssetId> assetIds)
+        /// <param name="trash">Set to true to move the assets to trash instead of unlinking them.</param>
+        public UnlinkAssetFromProjectRequest(ProjectId projectId, IEnumerable<AssetId> assetIds, bool trash = false)
             : base(projectId)
         {
             m_RequestUrl += $"/assets/unlink";
+            if(trash)
+                m_RequestUrl += "?trash=true";
 
             m_AssetIds = assetIds.ToArray();
         }

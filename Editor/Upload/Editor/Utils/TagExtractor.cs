@@ -12,9 +12,8 @@ namespace Unity.AssetManager.Upload.Editor
         public static ISet<string> ExtractFromAsset(string assetPath)
         {
             var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
-            var asset = assetDatabaseProxy.LoadAssetAtPath(assetPath);
 
-            if (asset == null)
+            if (!assetDatabaseProxy.AssetPathExists(assetPath))
             {
                 Utilities.DevLogError($"Cannot load asset {assetPath} to extract all tags.");
             }
@@ -27,10 +26,7 @@ namespace Unity.AssetManager.Upload.Editor
             }
             else
             {
-                if (asset != null)
-                {
-                    tags.Add(asset.GetType().Name);
-                }
+                tags.Add(assetDatabaseProxy.GetMainAssetTypeAtPath(assetPath).Name);
 
                 var extension = Path.GetExtension(assetPath);
 
@@ -40,10 +36,7 @@ namespace Unity.AssetManager.Upload.Editor
                 }
             }
 
-            if (asset != null)
-            {
-                tags.UnionWith(assetDatabaseProxy.GetLabels(asset));
-            }
+            tags.UnionWith(assetDatabaseProxy.GetLabels(assetDatabaseProxy.GuidFromAssetPath(assetPath)));
 
             tags.UnionWith(ExtractPackageTags(assetPath));
 

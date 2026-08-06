@@ -46,10 +46,34 @@ namespace Unity.AssetManager.Core.Editor
     }
 
     /// <summary>
+    /// Reports an asset that was found under a project other than the one it was requested from,
+    /// which happens once it has been moved between projects or unlinked from the one it was
+    /// imported from. Carries only what is needed to choose the project to track, so no asset has
+    /// to be mapped to report it.
+    /// </summary>
+    class AssetResolvedInAnotherProjectArgs
+    {
+        /// <summary>The identifier the caller asked for, still pointing at the stale project.</summary>
+        public AssetIdentifier RequestedIdentifier;
+
+        /// <summary>The identifier the asset was actually found under.</summary>
+        public AssetIdentifier ResolvedIdentifier;
+
+        /// <summary>Every project the asset is linked to, so a listener can sanity-check the above.</summary>
+        public IEnumerable<ProjectIdentifier> LinkedProjects;
+    }
+
+    /// <summary>
     /// Direct cloud access for asset fetch and mutation operations.
     interface IAssetsProvider : IService
     {
         int DefaultSearchPageSize { get; }
+
+        /// <summary>
+        /// Raised when an asset was fetched from a project other than the one it was requested from.
+        /// Reporting only: repairing whatever pointed at the stale project is the listener's business.
+        /// </summary>
+        event Action<AssetResolvedInAnotherProjectArgs> AssetResolvedInAnotherProject;
 
         // Assets
 
@@ -128,6 +152,15 @@ namespace Unity.AssetManager.Core.Editor
         static readonly string k_SourceDatasetTag = "Source";
         static readonly string k_PreviewDatasetTag = "Preview";
 
+        static readonly TimeSpan k_OrganizationWideMissTtl = TimeSpan.FromMinutes(5);
+
+        // Assets already looked for across their whole organization and not found. Without this, a
+        // project full of deleted assets would issue one organization-wide query per asset on every
+        // refresh. Session-only (a domain reload clears it) and entries expire, so an asset that is
+        // created or shared with us later is still picked up.
+        readonly Dictionary<(string organizationId, string assetId, string version), DateTime> m_OrganizationWideMisses = new();
+        Unity.Cloud.IdentityEmbedded.AuthenticationState m_OrganizationWideMissesAuthenticationState;
+
         [SerializeReference]
         ISettingsManager m_SettingsManager;
 
@@ -136,6 +169,8 @@ namespace Unity.AssetManager.Core.Editor
         IDataMapper DataMapper => m_DataMapperOverride ?? this;
 
         public int DefaultSearchPageSize => 99;
+
+        public event Action<AssetResolvedInAnotherProjectArgs> AssetResolvedInAnotherProject = delegate { };
 
         public AssetsSdkProvider() { }
 
@@ -309,7 +344,7 @@ namespace Unity.AssetManager.Core.Editor
 
         async Task<IAsset> InternalGetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token)
         {
-            return await AssetRepository.GetAssetAsync(Map(assetIdentifier), token);
+            return await GetAssetOrFindInOrganizationAsync(assetIdentifier, null, token);
         }
 
         public async Task RemoveUnfrozenAssetVersion(AssetIdentifier assetIdentifier, CancellationToken token)
@@ -336,7 +371,23 @@ namespace Unity.AssetManager.Core.Editor
         public async Task<AssetData> GetAssetAsync(AssetIdentifier assetIdentifier, CancellationToken token)
         {
             // Use this method directly only if you directly need the cloud asset, otherwise use AssetDataManager.GetAssetAsync which has caching and will call this method if the asset is not in cache or if the cached version is outdated.
-            return await Map(Map(assetIdentifier), token);
+            try
+            {
+                var asset = await GetAssetOrFindInOrganizationAsync(assetIdentifier,
+                    GetAssetCacheConfigurationForMapping(), token);
+
+                return await DataMapper.From(asset, token);
+            }
+            catch (ForbiddenException e)
+            {
+                Utilities.DevLog(e.Detail);
+            }
+            catch (NotFoundException e)
+            {
+                Utilities.DevLog(e.Detail);
+            }
+
+            return null;
         }
 
         async Task UpdateMetadata(AssetIdentifier assetIdentifier, List<IMetadata> metadata, CancellationToken token)
@@ -403,6 +454,7 @@ namespace Unity.AssetManager.Core.Editor
             {
                 // Ignore if we don't have access to the asset
                 Utilities.DevLog(e.Detail);
+                return null;
             }
             catch (NotFoundException)
             {
@@ -417,7 +469,14 @@ namespace Unity.AssetManager.Core.Editor
 
                     var enumerator = DataMapper.ListAssetsAsync(versionQuery, token).GetAsyncEnumerator(token);
 
-                    return await enumerator.MoveNextAsync() ? enumerator.Current : default;
+                    if (await enumerator.MoveNextAsync())
+                    {
+                        return enumerator.Current;
+                    }
+
+                    // The project still resolves but holds no version of this asset, which is what
+                    // an unlink looks like. Fall through to the organization-wide search below
+                    // instead of reporting the asset as gone.
                 }
                 catch (NotFoundException)
                 {
@@ -426,7 +485,33 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
 
-            return null;
+            // The project we were told about may no longer hold this asset. Locate it across the
+            // organization and retry against the project it actually belongs to.
+            var (repairedIdentifier, linkedProjects) =
+                await ResolveProjectOrganizationWideAsync(assetIdentifier, token);
+
+            // Bail out unless the project actually changed, so this recurses at most once.
+            if (repairedIdentifier == null || repairedIdentifier.ProjectId == assetIdentifier.ProjectId)
+            {
+                return null;
+            }
+
+            var repairedAsset = await GetLatestAssetVersionAsync(repairedIdentifier, assetCacheConfiguration, token);
+
+            if (repairedAsset != null)
+            {
+                // Announce the move instead of acting on it: without this, whatever pointed at the
+                // old project still does, and every later refresh repeats the failed request and
+                // this organization-wide search.
+                AssetResolvedInAnotherProject?.Invoke(new AssetResolvedInAnotherProjectArgs
+                {
+                    RequestedIdentifier = assetIdentifier,
+                    ResolvedIdentifier = repairedIdentifier,
+                    LinkedProjects = linkedProjects
+                });
+            }
+
+            return repairedAsset;
         }
 
         public async IAsyncEnumerable<AssetData> ListVersionInDescendingOrderAsync(AssetIdentifier assetIdentifier, [EnumeratorCancellation] CancellationToken token)
@@ -456,6 +541,13 @@ namespace Unity.AssetManager.Core.Editor
                 yield break;
             }
 
+            // Library assets are immutable, so they have no update history; asking the SDK for one
+            // throws instead of answering with nothing.
+            if (assetIdentifier.IsAssetFromLibrary())
+            {
+                yield break;
+            }
+
             var asset = await InternalGetAssetAsync(assetIdentifier, token);
             if (asset == null)
             {
@@ -477,14 +569,168 @@ namespace Unity.AssetManager.Core.Editor
 
         async Task<IAsset> FindAssetAsync(OrganizationId organizationId, Cloud.AssetsEmbedded.AssetSearchFilter filter, AssetCacheConfiguration cacheConfiguration, CancellationToken token)
         {
-            var assetsQuery = AssetRepository.QueryAssets(organizationId)
+            // Matches the null-conditional guard on QueryAssetVersions in GetLatestAssetVersionAsync:
+            // a repository that yields no query means no result, not a crash.
+            var assetsQuery = AssetRepository.QueryAssets(organizationId)?
                 .SelectWhereMatchesFilter(filter)
                 .WithCacheConfiguration(cacheConfiguration)
                 .LimitTo(new Range(0, 1));
 
+            if (assetsQuery == null)
+            {
+                return default;
+            }
+
             var enumerator = DataMapper.ListAssetsAsync(assetsQuery, token).GetAsyncEnumerator(token);
 
             return await enumerator.MoveNextAsync() ? enumerator.Current : default;
+        }
+
+        /// <summary>
+        /// Looks for an asset anywhere in its organization, for when the project it was last known
+        /// to live in no longer resolves. Mirrors the fallback in <see cref="FindAssetIdentifierAsync"/>.
+        /// </summary>
+        /// <param name="matchVersion">
+        /// True to require the identifier's exact version, false to locate the asset by id alone
+        /// (used when all we need is the project it currently belongs to).
+        /// </param>
+        async Task<IAsset> FindAssetInOrganizationAsync(AssetIdentifier assetIdentifier, bool matchVersion,
+            AssetCacheConfiguration cacheConfiguration, CancellationToken token)
+        {
+            var version = matchVersion ? assetIdentifier?.Version ?? string.Empty : string.Empty;
+
+            if (!ShouldTryOrganizationWide(assetIdentifier, version))
+            {
+                return null;
+            }
+
+            var filter = new Cloud.AssetsEmbedded.AssetSearchFilter();
+            filter.Include().Id.WithValue(assetIdentifier.AssetId);
+
+            if (matchVersion)
+            {
+                if (!string.IsNullOrEmpty(assetIdentifier.Version))
+                {
+                    filter.Include().Version.WithValue(assetIdentifier.Version);
+                }
+                else if (!string.IsNullOrEmpty(assetIdentifier.VersionLabel))
+                {
+                    filter.Include().Labels.WithValue(assetIdentifier.VersionLabel);
+                }
+            }
+
+            var found = await FindAssetAsync(new OrganizationId(assetIdentifier.OrganizationId), filter,
+                cacheConfiguration, token);
+
+            if (found == null)
+            {
+                MarkMissingOrganizationWide(assetIdentifier, version);
+                return null;
+            }
+
+            Utilities.DevLog($"Asset {assetIdentifier.AssetId} was not found in project " +
+                $"{assetIdentifier.ProjectId}; resolved organization-wide.", highlight: true);
+
+            return found;
+        }
+
+        /// <summary>
+        /// Fetches an asset from the project it claims to belong to, falling back to an
+        /// organization-wide search when that project no longer resolves.
+        /// </summary>
+        async Task<IAsset> GetAssetOrFindInOrganizationAsync(AssetIdentifier assetIdentifier,
+            AssetCacheConfiguration? cacheConfiguration, CancellationToken token)
+        {
+            NotFoundException notFound;
+
+            try
+            {
+                var asset = await AssetRepository.GetAssetAsync(Map(assetIdentifier), token);
+
+                return cacheConfiguration.HasValue
+                    ? await asset.WithCacheConfigurationAsync(cacheConfiguration.Value, token)
+                    : asset;
+            }
+            catch (NotFoundException e)
+            {
+                // A ForbiddenException is deliberately not caught: being denied access is not the
+                // same as the asset having moved, and searching the organization would not help.
+                // The search runs outside this block so a genuine miss keeps a clean stack trace.
+                notFound = e;
+            }
+
+            var found = await FindAssetInOrganizationAsync(assetIdentifier, true,
+                cacheConfiguration ?? AssetCacheConfiguration.NoCaching, token);
+
+            if (found == null)
+            {
+                throw notFound;
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// Locates an asset organization-wide and returns an identifier carrying the project it
+        /// actually belongs to, alongside every project it is linked to. The identifier is null
+        /// when the asset cannot be found.
+        /// </summary>
+        async Task<(AssetIdentifier identifier, IEnumerable<ProjectIdentifier> linkedProjects)>
+            ResolveProjectOrganizationWideAsync(AssetIdentifier assetIdentifier, CancellationToken token)
+        {
+            var found = await FindAssetInOrganizationAsync(assetIdentifier, false,
+                new AssetCacheConfiguration {CacheProperties = true}, token);
+
+            if (found == null)
+            {
+                return (null, Array.Empty<ProjectIdentifier>());
+            }
+
+            return await DataMapper.GetIdentifierAndLinkedProjectsAsync(found, token);
+        }
+
+        bool ShouldTryOrganizationWide(AssetIdentifier assetIdentifier, string version)
+        {
+            if (assetIdentifier == null
+                || string.IsNullOrEmpty(assetIdentifier.OrganizationId)
+                || string.IsNullOrEmpty(assetIdentifier.AssetId)
+                || assetIdentifier.IsLocal()
+                // A library asset is addressed through its library rather than a project, so there
+                // is no stale project to work around.
+                || assetIdentifier.IsAssetFromLibrary())
+            {
+                return false;
+            }
+
+            // A miss recorded while signed in as someone else says nothing about what we can see now.
+            var authenticationState = GetAuthenticationState();
+            if (!Equals(authenticationState, m_OrganizationWideMissesAuthenticationState))
+            {
+                m_OrganizationWideMissesAuthenticationState = authenticationState;
+                m_OrganizationWideMisses.Clear();
+                return true;
+            }
+
+            var key = (assetIdentifier.OrganizationId, assetIdentifier.AssetId, version ?? string.Empty);
+
+            if (!m_OrganizationWideMisses.TryGetValue(key, out var missedAt))
+            {
+                return true;
+            }
+
+            if (DateTime.UtcNow - missedAt <= k_OrganizationWideMissTtl)
+            {
+                return false;
+            }
+
+            m_OrganizationWideMisses.Remove(key);
+            return true;
+        }
+
+        void MarkMissingOrganizationWide(AssetIdentifier assetIdentifier, string version)
+        {
+            m_OrganizationWideMisses[(assetIdentifier.OrganizationId, assetIdentifier.AssetId, version ?? string.Empty)] =
+                DateTime.UtcNow;
         }
 
         public async Task<ImportStatuses> GatherImportStatusesAsync(IEnumerable<BaseAssetData> assetDatas,
@@ -576,13 +822,17 @@ namespace Unity.AssetManager.Core.Editor
                 await foreach (var asset in DataMapper.ListAssetsAsync(assetsQuery, token))
                 {
                     var identifier = Map(asset.Descriptor);
+
+                    // Matched on organization and asset id only: this query spans the organization,
+                    // so a result legitimately comes back under a project the caller does not know
+                    // about yet.
                     var assetData = assetDatas.Find(x =>
-                        x.Identifier.OrganizationId == identifier.OrganizationId &&
-                        x.Identifier.ProjectId == identifier.ProjectId &&
-                        x.Identifier.AssetId == identifier.AssetId);
+                        TrackedAssetIdentifier.IsFromSameAsset(x.Identifier, identifier));
 
                     if (assetData != null)
                     {
+                        await ReportIfMovedAsync(assetData.Identifier, asset, token);
+
                         var status = await GatherImportStatusesAsync(assetData, asset, token);
                         results[assetData.Identifier] = status;
                     }
@@ -612,6 +862,62 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             return results;
+        }
+
+        /// <summary>
+        /// Announces an asset that a batched organization-wide query answered under a project other
+        /// than the one the caller holds it under, so tracking pointed at a stale project can be
+        /// corrected without this class knowing who does the correcting.
+        /// </summary>
+        /// <remarks>
+        /// Unlike the fallback in <see cref="GetLatestAssetVersionAsync(AssetIdentifier,AssetCacheConfiguration,CancellationToken)"/>,
+        /// nothing has failed to resolve here: the query spans the organization and may answer under
+        /// any project the asset is linked to. An asset still linked to the project the caller knows
+        /// about therefore has not moved, and saying otherwise would rewrite tracking that is fine.
+        /// </remarks>
+        async Task ReportIfMovedAsync(AssetIdentifier requestedIdentifier, IAsset asset, CancellationToken token)
+        {
+            if (requestedIdentifier == null || asset == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // The query caches properties, so this does not go back out to the network.
+                var (resolvedIdentifier, linked) = await DataMapper.GetIdentifierAndLinkedProjectsAsync(asset, token);
+
+                if (string.IsNullOrEmpty(resolvedIdentifier?.ProjectId)
+                    || resolvedIdentifier.ProjectId == requestedIdentifier.ProjectId)
+                {
+                    return;
+                }
+
+                var linkedProjects = linked?.ToList() ?? new List<ProjectIdentifier>();
+
+                if (linkedProjects.Any(p => p.ProjectId == requestedIdentifier.ProjectId))
+                {
+                    return;
+                }
+
+                AssetResolvedInAnotherProject?.Invoke(new AssetResolvedInAnotherProjectArgs
+                {
+                    RequestedIdentifier = requestedIdentifier,
+                    ResolvedIdentifier = resolvedIdentifier,
+                    LinkedProjects = linkedProjects
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                // Announcing a move is advisory, and the caller is part-way through a batch: one
+                // asset whose projects cannot be resolved must not cost every other asset in that
+                // batch its import status.
+                Utilities.DevLogException(e);
+            }
         }
 
         async Task<ImportAttribute.ImportStatus> GatherImportStatusesAsync(BaseAssetData assetData, CancellationToken token)
@@ -675,10 +981,26 @@ namespace Unity.AssetManager.Core.Editor
             // Referenced by version
             if (reference.TargetAssetVersion.HasValue)
             {
-                return new AssetIdentifier(project.Descriptor.OrganizationId.ToString(),
-                    project.Descriptor.ProjectId.ToString(),
-                    reference.TargetAssetId.ToString(),
-                    reference.TargetAssetVersion.Value.ToString());
+                try
+                {
+                    // Try to fetch the asset from the current project
+                    // Because of the cache configuration setup, this will not invoke a network call; the call must be forced
+                    var asset = await project.GetAssetAsync(reference.TargetAssetId, reference.TargetAssetVersion.Value, token);
+                    asset = await asset.WithCacheConfigurationAsync(new AssetCacheConfiguration { CacheProperties = true }, token);
+
+                    return Map(asset.Descriptor);
+                }
+                catch (NotFoundException)
+                {
+                    // Continue to search for the asset in the entire organization
+                }
+
+                var filter = new Cloud.AssetsEmbedded.AssetSearchFilter();
+                filter.Include().Id.WithValue(reference.TargetAssetId.ToString());
+                filter.Include().Version.WithValue(reference.TargetAssetVersion.Value.ToString());
+
+                var result = await FindAssetAsync(project.Descriptor.OrganizationId, filter, AssetCacheConfiguration.NoCaching, token);
+                return result == null ? null : Map(result.Descriptor);
             }
 
             // Referenced by label
@@ -1718,32 +2040,21 @@ namespace Unity.AssetManager.Core.Editor
             };
         }
 
-        static AssetIdentifier Map(AssetDescriptor descriptor)
+        static AssetIdentifier Map(AssetDescriptor descriptor, IEnumerable<ProjectDescriptor> linkedProjects = null)
         {
             var projectId = descriptor.ProjectId.ToString();
-
-            var identifier = new AssetIdentifier(descriptor.OrganizationId.ToString(),
-                projectId,
-                descriptor.AssetId.ToString(),
-                descriptor.AssetVersion.ToString());
-            identifier.LibraryId = descriptor.AssetLibraryId.ToString();
-            return identifier;
-        }
-
-        static AssetIdentifier Map(AssetDescriptor descriptor, AssetProperties properties)
-        {
-            var projectId = descriptor.ProjectId.ToString();
-            if (string.IsNullOrEmpty(projectId) && properties.LinkedProjects != null && properties.LinkedProjects.Any())
+            if (string.IsNullOrEmpty(projectId) && linkedProjects != null && linkedProjects.Any())
             {
-                projectId = properties.LinkedProjects?.FirstOrDefault().ProjectId.ToString() ?? string.Empty;
+                projectId = linkedProjects.FirstOrDefault().ProjectId.ToString();
             }
 
-            var identifier = new AssetIdentifier(descriptor.OrganizationId.ToString(),
+            return new AssetIdentifier(descriptor.OrganizationId.ToString(),
                 projectId,
                 descriptor.AssetId.ToString(),
-                descriptor.AssetVersion.ToString());
-            identifier.LibraryId = descriptor.AssetLibraryId.ToString();
-            return identifier;
+                descriptor.AssetVersion.ToString())
+            {
+                LibraryId = descriptor.AssetLibraryId.ToString()
+            };
         }
 
         static AssetDescriptor Map(AssetIdentifier assetIdentifier)
@@ -2023,6 +2334,18 @@ namespace Unity.AssetManager.Core.Editor
             }
 
             [ExcludeFromCoverage]
+            async Task<(AssetIdentifier identifier, IEnumerable<ProjectIdentifier> linkedProjects)> GetIdentifierAndLinkedProjectsAsync(IAsset asset, CancellationToken token)
+            {
+                if (asset == null)
+                {
+                    return (null, Array.Empty<ProjectIdentifier>());
+                }
+
+                var properties = await asset.GetPropertiesAsync(token);
+                return (Map(asset.Descriptor, properties.LinkedProjects), Map(properties.LinkedProjects));
+            }
+
+            [ExcludeFromCoverage]
             async Task<AssetData> From(IAsset asset, CancellationToken token)
             {
                 if (asset == null)
@@ -2068,7 +2391,7 @@ namespace Unity.AssetManager.Core.Editor
             static AssetData From(AssetDescriptor descriptor, AssetProperties properties)
             {
                 return new AssetData(
-                    Map(descriptor, properties),
+                    Map(descriptor, properties.LinkedProjects),
                     properties.FrozenSequenceNumber,
                     properties.ParentFrozenSequenceNumber,
                     properties.Changelog,

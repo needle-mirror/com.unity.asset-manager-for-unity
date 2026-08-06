@@ -5,6 +5,28 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-08-11
+
+### Added
+- Added `ITrashedAsset` and `TrashedAssetEntity` for representing assets in trash
+- Added `TrashedAssetQueryBuilder` for building and executing queries of trashed assets (returned by `QueryTrashedAssets` and `QueryAssetsInTrash`)
+- Added `GetTrashedAssetAsync` to `IAssetProject` to retrieve an asset from trash by ID and version (returns `ITrashedAsset`)
+- Added `QueryTrashedAssets` to `IAssetProject` to query and search assets in trash (returns `TrashedAssetQueryBuilder`)
+- Added `RestoreTrashedAssetsAsync` to `IAssetProject` to restore assets from trash back to the project
+- Added `DeleteAssetsFromTrashAsync` to `IAssetProject` to permanently delete assets from trash
+- Added `EmptyTrashAsync` to `IAssetProject` to empty the entire trash
+- Added `TrashAssetsAsync` to `IAssetProject` to move assets to the project's trash
+- Added `QueryAssetsInTrash` to `IAssetRepository` to query assets across multiple project trashes (returns `TrashedAssetQueryBuilder`)
+- Added `ProjectTrashExtension` extension methods to `IAssetProject` for convenience with `RestoreTrashedAssetsAsync(IEnumerable<ITrashedAsset>)` and `DeleteAssetsFromTrashAsync(IEnumerable<ITrashedAsset>)` overloads that accept trashed asset objects
+
+### Changed
+- Documented trash management in `use-case-manage-trash.md`
+- Updated AssetManager sample with trash viewing functionality to manage trashed assets
+- Updated the dependency to com.unity.cloud.common to 1.6.0
+
+### Fixed
+- Fixed an issue where assets moved out of their original project had no project assigned when fetched via organization search.
+
 ## [1.10.0] - 2025-10-15
 
 ### Added

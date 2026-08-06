@@ -53,6 +53,7 @@ namespace Unity.Cloud.AssetsEmbedded
     }
 
     [DataContract]
+#pragma warning disable CS0649 // Fields populated by [DataMember] reflection-based deserialization
     struct LibraryJobProgressData
     {
         /// <summary>
@@ -67,6 +68,7 @@ namespace Unity.Cloud.AssetsEmbedded
         [DataMember(Name = "message")]
         public string Message;
     }
+#pragma warning restore CS0649
 
     [DataContract]
     struct LibraryJobResultData

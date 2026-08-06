@@ -263,7 +263,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
             var creationData = fileCreation.From();
             creationData.SizeBytes = sourceStream.Length;
-            creationData.UserChecksum = await Utilities.CalculateMD5ChecksumAsync(sourceStream, cancellationToken);
+            creationData.UserChecksum = await ChecksumCalculator.CalculateMD5ChecksumAsync(sourceStream, cancellationToken);
             
             var filePath = creationData.Path;
 

@@ -164,9 +164,12 @@ namespace Unity.AssetManager.UI.Editor
                 {
                     evt.StopPropagation();
 
-                    m_ViewModel.SetAssetVersionAndLabel(AssetManagerCoreConstants.NewVersionId, versionLabel);
                     m_DependencyVersionButtonText.text = versionLabel;
                     m_PopupManager.Hide();
+
+                    // Raised last: this emits a Dependencies edit, which repopulates the list and rebuilds
+                    // the rows -- including this one.
+                    m_ViewModel.SetAssetVersionAndLabel(AssetManagerCoreConstants.NewVersionId, versionLabel);
                 });
                 versionSelection.Add(versionLabelSelection);
             }
@@ -189,9 +192,12 @@ namespace Unity.AssetManager.UI.Editor
                     evt.StopPropagation();
 
                     var version = versionNumber == Constants.NewVersionText ? AssetManagerCoreConstants.NewVersionId : m_ViewModel.VersionIds[versionNumber];
-                    m_ViewModel.SetAssetVersionAndLabel(version, string.Empty);
                     m_DependencyVersionButtonText.text = versionNumber;
                     m_PopupManager.Hide();
+
+                    // Raised last: this emits a Dependencies edit, which repopulates the list and rebuilds
+                    // the rows -- including this one.
+                    m_ViewModel.SetAssetVersionAndLabel(version, string.Empty);
                 });
                 versionSelection.Add(versionLabelSelection);
             }

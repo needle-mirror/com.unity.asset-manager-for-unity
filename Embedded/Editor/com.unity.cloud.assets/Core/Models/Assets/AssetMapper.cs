@@ -23,6 +23,9 @@ namespace Unity.Cloud.AssetsEmbedded
             if (includeFields.AssetFields.HasFlag(AssetFields.previewFileUrl))
                 asset.PreviewFileUrl = Uri.TryCreate(assetData.PreviewFileUrl, UriKind.RelativeOrAbsolute, out var previewFileDownloadUri) ? previewFileDownloadUri : null;
 
+            if (includeFields.AssetFields.HasFlag(AssetFields.trashDetails))
+                asset.TrashDetails = assetData.TrashDetails?.Select(t => t.From());
+
             asset.Datasets.Clear();
             asset.DatasetMap.Clear();
 
@@ -138,14 +141,15 @@ namespace Unity.Cloud.AssetsEmbedded
         internal static AssetEntity From(this IAssetData data, IAssetDataSource assetDataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
             OrganizationId organizationId, IEnumerable<ProjectId> availableProjects, FieldsFilter includeFields, AssetCacheConfiguration? assetCacheConfiguration = null)
         {
-            var validProjects = new HashSet<ProjectId>(availableProjects);
-            validProjects.IntersectWith(data.LinkedProjectIds ?? Array.Empty<ProjectId>());
+            var linkedProjects = data.LinkedProjectIds ?? Array.Empty<ProjectId>();
 
-            var projectId = data.SourceProjectId;
-            if (validProjects.Any() && !validProjects.Contains(projectId))
-            {
-                projectId = validProjects.First();
-            }
+            var validProjects = availableProjects.Any()
+                ? linkedProjects.Intersect(availableProjects).ToHashSet() // a list of projects was provided in the search, so the mapped project id will be chosen among the linked projects that are also in the provided list of projects.
+                : linkedProjects.ToHashSet(); // no list of projects was provided in the search (e.g. search across organization) , so the mapped project id will be chosen among all linked projects.
+
+            var projectId = validProjects.Contains(data.SourceProjectId) || validProjects.Count == 0
+                ? data.SourceProjectId
+                : validProjects.First();
 
             return data.From(assetDataSource, defaultCacheConfiguration, new ProjectDescriptor(organizationId, projectId), includeFields, assetCacheConfiguration);
         }
@@ -236,6 +240,16 @@ namespace Unity.Cloud.AssetsEmbedded
                 assetUpdate.Tags != null ||
                 assetUpdate.Type.HasValue ||
                 assetUpdate.PreviewFile != null;
+        }
+
+        internal static TrashDetails From(this AssetTrashDetailsData trashDetailsData)
+        {
+            return new TrashDetails
+            {
+                ProjectId = trashDetailsData.ProjectId,
+                MovedToTrashBy = new UserId(trashDetailsData.MovedToTrashBy),
+                MovedToTrashAt = trashDetailsData.MovedToTrashAt
+            };
         }
     }
 }

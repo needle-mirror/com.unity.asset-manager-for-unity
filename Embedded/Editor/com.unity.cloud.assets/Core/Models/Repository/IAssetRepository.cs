@@ -87,6 +87,21 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <returns>An <see cref="AssetQueryBuilder"/>. </returns>
         AssetQueryBuilder QueryAssets(OrganizationId organizationId) => throw new NotImplementedException();
 
+
+        /// <summary>
+        /// Returns a builder which can query for assets in trash in a set of projects.
+        /// </summary>
+        /// <param name="projectDescriptors">The projects to search. They must all belong to the same organization. </param>
+        /// <returns>A <see cref="TrashedAssetQueryBuilder"/>. </returns>
+        TrashedAssetQueryBuilder QueryAssetsInTrash(IEnumerable<ProjectDescriptor> projectDescriptors);
+
+        /// <summary>
+        /// Returns a builder which can query for assets in trash in an organization.
+        /// </summary>
+        /// <param name="organizationId">The id of the organization.</param>
+        /// <returns>A <see cref="TrashedAssetQueryBuilder"/>. </returns>
+        TrashedAssetQueryBuilder QueryAssetsInTrash(OrganizationId organizationId);
+
         /// <summary>
         /// Returns a builder which can query the asset count for a set of projects.
         /// </summary>
@@ -243,7 +258,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// </summary>
         /// <returns>An <see cref="AssetLibraryJobQueryBuilder"/>. </returns>
         AssetLibraryJobQueryBuilder QueryAssetLibraryJobs() => throw new NotImplementedException();
-        
+
         /// <summary>
         /// Gets an <see cref="IAssetLibraryJob"/>.
         /// </summary>
@@ -251,7 +266,7 @@ namespace Unity.Cloud.AssetsEmbedded
         /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
         /// <returns>A task whose result is an <see cref="IAssetLibraryJob"/>. </returns>
         Task<IAssetLibraryJob> GetAssetLibraryJobAsync(AssetLibraryJobId assetLibraryJobId, CancellationToken cancellationToken) => throw new NotImplementedException();
-        
+
         /// <summary>
         /// Implement this method to get an <see cref="AssetDescriptor"/> given a serialized json of asset identifiers.
         /// </summary>

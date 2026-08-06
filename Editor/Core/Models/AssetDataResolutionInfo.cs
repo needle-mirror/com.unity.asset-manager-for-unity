@@ -92,11 +92,11 @@ namespace Unity.AssetManager.Core.Editor
 
                         // Check dirty flag
                         var path = assetDatabase.GuidToAssetPath(importedFileInfo?.Guid);
+
+                        if (!editorUtility.IsDirty(path)) continue;
+
                         var asset = assetDatabase.LoadAssetAtPath(path);
-                        if (asset != null && editorUtility.IsDirty(asset))
-                        {
-                            m_DirtyObjects.Add(asset);
-                        }
+                        m_DirtyObjects.Add(asset);
                     }
                     catch (Exception e)
                     {

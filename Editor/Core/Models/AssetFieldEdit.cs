@@ -13,6 +13,12 @@ namespace Unity.AssetManager.Core.Editor
         Status,
         Tags,
         Custom,
+
+        /// <summary>
+        /// The complete set of dependencies of an asset. An empty collection means "no dependencies";
+        /// a null edit value is rejected when the <see cref="AssetFieldEdit"/> is constructed.
+        /// </summary>
+        Dependencies,
     }
 
     /// <summary>
@@ -27,6 +33,7 @@ namespace Unity.AssetManager.Core.Editor
             { EditField.Status, typeof(string) },
             { EditField.Tags, typeof(IEnumerable<string>) },
             { EditField.Custom, typeof(IMetadata) },
+            { EditField.Dependencies, typeof(IEnumerable<AssetIdentifier>) },
         };
 
         public AssetIdentifier AssetIdentifier { get; }

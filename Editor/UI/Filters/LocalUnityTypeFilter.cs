@@ -16,8 +16,6 @@ namespace Unity.AssetManager.UI.Editor
 
         public override string DisplayName => "Type";
 
-        List<FilterSelection> m_CachedSelections;
-
         public LocalUnityTypeFilter(IPageFilterStrategy pageFilterStrategy, IAssetDataManager assetDataManager)
             : base(pageFilterStrategy)
         {
@@ -26,13 +24,14 @@ namespace Unity.AssetManager.UI.Editor
 
         public override Task<List<FilterSelection>> GetSelections(bool _ = false)
         {
-            if (m_CachedSelections == null)
-            {
-                var values = m_AssetDataManager.ImportedAssetInfos.Select(i => i.AssetData.AssetType).Distinct();
-                m_CachedSelections = values.Select(x => new FilterSelection(m_PageFilterStrategy.ToString(x), x.GetToolTip())).ToList();
-            }
+            // Rebuild on every call rather than memoizing: an imported asset's type can change after
+            // this filter is created (it starts as AssetType.Other from tracking and is later resolved
+            // from the cache/background refresh). Caching the first result would leave the menu stuck
+            // on the initial "Other"-only list for the rest of the session.
+            var values = m_AssetDataManager.ImportedAssetInfos.Select(i => i.AssetData.AssetType).Distinct();
+            var selections = values.Select(x => new FilterSelection(m_PageFilterStrategy.ToString(x), x.GetToolTip())).ToList();
 
-            return Task.FromResult(m_CachedSelections);
+            return Task.FromResult(selections);
         }
 
         public override Task<bool> Contains(BaseAssetData assetData, CancellationToken token = default)

@@ -184,6 +184,11 @@ namespace Unity.AssetManager.Upload.Editor
                     assetData.AddMetadata(assetFieldEdit.EditValue as IMetadata);
                     break;
 
+                case EditField.Dependencies:
+                    m_UploadEdits.SetModifiedDependencies(assetData.Guid,
+                        assetFieldEdit.EditValue as IEnumerable<AssetIdentifier>);
+                    break;
+
                 default:
                     return;
 
@@ -227,6 +232,35 @@ namespace Unity.AssetManager.Upload.Editor
             {
                 assetData.SetMetadata(metadata);
             }
+
+            if (m_UploadEdits.TryGetModifiedDependencies(assetData.Guid, out var dependencies))
+            {
+                ApplyDependencyVersionEdits(assetData, dependencies);
+            }
+        }
+
+        // Only the version and version label of a dependency are user-editable; membership is always
+        // recomputed by UploadAssetStrategy, so re-apply the saved version per AssetId instead of
+        // replacing the regenerated list.
+        static void ApplyDependencyVersionEdits(UploadAssetData assetData, IEnumerable<AssetIdentifier> editedDependencies)
+        {
+            var editsByAssetId = new Dictionary<string, AssetIdentifier>();
+            foreach (var edited in editedDependencies)
+            {
+                editsByAssetId[edited.AssetId] = edited;
+            }
+
+            var current = assetData.Dependencies.ToList();
+            foreach (var dependency in current)
+            {
+                if (!editsByAssetId.TryGetValue(dependency.AssetId, out var edited))
+                    continue;
+
+                dependency.Version = edited.Version;
+                dependency.VersionLabel = edited.VersionLabel;
+            }
+
+            assetData.SetDependencies(current);
         }
 
         public void ApplyEdits(IEnumerable<UploadAssetData> assetDatas)
@@ -289,24 +323,40 @@ namespace Unity.AssetManager.Upload.Editor
             return await permissionsManager.CheckPermissionAsync(m_Settings.OrganizationId, m_Settings.ProjectId, k_UploadPermission);
         }
 
-        public bool HasDirtyAssets()
+        /// <summary>
+        /// Checks if there are unsaved changes to assets in staging and prompts the user to save.
+        /// </summary>
+        /// <returns>
+        /// 0: User saved<br/>
+        /// 1: User canceled<br/>
+        /// 2: User Ignored<br/>
+        /// -1: No unsaved assets or prompt error
+        /// </returns>
+        public int HasSavedUnsavedAssets(Func<int> getUserResponseToSavePrompt)
         {
             var guids = m_UploadAssets.SelectMany(uploadAsset => uploadAsset.GetFiles().Select(f => f.Guid)).ToList();
 
             var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
-            var fileUtility = ServicesContainer.instance.Resolve<IFileUtility>();
-            return guids.Exists(guid => fileUtility.IsFileDirty(assetDatabaseProxy.GuidToAssetPath(guid)));
-        }
+            var editorUtilityProxy = ServicesContainer.instance.Resolve<IEditorUtilityProxy>();
 
-        public void SaveDirtyAssets()
-        {
-            var guids = m_UploadAssets.SelectMany(uploadAsset => uploadAsset.GetFiles().Select(f => f.Guid)).ToList();
+            var assetPaths = guids.Select(assetDatabaseProxy.GuidToAssetPath).ToList();
+            var hasDirtyAssets = assetPaths.Any(editorUtilityProxy.IsDirty);
 
-            var assetDatabaseProxy = ServicesContainer.instance.Resolve<IAssetDatabaseProxy>();
-            foreach (var path in guids.Select(assetDatabaseProxy.GuidToAssetPath))
+            if (!hasDirtyAssets || getUserResponseToSavePrompt == null) return -1;
+
+            var choice = getUserResponseToSavePrompt.Invoke();
+
+            if (choice == 0)
             {
-                assetDatabaseProxy.SaveAssetIfDirty(path);
+                Utilities.DevLog("Saving staged assets...");
+
+                foreach (var path in assetPaths)
+                {
+                    assetDatabaseProxy.SaveAssetIfDirty(path);
+                }
             }
+
+            return choice;
         }
 
         public void SetCollectionPath(string collection)

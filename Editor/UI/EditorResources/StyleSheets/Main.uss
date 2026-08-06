@@ -1523,6 +1523,7 @@ SearchBar {
     border-radius: 4px;
     margin: 8px;
     border-width: 1px;
+    overflow: hidden;
 }
 
 #unity-search {
@@ -1566,7 +1567,7 @@ TextField {
     flex-shrink: 1;
     flex-grow: 1;
     flex-basis: 160px;
-    min-width: 160px;
+    min-width: 60px;
 }
 
 .toolbar-search-input #unity-text-input {
@@ -1579,6 +1580,7 @@ TextField {
     border-width: 1px;
     border-radius: 3px;
     margin: 2px;
+    height: auto;
 }
 
 .search-chip-scroll-view {

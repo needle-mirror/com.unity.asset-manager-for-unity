@@ -71,7 +71,7 @@ namespace Unity.AssetManager.UI.Editor
         /// Begin tracking an inline edit session.
         /// Call this when the user starts editing a field.
         /// </summary>
-        /// <param name="editField">Field being edited (e.g., "Name", "Description", "Status", "Tags", "Custom")</param>
+        /// <param name="editField">Field being edited (e.g., "Name", "Description", "Status", "Tags", "Custom", "Dependencies")</param>
         /// <param name="customType">For custom metadata, the field type (e.g., "Text", "Number"). Null for standard fields.</param>
         /// <param name="isMulti">True if editing multiple assets, false for single asset</param>
         /// <param name="count">Number of assets being edited</param>

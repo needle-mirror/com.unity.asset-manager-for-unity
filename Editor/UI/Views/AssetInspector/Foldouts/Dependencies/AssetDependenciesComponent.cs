@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Unity.AssetManager.Core.Editor;
 using Unity.AssetManager.Upload.Editor;
@@ -10,6 +11,12 @@ namespace Unity.AssetManager.UI.Editor
     class AssetDependenciesComponent : VisualElement
     {
         readonly DependenciesFoldout m_DependenciesFoldout;
+
+        /// <summary>
+        /// Raised when a dependency row changed its version or version label, carrying the owning asset's
+        /// complete dependency set.
+        /// </summary>
+        public event Action<IEnumerable<AssetIdentifier>> DependenciesEdited;
 
         public AssetDependenciesComponent(VisualElement parent, IPageManager pageManager, IPopupManager popupManager,
             ISettingsManager settingsManager, IProjectOrganizationProvider projectOrganizationProvider, IStateManager stateManager = null)
@@ -33,6 +40,7 @@ namespace Unity.AssetManager.UI.Editor
                     Expanded = stateManager?.DependenciesFoldoutValue ?? false
                 };
             m_DependenciesFoldout.SetEmptyStateLabel(Constants.NoDependenciesText, "no-dependencies-label");
+            m_DependenciesFoldout.DependenciesEdited += dependencies => DependenciesEdited?.Invoke(dependencies);
 
             if (stateManager != null)
             {

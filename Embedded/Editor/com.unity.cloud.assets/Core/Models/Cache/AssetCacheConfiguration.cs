@@ -34,6 +34,11 @@ namespace Unity.Cloud.AssetsEmbedded
         public bool CacheSystemMetadata { get; set; }
 
         /// <summary>
+        /// Whether to cache the trash details of the asset.
+        /// </summary>
+        public bool CacheTrashDetails { get; set; }
+
+        /// <summary>
         /// Which subset of metadata field keys to cache. Will apply to Asset, Dataset, and File Metadata.
         /// </summary>
         public IEnumerable<string> CacheMetadataFieldKeys { get; set; }
@@ -61,7 +66,8 @@ namespace Unity.Cloud.AssetsEmbedded
                 && CachePreviewUrl == other.CachePreviewUrl
                 && CacheDatasetList == other.CacheDatasetList
                 && CacheMetadata == other.CacheMetadata
-                && CacheSystemMetadata == other.CacheSystemMetadata;
+                && CacheSystemMetadata == other.CacheSystemMetadata
+                && CacheTrashDetails == other.CacheTrashDetails;
         }
 
         public override bool Equals(object obj)
@@ -71,7 +77,10 @@ namespace Unity.Cloud.AssetsEmbedded
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(CacheProperties, CachePreviewUrl, CacheDatasetList, CacheMetadata, CacheSystemMetadata, CacheMetadataFieldKeys, CacheSystemMetadataFieldKeys, DatasetCacheConfiguration);
+            // We use two levels of HashCode.Combine to avoid exceeding the maximum number of arguments.
+            return HashCode.Combine(DatasetCacheConfiguration,
+                HashCode.Combine(CacheProperties, CachePreviewUrl, CacheDatasetList, CacheMetadata, CacheSystemMetadata,
+                    CacheTrashDetails, CacheMetadataFieldKeys, CacheSystemMetadataFieldKeys));
         }
 
         public static AssetCacheConfiguration NoCaching => new()
@@ -81,6 +90,7 @@ namespace Unity.Cloud.AssetsEmbedded
             CacheDatasetList = false,
             CacheMetadata = false,
             CacheSystemMetadata = false,
+            CacheTrashDetails = false,
             CacheMetadataFieldKeys = Array.Empty<string>(),
             CacheSystemMetadataFieldKeys = Array.Empty<string>(),
             DatasetCacheConfiguration = DatasetCacheConfiguration.NoCaching
@@ -93,12 +103,13 @@ namespace Unity.Cloud.AssetsEmbedded
             CacheDatasetList = false,
             CacheMetadata = false,
             CacheSystemMetadata = false,
+            CacheTrashDetails = false,
             CacheMetadataFieldKeys = Array.Empty<string>(),
             CacheSystemMetadataFieldKeys = Array.Empty<string>(),
             DatasetCacheConfiguration = DatasetCacheConfiguration.Legacy
         };
 
-        internal bool HasCachingRequirements => CacheProperties || CachePreviewUrl || CacheDatasetList || CacheMetadata || CacheSystemMetadata;
+        internal bool HasCachingRequirements => CacheProperties || CachePreviewUrl || CacheDatasetList || CacheMetadata || CacheSystemMetadata || CacheTrashDetails;
 
         internal AssetCacheConfiguration(AssetRepositoryCacheConfiguration defaultCacheConfiguration)
         {
@@ -107,6 +118,7 @@ namespace Unity.Cloud.AssetsEmbedded
             CacheDatasetList = defaultCacheConfiguration.AssetCacheConfiguration.CacheDatasetList;
             CacheMetadata = defaultCacheConfiguration.AssetCacheConfiguration.CacheMetadata;
             CacheSystemMetadata = defaultCacheConfiguration.AssetCacheConfiguration.CacheSystemMetadata;
+            CacheTrashDetails = defaultCacheConfiguration.AssetCacheConfiguration.CacheTrashDetails;
             CacheMetadataFieldKeys = defaultCacheConfiguration.AssetCacheConfiguration.CacheMetadataFieldKeys;
             CacheSystemMetadataFieldKeys = defaultCacheConfiguration.AssetCacheConfiguration.CacheSystemMetadataFieldKeys;
             DatasetCacheConfiguration = new DatasetCacheConfiguration(defaultCacheConfiguration.AssetCacheConfiguration);

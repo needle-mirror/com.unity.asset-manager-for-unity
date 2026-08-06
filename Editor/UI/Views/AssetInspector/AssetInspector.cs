@@ -252,6 +252,9 @@ namespace Unity.AssetManager.UI.Editor
                 case EditField.Status:
                     assetData?.SetStatus(assetFieldEdit.EditValue as string);
                     break;
+                case EditField.Dependencies:
+                    assetData?.SetDependencies(assetFieldEdit.EditValue as IEnumerable<AssetIdentifier>);
+                    break;
             }
 
             var uploadPage = m_PageManager.ActivePage as UploadPage;

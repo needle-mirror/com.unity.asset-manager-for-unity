@@ -5,13 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace Unity.AssetManager.Core.Editor
 {
     interface IFileUtility : IService
     {
-        bool IsFileDirty(string path);
         Task<ComparisonDetails> FileWasModified(string path, long expectedTimestamp, string expectedChecksum, CancellationToken token);
         long? GetTimestamp(string path);
         Task<string> CalculateMD5ChecksumAsync(string path, CancellationToken cancellationToken);
@@ -34,7 +32,7 @@ namespace Unity.AssetManager.Core.Editor
 
         [SerializeReference]
         IAssetDatabaseProxy m_AssetDatabase;
-        
+
         [SerializeReference]
         IIOProxy m_IOProxy;
 
@@ -54,32 +52,10 @@ namespace Unity.AssetManager.Core.Editor
             m_AssetDatabase ??= ServicesContainer.instance.Get<IAssetDatabaseProxy>();
         }
 
-        public bool IsFileDirty(string path)
-        {
-            // Check dirty flag
-            var asset = m_AssetDatabase.LoadAssetAtPath(path);
-            if (asset != null && m_EditorUtility.IsDirty(asset))
-            {
-                return true;
-            }
-
-            // Check if the file is a scene and it is dirty
-            if (asset is SceneAsset)
-            {
-                var scene = SceneManager.GetSceneByPath(path);
-                if (scene.isDirty)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         public async Task<ComparisonDetails> FileWasModified(string path, long expectedTimestamp, string expectedChecksum, CancellationToken token)
         {
             // Locally modified files are always considered dirty
-            if (IsFileDirty(path))
+            if (m_EditorUtility.IsDirty(path))
             {
                 return new ComparisonDetails(ComparisonResults.FilesModified, $"File {Path.GetFileName(path)} is dirty.");
             }

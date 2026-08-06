@@ -145,7 +145,9 @@ namespace Unity.AssetManager.Core.Editor
 
                 var importedAssetData = importedAssetInfo.AssetData;
 
-                // Imported asset must match current project and still exist in the provider for it to be recycled
+                // Imported asset must match current project and still exist in the provider for it to be recycled.
+                // Deliberately stricter than TrackedAssetIdentifier equality, which ignores the project:
+                // an asset living in another project cannot be recycled as this project's upload target.
                 if (importedAssetData == null || importedAssetData.Identifier.OrganizationId != organizationId
                     || projectId != null && importedAssetData.Identifier.ProjectId != projectId)
                 {

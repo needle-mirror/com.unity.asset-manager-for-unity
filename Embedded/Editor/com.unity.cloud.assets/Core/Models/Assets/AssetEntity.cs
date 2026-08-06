@@ -91,13 +91,15 @@ namespace Unity.Cloud.AssetsEmbedded
         AssetRepositoryCacheConfiguration DefaultCacheConfiguration => m_CacheConfiguration.DefaultConfiguration;
 
         internal AssetProperties Properties { get; set; }
+        internal IEnumerable<TrashDetails> TrashDetails { get; set; }
         internal Uri PreviewFileUrl { get; set; }
         internal List<IDatasetData> Datasets { get; } = new();
         internal Dictionary<DatasetId, IDatasetData> DatasetMap { get; } = new();
         internal MetadataContainerEntity MetadataEntity { get; }
         internal ReadOnlyMetadataContainerEntity SystemMetadataEntity { get; }
 
-        internal AssetEntity(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration, AssetDescriptor assetDescriptor, AssetCacheConfiguration? cacheConfigurationOverride = null)
+        internal AssetEntity(IAssetDataSource dataSource, AssetRepositoryCacheConfiguration defaultCacheConfiguration,
+            AssetDescriptor assetDescriptor, AssetCacheConfiguration? cacheConfigurationOverride = null)
         {
             m_DataSource = dataSource;
             Descriptor = assetDescriptor;
@@ -185,6 +187,19 @@ namespace Unity.Cloud.AssetsEmbedded
             var fieldsFilter = FieldsFilter.DefaultAssetIncludes;
             var data = await m_DataSource.GetAssetAsync(Descriptor, fieldsFilter, cancellationToken);
             return data.From(Descriptor, fieldsFilter);
+        }
+
+        /// <inheritdoc />
+        public async Task<IEnumerable<TrashDetails>> GetTrashDetailsAsync(CancellationToken cancellationToken)
+        {
+            if (CacheConfiguration.CacheTrashDetails && TrashDetails != null)
+            {
+                return TrashDetails;
+            }
+
+            var fieldsFilter = FieldsFilter.TrashDetails;
+            var data = await m_DataSource.GetAssetAsync(Descriptor, fieldsFilter, cancellationToken);
+            return data.TrashDetails?.Select(t => t.From()).ToArray() ?? Array.Empty<TrashDetails>();
         }
 
         /// <inheritdoc />
@@ -635,6 +650,7 @@ namespace Unity.Cloud.AssetsEmbedded
 
             return asset;
         }
+
 
         void ThrowIfPathToLibrary(string message = "Cannot modify library assets.")
         {

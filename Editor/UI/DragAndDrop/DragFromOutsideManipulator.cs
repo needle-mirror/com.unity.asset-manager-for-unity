@@ -8,8 +8,10 @@ using UnityEngine.UIElements;
 
 namespace Unity.AssetManager.UI.Editor
 {
+#pragma warning disable UAC1002
     [Serializable]
     class DragFromOutsideManipulator : PointerManipulator
+#pragma warning restore UAC1002
     {
         [SerializeReference]
         IPageManager m_PageManager;

@@ -213,6 +213,13 @@ namespace Unity.Cloud.AssetsEmbedded
         Task<AssetProperties> GetPropertiesAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
 
         /// <summary>
+        /// Returns the trash details of the asset.
+        /// </summary>
+        /// <param name="cancellationToken">A token that can be used to cancel the request. </param>
+        /// <returns>A task whose result is the trash details of the asset. </returns>
+        Task<IEnumerable<TrashDetails>> GetTrashDetailsAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        /// <summary>
         /// Returns an object that can be used to query the asset's update history.
         /// </summary>
         /// <returns>A <see cref="AssetUpdateHistoryQueryBuilder"/>. </returns>

@@ -27,6 +27,7 @@ namespace Unity.Cloud.AssetsEmbedded
         versioning = 256,
         labels = 512,
         previewFile = 1024,
+        trashDetails = 2048,
     }
 
     [Flags]
@@ -133,6 +134,13 @@ namespace Unity.Cloud.AssetsEmbedded
             AssetFields = AssetFields.all,
             DatasetFields = DatasetFields.all,
             FileFields = FileFields.all,
+        };
+
+        public static FieldsFilter TrashDetails => new()
+        {
+            AssetFields = AssetFields.trashDetails,
+            DatasetFields = DatasetFields.none,
+            FileFields = FileFields.none,
         };
     }
 }

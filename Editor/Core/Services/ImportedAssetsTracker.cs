@@ -53,6 +53,7 @@ namespace Unity.AssetManager.Core.Editor
 
             m_AssetDatabaseProxy.PostprocessAllAssets += OnPostprocessAllAssets;
             m_AssetDataManager.ImportedAssetInfoChanged += OnImportedAssetInfoChanged;
+            m_AssetDataManager.TrackedAssetProjectIdRepaired += OnTrackedAssetProjectIdRepaired;
             m_PersistenceManager.AssetEntryModified += OnAssetEntryModified;
             m_PersistenceManager.AssetEntryRemoved += OnAssetEntryRemoved;
         }
@@ -99,9 +100,26 @@ namespace Unity.AssetManager.Core.Editor
                     metaFileChecksum = await m_FileUtility.CalculateMD5ChecksumAsync(metafilePath, default);
                 }
 
+                var metaFileTimestampValue = metaFileTimestamp ?? 0L;
+
+                // Keep the existing timestamps when the content is unchanged (same checksum), e.g. the same
+                // version is reimported, so the tracking file isn't rewritten with only timestamp changes.
+                // Look up this asset's own prior record (a file GUID may be shared across assets).
+                var existingFileInfo = m_AssetDataManager
+                    .GetImportedAssetInfo(assetData.Identifier)?
+                    .FileInfos?
+                    .FirstOrDefault(f => f.Guid == guid);
+                if (existingFileInfo != null &&
+                    existingFileInfo.Checksum == checksum &&
+                    existingFileInfo.MetaFileChecksum == metaFileChecksum)
+                {
+                    timestamp = existingFileInfo.Timestamp;
+                    metaFileTimestampValue = existingFileInfo.MetaFileTimestamp;
+                }
+
                 var datasetId = assetData.Datasets.FirstOrDefault(x => x.Files.Any(f => f.Path == item.originalPath))?.Id;
 
-                var fileInfo = new ImportedFileInfo(datasetId, guid, item.originalPath, checksum, timestamp, metaFileChecksum, metaFileTimestamp ?? 0L);
+                var fileInfo = new ImportedFileInfo(datasetId, guid, item.originalPath, checksum, timestamp, metaFileChecksum, metaFileTimestampValue);
                 fileInfos.Add(fileInfo);
             }
 
@@ -146,10 +164,30 @@ namespace Unity.AssetManager.Core.Editor
                 RemoveTrackedAsset(id);
         }
 
+        // Only fires when an asset was found under a different project than the one it was imported
+        // from, so the tracking files are rewritten with the corrected project. Deliberately not
+        // driven by AssetChangeArgs.Updated, which fires on every import and would both cause a
+        // write storm and feed back through the tracking file watcher.
+        void OnTrackedAssetProjectIdRepaired(ImportedAssetInfo importedAssetInfo)
+        {
+            if (importedAssetInfo?.AssetData is not AssetData assetData || importedAssetInfo.FileInfos == null)
+                return;
+
+            try
+            {
+                WriteTrackedAsset(assetData, importedAssetInfo.FileInfos);
+            }
+            catch (TrackingFilePathTooLongException)
+            {
+                // Already logged and displayed by PersistenceManager.
+            }
+        }
+
         public override void OnDisable()
         {
             m_AssetDatabaseProxy.PostprocessAllAssets -= OnPostprocessAllAssets;
             m_AssetDataManager.ImportedAssetInfoChanged -= OnImportedAssetInfoChanged;
+            m_AssetDataManager.TrackedAssetProjectIdRepaired -= OnTrackedAssetProjectIdRepaired;
             m_PersistenceManager.AssetEntryModified -= OnAssetEntryModified;
             m_PersistenceManager.AssetEntryRemoved -= OnAssetEntryRemoved;
         }

@@ -904,7 +904,7 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        internal async Task OnOrganizationListChanged() 
+        internal void OnOrganizationListChanged()
         {
             Utilities.DevLog($"OrganizationListChanged ({OrganizationList.Count} organizations) : saved '{SavedOrganizationId}'");
             OrganizationListChanged?.Invoke(OrganizationList);

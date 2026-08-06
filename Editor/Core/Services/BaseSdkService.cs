@@ -21,6 +21,7 @@ namespace Unity.AssetManager.Core.Editor
     /// <summary>
     /// A common base for the implementation of services that requires the cloud SDK.
     /// </summary>
+    [Serializable]
     abstract class BaseSdkService : BaseService
     {
         /// <summary>

@@ -17,10 +17,17 @@ namespace Unity.AssetManager.UI.Editor
         readonly IProjectOrganizationProvider m_ProjectOrganizationProvider;
         readonly IUnityConnectProxy m_UnityConnectProxy;
         readonly IAssetDataManager m_AssetDataManager;
+        readonly Func<BaseAssetData> m_OwnerAssetDataProvider;
         CancellationTokenSource m_CancellationTokenSource;
 
         //events
         public event Action AssetDataChanged;
+
+        /// <summary>
+        /// Raised when the version or version label of this dependency changed, carrying the owning asset's
+        /// complete dependency set so it can be routed as an EditField.Dependencies edit.
+        /// </summary>
+        public event Action<IEnumerable<AssetIdentifier>> DependenciesEdited;
 
         //properties
         AssetIdentifier m_AssetIdentifier;
@@ -42,13 +49,14 @@ namespace Unity.AssetManager.UI.Editor
 
         public DependencyFoldoutItemViewModel(IPageManager pageManager, ISettingsManager settingsManager,
             IProjectOrganizationProvider projectOrganizationProvider, IUnityConnectProxy unityConnectProxy,
-            IAssetDataManager dataManager)
+            IAssetDataManager dataManager, Func<BaseAssetData> ownerAssetDataProvider = null)
         {
             m_PageManager = pageManager;
             m_SettingsManager = settingsManager;
             m_ProjectOrganizationProvider = projectOrganizationProvider;
             m_UnityConnectProxy = unityConnectProxy;
             m_AssetDataManager = dataManager;
+            m_OwnerAssetDataProvider = ownerAssetDataProvider;
         }
 
         public void NavigateToDependency()
@@ -207,6 +215,14 @@ namespace Unity.AssetManager.UI.Editor
         {
             m_AssetIdentifier.Version = version;
             m_AssetIdentifier.VersionLabel = versionLabel;
+
+            // m_AssetIdentifier is the same instance held in the owning asset's Dependencies list, so that
+            // list already reflects the change; snapshot it as the edit value.
+            var owner = m_OwnerAssetDataProvider?.Invoke();
+            if (owner != null)
+            {
+                DependenciesEdited?.Invoke(owner.Dependencies.ToList());
+            }
         }
     }
 }

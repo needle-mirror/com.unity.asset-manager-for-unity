@@ -187,8 +187,8 @@ namespace Unity.AssetManager.UI.Editor
                 return;
             }
 
-            // Resolve datasets only for assets that haven't been resolved yet (no primary source file)
-            var unresolvedAssets = assetData.Where(a => a.PrimarySourceFile == null);
+            // Resolve datasets only for assets that haven't been resolved yet (no known file list)
+            var unresolvedAssets = assetData.Where(a => !a.AreDatasetsResolved).ToList();
             if (unresolvedAssets.Any())
             {
                 await Task.WhenAll(unresolvedAssets.Select(a => a.ResolveDatasetsAsync()));
@@ -420,8 +420,10 @@ namespace Unity.AssetManager.UI.Editor
             var unimportedAssets = m_SelectedAssetsData.Selection.Where(x => !m_AssetDataManager.IsInProject(x.Identifier)).ToList();
             var importedAssets = m_SelectedAssetsData.Selection.Where(x => m_AssetDataManager.IsInProject(x.Identifier)).ToList();
 
-            var unimportedHasAnyWithFiles = unimportedAssets.Any(a => a.HasImportableFiles());
-            var importedHasAnyWithFiles = importedAssets.Any(a => a.HasImportableFiles());
+            // Assets whose datasets are not resolved yet have no file list; they must not count as "no files",
+            // otherwise the buttons stay disabled until something else forces the datasets to resolve.
+            var unimportedHasAnyWithFiles = unimportedAssets.Any(a => a.MayHaveImportableFiles());
+            var importedHasAnyWithFiles = importedAssets.Any(a => a.MayHaveImportableFiles());
 
             m_Foldouts[FoldoutName.Unimported].SetButtonEnable(cloudServiceReachable && unimportedHasAnyWithFiles);
             m_Foldouts[FoldoutName.Imported].SetButtonEnable(!containDeletedAssets && cloudServiceReachable && importedHasAnyWithFiles);
@@ -467,6 +469,42 @@ namespace Unity.AssetManager.UI.Editor
             m_PageManager.ActivePage.ToggleAsset(m_SelectedAssetsData.Selection.Cast<UploadAssetData>().Where(x => x.CanBeIgnored && x.IsIgnored).Select(a => a.Identifier).FirstOrDefault(), true);
         }
 
+        /// <summary>
+        /// Resolves the datasets of any asset whose file list is not known yet, before an import
+        /// filters on <see cref="BaseAssetDataExtensions.HasImportableFiles"/>.
+        /// </summary>
+        /// <remarks>
+        /// The import buttons are enabled from MayHaveImportableFiles, which counts an unresolved asset
+        /// as potentially importable. Without resolving here, a click inside that window would filter
+        /// every unresolved asset out, import nothing, and report the assets as having no files when
+        /// their files simply had not been fetched yet.
+        /// </remarks>
+        static void WarnAboutUnreachableFiles(List<BaseAssetData> unreachable)
+        {
+            if (!unreachable.Any())
+                return;
+
+            var names = string.Join(", ", unreachable.Select(a => a.Name));
+            Debug.LogWarning($"The files of the following assets could not be retrieved, so they were not imported: {names}");
+        }
+
+        /// <returns>
+        /// The assets whose file list is still unknown afterwards, because the fetch failed.
+        /// ResolveDatasetsAsync swallows an unreachable host, a forbidden asset and a missing asset, so
+        /// it returns normally without the files having been retrieved. Those assets must not be
+        /// reported as having no files.
+        /// </returns>
+        static async Task<List<BaseAssetData>> ResolveDatasetsBeforeImportAsync(IEnumerable<BaseAssetData> assetsData)
+        {
+            var unresolved = assetsData.Where(ad => ad != null && !ad.AreDatasetsResolved).ToList();
+            if (unresolved.Any())
+            {
+                await Task.WhenAll(unresolved.Select(ad => ad.ResolveDatasetsAsync()));
+            }
+
+            return unresolved.Where(ad => !ad.AreDatasetsResolved).ToList();
+        }
+
         void ImportListAsync(List<BaseAssetData> assetsData, bool isReimport)
         {
             try
@@ -483,11 +521,20 @@ namespace Unity.AssetManager.UI.Editor
 
         void ImportUnimportedAssetsAsync()
         {
+            TaskUtils.TrackException(ImportUnimportedAssetsInternalAsync());
+        }
+
+        async Task ImportUnimportedAssetsInternalAsync()
+        {
             var allUnimported = m_PageManager.ActivePage.SelectedAssets.Where(x => !m_AssetDataManager.IsInProject(x))
                 .Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
 
-            var importable = allUnimported.Where(ad => ad.HasImportableFiles()).ToList();
-            var skipped = allUnimported.Where(ad => !ad.HasImportableFiles()).ToList();
+            var unreachable = await ResolveDatasetsBeforeImportAsync(allUnimported);
+            WarnAboutUnreachableFiles(unreachable);
+
+            var candidates = allUnimported.Except(unreachable).ToList();
+            var importable = candidates.Where(ad => ad.HasImportableFiles()).ToList();
+            var skipped = candidates.Where(ad => !ad.HasImportableFiles()).ToList();
 
             if (skipped.Any())
             {
@@ -507,11 +554,20 @@ namespace Unity.AssetManager.UI.Editor
 
         void ReImportAssetsAsync()
         {
+            TaskUtils.TrackException(ReImportAssetsInternalAsync());
+        }
+
+        async Task ReImportAssetsInternalAsync()
+        {
             var allImported = m_PageManager.ActivePage.SelectedAssets.Where(x => m_AssetDataManager.IsInProject(x))
                 .Select(x => m_AssetDataManager.GetAssetData(x)).ToList();
 
-            var importable = allImported.Where(ad => ad.HasImportableFiles()).ToList();
-            var skipped = allImported.Where(ad => !ad.HasImportableFiles()).ToList();
+            var unreachable = await ResolveDatasetsBeforeImportAsync(allImported);
+            WarnAboutUnreachableFiles(unreachable);
+
+            var candidates = allImported.Except(unreachable).ToList();
+            var importable = candidates.Where(ad => ad.HasImportableFiles()).ToList();
+            var skipped = candidates.Where(ad => !ad.HasImportableFiles()).ToList();
 
             if (skipped.Any())
             {

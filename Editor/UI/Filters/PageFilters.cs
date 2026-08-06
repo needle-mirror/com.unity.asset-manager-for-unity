@@ -22,7 +22,7 @@ namespace Unity.AssetManager.UI.Editor
         [SerializeReference]
         List<CustomMetadataFilter> m_CustomMetadataFilters;
 
-        [SerializeReference]
+        [SerializeField]
         bool m_IsEnabled;
 
         public List<string> SearchFilters => m_SearchFilters;

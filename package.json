@@ -1,7 +1,7 @@
 {
   "name": "com.unity.asset-manager-for-unity",
   "displayName": "Asset Manager",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "unity": "2022.3",
   "description": "Asset Manager for Unity is an In-Editor tool that allows you to easily browse, upload and import assets between the Unity Editor and Unity Cloud.\n\nTo open the Asset Manager for Unity window once the package is installed, go to the top left menu bar, select <b>Window > Asset Manager</b>.",
   "keywords": [
@@ -20,18 +20,18 @@
     "com.unity.modules.imgui": "1.0.0"
   },
   "relatedPackages": {
-    "com.unity.asset-manager-for-unity.tests": "1.11.0"
+    "com.unity.asset-manager-for-unity.tests": "1.12.0"
   },
   "_upm": {
-    "changelog": "[Added]\n- Added an option \"Match project structure\" in the Upload Settings. This option automatically organizes assets in the Asset Manager dashboard to match your project structure.\n- Added a \"Metadata History\" tab for the selected asset which shows the history of changes to its metadata for the currently imported version.\n- Added a new OrganizationListChanged event in ProjectOrganizationProvider.\n- Added a footer with the capacity to refresh the internal asset cache when in the \"In project\" tab.\n- Added the ability to edit asset metadata in the asset inspector.\n- Added the ability to filter assets by id.\n- `ServicesEnabledChanged` on private cloud settings, raised when enabling or disabling private cloud services.\n\n[Changed]\n- Changes to colour styling in the Asset Details panel.\n- Upload tabs is now in the form of a hierarchy list instead of a grid.\n- Toggling **Enable Private Cloud Services** now clears persisted and in-memory organization and project related data.\n\n[Fixed]\n- Fixed nested \"Assets\" directories being incorrectly stripped from tracking file paths.\n- Fixed issue where re-upload an asset with dependencies could mark those dependencies as \"new\".\n- Fix thumnails not loading for staged asset in the upload tab soon after they were imported.\n- Fix deep linking to an inaccessible project no longer display  \"loading...\" in organization selector.\n- Fix to show the correct latest version in the New Version Notification banner."
+    "changelog": "[Changed]\n- Replaced deprecated UI Toolkit APIs so the package compiles without C# warnings on Unity 6.0 through trunk.\n- Tracked assets are now identified by their organization and asset id only. An asset that is moved between projects, or unlinked from the project it was imported from, keeps its import status instead of being treated as a different asset. If the same asset was imported from two projects it is now a single entry in the \"In Project\" tab.\n- An asset that cannot be found in the project it was imported from is now looked up across the whole organization, and its tracking file is rewritten with the project it actually belongs to. Expect a one-time tracking-file diff for assets whose project changed.\n- Reduced memory usage when staging assets for upload.\n\n[Fixed]\n- Fixed the search bar input box not fitting inside the search bar once a search pill is added, where its bordered edge hung past the bottom of the bar. The input box and the clear button are also no longer drawn outside the bar's rounded border when the Assets tab panel is narrow.\n- Fixed the asset type filter in the \"In Project\" tab only showing \"Other\" instead of the actual imported asset types.\n- Fixed a duplicate tracking file being left behind when a tracked asset is renamed and then moved.\n- Fixed a tracking file being deleted on a case-only rename on case-insensitive filesystems (Windows, macOS).\n- Fixed a duplicate tracking file being recreated at the pre-rename/move location when a renamed or moved asset is reimported.\n- Fixed spurious tracking-file churn (timestamp-only changes) when reimporting unchanged content.\n- Fixed imported assets showing a sync error after being moved to, or unlinked from, a project in the Asset Manager dashboard. Their status is now resolved correctly.\n- Fixed Shader Graph assets always being reported as modified.\n- Fixed dependency versions selected by the user not being preserved. Dependencies are now only upversioned when pinned to fixed versions.\n- Fixed the Import and Reimport buttons of the multi-selection foldouts being disabled until the foldout was expanded. They are now enabled as soon as the assets are selected."
   },
   "upmCi": {
-    "footprint": "d0ab9065f316ec3e6d9de2b2baae201b7a318a6e"
+    "footprint": "18ee0f975e54dbada08fa6bae46e978e149652c3"
   },
-  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.11/manual/index.html",
+  "documentationUrl": "https://docs.unity3d.com/Packages/com.unity.asset-manager-for-unity@1.12/manual/index.html",
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/com.unity.asset-manager-for-unity.git",
     "type": "git",
-    "revision": "aff677c57ab61d1bd9ea95cf40892f666a8d8144"
+    "revision": "cfb73442218c9d2529451f5fd1fb783dc18e7a46"
   }
 }

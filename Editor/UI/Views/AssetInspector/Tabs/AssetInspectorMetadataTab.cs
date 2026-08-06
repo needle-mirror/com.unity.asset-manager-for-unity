@@ -226,6 +226,8 @@ namespace Unity.AssetManager.UI.Editor
             customMetadata.RefreshUI(m_ViewModel.SelectedAssetData, m_EditingMode);
 
             m_DependenciesComponent = new AssetDependenciesComponent(m_EntriesContainer, m_PageManager, m_PopupManager, m_SettingsManager, m_projectOrganizationProvider, m_StateManager);
+            m_DependenciesComponent.DependenciesEdited += dependencies =>
+                OnEntryEdited(editableIdentifier, EditField.Dependencies, dependencies);
             m_DependenciesComponent.RefreshUI(m_ViewModel.SelectedAssetData, isLoading);
 
             if (isLoading)

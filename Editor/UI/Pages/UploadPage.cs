@@ -566,6 +566,7 @@ namespace Unity.AssetManager.UI.Editor
             if (m_UploadManager.IsUploading)
             {
                 Debug.LogError("You cannot add assets during upload.");
+
                 return;
             }
 
@@ -575,6 +576,8 @@ namespace Unity.AssetManager.UI.Editor
             }
 
             Reload();
+
+            m_UploadStaging.HasSavedUnsavedAssets(PromptUnsavedAssetsOnStage);
         }
 
         void Reload()
@@ -888,24 +891,31 @@ namespace Unity.AssetManager.UI.Editor
                     return;
             }
 
-            // Do a better sanity check than checking the dirty status
-            var hasDirtyAssets = m_UploadStaging.HasDirtyAssets();
-            if (hasDirtyAssets)
-            {
-                var userWantsToUploadWithDirtyAssets = ServicesContainer.instance.Resolve<IEditorUtilityProxy>()
-                    .DisplayDialog(L10n.Tr(Constants.DirtyAssetsDialogTitle),
-                        L10n.Tr(Constants.DirtyAssetsDialogMessage),
-                        L10n.Tr(Constants.DirtyAssetsDialogOk),
-                        L10n.Tr(Constants.DirtyAssetsDialogCancel));
+            var choice = m_UploadStaging.HasSavedUnsavedAssets(PromptUnsavedAssetsOnUpload);
 
-                if (!userWantsToUploadWithDirtyAssets)
-                    return;
-
-                m_UploadStaging.SaveDirtyAssets();
-            }
+            if (choice is 0 or 1) return;
 
             Utilities.DevLog("Uploading assets...");
             TaskUtils.TrackException(UploadAssetEntriesAsync());
+        }
+
+        int PromptUnsavedAssetsOnStage()
+        {
+            return ServicesContainer.instance.Resolve<IEditorUtilityProxy>().DisplayDialog(
+                L10n.Tr(Constants.DirtyAssetsDialogTitle),
+                L10n.Tr(Constants.DirtyAssetsOnStageDialogMessage),
+                L10n.Tr(Constants.DirtyAssetsDialogOk),
+                L10n.Tr(Constants.DirtyAssetsDialogCancel)) ? 0 : 1;
+        }
+
+        int PromptUnsavedAssetsOnUpload()
+        {
+            return ServicesContainer.instance.Resolve<IEditorUtilityProxy>().DisplayDialogComplex(
+                L10n.Tr(Constants.DirtyAssetsDialogTitle),
+                L10n.Tr(Constants.DirtyAssetsOnUploadDialogMessage),
+                L10n.Tr(Constants.DirtyAssetsDialogOk),
+                L10n.Tr(Constants.DirtyAssetsDialogCancel),
+                L10n.Tr(Constants.DirtyAssetsDialogUploadAnyway));
         }
 
         async Task UploadAssetEntriesAsync()

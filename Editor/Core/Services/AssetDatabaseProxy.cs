@@ -5,6 +5,9 @@ using UnityEditor.SceneManagement;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
+#if UNITY_6000_5_OR_NEWER
+using GUID = UnityEngine.GUID;
+#endif
 
 namespace Unity.AssetManager.Core.Editor
 {
@@ -14,17 +17,20 @@ namespace Unity.AssetManager.Core.Editor
 
         string[] FindAssets(string filter, string[] searchInFolders);
 
+        bool AssetPathExists(string path);
         bool DeleteAssets(string[] paths, List<string> outFailedPaths);
         string AssetPathToGuid(string assetPath);
         string GuidToAssetPath(string guid);
+        GUID GuidFromAssetPath(string path);
         bool IsValidFolder(string path);
+        Type GetMainAssetTypeAtPath(string path);
         void Refresh();
         string GetAssetPath(Object obj);
         string GetTextMetaFilePathFromAssetPath(string fileName);
         string[] GetDependencies(string assetPath, bool recursive);
         void SaveAssetIfDirty(string assetPath);
         void ImportAsset(string assetPath);
-        string[] GetLabels(Object obj);
+        string[] GetLabels(GUID guid);
         void StartAssetEditing();
         void StopAssetEditing();
         Object LoadAssetAtPath(string assetPath);
@@ -57,6 +63,9 @@ namespace Unity.AssetManager.Core.Editor
 
         // Wrapper AssetDatabase methods
 
+        public bool AssetPathExists(string assetPath) =>
+            !string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(assetPath, AssetPathToGUIDOptions.OnlyExistingAssets));
+
         public string[] FindAssets(string filter, string[] searchInFolders) => AssetDatabase.FindAssets(filter, searchInFolders);
 
         public bool DeleteAssets(string[] paths, List<string> outFailedPaths) => AssetDatabase.DeleteAssets(paths, outFailedPaths);
@@ -65,7 +74,11 @@ namespace Unity.AssetManager.Core.Editor
 
         public string GuidToAssetPath(string guid) => AssetDatabase.GUIDToAssetPath(guid);
 
+        public GUID GuidFromAssetPath(string guid) => AssetDatabase.GUIDFromAssetPath(guid);
+
         public bool IsValidFolder(string path) => AssetDatabase.IsValidFolder(path);
+
+        public Type GetMainAssetTypeAtPath(string path) => AssetDatabase.GetMainAssetTypeAtPath(path);
 
         public void Refresh() => AssetDatabase.Refresh();
 
@@ -77,27 +90,24 @@ namespace Unity.AssetManager.Core.Editor
 
         public void SaveAssetIfDirty(string assetPath)
         {
-            var asset = LoadAssetAtPath(assetPath);
-            if (asset == null)
-                return;
-
-            if (asset is SceneAsset)
+            // Check if the path is a loaded SceneAsset
+            var scene = SceneManager.GetSceneByPath(assetPath);
+            if (scene.IsValid())
             {
-                var scene = SceneManager.GetSceneByPath(assetPath);
                 if (scene.isDirty)
                 {
                     EditorSceneManager.SaveScene(scene);
                 }
             }
-            else
+            else if (AssetDatabase.IsMainAssetAtPathLoaded(assetPath))
             {
-                AssetDatabase.SaveAssetIfDirty(asset);
+                AssetDatabase.SaveAssetIfDirty(AssetDatabase.GUIDFromAssetPath(assetPath));
             }
         }
 
         public void ImportAsset(string assetPath) => AssetDatabase.ImportAsset(assetPath);
 
-        public string[] GetLabels(Object obj) => AssetDatabase.GetLabels(obj);
+        public string[] GetLabels(GUID guid) => AssetDatabase.GetLabels(guid);
 
         public void StartAssetEditing() => AssetDatabase.StartAssetEditing();
 
@@ -109,14 +119,9 @@ namespace Unity.AssetManager.Core.Editor
 
         // End of wrapper AssetDatabase methods
 
-        Object GetAssetObject(string guid)
-        {
-            return LoadAssetAtPath(GuidToAssetPath(guid));
-        }
-
         public bool PingAssetByGuid(string guid)
         {
-            var assetObject = GetAssetObject(guid);
+            var assetObject = LoadAssetAtPath(GuidToAssetPath(guid));
 
             if (assetObject != null)
             {
@@ -129,7 +134,8 @@ namespace Unity.AssetManager.Core.Editor
 
         public bool CanPingAssetByGuid(string guid)
         {
-            return GetAssetObject(guid) != null;
+            var path = GuidToAssetPath(guid);
+            return !string.IsNullOrEmpty(path) && AssetPathExists(path);
         }
 
         public IEnumerable<string> GetAssetsInFolder(string folder)
@@ -144,13 +150,13 @@ namespace Unity.AssetManager.Core.Editor
                 }
             }
         }
-		
+
         public void ReleaseCachedFileHandles()
         {
             AssetDatabase.ReleaseCachedFileHandles();
         }
-		
-		public string MoveAsset(string oldPath, string newPath) => AssetDatabase.MoveAsset(oldPath, newPath);
+
+        public string MoveAsset(string oldPath, string newPath) => AssetDatabase.MoveAsset(oldPath, newPath);
         public string CreateFolder(string parentFolder, string newFolderName) => AssetDatabase.CreateFolder(parentFolder, newFolderName);
     }
 }

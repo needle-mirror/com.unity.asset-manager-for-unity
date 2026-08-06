@@ -294,7 +294,11 @@ namespace Unity.AssetManager.UI.Editor
             {
                 HandleCancel();
                 evt.StopPropagation();
+#if UNITY_6000_0_OR_NEWER
+                focusController?.IgnoreEvent(evt);
+#else
                 evt.PreventDefault();
+#endif
                 return;
             }
 
@@ -306,12 +310,20 @@ namespace Unity.AssetManager.UI.Editor
                 case InlineEditConfirmMode.Enter:
                     HandleConfirm();
                     evt.StopPropagation();
+#if UNITY_6000_0_OR_NEWER
+                    focusController?.IgnoreEvent(evt);
+#else
                     evt.PreventDefault();
+#endif
                     break;
                 case InlineEditConfirmMode.ModifierEnter when evt.ctrlKey || evt.commandKey:
                     HandleConfirm();
                     evt.StopPropagation();
+#if UNITY_6000_0_OR_NEWER
+                    focusController?.IgnoreEvent(evt);
+#else
                     evt.PreventDefault();
+#endif
                     break;
             }
         }

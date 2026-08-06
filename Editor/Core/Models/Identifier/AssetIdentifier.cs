@@ -90,6 +90,20 @@ namespace Unity.AssetManager.Core.Editor
             return new AssetIdentifier(m_ProjectIdentifier.OrganizationId, m_ProjectIdentifier.ProjectId, m_AssetId, version);
         }
 
+        /// <summary>
+        /// Returns a copy of this identifier pointing at another project of the same organization.
+        /// Used to repair a tracked identifier whose project is no longer reachable.
+        /// </summary>
+        public AssetIdentifier WithProjectId(string projectId)
+        {
+            // Unlike WithAssetId and WithVersion above, this keeps the version label and the library
+            // id: a repaired identifier must stay usable for label-based and library lookups.
+            return new AssetIdentifier(m_ProjectIdentifier.OrganizationId, projectId, m_AssetId, m_Version, m_VersionLabel)
+            {
+                LibraryId = m_LibraryId
+            };
+        }
+
         public bool IsIdValid()
         {
             return !string.IsNullOrEmpty(m_AssetId);

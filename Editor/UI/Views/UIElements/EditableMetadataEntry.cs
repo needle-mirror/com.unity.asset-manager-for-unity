@@ -20,7 +20,12 @@ namespace Unity.AssetManager.UI.Editor
         public bool AllowMultiSelection => false;
 
         public event Action<object> EntryEdited;
+
+        // Required by IEditableEntry; metadata entries derive "edited" state from the underlying metadata model
+        // (see RefreshEditedIndicator), so this event is intentionally never raised here.
+#pragma warning disable CS0067
         public event Func<string, object, bool> IsEntryEdited;
+#pragma warning restore CS0067
         public event Action EditingStarted;
         public event Action EditingEnded;
 

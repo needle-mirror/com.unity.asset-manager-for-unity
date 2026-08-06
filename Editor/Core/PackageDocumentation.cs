@@ -11,7 +11,7 @@ namespace Unity.AssetManager.Core.Editor
         /// Version segment used in docs.unity3d.com package manual URLs (major.minor only, e.g. "1.10").
         /// Must be kept in sync with package.json version when releasing a new package version.
         /// </summary>
-        public const string PackageDocsVersion = "1.11";
+        public const string PackageDocsVersion = "1.12";
 
         const string k_PackageName = "com.unity.asset-manager-for-unity";
         const string k_BaseUrl = "https://docs.unity3d.com/Packages";

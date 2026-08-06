@@ -248,7 +248,7 @@ namespace Unity.Cloud.AssetsEmbedded
             var creationData = new FileCreateData
             {
                 SizeBytes = sourceStream.Length,
-                UserChecksum = await Utilities.CalculateMD5ChecksumAsync(sourceStream, cancellationToken)
+                UserChecksum = await ChecksumCalculator.CalculateMD5ChecksumAsync(sourceStream, cancellationToken)
             };
 
             var uploadUrl = await m_DataSource.UpdateFileContentAsync(Descriptor, creationData, cancellationToken);

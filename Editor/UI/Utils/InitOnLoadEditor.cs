@@ -142,7 +142,7 @@ namespace Unity.AssetManager.UI.Editor
             OpenAsset();
         }
 
-        async void OpenAsset()
+        void OpenAsset()
         {
             if (m_AssetManagerWindowHook != null)
             {

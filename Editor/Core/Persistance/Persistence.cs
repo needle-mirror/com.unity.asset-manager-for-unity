@@ -223,6 +223,29 @@ namespace Unity.AssetManager.Core.Editor
                 return;
             }
 
+            // Case-only rename on a case-insensitive filesystem: rename via a temp path so we don't delete the tracking file.
+            if (string.Equals(oldTrackingFilePath, newTrackingFilePath, StringComparison.OrdinalIgnoreCase)
+                && ioProxy.FileExists(oldTrackingFilePath)
+                && ioProxy.FileExists(newTrackingFilePath))
+            {
+                try
+                {
+                    // old -> temp -> new so the filename adopts the new casing without a destructive delete.
+                    var tempPath = newTrackingFilePath + ".case-rename.tmp";
+                    if (ioProxy.FileExists(tempPath))
+                        ioProxy.DeleteFile(tempPath);
+                    ioProxy.FileMove(oldTrackingFilePath, tempPath);
+                    ioProxy.FileMove(tempPath, newTrackingFilePath);
+                    Utilities.DevLog($"Case-only rename of tracking file: {oldTrackingFilePath} -> {newTrackingFilePath}", highlight: true);
+                }
+                catch (Exception e)
+                {
+                    Utilities.DevLogError($"Failed to case-rename tracking file from {oldTrackingFilePath} to {newTrackingFilePath}: {e.Message}");
+                    Utilities.DevLogException(e);
+                }
+                return;
+            }
+
             if (!ioProxy.FileExists(oldTrackingFilePath))
             {
                 // File doesn't exist - might have been moved externally, try GUID-based search
@@ -280,6 +303,9 @@ namespace Unity.AssetManager.Core.Editor
                     return;
                 }
 
+                // Match the moved asset by GUID — OriginalPath isn't reliable for this after a rename.
+                var movedAssetGuid = assetDatabaseProxy.AssetPathToGuid(newUnityAssetPath);
+
                 // Ensure every FileInfo (other than the one we're moving) has a tracking file at its path
                 // before we delete the original, so no file infos are left without persistence.
                 foreach (var fi in importedAssetInfo.FileInfos)
@@ -288,6 +314,9 @@ namespace Unity.AssetManager.Core.Editor
                         continue;
                     if (PathsReferToSameUnityAsset(fi.OriginalPath, oldUnityAssetPath))
                         continue; // This one we're moving; handle below
+                    if (!string.IsNullOrEmpty(movedAssetGuid) &&
+                        string.Equals(fi.Guid, movedAssetGuid, StringComparison.OrdinalIgnoreCase))
+                        continue; // Skip the file being moved, or a rename leaves a stale duplicate behind.
 
                     var trackingPath = GetTrackingFilePath(fi.OriginalPath);
                     if (string.IsNullOrEmpty(trackingPath))
@@ -309,9 +338,12 @@ namespace Unity.AssetManager.Core.Editor
                     }
                 }
 
-                // Find the file info we're moving (match by path; V4 has one file per tracking file so .First() is fallback)
+                // The file info to move: by path, then by GUID (needed after a rename), else the sole V4 entry.
                 var fileInfoToMove = importedAssetInfo.FileInfos.FirstOrDefault(fi =>
                     fi != null && PathsReferToSameUnityAsset(fi.OriginalPath, oldUnityAssetPath));
+                if (fileInfoToMove == null && !string.IsNullOrEmpty(movedAssetGuid))
+                    fileInfoToMove = importedAssetInfo.FileInfos.FirstOrDefault(fi =>
+                        fi != null && string.Equals(fi.Guid, movedAssetGuid, StringComparison.OrdinalIgnoreCase));
                 if (fileInfoToMove == null)
                     fileInfoToMove = importedAssetInfo.FileInfos.First();
 
@@ -698,7 +730,7 @@ namespace Unity.AssetManager.Core.Editor
         /// Thrown after all files are processed if any tracking file paths exceeded the OS maximum path length.
         /// The exception contains both the failed paths and the successfully written file infos.
         /// </exception>
-        public static void WriteEntry(IIOProxy ioProxy, AssetData assetData, IEnumerable<ImportedFileInfo> fileInfos)
+        public static void WriteEntry(IIOProxy ioProxy, AssetData assetData, IEnumerable<ImportedFileInfo> fileInfos, IAssetDatabaseProxy assetDatabaseProxy = null)
         {
             if (assetData == null || fileInfos == null)
             {
@@ -724,7 +756,7 @@ namespace Unity.AssetManager.Core.Editor
                     continue;
                 }
 
-                var trackingFilePath = GetTrackingFilePath(fileInfo.OriginalPath);
+                var trackingFilePath = ResolveTrackingFilePath(assetDatabaseProxy, fileInfo);
                 if (string.IsNullOrEmpty(trackingFilePath))
                 {
                     continue;
@@ -748,6 +780,30 @@ namespace Unity.AssetManager.Core.Editor
             {
                 throw new TrackingFilePathTooLongException(failedPaths, successfulFileInfos, firstException);
             }
+        }
+
+        /// <summary>
+        /// Resolves a file's tracking-file location from its current Unity path (via GUID), falling back to
+        /// OriginalPath when the GUID is unavailable. OriginalPath diverges from the Unity path after a
+        /// rename/move, so keying off the GUID keeps one tracking file per asset.
+        /// </summary>
+        internal static string ResolveTrackingFilePath(IAssetDatabaseProxy assetDatabaseProxy, ImportedFileInfo fileInfo)
+        {
+            if (fileInfo == null)
+                return null;
+
+            if (assetDatabaseProxy != null && !string.IsNullOrEmpty(fileInfo.Guid))
+            {
+                var currentUnityPath = assetDatabaseProxy.GuidToAssetPath(fileInfo.Guid);
+                if (!string.IsNullOrEmpty(currentUnityPath))
+                {
+                    var trackingPathFromUnity = GetTrackingFilePathForUnityAsset(currentUnityPath);
+                    if (!string.IsNullOrEmpty(trackingPathFromUnity))
+                        return trackingPathFromUnity;
+                }
+            }
+
+            return GetTrackingFilePath(fileInfo.OriginalPath);
         }
 
         /// <summary>

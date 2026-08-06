@@ -148,6 +148,24 @@ namespace Unity.AssetManager.UI.Editor
             {
                 UIElementsUtils.Show(m_TabsContainer);
             }
+
+            RefreshLibraryAssetTabs();
+        }
+
+        /// <summary>
+        /// Library assets are read-only and carry no metadata history, so the tab that reports it
+        /// has nothing to say for them.
+        /// </summary>
+        void RefreshLibraryAssetTabs()
+        {
+            var isAssetFromLibrary = m_ViewModel.IsAssetFromLibrary;
+
+            UIElementsUtils.SetDisplay(m_TabContents[TabType.Activity].TabButton, !isAssetFromLibrary);
+
+            if (isAssetFromLibrary && ActiveTabType == TabType.Activity)
+            {
+                SetActiveTab(TabType.Details);
+            }
         }
 
         public void RefreshUI(bool isLoading = false)

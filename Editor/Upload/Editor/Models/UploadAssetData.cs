@@ -15,6 +15,18 @@ namespace Unity.AssetManager.Upload.Editor
     [Serializable]
     class UploadAssetData : BaseAssetData
     {
+        struct DependencyIdentifier
+        {
+            public AssetIdentifier UploadedAssetIdentifier { get; }
+            public string ExistingAssetId { get; }
+
+            public DependencyIdentifier(AssetIdentifier uploadedAssetIdentifier, string existingAssetId)
+            {
+                UploadedAssetIdentifier = uploadedAssetIdentifier;
+                ExistingAssetId = existingAssetId;
+            }
+        }
+
         // TODO Ideally we should use a class that contains both the status (pending or new) and actual sequence number
         public static readonly int NewVersionSequenceNumber = -42; // This can be any number as long as it's negative because versions from the server are always positive
 
@@ -301,10 +313,7 @@ namespace Unity.AssetManager.Upload.Editor
             Utilities.DevAssert(!string.IsNullOrEmpty(m_AssetPath), $"Asset path cannot be empty for GUID: {m_AssetGuid}");
 
             // Dependencies
-            if (dependencies != null)
-            {
-                m_Dependencies = dependencies.Select(d => d.Identifier.Clone()).ToList();
-            }
+            m_Dependencies = SelectDependencyIdentifiers(dependencies, existingAssetData?.Identifier).ToList();
 
             // Files
             m_FilePathMode = filePathMode;
@@ -364,6 +373,29 @@ namespace Unity.AssetManager.Upload.Editor
             m_Tags = tags.ToList();
         }
 
+        static IEnumerable<AssetIdentifier> SelectDependencyIdentifiers(IEnumerable<UploadAssetData> dependencies, AssetIdentifier existingAssetIdentifier)
+        {
+            if (dependencies == null) return new List<AssetIdentifier>();
+
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+
+            var importedAssetInfo = assetDataManager.GetImportedAssetInfo(existingAssetIdentifier);
+            var existingDependencies = importedAssetInfo?.AssetData.Dependencies.ToList();
+
+            var identifiers = new List<AssetIdentifier>();
+            foreach (var dependency in dependencies)
+            {
+                var identifier = dependency.Identifier.Clone();
+
+                var existingDependencyId = existingDependencies?.FirstOrDefault(d => d.AssetId == dependency.TargetAssetIdentifier?.AssetId);
+                identifier.VersionLabel = existingDependencyId?.VersionLabel ?? string.Empty;
+
+                identifiers.Add(identifier);
+            }
+
+            return identifiers;
+        }
+
         public IUploadAsset GenerateUploadAsset(string collectionPath, bool matchProjectStructure)
         {
             Utilities.DevAssert(m_ResolvedStatus != UploadAttribute.UploadStatus.DontUpload
@@ -386,7 +418,7 @@ namespace Unity.AssetManager.Upload.Editor
 
             var uploadAsset = new UploadAsset(m_Name, m_Description, m_Status, m_StatusFlowId, m_AssetGuid, m_Identifier, m_AssetType,
                 GetFiles(x => x.IsSource).Cast<UploadAssetDataFile>().Select(f => f.GenerateUploadFile()),
-                m_Tags, ResolveDependencyIdentifiers(), m_Metadata,
+                m_Tags, ResolveDependencyIdentifiers().Select(x => x.UploadedAssetIdentifier), m_Metadata,
                 m_ResolvedStatus == UploadAttribute.UploadStatus.Override ? m_ExistingAssetIdentifier : null,
                 ComparisonDetails, m_TargetProject, targetCollection);
 
@@ -409,6 +441,8 @@ namespace Unity.AssetManager.Upload.Editor
 
             var texture = m_GetThumbnailTask != null ? await m_GetThumbnailTask : null;
             m_GetThumbnailTask = null;
+
+            ServicesContainer.instance.Resolve<IEditorUtilityProxy>().UnloadUnusedAssetsImmediate();
 
             Thumbnail = texture;
         }
@@ -883,7 +917,7 @@ namespace Unity.AssetManager.Upload.Editor
             if (dependencies == null)
                 return default;
 
-            var localHashset = dependencies.Select(x => x.AssetId).ToHashSet();
+            var localHashset = dependencies.Select(x => x.UploadedAssetIdentifier.AssetId).ToHashSet();
             var otherHashset = otherDependencies.Select(x => x.AssetId).ToHashSet();
 
             var results = new List<ComparisonDetails>();
@@ -902,7 +936,7 @@ namespace Unity.AssetManager.Upload.Editor
                 results.Add(new ComparisonDetails(ComparisonResults.DependenciesRemoved, $"Dependencies removed from {Name}: {string.Join(", ", dependenciesRemoved)}"));
             }
 
-            foreach (var dependency in dependencies)
+            foreach (var dependency in dependencies.Select(x => x.UploadedAssetIdentifier))
             {
                 var otherDependency = otherDependencies.FirstOrDefault(d => d.AssetId == dependency.AssetId);
                 if (otherDependency != null && otherDependency.Version != dependency.Version)
@@ -925,70 +959,76 @@ namespace Unity.AssetManager.Upload.Editor
 
             var results = new List<ComparisonDetails>();
 
-            foreach (var otherDependency in dependencies.Where(d => d.IsLocal()))
+            var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
+            var importedAssetInfo = assetDataManager.GetImportedAssetInfo(m_ExistingAssetIdentifier);
+            var existingDependencies = importedAssetInfo.AssetData.Dependencies;
+
+            foreach (var otherDependency in dependencies)
             {
-                results.Add(new ComparisonDetails(ComparisonResults.DependenciesModified, $"The dependency for {otherDependency.AssetId} has been modified."));
+                var existingDependency = existingDependencies.FirstOrDefault(d => d.AssetId == otherDependency.ExistingAssetId);
+                if (existingDependency == null
+                    || existingDependency.VersionLabel != otherDependency.UploadedAssetIdentifier.VersionLabel
+                    || string.IsNullOrEmpty(existingDependency.VersionLabel) && existingDependency.Version != otherDependency.UploadedAssetIdentifier.Version)
+                    results.Add(new ComparisonDetails(ComparisonResults.DependenciesModified, $"The dependency for {otherDependency.ExistingAssetId} has been modified."));
             }
 
             return Core.Editor.ComparisonDetails.Merge(results.ToArray());
         }
 
-        IEnumerable<AssetIdentifier> ResolveDependencyIdentifiers(bool evaluateUploadStatus = true)
+        IEnumerable<DependencyIdentifier> ResolveDependencyIdentifiers(bool evaluateUploadStatus = true)
         {
             var assetDataManager = ServicesContainer.instance.Resolve<IAssetDataManager>();
 
             Utilities.DevLog($"ResolveDependencyIdentifiers for '{Name}' (id={Identifier.AssetId}, hash={System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this)}): " +
                 $"{Dependencies.Count()} dep(s), evaluateUploadStatus={evaluateUploadStatus}", tag: "Upload");
 
-            var dependencyIdentifiers = new List<AssetIdentifier>();
-            foreach (var id in Dependencies)
+            var dependencyIdentifiers = new List<DependencyIdentifier>();
+            foreach (var dependencyId in Dependencies)
             {
-                var dependency = assetDataManager.GetAssetData(id) as UploadAssetData;
+                var dependencyData = assetDataManager.GetAssetData(dependencyId) as UploadAssetData;
 
-                if (dependency == null)
+                if (dependencyData == null)
                 {
-                    Utilities.DevLog($"  Dep id={id.AssetId} ver={id.Version}: NOT FOUND", tag: "Upload");
+                    Utilities.DevLog($"  Dep id={dependencyId.AssetId} ver={dependencyId.Version}: NOT FOUND", tag: "Upload");
                 }
                 else
                 {
-                    Utilities.DevLog($"  Dep id={id.AssetId} ver={id.Version}: " +
-                        $"resolved instance hash={System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(dependency)}, " +
-                        $"CanBeUploaded={dependency.CanBeUploaded}, IsIgnored={dependency.IsIgnored}, " +
-                        $"ExistingId={(dependency.m_ExistingAssetIdentifier?.AssetId ?? "null")}", tag: "Upload");
+                    Utilities.DevLog($"  Dep id={dependencyId.AssetId} ver={dependencyId.Version}: " +
+                        $"resolved instance hash={System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(dependencyData)}, " +
+                        $"CanBeUploaded={dependencyData.CanBeUploaded}, IsIgnored={dependencyData.IsIgnored}, " +
+                        $"ExistingId={dependencyData.m_ExistingAssetIdentifier?.AssetId ?? "null"}", tag: "Upload");
                 }
 
-                if (dependency == null || dependency.IsIgnored) continue;
+                if (dependencyData == null || dependencyData.IsIgnored) continue;
 
-                if (id.Version == AssetManagerCoreConstants.NewVersionId && evaluateUploadStatus && dependency.CanBeUploaded)
+                if (dependencyId.Version == AssetManagerCoreConstants.NewVersionId && evaluateUploadStatus && dependencyData.CanBeUploaded)
                 {
-                    Utilities.DevLog($"  Dep id={id.AssetId}: branch=local-add (NewVersionId + CanBeUploaded)", tag: "Upload");
-                    dependencyIdentifiers.Add(id);
+                    Utilities.DevLog($"  Dep id={dependencyId.AssetId}: branch=local-add (NewVersionId + CanBeUploaded)", tag: "Upload");
+                    dependencyIdentifiers.Add(new DependencyIdentifier(dependencyId, dependencyData.ExistingAssetIdentifier?.AssetId));
                     continue;
                 }
 
-                Utilities.DevLog($"  Dep id={id.AssetId}: branch=resolve-existing", tag: "Upload");
+                Utilities.DevLog($"  Dep id={dependencyId.AssetId}: branch=resolve-existing", tag: "Upload");
 
-                Utilities.DevAssert(dependency != null, $"Dependency {id.AssetId} for {Name} could not be loaded.");
-
-                var identifier = dependency.TargetAssetIdentifier ?? dependency.Identifier;
+                var identifier = dependencyData.TargetAssetIdentifier ?? dependencyData.Identifier;
 
                 // When evaluating the upload status, we need to check if the dependency can be uploaded, otherwise we use the existing asset identifier.
                 if (evaluateUploadStatus)
                 {
-                    identifier = dependency.CanBeUploaded && !dependency.IsIgnored ? identifier : dependency.m_ExistingAssetIdentifier;
+                    identifier = dependencyData.CanBeUploaded && !dependencyData.IsIgnored ? identifier : dependencyData.m_ExistingAssetIdentifier;
                 }
 
                 identifier = identifier.Clone(); // we clone it to avoid modifying the original identifier
 
-                identifier.VersionLabel = id.VersionLabel;
-                identifier.Version = !string.IsNullOrEmpty(id.Version) && id.Version != AssetManagerCoreConstants.NewVersionId
-                    ? id.Version
+                identifier.VersionLabel = dependencyId.VersionLabel;
+                identifier.Version = !string.IsNullOrEmpty(dependencyId.Version) && dependencyId.Version != AssetManagerCoreConstants.NewVersionId
+                    ? dependencyId.Version
                     : identifier.Version;
 
                 Utilities.DevAssert(!string.IsNullOrEmpty(identifier?.AssetId), $"Id is not defined for dependency of {Name}.");
                 if (!string.IsNullOrEmpty(identifier?.AssetId))
                 {
-                    dependencyIdentifiers.Add(identifier);
+                    dependencyIdentifiers.Add(new DependencyIdentifier(identifier, dependencyData.ExistingAssetIdentifier?.AssetId));
                 }
             }
 

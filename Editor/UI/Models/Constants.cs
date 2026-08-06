@@ -107,9 +107,11 @@ namespace Unity.AssetManager.UI.Editor
         public const string UploadToAssetLibraryTooltip = "Cannot upload assets to an Asset Library project";
         public const string UploadOutsideProjectTooltip = "One or more assets contain files outside the Assets folder";
         public const string DirtyAssetsDialogTitle = "Warning";
-        public const string DirtyAssetsDialogMessage = "You are trying to upload assets that have unsaved changes.\nAre you sure you want to proceed?";
-        public const string DirtyAssetsDialogOk = "Save and Continue";
+        public const string DirtyAssetsOnStageDialogMessage = "You are staging assets that have unsaved changes.\nSome dependencies may be omitted.";
+        public const string DirtyAssetsOnUploadDialogMessage = "You are trying to upload assets that have unsaved changes.\nDo you want to proceed?";
+        public const string DirtyAssetsDialogOk = "Save";
         public const string DirtyAssetsDialogCancel = Cancel;
+        public const string DirtyAssetsDialogUploadAnyway = "Ignore and Upload";
         public const string UploadSettings = "Upload Settings";
         public const string UploadMode = "Reupload mode";
         public const string Dependencies = "Dependencies";

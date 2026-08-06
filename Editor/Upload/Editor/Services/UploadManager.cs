@@ -289,8 +289,9 @@ namespace Unity.AssetManager.Upload.Editor
                 try
                 {
                     // Force fresh fetch from cloud (TimeSpan.Zero) to ensure we get the newly uploaded version.
-                    // The cache uses TrackedAssetIdentifier which matches by AssetId only (ignoring version),
-                    // so without forcing a fresh fetch, we might get stale data from a previous version.
+                    // The cache uses TrackedAssetIdentifier which matches by organization and AssetId
+                    // only (ignoring version and project), so without forcing a fresh fetch, we might
+                    // get stale data from a previous version.
                     cloudAsset = await m_AssetDataManager.GetAssetAsync(asset.Identifier, TimeSpan.Zero, token);
                     assetData = cloudAsset;
 
@@ -677,7 +678,8 @@ namespace Unity.AssetManager.Upload.Editor
             {
                 // Use UpdateWithoutRefreshAsync to avoid cache conflicts when updating a newly created unfrozen version.
                 // The regular UpdateAsync would refresh properties from cache, which could overwrite our new version's
-                // identifier with the old frozen version's identifier (TrackedAssetIdentifier matches by AssetId only).
+                // identifier with the old frozen version's identifier (TrackedAssetIdentifier matches
+                // by organization and AssetId only, ignoring version and project).
                 m_AssetsProvider.UpdateWithoutRefreshAsync(asset, assetUpdate, token),
                 m_AssetsProvider.RemoveThumbnail(asset, token),
             };

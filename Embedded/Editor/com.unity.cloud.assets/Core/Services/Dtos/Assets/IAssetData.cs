@@ -180,5 +180,11 @@ namespace Unity.Cloud.AssetsEmbedded
             get => default;
             set => throw new NotImplementedException();
         }
+
+        /// <summary>
+        /// The trash details of the asset.
+        /// </summary>
+        [DataMember(Name = "trashDetails")]
+        IEnumerable<AssetTrashDetailsData> TrashDetails { get; set; }
     }
 }

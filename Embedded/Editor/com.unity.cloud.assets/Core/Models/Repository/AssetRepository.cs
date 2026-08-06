@@ -83,6 +83,18 @@ namespace Unity.Cloud.AssetsEmbedded
         }
 
         /// <inheritdoc />
+        public TrashedAssetQueryBuilder QueryAssetsInTrash(IEnumerable<ProjectDescriptor> projectDescriptors)
+        {
+            return new TrashedAssetQueryBuilder(m_DataSource, CacheConfiguration, projectDescriptors);
+        }
+
+        /// <inheritdoc />
+        public TrashedAssetQueryBuilder QueryAssetsInTrash(OrganizationId organizationId)
+        {
+            return new TrashedAssetQueryBuilder(m_DataSource, CacheConfiguration, organizationId);
+        }
+
+        /// <inheritdoc />
         public GroupAndCountAssetsQueryBuilder GroupAndCountAssets(IEnumerable<ProjectDescriptor> projectDescriptors)
         {
             return new GroupAndCountAssetsQueryBuilder(m_DataSource, projectDescriptors);
@@ -208,7 +220,7 @@ namespace Unity.Cloud.AssetsEmbedded
         {
             return new  AssetLibraryJobQueryBuilder(m_DataSource, CacheConfiguration);
         }
-        
+
         /// <inheritdoc />
         public Task<IAssetLibraryJob> GetAssetLibraryJobAsync(AssetLibraryJobId assetLibraryJobId, CancellationToken cancellationToken)
         {

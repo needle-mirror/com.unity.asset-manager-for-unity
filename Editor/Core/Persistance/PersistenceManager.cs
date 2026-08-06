@@ -199,7 +199,7 @@ namespace Unity.AssetManager.Core.Editor
         {
             try
             {
-                Persistence.WriteEntry(m_IOProxy, assetData, fileInfos);
+                Persistence.WriteEntry(m_IOProxy, assetData, fileInfos, m_AssetDatabaseProxy);
                 // All files written successfully - update cache for all
                 UpdateFilePathCacheForWrittenFiles(assetData, fileInfos);
             }
@@ -617,9 +617,10 @@ namespace Unity.AssetManager.Core.Editor
 
             foreach (var fileInfo in fileInfos)
             {
-                if (fileInfo != null && !string.IsNullOrEmpty(fileInfo.OriginalPath))
+                if (fileInfo != null)
                 {
-                    var trackingFilePath = Persistence.GetTrackingFilePath(fileInfo.OriginalPath);
+                    // Cache the same location WriteEntry writes to, so the entry is found on a later move.
+                    var trackingFilePath = Persistence.ResolveTrackingFilePath(m_AssetDatabaseProxy, fileInfo);
                     if (!string.IsNullOrEmpty(trackingFilePath))
                     {
                         UpdateFilePathCacheEntry(trackingFilePath, assetData.Identifier.AssetId);

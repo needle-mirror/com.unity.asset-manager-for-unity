@@ -6,6 +6,7 @@ namespace Unity.AssetManager.Core.Editor
     /// <summary>
     /// Represents a single change point in asset update history (per snapshot), with per-field before/after changes.
     /// </summary>
+    [Serializable]
     class HistoryChangeEntry
     {
         public int SequenceNumber { get; }

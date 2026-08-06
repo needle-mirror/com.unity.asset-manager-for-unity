@@ -10,7 +10,6 @@ namespace Unity.Cloud.AssetsEmbedded
 struct AssetLibraryJobProperties
     {
         string m_Name;
-        string m_Type;
         AssetLibraryJobState m_State;
         string m_FailedReason;
         int m_Progress;

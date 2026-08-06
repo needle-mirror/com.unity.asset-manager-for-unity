@@ -62,10 +62,22 @@ namespace Unity.AssetManager.Core.Editor
 
         internal void Copy(AssetDataset other)
         {
+            if (other == null || ReferenceEquals(this, other))
+            {
+                // Copying a dataset onto itself used to clear m_SystemTags before reading them back
+                // through other.SystemTags, which is the same list: the dataset silently lost every
+                // tag, stopped being a source dataset and disappeared from the inspector.
+                return;
+            }
+
+            // Read the tags out before writing any field. The early return above already rules out
+            // the aliasing that caused AMECO-5287, so this is belt and braces: it keeps the method
+            // correct on its own terms, without depending on that guard staying in place.
+            var systemTags = other.SystemTags.ToList();
+
             m_Id = other.Id;
             m_Name = other.Name;
-            m_SystemTags = new List<string>();
-            m_SystemTags.AddRange(other.SystemTags);
+            m_SystemTags = systemTags;
         }
 
         internal async Task GetFilesAsync(IAssetsProvider assetsProvider, AssetIdentifier assetIdentifier, CancellationToken token = default)

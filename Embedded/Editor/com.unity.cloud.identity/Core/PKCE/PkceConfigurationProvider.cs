@@ -1,3 +1,10 @@
+// AUTO-GENERATED warning suppression, added by the Cloud SDK embedder. Do not edit; edits are lost on the next embedding.
+// This is vendored Unity Cloud SDK source. The embedder re-copies it from the upstream package
+// on every pack, so the warning cannot be fixed here, and it has to be suppressed because
+// PVP-301-1 ("Package should compile without C# compiler warnings") blocks publishing while a
+// shipped csc.rsp is rejected by PVP-24-1 (restricted filenames). Report the underlying issue
+// upstream; the suppression list lives in Embedder.k_WarningsToSuppressByPath.
+#pragma warning disable CS0618
 using System;
 using System.Reflection;
 using System.Threading.Tasks;

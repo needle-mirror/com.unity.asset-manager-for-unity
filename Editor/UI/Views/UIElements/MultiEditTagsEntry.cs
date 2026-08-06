@@ -21,7 +21,12 @@ namespace Unity.AssetManager.UI.Editor
         public bool AllowMultiSelection => true;
 
         public event Action<object> EntryEdited;
+
+        // Required by IEditableEntry; multi-edit uses the m_IsEdited Func<bool> passed via the constructor
+        // to compute "edited" state across the selection, so this event is intentionally never raised here.
+#pragma warning disable CS0067
         public event Func<string, object, bool> IsEntryEdited;
+#pragma warning restore CS0067
 
         readonly IInlineEditService m_InlineEditService;
         readonly IFieldChangeHandler m_FieldChangeHandler;

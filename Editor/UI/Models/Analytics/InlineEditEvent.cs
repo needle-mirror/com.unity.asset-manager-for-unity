@@ -18,7 +18,7 @@ namespace Unity.AssetManager.UI.Editor
 #endif
         {
             /// <summary>
-            /// Field being edited: Name, Description, Status, Tags, or Custom.
+            /// Field being edited: Name, Description, Status, Tags, Custom, or Dependencies.
             /// </summary>
             public string EditField;
 
