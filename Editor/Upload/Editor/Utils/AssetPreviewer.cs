@@ -141,10 +141,10 @@ namespace Unity.AssetManager.Upload.Editor
         }
 
         // This method handle all types of assets but exposes the ability to set the size to something other than 128 x 128
-        static MethodInfo CreatePreview()
+        internal static MethodInfo CreatePreview()
         {
             // Get the type of the AssetPreviewUpdater class
-            var method = Type.GetType("UnityEditor.AssetPreviewUpdater,UnityEditor.dll")
+            var method = Type.GetType("UnityEditor.AssetPreviewUpdater,UnityEditor")
                 ?.GetMethod("CreatePreview", BindingFlags.Static | BindingFlags.Public);
 
             return method;

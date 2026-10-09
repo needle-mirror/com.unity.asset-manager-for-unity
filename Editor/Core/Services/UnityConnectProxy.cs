@@ -40,6 +40,9 @@ namespace Unity.AssetManager.Core.Editor
         static readonly string k_NoValue = "none";
         static readonly string k_CloudServiceHealthCheckUrl = "https://services.api.unity.com";
 
+        // Only one health check runs at a time, so a stalled one must time out or it blocks every later check.
+        const int k_CloudServiceHealthCheckTimeoutInSeconds = 10;
+
         [SerializeField]
         string m_ConnectedOrganizationId = k_NoValue;
 
@@ -73,6 +76,17 @@ namespace Unity.AssetManager.Core.Editor
 
         [SerializeField]
         bool m_IsCouldServicesReachableRequestComplete;
+
+        // The in-flight health check. Its completion callback is held natively, so it must be cancelled
+        // before a domain reload or it keeps the old assemblies alive and runs their code after the reload.
+        [NonSerialized]
+        UnityWebRequest m_HealthCheckRequest;
+
+        [NonSerialized]
+        UnityWebRequestAsyncOperation m_HealthCheckOperation;
+
+        [NonSerialized]
+        Action<AsyncOperation> m_HealthCheckCompleted;
 
         [ServiceInjection]
         public void Inject(IApplicationProxy applicationProxy, IPermissionsManager permissionsManager, ISettingsManager settingsManager)
@@ -153,6 +167,8 @@ namespace Unity.AssetManager.Core.Editor
 
         public override void OnDisable()
         {
+            CancelHealthCheckRequest();
+
             if (m_ApplicationProxy != null)
                 m_ApplicationProxy.Update -= Update;
 
@@ -217,15 +233,28 @@ namespace Unity.AssetManager.Core.Editor
                 return;
             }
 
+            // A check is already in flight; its result will be reported when it completes.
+            if (m_HealthCheckRequest != null)
+            {
+                m_IsCouldServicesReachableRequestComplete = true;
+                return;
+            }
+
             var request = UnityWebRequest.Head(k_CloudServiceHealthCheckUrl);
-            var asyncOperation = request.SendWebRequest();
+            request.timeout = k_CloudServiceHealthCheckTimeoutInSeconds;
             try
             {
-                asyncOperation.completed += _ =>
+                m_HealthCheckRequest = request;
+                m_HealthCheckCompleted = _ =>
                 {
+                    if (request != m_HealthCheckRequest)
+                        return;
+
                     var cloudServiceReachability = request.result == UnityWebRequest.Result.Success
                         ? CloudServiceReachability.Reachable
                         : CloudServiceReachability.NotReachable;
+
+                    ReleaseHealthCheckRequest();
 
                     if (m_AreCloudServicesReachable != cloudServiceReachability)
                     {
@@ -233,9 +262,13 @@ namespace Unity.AssetManager.Core.Editor
                         CloudServicesReachabilityChanged?.Invoke(AreCloudServicesReachable);
                     }
                 };
+                m_HealthCheckOperation = request.SendWebRequest();
+                m_HealthCheckOperation.completed += m_HealthCheckCompleted;
             }
             catch (Exception)
             {
+                ReleaseHealthCheckRequest();
+
                 if (AreCloudServicesReachable)
                 {
                     m_AreCloudServicesReachable = CloudServiceReachability.NotReachable;
@@ -246,6 +279,31 @@ namespace Unity.AssetManager.Core.Editor
             {
                 m_IsCouldServicesReachableRequestComplete = true;
             }
+        }
+
+        void CancelHealthCheckRequest()
+        {
+            var request = m_HealthCheckRequest;
+            if (request == null)
+                return;
+
+            // Unhook first so the abort can't report a result from a disabled service.
+            ReleaseHealthCheckRequest(dispose: false);
+            request.Abort();
+            request.Dispose();
+        }
+
+        void ReleaseHealthCheckRequest(bool dispose = true)
+        {
+            if (m_HealthCheckOperation != null && m_HealthCheckCompleted != null)
+                m_HealthCheckOperation.completed -= m_HealthCheckCompleted;
+
+            if (dispose)
+                m_HealthCheckRequest?.Dispose();
+
+            m_HealthCheckRequest = null;
+            m_HealthCheckOperation = null;
+            m_HealthCheckCompleted = null;
         }
     }
 }

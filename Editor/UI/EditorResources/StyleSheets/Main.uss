@@ -3845,7 +3845,7 @@ Label.details-page-entry-value {
 }
 
 .settings-button {
-    width: 100px;
+    min-width: 100px;
     height: 20px;
 }
 

@@ -186,19 +186,39 @@ namespace Unity.AssetManager.UI.Editor
                         return new FilterSelection(s, assetType.GetToolTip(), image);
                     }).ToList();
                 case AssetSearchGroupBy.Extension:
-                    // FilePath grouping returns full paths, extract unique extensions excluding .meta files
-                    var extensions = results
-                        .Select(path => System.IO.Path.GetExtension(path))
-                        .Where(ext => !string.IsNullOrEmpty(ext) && !ext.Equals(".meta", StringComparison.OrdinalIgnoreCase))
-                        .Select(ext => ext.ToLowerInvariant())
-                        .Distinct()
-                        .OrderBy(ext => ext)
-                        .Select(ext => new FilterSelection(ext))
-                        .ToList();
-                    return extensions;
+                    return GetFileExtensionSelections(results);
                 default:
                     return results.Select(s => new FilterSelection(s)).ToList();
             }
+        }
+
+        // FilePath grouping returns full cloud file paths; extract unique extensions excluding .meta files.
+        // Path.GetExtension is avoided because it throws on characters that are illegal in local paths
+        // but valid in cloud file paths.
+        internal static List<FilterSelection> GetFileExtensionSelections(IEnumerable<string> paths)
+        {
+            return paths
+                .Select(GetFileExtension)
+                .Where(ext => !string.IsNullOrEmpty(ext) && !ext.Equals(".meta", StringComparison.OrdinalIgnoreCase))
+                .Select(ext => ext.ToLowerInvariant())
+                .Distinct()
+                .OrderBy(ext => ext)
+                .Select(ext => new FilterSelection(ext))
+                .ToList();
+        }
+
+        static string GetFileExtension(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return null;
+
+            var dotIndex = path.LastIndexOf('.');
+            var separatorIndex = path.LastIndexOfAny(new[] { '/', '\\' });
+
+            if (dotIndex <= separatorIndex || dotIndex == path.Length - 1)
+                return null;
+
+            return path.Substring(dotIndex);
         }
 
         public async Task<List<FilterSelection>> GetFilterSelectionsAsync(string metadataField)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -231,6 +232,17 @@ namespace Unity.AssetManager.Core.Editor
 
     class EditorPrefsStorage : IPreferencesStorage
     {
+        readonly string m_DataPath;
+
+        public EditorPrefsStorage() : this(null) { }
+
+        internal EditorPrefsStorage(string dataPath)
+        {
+            m_DataPath = dataPath;
+        }
+
+        string DataPath => m_DataPath ?? Application.dataPath;
+
         public string GetValue(string key, string fallbackValue = null)
         {
             var projectSpecificKey = GenerateProjectSpecificKey(key);
@@ -241,7 +253,17 @@ namespace Unity.AssetManager.Core.Editor
                 return string.IsNullOrWhiteSpace(savedValue) ? fallbackValue : savedValue;
             }
 
-            // Migration: Check for old project-less key if project-specific key is not found
+            // Migration: the legacy hashed key takes precedence, even when blank (e.g. a cleared selection)
+            var legacyKey = GenerateLegacyProjectSpecificKey(key);
+            if (EditorPrefs.HasKey(legacyKey))
+            {
+                var legacyValue = EditorPrefs.GetString(legacyKey);
+                EditorPrefs.SetString(projectSpecificKey, legacyValue);
+                EditorPrefs.DeleteKey(legacyKey);
+                return string.IsNullOrWhiteSpace(legacyValue) ? fallbackValue : legacyValue;
+            }
+
+            // Migration: the old project-less key
             if (EditorPrefs.HasKey(key))
             {
                 var savedValue = EditorPrefs.GetString(key);
@@ -262,12 +284,42 @@ namespace Unity.AssetManager.Core.Editor
             EditorPrefs.SetString(GenerateProjectSpecificKey(key), value);
         }
 
-        static string GenerateProjectSpecificKey(string baseKey)
+        internal string GenerateProjectSpecificKey(string baseKey)
         {
-            // Use the project path as a unique hash for this project
-            var projectPath = Application.dataPath;
-            var projectHash = projectPath.GetHashCode().ToString();
+            // Use a stable hash of the project path, unlike string.GetHashCode() which varies between processes
+            var projectHash = Hash128.Compute(DataPath);
             return $"{baseKey}.{projectHash}";
+        }
+
+        // Earlier versions used string.GetHashCode(), which is only stable on Mono editors (randomized per process on
+        // CoreCLR). Compute the Mono hash explicitly so values saved by Mono editors can still be found on any runtime.
+        internal string GenerateLegacyProjectSpecificKey(string baseKey)
+        {
+            return $"{baseKey}.{GetMonoStringHashCode(DataPath).ToString(CultureInfo.InvariantCulture)}";
+        }
+
+        // Mirrors string.GetHashCode() as implemented by Unity's Mono editors (2022.3 and 6000.x)
+        static int GetMonoStringHashCode(string value)
+        {
+            unchecked
+            {
+                var hash1 = 5381;
+                var hash2 = 5381;
+
+                for (var i = 0; i < value.Length; i += 2)
+                {
+                    hash1 = ((hash1 << 5) + hash1) ^ value[i];
+
+                    if (i + 1 >= value.Length)
+                    {
+                        break;
+                    }
+
+                    hash2 = ((hash2 << 5) + hash2) ^ value[i + 1];
+                }
+
+                return hash1 + hash2 * 1566083941;
+            }
         }
     }
 

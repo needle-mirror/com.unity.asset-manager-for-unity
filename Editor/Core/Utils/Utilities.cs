@@ -354,11 +354,44 @@ namespace Unity.AssetManager.Core.Editor
             if (string.IsNullOrEmpty(subdirectoryPath))
                 return false;
 
+            // Normalization silently drops ".." segments that walk above a rooted path ("C:/../Users/Admin"
+            // becomes "C:/Users/Admin"), which would make an invalid selection look valid. Only bites where
+            // the prefix is recognised as a root: on Unix "C:" is an ordinary segment.
+            if (TraversesAboveRoot(subdirectoryPath))
+                return false;
+
             var directory = new DirectoryInfo(directoryPath);
             var subdirectory = new DirectoryInfo(subdirectoryPath);
 
             return subdirectory.FullName.StartsWith(directory.FullName);
         }
+
+        internal static bool TraversesAboveRoot(string path)
+        {
+            // Rooted paths only. GetPathRoot returns "" for a relative path, whose leading ".." would then
+            // count against zero depth and be rejected instead of resolved by DirectoryInfo below.
+            if (!Path.IsPathRooted(path))
+                return false;
+
+            var root = Path.GetPathRoot(path) ?? string.Empty;
+            var depth = 0;
+
+            foreach (var segment in path[root.Length..].Split('/', '\\'))
+            {
+                if (segment == "..")
+                {
+                    if (--depth < 0)
+                        return true;
+                }
+                else if (segment.Length > 0 && segment != ".")
+                {
+                    ++depth;
+                }
+            }
+
+            return false;
+        }
+
         public static string NormalizePathSeparators(string path)
         {
             if (string.IsNullOrEmpty(path))

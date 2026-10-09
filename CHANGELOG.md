@@ -4,6 +4,17 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.12.1] - 2026-10-09
+
+[Fixed]
+- Fixed "Include All Scripts", shader include dependency detection, texture lookups and custom upload previews silently doing nothing on Unity editors running CoreCLR.
+- Fixed import locations that use `..` to walk above the drive root being accepted as inside the project on CoreCLR.
+- Fixed the "Clear extra cache" button text being clipped in the Asset Manager section of the Preferences window.
+- Fixed Unity 6.7 and later warning on every import that the package's `Main.uss`, `MainDark.uss`, `MainLight.uss` and `GridView.uxml` use an importer version below the supported minimum.
+- Fixed project-scoped Asset Manager preferences being lost after restarting Unity editors running CoreCLR.
+- Fixed domain reloads intermittently failing with "ScriptableSingleton already exists" errors on Unity editors running CoreCLR when a cloud services connectivity check was still in progress.
+- Fixed the File extensions filter failing to open, with an "Illegal characters in path" exception, when a cloud file name contains characters that are not valid in a local path.
+
 ## [1.12.0] - 2026-08-06
 
 [Changed]

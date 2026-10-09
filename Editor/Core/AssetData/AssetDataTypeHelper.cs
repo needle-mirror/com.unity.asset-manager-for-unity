@@ -245,9 +245,9 @@ namespace Unity.AssetManager.Core.Editor
             }
         }
 
-        static MethodInfo FindTextureByType()
+        internal static MethodInfo FindTextureByType()
         {
-            return Type.GetType("UnityEditor.EditorGUIUtility,UnityEditor.dll")
+            return Type.GetType("UnityEditor.EditorGUIUtility,UnityEditor")
                 ?.GetMethod("FindTexture", BindingFlags.Static | BindingFlags.NonPublic);
         }
 

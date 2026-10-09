@@ -8,19 +8,19 @@ namespace Unity.AssetManager.Core.Editor
     static class DependencyUtils
     {
         // Reuse the existing internal method to get all script guids
-        static readonly System.Reflection.MethodInfo s_GetAllScriptGuids = Type
-            .GetType("UnityEditorInternal.InternalEditorUtility,UnityEditor.dll")
+        internal static readonly System.Reflection.MethodInfo s_GetAllScriptGuids = Type
+            .GetType("UnityEditorInternal.InternalEditorUtility,UnityEditor")
             ?.GetMethod("GetAllScriptGUIDs",
                 System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
 
         // Some Unity dependencies like cginc files can only be fetched outside of the AssetDatabase and require the call the internal Unity methods
-        static readonly System.Reflection.MethodInfo s_GetSourceAssetImportDependenciesAsGUIDs = Type
-            .GetType("UnityEditor.AssetDatabase,UnityEditor.dll")
+        internal static readonly System.Reflection.MethodInfo s_GetSourceAssetImportDependenciesAsGUIDs = Type
+            .GetType("UnityEditor.AssetDatabase,UnityEditor")
             ?.GetMethod("GetSourceAssetImportDependenciesAsGUIDs",
                 System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
 
-        static readonly System.Reflection.MethodInfo s_GetImportedAssetImportDependenciesAsGUIDs = Type
-            .GetType("UnityEditor.AssetDatabase,UnityEditor.dll")
+        internal static readonly System.Reflection.MethodInfo s_GetImportedAssetImportDependenciesAsGUIDs = Type
+            .GetType("UnityEditor.AssetDatabase,UnityEditor")
             ?.GetMethod("GetImportedAssetImportDependenciesAsGUIDs",
                 System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
 

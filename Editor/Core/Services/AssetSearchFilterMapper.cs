@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using Unity.Cloud.AssetsEmbedded;
 
@@ -260,13 +259,14 @@ namespace Unity.AssetManager.Core.Editor
                 return;
             }
 
-            var pattern = new StringBuilder(fileExtensions[0]);
-            for (var i = 1; i < fileExtensions.Count; ++i)
-            {
-                pattern.Append($"|{fileExtensions[i]}");
-            }
+            cloudAssetSearchFilter.Include().Files.Path.WithValue(BuildFileExtensionsRegex(fileExtensions));
+        }
 
-            cloudAssetSearchFilter.Include().Files.Path.WithValue(new Regex($".*({pattern})", RegexOptions.IgnoreCase));
+        // Extensions come from cloud file names and user search terms, so they can contain regex metacharacters.
+        internal static Regex BuildFileExtensionsRegex(List<string> fileExtensions)
+        {
+            var pattern = string.Join("|", fileExtensions.Select(Regex.Escape));
+            return new Regex($".*({pattern})", RegexOptions.IgnoreCase);
         }
 
         static bool TryParseSearchTerms(List<string> searchTerms, Cloud.AssetsEmbedded.AssetSearchFilter cloudAssetSearchFilter)
